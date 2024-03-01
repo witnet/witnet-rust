@@ -24,15 +24,15 @@ pub mod config;
 
 /// Creates a Witnet Request Board contract from Config information
 pub fn create_wrb_contract(
-    eth_client_url: &str,
-    wrb_contract_addr: H160,
+    eth_jsonrpc_url: &str,
+    eth_witnet_oracle: H160,
 ) -> (Web3<Http>, Contract<Http>) {
-    let web3_http = web3::transports::Http::new(eth_client_url)
+    let web3_http = web3::transports::Http::new(eth_jsonrpc_url)
         .map_err(|e| format!("Failed to connect to Ethereum client.\nError: {:?}", e))
         .unwrap();
     let web3 = web3::Web3::new(web3_http);
     // Why read files at runtime when you can read files at compile time
-    let wrb_contract_abi_json: &[u8] = include_bytes!("../wrb_abi.json");
+    let wrb_contract_abi_json: &[u8] = include_bytes!("../../wrb_abi.json");
     let mut wrb_contract_abi = web3::ethabi::Contract::load(wrb_contract_abi_json)
         .map_err(|e| format!("Unable to load WRB contract from ABI: {:?}", e))
         .unwrap();
@@ -41,7 +41,7 @@ pub fn create_wrb_contract(
     // https://github.com/witnet/witnet-rust/issues/2046
     hack_fix_functions_with_multiple_definitions(&mut wrb_contract_abi);
 
-    let wrb_contract = Contract::new(web3.eth(), wrb_contract_addr, wrb_contract_abi);
+    let wrb_contract = Contract::new(web3.eth(), eth_witnet_oracle, wrb_contract_abi);
 
     (web3, wrb_contract)
 }
@@ -108,8 +108,8 @@ pub async fn check_witnet_node_running(witnet_addr: &str) -> Result<(), String> 
 }
 
 /// Check if the ethereum node is running
-pub async fn check_ethereum_node_running(eth_client_url: &str) -> Result<(), String> {
-    let web3_http = web3::transports::Http::new(eth_client_url)
+pub async fn check_ethereum_node_running(eth_jsonrpc_url: &str) -> Result<(), String> {
+    let web3_http = web3::transports::Http::new(eth_jsonrpc_url)
         .map_err(|e| format!("Failed to connect to Ethereum client.\nError: {:?}", e))
         .unwrap();
     let web3 = web3::Web3::new(web3_http);
@@ -118,7 +118,7 @@ pub async fn check_ethereum_node_running(eth_client_url: &str) -> Result<(), Str
     let res = web3.eth().syncing().await;
     match res {
         Ok(syncing) => {
-            log::debug!("Ethereum node is running at {}", eth_client_url);
+            log::debug!("Ethereum node is running at {}", eth_jsonrpc_url);
             match syncing {
                 web3::types::SyncState::NotSyncing => {}
                 web3::types::SyncState::Syncing(sync_info) => {
@@ -135,7 +135,7 @@ pub async fn check_ethereum_node_running(eth_client_url: &str) -> Result<(), Str
                 {
                     // Ignore this error because it can be caused by a non-standard ethereum provider
                     // https://github.com/witnet/witnet-rust/issues/2141
-                    log::debug!("Ethereum node is running at {}", eth_client_url);
+                    log::debug!("Ethereum node is running at {}", eth_jsonrpc_url);
                     log::warn!("Ethereum provider returned `true` on eth_syncing method");
 
                     Ok(())
@@ -179,7 +179,7 @@ mod tests {
     fn test_hack_fix_functions_with_multiple_definitions() {
         // The hack_fix_functions_with_multiple_definitions function already does some checks
         // internally, so here we call it to ensure the ABI is correct.
-        let wrb_contract_abi_json: &[u8] = include_bytes!("../wrb_abi.json");
+        let wrb_contract_abi_json: &[u8] = include_bytes!("../../wrb_abi.json");
         let mut wrb_contract_abi = web3::ethabi::Contract::load(wrb_contract_abi_json)
             .map_err(|e| format!("Unable to load WRB contract from ABI: {:?}", e))
             .unwrap();

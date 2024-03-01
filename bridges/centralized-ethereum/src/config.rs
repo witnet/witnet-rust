@@ -13,57 +13,61 @@ use witnet_data_structures::chain::Environment;
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
-    /// Address of the witnet node JSON-RPC server
-    pub witnet_jsonrpc_addr: SocketAddr,
-    /// Url of the ethereum client
-    pub eth_client_url: String,
-    /// Address of the WitnetRequestsBoard deployed contract
-    pub wrb_contract_addr: H160,
-    /// Address of a Request example deployed contract
-    pub request_example_contract_addr: H160,
-    /// Ethereum account used to create the transactions
-    pub eth_account: H160,
-    /// Period to check for new requests in the WRB
-    pub eth_new_dr_polling_rate_ms: u64,
-    /// Period to check for completed requests in Witnet
-    pub wit_tally_polling_rate_ms: u64,
-    /// Period to post new requests to Witnet
-    pub wit_dr_sender_polling_rate_ms: u64,
-    /// If the data request has been sent to witnet but it is not included in a block, retry after this many milliseconds
-    pub dr_tx_unresolved_timeout_ms: Option<u64>,
-    /// Max value that will be accepted by the bridge node in a data request
-    pub max_dr_value_nanowits: u64,
-    /// Running in the witnet testnet?
-    pub witnet_testnet: bool,
+
+    /// Ethereum account used to report data request results
+    pub eth_from: H160,
+    /// Ethereum account balance under which alerts will be logged
+    pub eth_from_balance_threshold: u64,
     /// Gas limits for some methods. If missing, let the client estimate
     #[serde(deserialize_with = "nested_toml_if_using_envy")]
-    pub gas_limits: Gas,
+    pub eth_gas_limits: Gas,
+    /// Url of the ethereum client
+    pub eth_jsonrpc_url: String,
+    /// Max number of queries to be batched together
+    #[serde(default = "default_max_batch_size")]
+    pub eth_max_batch_size: u16,
+    /// Price of $nanoWit in Wei, used to improve estimation of report profits
+    pub eth_nanowit_wei_price: Option<u64>,
+    /// Polling period for checking new queries in the WitnetOracle contract
+    pub eth_new_drs_polling_rate_ms: u64,
+    /// Number of block confirmations needed to assume finality when sending transactions to ethereum
+    #[serde(default = "one")]
+    pub eth_txs_confirmations: usize,
+    /// Max time to wait for an ethereum transaction to be confirmed before returning an error
+    pub eth_txs_timeout_ms: u64,
+    /// Address of the WitnetRequestsBoard contract
+    pub eth_witnet_oracle: H160,
+    
+    /// Minimum collateral required on data requests read from the WitnetOracle contract
+    pub witnet_dr_min_collateral_nanowits: u64,
+    /// Maximium data request transaction fee assumed by the bridge
+    pub witnet_dr_max_fee_nanowits: u64,
+    /// Maximum data request result size (in bytes) will accept to report
+    pub witnet_dr_max_result_size: usize,
+    /// Maximum data request value that the bridge will accept to relay
+    pub witnet_dr_max_value_nanowits: u64,
+    /// Polling period for checking resolution of data requests in the Witnet blockchain
+    pub witnet_dr_txs_polling_rate_ms: u64,
+    /// Max time to wait for data request resolutions, in milliseconds
+    pub witnet_dr_txs_timeout_ms: u64,
+    /// Address of the witnet node JSON-RPC server
+    pub witnet_jsonrpc_socket: SocketAddr,
+    /// Running in the witnet testnet?
+    pub witnet_testnet: bool,
+
     /// Storage
     #[serde(deserialize_with = "nested_toml_if_using_envy")]
     pub storage: Storage,
     /// Skip first requests up to index n when updating database
-    pub skip_first: Option<u64>,
-    /// Maximum data request result size (in bytes)
-    pub max_result_size: usize,
-    /// Max time to wait for an ethereum transaction to be confirmed before returning an error
-    pub eth_confirmation_timeout_ms: u64,
-    /// Number of block confirmations needed to assume finality when sending transactions to ethereum
-    #[serde(default = "one")]
-    pub num_confirmations: usize,
-    /// Miner fee for the witnet data request transactions, in nanowits
-    pub dr_fee_nanowits: u64,
-    /// Max ratio between the gas price recommended by the provider and the gas price of the requests in the WRB
-    /// That is, the bridge will refrain from paying more than these times the gas price originally set forth by the requesters.
-    #[serde(default = "one_f64")]
-    pub report_result_max_network_gas_price_ratio: f64,
+    pub storage_skip_first: Option<u64>,
 }
 
 fn one() -> usize {
     1
 }
 
-fn one_f64() -> f64 {
-    1.0
+fn default_max_batch_size() -> u16 {
+    256
 }
 
 /// Gas limits for some methods. If missing, let the client estimate
@@ -167,7 +171,7 @@ mod tests {
         struct SmallConfig {
             /// Gas limits for some methods. If missing, let the client estimate
             #[serde(deserialize_with = "nested_toml_if_using_envy")]
-            pub gas_limits: Gas,
+            pub eth_gas_limits: Gas,
             /// Storage
             #[serde(deserialize_with = "nested_toml_if_using_envy")]
             pub storage: Storage,
@@ -186,7 +190,7 @@ mod tests {
         ];
 
         let expected = SmallConfig {
-            gas_limits: Gas {
+            eth_gas_limits: Gas {
                 post_data_request: Some(10_000),
                 report_result: Some(20_000),
             },
