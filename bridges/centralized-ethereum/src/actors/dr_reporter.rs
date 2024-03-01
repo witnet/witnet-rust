@@ -6,7 +6,7 @@ use crate::{
 use actix::prelude::*;
 use std::{collections::HashSet, sync::Arc, time::Duration};
 use web3::{
-    contract::{self, Contract, tokens::Tokenize},
+    contract::{self, tokens::Tokenize, Contract},
     ethabi::{ethereum_types::H256, Token},
     transports::Http,
     types::{H160, U256},
@@ -73,7 +73,7 @@ impl DrReporter {
     pub fn from_config(
         config: &Config,
         web3: Web3<Http>,
-        wrb_contract: Arc<Contract<Http>>
+        wrb_contract: Arc<Contract<Http>>,
     ) -> Self {
         Self {
             web3: Some(web3),
@@ -87,8 +87,6 @@ impl DrReporter {
             eth_txs_confirmations: config.eth_txs_confirmations,
             witnet_dr_max_result_size: config.witnet_dr_max_result_size,
             pending_dr_reports: Default::default(),
-            
-            
         }
     }
 }
@@ -125,10 +123,7 @@ impl Handler<DrReporterMsg> for DrReporter {
         msg.reports.retain(|report| {
             if self.pending_dr_reports.contains(&report.dr_id) {
                 // Timeout is not over yet, no action is needed
-                log::debug!(
-                    "[{}]: currently being reported...",
-                    report.dr_id
-                );
+                log::debug!("[{}]: currently being reported...", report.dr_id);
 
                 false
             } else {
@@ -166,27 +161,26 @@ impl Handler<DrReporterMsg> for DrReporter {
 
         let eth = self.web3.as_ref().unwrap().eth();
         let fut = async move {
-
             // Trace low funds alerts if required.
             let eth_from_balance = match eth.balance(eth_from, None).await {
                 Ok(x) => {
                     if x < U256::from(eth_from_balance_threshold) {
                         eth_from_balance_alert = true;
                         log::warn!(
-                            "EVM address {} running low of funds: {} ETH", 
-                            eth_from, 
+                            "EVM address {} running low of funds: {} ETH",
+                            eth_from,
                             Unit::Wei(&x.to_string()).to_eth_str().unwrap_or_default()
                         );
                     } else if eth_from_balance_alert {
                         log::info!("EVM address {} recovered funds.", eth_from);
                         eth_from_balance_alert = false;
                     }
-                    
+
                     x
                 }
                 Err(e) => {
                     log::error!("Error geting balance from address {}: {:?}", eth_from, e);
-                    
+
                     return eth_from_balance_alert;
                 }
             };
@@ -202,7 +196,7 @@ impl Handler<DrReporterMsg> for DrReporter {
                 Ok(x) => x,
                 Err(e) => {
                     log::error!("Error estimating network gas price: {}", e);
-                    
+
                     return eth_from_balance_alert;
                 }
             };
@@ -223,14 +217,14 @@ impl Handler<DrReporterMsg> for DrReporter {
                     ])
                 })
                 .collect();
-        
+
             let batched_reports = split_by_gas_limit(
                 batched_report,
                 &wrb_contract,
                 eth_from,
                 eth_gas_price,
                 eth_nanowit_wei_price,
-                eth_max_gas
+                eth_max_gas,
             )
             .await;
 
@@ -266,8 +260,9 @@ impl Handler<DrReporterMsg> for DrReporter {
                                         parse_batch_report_error_log(wrb_contract.abi(), log)
                                     {
                                         if dismissed_dr_reports.insert(dismissed_dr_id) {
-                                            log::warn!("[{}]: dismissed => {}", 
-                                                dismissed_dr_id, 
+                                            log::warn!(
+                                                "[{}]: dismissed => {}",
+                                                dismissed_dr_id,
                                                 reason
                                             );
                                         }
@@ -286,8 +281,9 @@ impl Handler<DrReporterMsg> for DrReporter {
                                             .ok();
                                     } else {
                                         // Finalize data requests that got successfully reported
-                                        log::info!("[{}]: success => drTallyTxHash: {}", 
-                                            report.dr_id, 
+                                        log::info!(
+                                            "[{}]: success => drTallyTxHash: {}",
+                                            report.dr_id,
                                             report.dr_tally_tx_hash
                                         );
                                         dr_database_addr
@@ -298,16 +294,24 @@ impl Handler<DrReporterMsg> for DrReporter {
                                             .await
                                             .ok();
                                     }
-                                };
+                                }
                             }
                             Err(()) => {
-                                log::error!("[{:?}]: evm tx failed: {}", dr_ids, receipt.transaction_hash);
+                                log::error!(
+                                    "[{:?}]: evm tx failed: {}",
+                                    dr_ids,
+                                    receipt.transaction_hash
+                                );
                             }
                         }
                     }
                     Ok(Err(e)) => {
                         // Error in call_with_confirmations
-                        log::error!("{}: {:?}", format!("reportResultBatch{:?}", &batched_report), e);
+                        log::error!(
+                            "{}: {:?}",
+                            format!("reportResultBatch{:?}", &batched_report),
+                            e
+                        );
                     }
                     Err(elapsed) => {
                         // Timeout is over
@@ -318,14 +322,20 @@ impl Handler<DrReporterMsg> for DrReporter {
 
             if let Ok(x) = eth.balance(eth_from, None).await {
                 if x < eth_from_balance {
-                    log::warn!("EVM address {} loss: -{} ETH", 
-                        eth_from, 
-                        Unit::Wei(&(eth_from_balance - x).to_string()).to_eth_str().unwrap_or_default()
+                    log::warn!(
+                        "EVM address {} loss: -{} ETH",
+                        eth_from,
+                        Unit::Wei(&(eth_from_balance - x).to_string())
+                            .to_eth_str()
+                            .unwrap_or_default()
                     );
                 } else {
-                    log::debug!("EVM address {} revenue: +{} ETH", 
+                    log::debug!(
+                        "EVM address {} revenue: +{} ETH",
                         eth_from,
-                        Unit::Wei(&(x - eth_from_balance).to_string()).to_eth_str().unwrap_or_default()
+                        Unit::Wei(&(x - eth_from_balance).to_string())
+                            .to_eth_str()
+                            .unwrap_or_default()
                     );
                     eth_from_balance_alert = false;
                 }
@@ -334,13 +344,15 @@ impl Handler<DrReporterMsg> for DrReporter {
             eth_from_balance_alert
         };
 
-        ctx.spawn(fut.into_actor(self).map(move |eth_from_balance_alert, act, _ctx: &mut Context<DrReporter>| {
-            // Reset timeouts
-            for dr_id in incoming_dr_ids {
-                act.pending_dr_reports.remove(&dr_id);
-            }
-            act.eth_from_balance_alert = eth_from_balance_alert
-        }));
+        ctx.spawn(fut.into_actor(self).map(
+            move |eth_from_balance_alert, act, _ctx: &mut Context<DrReporter>| {
+                // Reset timeouts
+                for dr_id in incoming_dr_ids {
+                    act.pending_dr_reports.remove(&dr_id);
+                }
+                act.eth_from_balance_alert = eth_from_balance_alert
+            },
+        ));
     }
 }
 
@@ -368,15 +380,18 @@ fn parse_batch_report_error_log(
     match (&query_id.value, &reason.value) {
         (Token::Uint(query_id), Token::String(reason)) => Some((*query_id, reason.to_string())),
         _ => {
-            panic!("Invalid BatchReportError params: {:?}", batch_report_error_log_params);
+            panic!(
+                "Invalid BatchReportError params: {:?}",
+                batch_report_error_log_params
+            );
         }
     }
 }
 
-/// Split a batched report (argument of reportResultBatch) into multiple smaller 
+/// Split a batched report (argument of reportResultBatch) into multiple smaller
 /// batched reports in order to fit into some gas limit.
 ///
-/// Returns a list of `(batched_report, estimated_gas)` that should be used to 
+/// Returns a list of `(batched_report, estimated_gas)` that should be used to
 /// create multiple "reportResultBatch" transactions.
 async fn split_by_gas_limit(
     batched_report: Vec<Token>,
@@ -390,12 +405,11 @@ async fn split_by_gas_limit(
     let mut stack = vec![batched_report];
 
     while let Some(batch_params) = stack.pop() {
-
         let eth_report_result_batch_params = batch_params.clone();
 
         // --------------------------------------------------------------------------
         // First: try to estimate gas required for reporting this batch of tuples ...
-        
+
         let estimated_gas = wrb_contract
             .estimate_gas(
                 "reportResultBatch",
@@ -407,7 +421,7 @@ async fn split_by_gas_limit(
                 }),
             )
             .await;
-        
+
         if let Err(e) = estimated_gas {
             if batch_params.len() <= 1 {
                 // Skip this single-query batch if still not possible to estimate gas
@@ -415,14 +429,15 @@ async fn split_by_gas_limit(
                 log::warn!("Skipping report: {:?}", batch_params);
             } else {
                 // Split batch in half if gas estimation is not possible
-                let (batch_tuples_1, batch_tuples_2) = batch_params.split_at(batch_params.len() / 2);
+                let (batch_tuples_1, batch_tuples_2) =
+                    batch_params.split_at(batch_params.len() / 2);
                 stack.push(batch_tuples_1.to_vec());
                 stack.push(batch_tuples_2.to_vec());
             }
 
             continue;
-        } 
-        
+        }
+
         let estimated_gas = estimated_gas.unwrap();
         log::debug!(
             "reportResultBatch (x{} drs) estimated gas:    {:?}",
@@ -433,25 +448,26 @@ async fn split_by_gas_limit(
         // ------------------------------------------------
         // Second: try to estimate actual profit, if any...
 
-        let query_ids: Vec<Token> = batch_params.iter().map(|report_params| {
-            if let Token::Tuple(report_params) = report_params {
-                assert_eq!(report_params.len(), 4);
-                
-                report_params[0].clone()
-            } else {
-                panic!("Cannot extract query id from batch tuple");
-            }
-        }).collect();
+        let query_ids: Vec<Token> = batch_params
+            .iter()
+            .map(|report_params| {
+                if let Token::Tuple(report_params) = report_params {
+                    assert_eq!(report_params.len(), 4);
 
-        // the size of the report result tx data may affect the actual profit 
+                    report_params[0].clone()
+                } else {
+                    panic!("Cannot extract query id from batch tuple");
+                }
+            })
+            .collect();
+
+        // the size of the report result tx data may affect the actual profit
         // on some layer-2 EVM chains:
         let eth_report_result_batch_msg_data = wrb_contract
             .abi()
             .function("reportResultBatch")
-            .and_then(|f| {
-                f.encode_input(&eth_report_result_batch_params.into_tokens())
-            });
-        
+            .and_then(|f| f.encode_input(&eth_report_result_batch_params.into_tokens()));
+
         let estimated_profit: Result<U256, web3::contract::Error> = wrb_contract
             .query(
                 "estimateReportEarnings",
@@ -466,16 +482,18 @@ async fn split_by_gas_limit(
                     opt.gas = eth_max_gas.map(Into::into);
                     opt.gas_price = Some(eth_gas_price);
                 }),
-                None
+                None,
             )
             .await;
-        
+
         match estimated_profit {
             Ok(estimated_profit) if estimated_profit > U256::from(0) => {
                 log::debug!(
                     "reportResultBatch (x{} drs) estimated profit: {:?} ETH",
                     batch_params.len(),
-                    Unit::Wei(&estimated_profit.to_string()).to_eth_str().unwrap_or_default(),
+                    Unit::Wei(&estimated_profit.to_string())
+                        .to_eth_str()
+                        .unwrap_or_default(),
                 );
                 v.push((batch_params, estimated_gas));
                 continue;
@@ -597,7 +615,7 @@ mod tests {
                 dr_tally_tx_hash: Hash::SHA256([
                     106, 107, 78, 5, 218, 5, 159, 172, 215, 12, 141, 98, 19, 163, 167, 65, 62, 79,
                     3, 170, 169, 162, 186, 24, 59, 135, 45, 146, 133, 85, 250, 155,
-                ]), 
+                ]),
                 result: vec![26, 160, 41, 182, 230],
             }],
         };
@@ -669,7 +687,7 @@ mod tests {
         assert_eq!(
             parse_batch_report_error_log(&wrb_contract_abi, log_posted_result),
             Some((
-                U256::from(63605), 
+                U256::from(63605),
                 String::from("WitnetOracle: query not in Posted status"),
             ))
         );
