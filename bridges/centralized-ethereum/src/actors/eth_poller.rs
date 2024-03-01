@@ -1,6 +1,7 @@
 use crate::{
     actors::dr_database::{
-        DrDatabase, DrInfoBridge, DrState, GetLastDrId, SetDrInfoBridge, SetDrState, WitnetQueryStatus
+        DrDatabase, DrInfoBridge, DrState, GetLastDrId, SetDrInfoBridge, SetDrState,
+        WitnetQueryStatus,
     },
     config::Config,
 };
@@ -47,10 +48,7 @@ impl Actor for EthPoller {
     fn started(&mut self, ctx: &mut Self::Context) {
         log::debug!("EthPoller actor has been started!");
 
-        self.check_new_requests_from_ethereum(
-            ctx,
-            Duration::from_millis(self.polling_rate_ms),
-        );
+        self.check_new_requests_from_ethereum(ctx, Duration::from_millis(self.polling_rate_ms));
     }
 }
 
@@ -62,7 +60,11 @@ impl SystemService for EthPoller {}
 
 impl EthPoller {
     /// Initialize `PeersManager` taking the configuration from a `Config` structure
-    pub fn from_config(config: &Config, web3: Web3<Http>, wrb_contract: Arc<Contract<Http>>) -> Self {
+    pub fn from_config(
+        config: &Config,
+        web3: Web3<Http>,
+        wrb_contract: Arc<Contract<Http>>,
+    ) -> Self {
         Self {
             web3: Some(web3),
             wrb_contract: Some(wrb_contract),
@@ -78,7 +80,7 @@ impl EthPoller {
         let wrb_contract = self.wrb_contract.clone().unwrap();
         let skip_first = U256::from(self.skip_first);
         let max_batch_size = self.max_batch_size;
-                
+
         // Check requests
         let fut = async move {
             let dr_database_addr = DrDatabase::from_registry();
@@ -103,9 +105,7 @@ impl EthPoller {
 
             let last_dr_id = dr_database_addr.send(GetLastDrId).await;
 
-            if let (Ok(mut next_dr_id), Ok(Ok(mut last_dr_id))) =
-                (next_dr_id, last_dr_id)
-            {
+            if let (Ok(mut next_dr_id), Ok(Ok(mut last_dr_id))) = (next_dr_id, last_dr_id) {
                 if last_dr_id < skip_first {
                     log::debug!(
                         "Skipping first {} queries as per SKIP_FIRST config param",
@@ -119,8 +119,8 @@ impl EthPoller {
                     }
                     let init_index = usize::try_from(last_dr_id + 1).unwrap();
                     let last_index = usize::try_from(next_dr_id).unwrap();
-                    let ids = init_index .. last_index;
-                    let ids: Vec<Token> = ids.map(|id| { Token::Uint(id.into()) }).collect();
+                    let ids = init_index..last_index;
+                    let ids: Vec<Token> = ids.map(|id| Token::Uint(id.into())).collect();
 
                     let queries_status: Result<Vec<u8>, web3::contract::Error> = wrb_contract
                         .query(
@@ -128,10 +128,10 @@ impl EthPoller {
                             Token::Tuple(ids.clone()),
                             None,
                             contract::Options::default(),
-                            None
+                            None,
                         )
                         .await;
-                    
+
                     if let Ok(queries_status) = queries_status {
                         let mut posted_ids: Vec<Token> = vec![];
                         for (pos, status) in queries_status.iter().enumerate() {
@@ -144,11 +144,9 @@ impl EthPoller {
                                     log::info!("[{}]: not yet reported.", query_id);
                                     posted_ids.push(Token::Uint(query_id));
                                 }
-                                WitnetQueryStatus::Reported
-                                    | WitnetQueryStatus::Finalized
-                                => {
+                                WitnetQueryStatus::Reported | WitnetQueryStatus::Finalized => {
                                     log::debug!("[{}]: already reported.", query_id);
-                                    dr_database_addr.do_send(SetDrState { 
+                                    dr_database_addr.do_send(SetDrState {
                                         dr_id: query_id,
                                         dr_state: DrState::Finished,
                                     });
@@ -156,15 +154,16 @@ impl EthPoller {
                             }
                         }
                         if !posted_ids.is_empty() {
-                            let dr_bytecodes: Result<Vec<Bytes>, web3::contract::Error> = wrb_contract
-                                .query(
-                                    "extractWitnetDataRequests",
-                                    Token::Tuple(posted_ids.clone()),
-                                    None,
-                                    contract::Options::default(),
-                                    None
-                                )
-                                .await;
+                            let dr_bytecodes: Result<Vec<Bytes>, web3::contract::Error> =
+                                wrb_contract
+                                    .query(
+                                        "extractWitnetDataRequests",
+                                        Token::Tuple(posted_ids.clone()),
+                                        None,
+                                        contract::Options::default(),
+                                        None,
+                                    )
+                                    .await;
                             if let Ok(dr_bytecodes) = dr_bytecodes {
                                 for (pos, dr_id) in posted_ids.iter().enumerate() {
                                     dr_database_addr.do_send(SetDrInfoBridge(
@@ -172,7 +171,7 @@ impl EthPoller {
                                         DrInfoBridge {
                                             dr_bytes: dr_bytecodes[pos].to_owned(),
                                             ..Default::default()
-                                        }
+                                        },
                                     ));
                                 }
                             } else {
@@ -185,9 +184,9 @@ impl EthPoller {
                     } else {
                         log::error!(
                             "Fail to get status of queries #{} to #{}: {}",
-                             init_index, 
-                             last_index, 
-                             queries_status.unwrap_err().to_string()
+                            init_index,
+                            last_index,
+                            queries_status.unwrap_err().to_string()
                         );
                     }
                 }
