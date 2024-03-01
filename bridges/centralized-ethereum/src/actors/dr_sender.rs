@@ -203,7 +203,7 @@ impl DrSender {
                 .await
                 .unwrap();
 
-            return witnet_node_pkh;
+            witnet_node_pkh
         };
 
         ctx.spawn(fut.into_actor(self).then(move |node_pkh, _act, ctx| {
