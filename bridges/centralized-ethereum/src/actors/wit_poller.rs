@@ -9,7 +9,7 @@ use actix::prelude::*;
 use serde_json::json;
 use std::{convert::TryFrom, time::Duration};
 use witnet_data_structures::chain::{
-    Block, ConsensusConstants, DataRequestInfo, Epoch, EpochConstants, Hash,
+    Block, ConsensusConstants, DataRequestInfo, Epoch, EpochConstants, Hash, Hashable,
 };
 use witnet_net::client::tcp::{jsonrpc, JsonRpcClient};
 use witnet_node::utils::stop_system_if_panicking;
@@ -20,8 +20,8 @@ use witnet_util::timestamp::get_timestamp;
 #[derive(Default)]
 pub struct WitPoller {
     witnet_client: Option<Addr<JsonRpcClient>>,
-    wit_tally_polling_rate_ms: u64,
-    dr_tx_unresolved_timeout_ms: Option<u64>,
+    witnet_dr_txs_polling_rate_ms: u64,
+    witnet_dr_txs_timeout_ms: u64
 }
 
 impl Drop for WitPoller {
@@ -40,7 +40,7 @@ impl Actor for WitPoller {
     fn started(&mut self, ctx: &mut Self::Context) {
         log::debug!("WitPoller actor has been started!");
 
-        self.check_tally_pending_drs(ctx, Duration::from_millis(self.wit_tally_polling_rate_ms))
+        self.check_tally_pending_drs(ctx, Duration::from_millis(self.witnet_dr_txs_polling_rate_ms))
     }
 }
 
@@ -54,20 +54,17 @@ impl WitPoller {
     /// Initialize the `WitPoller` taking the configuration from a `Config` structure
     /// and a Json-RPC client connected to a Witnet node
     pub fn from_config(config: &Config, node_client: Addr<JsonRpcClient>) -> Self {
-        let wit_tally_polling_rate_ms = config.wit_tally_polling_rate_ms;
-        let dr_tx_unresolved_timeout_ms = config.dr_tx_unresolved_timeout_ms;
-
         Self {
             witnet_client: Some(node_client),
-            wit_tally_polling_rate_ms,
-            dr_tx_unresolved_timeout_ms,
+            witnet_dr_txs_polling_rate_ms: config.witnet_dr_txs_polling_rate_ms,
+            witnet_dr_txs_timeout_ms: config.witnet_dr_txs_timeout_ms
         }
     }
 
     fn check_tally_pending_drs(&self, ctx: &mut Context<Self>, period: Duration) {
         let witnet_client = self.witnet_client.clone().unwrap();
-        let dr_tx_unresolved_timeout_ms = self.dr_tx_unresolved_timeout_ms;
-
+        let timeout_secs = i64::try_from(self.witnet_dr_txs_timeout_ms / 1000).unwrap();
+        
         let fut = async move {
             let dr_database_addr = DrDatabase::from_registry();
             let dr_reporter_addr = DrReporter::from_registry();
@@ -95,82 +92,77 @@ impl WitPoller {
                     }
                 };
 
-                let report = match report {
-                    Ok(report) => report,
-
-                    Err(e) => {
-                        log::debug!(
-                            "[{}] dataRequestReport call error: {}",
-                            dr_id,
-                            e.to_string()
-                        );
-
-                        if let Some(dr_timeout_ms) = dr_tx_unresolved_timeout_ms {
-                            // In case of error, if the data request has been unresolved for more than
-                            // X milliseconds, retry by setting it to "New"
-                            if (current_timestamp - dr_tx_creation_timestamp)
-                                > i64::try_from(dr_timeout_ms / 1000).unwrap()
-                            {
-                                log::debug!("[{}] has been unresolved after more than {} ms, setting to New", dr_id, dr_timeout_ms);
-                                dr_database_addr
-                                    .send(SetDrInfoBridge(
-                                        dr_id,
-                                        DrInfoBridge {
-                                            dr_bytes,
-                                            dr_state: DrState::New,
-                                            dr_tx_hash: None,
-                                            dr_tx_creation_timestamp: None,
-                                        },
-                                    ))
-                                    .await
-                                    .unwrap();
-                            }
+                if let Ok(report) = report {
+                    match serde_json::from_value::<Option<DataRequestInfo>>(report) {
+                        Ok(Some(DataRequestInfo {
+                            tally: Some(tally),
+                            block_hash_dr_tx: Some(dr_block_hash),
+                            current_commit_round: dr_commits_round,
+                            ..
+                        })) => {
+                            log::info!(
+                                "[{}]: found tally {} for dr_tx {}",
+                                dr_id,
+                                &tally.hash(),
+                                dr_tx_hash
+                            );
+    
+                            let result = tally.tally.clone();
+                            // Get timestamp of the epoch at which all data request commit txs
+                            // were incuded in the Witnet blockchain:
+                            let dr_timestamp =
+                                match get_dr_timestamp(witnet_client.clone(), dr_block_hash, dr_commits_round).await {
+                                    Ok(timestamp) => timestamp,
+                                    Err(()) => continue,
+                                };
+    
+                            dr_reporter_msgs.push(Report {
+                                dr_id,
+                                dr_timestamp,
+                                dr_tx_hash,
+                                dr_tally_tx_hash: tally.hash(),
+                                result,
+                            });
                         }
-                        continue;
-                    }
-                };
+                        Ok(..) => {
+                            // the data request is being resolved, just not yet
+                        }
+                        Err(e) => {
+                            log::error!("[{}]: cannot deserialize dataRequestReport([{}]): {:?}", 
+                                dr_id, 
+                                dr_tx_hash,
+                                e
+                            );
+                        }
+                    };
+                } else {
+                    log::debug!("[{}]: dataRequestReport([{}]) call error: {}",
+                        dr_id,
+                        dr_tx_hash,
+                        report.unwrap_err().to_string()
+                    );
+                }
 
-                match serde_json::from_value::<Option<DataRequestInfo>>(report) {
-                    Ok(Some(DataRequestInfo {
-                        tally: Some(tally),
-                        block_hash_dr_tx: Some(dr_block_hash),
-                        ..
-                    })) => {
-                        log::info!(
-                            "[{}] Found possible tally to be reported for dr_tx_hash {}",
+                let elapsed_secs = current_timestamp - dr_tx_creation_timestamp;
+                if elapsed_secs >= timeout_secs {
+                    log::debug!("[{}]: retrying new dr_tx after {} secs", 
+                        dr_id, 
+                        elapsed_secs
+                    );
+                    DrDatabase::from_registry()
+                        .send(SetDrInfoBridge(
                             dr_id,
-                            dr_tx_hash
-                        );
-
-                        let result = tally.tally;
-                        // Get timestamp of first block with commits. The timestamp of the data
-                        // point is the timestamp of that block minus 45 seconds, because the commit
-                        // transactions are created one epoch earlier.
-                        // TODO: first block with commits is hard to obtain, we are simply using the
-                        // block that included the data request.
-                        let timestamp =
-                            match get_block_timestamp(witnet_client.clone(), dr_block_hash).await {
-                                Ok(timestamp) => timestamp,
-                                Err(()) => continue,
-                            };
-
-                        dr_reporter_msgs.push(Report {
-                            dr_id,
-                            timestamp,
-                            dr_tx_hash,
-                            result,
-                        });
-                    }
-                    Ok(..) => {
-                        // No problem, this means the data request has not been resolved yet
-                        log::debug!("[{}] Data request not resolved yet", dr_id);
-                        continue;
-                    }
-                    Err(e) => {
-                        log::error!("[{}] dataRequestReport deserialize error: {:?}", dr_id, e);
-                        continue;
-                    }
-                };
+                            DrInfoBridge {
+                                dr_bytes,
+                                dr_state: DrState::New,
+                                dr_tx_hash: None,
+                                dr_tx_creation_timestamp: None,
+                            },
+                        ))
+                        .await
+                        .unwrap();
+                }
+            
             }
 
             dr_reporter_addr
@@ -195,12 +187,13 @@ impl WitPoller {
 }
 
 /// Return the timestamp of this block hash
-async fn get_block_timestamp(
+async fn get_dr_timestamp(
     witnet_client: Addr<JsonRpcClient>,
-    block_hash: Hash,
+    drt_block_hash: Hash,
+    dr_commits_round: u16,
 ) -> Result<u64, ()> {
     let method = String::from("getBlock");
-    let params = json!([block_hash]);
+    let params = json!([drt_block_hash]);
     let req = jsonrpc::Request::method(method)
         .timeout(Duration::from_millis(5_000))
         .params(params)
@@ -216,7 +209,7 @@ async fn get_block_timestamp(
     let block = match report {
         Ok(value) => serde_json::from_value::<Block>(value).expect("failed to deserialize block"),
         Err(e) => {
-            log::error!("error in getBlock call ({}): {:?}", block_hash, e);
+            log::error!("error in getBlock call ({}): {:?}", drt_block_hash, e);
             return Err(());
         }
     };
@@ -232,9 +225,10 @@ async fn get_block_timestamp(
         checkpoint_zero_timestamp: consensus_constants.checkpoint_zero_timestamp,
         checkpoints_period: consensus_constants.checkpoints_period,
     };
-    // TODO: try to guess commit block by adding +1 to block_epoch
-    // When we actually use the hash of the commit block, this +1 must be removed
-    let timestamp = convert_block_epoch_to_timestamp(epoch_constants, block_epoch + 1);
+    let timestamp = convert_block_epoch_to_timestamp(
+        epoch_constants, 
+        block_epoch + u32::from(dr_commits_round + 1)
+    );
 
     Ok(timestamp)
 }
