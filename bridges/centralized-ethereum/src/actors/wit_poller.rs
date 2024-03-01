@@ -21,7 +21,7 @@ use witnet_util::timestamp::get_timestamp;
 pub struct WitPoller {
     witnet_client: Option<Addr<JsonRpcClient>>,
     witnet_dr_txs_polling_rate_ms: u64,
-    witnet_dr_txs_timeout_ms: u64
+    witnet_dr_txs_timeout_ms: u64,
 }
 
 impl Drop for WitPoller {
@@ -40,7 +40,10 @@ impl Actor for WitPoller {
     fn started(&mut self, ctx: &mut Self::Context) {
         log::debug!("WitPoller actor has been started!");
 
-        self.check_tally_pending_drs(ctx, Duration::from_millis(self.witnet_dr_txs_polling_rate_ms))
+        self.check_tally_pending_drs(
+            ctx,
+            Duration::from_millis(self.witnet_dr_txs_polling_rate_ms),
+        )
     }
 }
 
@@ -57,14 +60,14 @@ impl WitPoller {
         Self {
             witnet_client: Some(node_client),
             witnet_dr_txs_polling_rate_ms: config.witnet_dr_txs_polling_rate_ms,
-            witnet_dr_txs_timeout_ms: config.witnet_dr_txs_timeout_ms
+            witnet_dr_txs_timeout_ms: config.witnet_dr_txs_timeout_ms,
         }
     }
 
     fn check_tally_pending_drs(&self, ctx: &mut Context<Self>, period: Duration) {
         let witnet_client = self.witnet_client.clone().unwrap();
         let timeout_secs = i64::try_from(self.witnet_dr_txs_timeout_ms / 1000).unwrap();
-        
+
         let fut = async move {
             let dr_database_addr = DrDatabase::from_registry();
             let dr_reporter_addr = DrReporter::from_registry();
@@ -106,16 +109,21 @@ impl WitPoller {
                                 &tally.hash(),
                                 dr_tx_hash
                             );
-    
+
                             let result = tally.tally.clone();
                             // Get timestamp of the epoch at which all data request commit txs
                             // were incuded in the Witnet blockchain:
-                            let dr_timestamp =
-                                match get_dr_timestamp(witnet_client.clone(), dr_block_hash, dr_commits_round).await {
-                                    Ok(timestamp) => timestamp,
-                                    Err(()) => continue,
-                                };
-    
+                            let dr_timestamp = match get_dr_timestamp(
+                                witnet_client.clone(),
+                                dr_block_hash,
+                                dr_commits_round,
+                            )
+                            .await
+                            {
+                                Ok(timestamp) => timestamp,
+                                Err(()) => continue,
+                            };
+
                             dr_reporter_msgs.push(Report {
                                 dr_id,
                                 dr_timestamp,
@@ -128,15 +136,17 @@ impl WitPoller {
                             // the data request is being resolved, just not yet
                         }
                         Err(e) => {
-                            log::error!("[{}]: cannot deserialize dataRequestReport([{}]): {:?}", 
-                                dr_id, 
+                            log::error!(
+                                "[{}]: cannot deserialize dataRequestReport([{}]): {:?}",
+                                dr_id,
                                 dr_tx_hash,
                                 e
                             );
                         }
                     };
                 } else {
-                    log::debug!("[{}]: dataRequestReport([{}]) call error: {}",
+                    log::debug!(
+                        "[{}]: dataRequestReport([{}]) call error: {}",
                         dr_id,
                         dr_tx_hash,
                         report.unwrap_err().to_string()
@@ -145,8 +155,9 @@ impl WitPoller {
 
                 let elapsed_secs = current_timestamp - dr_tx_creation_timestamp;
                 if elapsed_secs >= timeout_secs {
-                    log::debug!("[{}]: retrying new dr_tx after {} secs", 
-                        dr_id, 
+                    log::debug!(
+                        "[{}]: retrying new dr_tx after {} secs",
+                        dr_id,
                         elapsed_secs
                     );
                     DrDatabase::from_registry()
@@ -162,7 +173,6 @@ impl WitPoller {
                         .await
                         .unwrap();
                 }
-            
             }
 
             dr_reporter_addr
@@ -226,8 +236,8 @@ async fn get_dr_timestamp(
         checkpoints_period: consensus_constants.checkpoints_period,
     };
     let timestamp = convert_block_epoch_to_timestamp(
-        epoch_constants, 
-        block_epoch + u32::from(dr_commits_round + 1)
+        epoch_constants,
+        block_epoch + u32::from(dr_commits_round + 1),
     );
 
     Ok(timestamp)
