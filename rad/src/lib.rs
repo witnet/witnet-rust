@@ -184,7 +184,7 @@ fn headers_response_with_data_report(
     let headers: BTreeMap<String, RadonTypes> = response
         .split("\r\n")
         .map(|line| {
-            let parts: Vec<&str> = line.split(":").map(|part| part.trim()).collect();
+            let parts: Vec<&str> = line.split(':').map(|part| part.trim()).collect();
             // todo: check there are two parts, and two parts only
             // todo: make sure that values from repeated keys get appended within a RadonArray
             (

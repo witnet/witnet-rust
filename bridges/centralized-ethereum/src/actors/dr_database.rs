@@ -184,7 +184,7 @@ impl Handler<SetDrInfoBridge> for DrDatabase {
 
     fn handle(&mut self, msg: SetDrInfoBridge, ctx: &mut Self::Context) -> Self::Result {
         let SetDrInfoBridge(dr_id, dr_info) = msg;
-        let dr_state = dr_info.dr_state.clone();
+        let dr_state = dr_info.dr_state;
         self.dr.insert(dr_id, dr_info);
 
         self.max_dr_id = cmp::max(self.max_dr_id, dr_id);
@@ -257,7 +257,7 @@ impl Handler<SetDrState> for DrDatabase {
             Entry::Vacant(entry) => {
                 entry.insert(DrInfoBridge {
                     dr_bytes: vec![],
-                    dr_state: dr_state,
+                    dr_state,
                     dr_tx_hash: None,
                     dr_tx_creation_timestamp: None,
                 });
