@@ -67,7 +67,7 @@ pub enum RadonErrors {
     /// The request is rejected on the grounds that it may cause the submitter to spend or stake an
     /// amount of value that is unjustifiably high when compared with the reward they will be getting
     BridgePoorIncentives = 0xE1,
-    /// The request result length exceeds a bridge contract defined limit
+    /// The request result length exceeds the bridge limit
     BridgeOversizedResult = 0xE2,
     // This should not exist:
     /// Some tally error is not intercepted but should
