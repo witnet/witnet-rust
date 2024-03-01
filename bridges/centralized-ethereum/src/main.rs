@@ -4,7 +4,6 @@ use actix::{Actor, System, SystemRegistry};
 use std::{path::PathBuf, process::exit, sync::Arc};
 use structopt::StructOpt;
 
-use web3::{contract, types::U256};
 use witnet_centralized_ethereum_bridge::{
     actors::{
         dr_database::DrDatabase, dr_reporter::DrReporter, dr_sender::DrSender,
@@ -22,9 +21,6 @@ struct App {
     /// Path of the config file
     #[structopt(short = "c", long)]
     config: Option<PathBuf>,
-    /// Post data request and exit
-    #[structopt(long = "post-dr")]
-    post_dr: bool,
     /// Read config from environment
     #[structopt(long = "env", conflicts_with = "config")]
     env: bool,
@@ -42,30 +38,6 @@ fn init_logger() {
     env_logger::Builder::from_env(env_logger::Env::default())
         .filter_module("witnet_centralized_ethereum_bridge", log_level)
         .init();
-}
-
-async fn post_example_dr(config: Arc<config::Config>) {
-    log::info!("Posting an example of Data Request");
-    let (_web3, wrb_contract) =
-        create_wrb_contract(&config.eth_client_url, config.wrb_contract_addr);
-
-    log::info!("calling postDataRequest");
-
-    let res = wrb_contract
-        .call_with_confirmations(
-            "postDataRequest",
-            (config.request_example_contract_addr,),
-            config.eth_account,
-            contract::Options::with(|opt| {
-                opt.value = Some(U256::from_dec_str("2500000000000000").unwrap());
-                // The cost of posting a data request is mainly the storage, so
-                // big data requests may need bigger amounts of gas
-                opt.gas = config.gas_limits.post_data_request.map(Into::into);
-            }),
-            1,
-        )
-        .await;
-    log::info!("The receipt is {:?}", res);
 }
 
 fn main() {
@@ -101,18 +73,11 @@ fn run(callback: fn()) -> Result<(), String> {
 
     // Init system
     let system = System::new();
-    let condition = app.post_dr;
 
     // Init actors
     system.block_on(async {
         // Call cb function (register interrupt handlers)
         callback();
-
-        if condition {
-            post_example_dr(config).await;
-            log::info!("post post_example DR");
-        } else {
-            let witnet_client_url = config.witnet_jsonrpc_addr.to_string();
 
         // Check if Ethereum and Witnet nodes are running before starting actors
         check_ethereum_node_running(&config.eth_jsonrpc_url)
