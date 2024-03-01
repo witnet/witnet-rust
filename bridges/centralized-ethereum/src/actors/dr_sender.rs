@@ -28,9 +28,11 @@ mod tests;
 #[derive(Default)]
 pub struct DrSender {
     witnet_client: Option<Addr<JsonRpcClient>>,
-    wit_dr_sender_polling_rate_ms: u64,
-    max_dr_value_nanowits: u64,
-    dr_fee_nanowits: u64,
+    witnet_dr_min_collateral_nanowits: u64,
+    witnet_dr_max_value_nanowits: u64,
+    witnet_dr_max_fee_nanowits: u64,
+    witnet_node_pkh: Option<String>,
+    polling_rate_ms: u64,
 }
 
 impl Drop for DrSender {
@@ -51,7 +53,7 @@ impl Actor for DrSender {
 
         self.check_new_drs(
             ctx,
-            Duration::from_millis(self.wit_dr_sender_polling_rate_ms),
+            Duration::from_millis(self.polling_rate_ms),
         );
     }
 }
@@ -66,42 +68,79 @@ impl DrSender {
     /// Initialize the `DrSender` taking the configuration from a `Config` structure
     /// and a Json-RPC client connected to a Witnet node
     pub fn from_config(config: &Config, node_client: Addr<JsonRpcClient>) -> Self {
-        let max_dr_value_nanowits = config.max_dr_value_nanowits;
-        let wit_dr_sender_polling_rate_ms = config.wit_dr_sender_polling_rate_ms;
-        let dr_fee_nanowits = config.dr_fee_nanowits;
-
         Self {
+            polling_rate_ms: config.eth_new_drs_polling_rate_ms / 2 + 1000,
             witnet_client: Some(node_client),
-            wit_dr_sender_polling_rate_ms,
-            max_dr_value_nanowits,
-            dr_fee_nanowits,
+            witnet_dr_min_collateral_nanowits: config.witnet_dr_min_collateral_nanowits,
+            witnet_dr_max_value_nanowits: config.witnet_dr_max_value_nanowits,
+            witnet_dr_max_fee_nanowits: config.witnet_dr_max_fee_nanowits,
+            witnet_node_pkh: None,
         }
     }
 
     fn check_new_drs(&self, ctx: &mut Context<Self>, period: Duration) {
         let witnet_client = self.witnet_client.clone().unwrap();
-        let max_dr_value_nanowits = self.max_dr_value_nanowits;
-        let dr_fee_nanowits = self.dr_fee_nanowits;
+        let witnet_dr_min_collateral_nanowits = self.witnet_dr_min_collateral_nanowits;
+        let witnet_dr_max_value_nanowits = self.witnet_dr_max_value_nanowits;
+        let witnet_dr_max_fee_nanowits = self.witnet_dr_max_fee_nanowits;
+        let mut witnet_node_pkh = self.witnet_node_pkh.clone();
 
         let fut = async move {
             let dr_database_addr = DrDatabase::from_registry();
             let dr_reporter_addr = DrReporter::from_registry();
 
+            if witnet_node_pkh.is_none() {
+                // get witnet node's pkh if not yet known
+                let req = jsonrpc::Request::method("getPkh")
+                    .timeout(Duration::from_millis(5000));
+                let res = witnet_client.send(req).await;
+                witnet_node_pkh = match res {
+                    Ok(Ok(res)) => match serde_json::from_value::<String>(res) {
+                        Ok(pkh) => Some(pkh),
+                        Err(_) => None
+                    }
+                    Ok(Err(_)) => {
+                        log::warn!("Cannot deserialize witnet node's pkh, will retry later");
+
+                        None
+                    }
+                    Err(_) => {
+                        log::warn!("Cannot get witnet node's pkh, will retry later");
+                        
+                        None
+                    }
+                };   
+            } else {
+                // TODO: alert if number of big enough utxos is less number of drs to broadcast
+                // let req = jsonrpc::Request::method("getUtxoInfo")
+                //     .timeout(Duration::from_millis(5_000))
+                //     .params(witnet_node_pkh.unwrap())
+                //     .expect("getUtxoInfo params failed serialization");
+            }
+
+            // process latest drs added or set as New in the database
             let new_drs = dr_database_addr.send(GetAllNewDrs).await.unwrap().unwrap();
             let mut dr_reporter_msgs = vec![];
 
             for (dr_id, dr_bytes) in new_drs {
-                match deserialize_and_validate_dr_bytes(&dr_bytes, max_dr_value_nanowits) {
+                match deserialize_and_validate_dr_bytes(
+                        &dr_bytes,
+                        witnet_dr_min_collateral_nanowits,
+                        witnet_dr_max_value_nanowits,
+                ) {
                     Ok(dr_output) => {
                         let req = jsonrpc::Request::method("sendRequest")
                             .timeout(Duration::from_millis(5_000))
-                            .params(json!({"dro": dr_output, "fee": dr_fee_nanowits}))
-                            .expect("params failed serialization");
+                            .params(json!({
+                                "dro": dr_output, 
+                                "fee": std::cmp::min(dr_output.witness_reward, witnet_dr_max_fee_nanowits)
+                            }))
+                            .expect("DataRequestOutput params failed serialization");
                         let res = witnet_client.send(req).await;
                         let res = match res {
                             Ok(res) => res,
                             Err(_) => {
-                                log::error!("Failed to connect to witnet client, will retry later");
+                                log::error!("Failed to connect to witnet node, will retry later");
                                 break;
                             }
                         };
@@ -126,7 +165,7 @@ impl DrSender {
                                     }
                                     Err(e) => {
                                         // Unexpected error deserializing hash
-                                        panic!("[{}] error deserializing dr_tx: {}", dr_id, e);
+                                        panic!("[{}]: cannot deserialize dr_tx: {}", dr_id, e);
                                     }
                                 }
                             }
@@ -134,7 +173,7 @@ impl DrSender {
                                 // Error sending transaction: node not synced, not enough balance, etc.
                                 // Do nothing, will retry later.
                                 log::error!(
-                                    "[{}] error creating data request transaction: {}",
+                                    "[{}]: cannot broadcast dr_tx: {}",
                                     dr_id,
                                     e
                                 );
@@ -145,20 +184,23 @@ impl DrSender {
                     Err(err) => {
                         // Error deserializing or validating data request: mark data request as
                         // error and report error as result to ethereum.
-                        log::error!("[{}] error: {}", dr_id, err);
+                        log::error!("[{}]: unacceptable data request bytecode: {}", 
+                            dr_id, 
+                            err
+                        );
                         let result = err.encode_cbor();
-                        // In this case there is no data request transaction, so the dr_tx_hash
-                        // field can be set to anything.
-                        // Except all zeros, because that hash is invalid.
-                        let dr_tx_hash =
-                            "0000000000000000000000000000000000000000000000000000000000000001"
+                        // In this case there is no data request transaction, so 
+                        // we set both the dr_tx_hash and dr_tally_tx_hash to zero values.
+                        let zero_hash =
+                            "0000000000000000000000000000000000000000000000000000000000000000"
                                 .parse()
                                 .unwrap();
 
                         dr_reporter_msgs.push(Report {
                             dr_id,
-                            timestamp: 0,
-                            dr_tx_hash,
+                            dr_timestamp: u64::from_ne_bytes(get_timestamp().to_ne_bytes()),
+                            dr_tx_hash: zero_hash,
+                            dr_tally_tx_hash: zero_hash,
                             result,
                         });
                     }
@@ -171,12 +213,15 @@ impl DrSender {
                 })
                 .await
                 .unwrap();
+
+            return witnet_node_pkh;
         };
 
-        ctx.spawn(fut.into_actor(self).then(move |(), _act, ctx| {
+        ctx.spawn(fut.into_actor(self).then(move |node_pkh, _act, ctx| {
             // Wait until the function finished to schedule next call.
             // This avoids tasks running in parallel.
             ctx.run_later(period, move |act, ctx| {
+                act.witnet_node_pkh = node_pkh;
                 // Reschedule check_new_drs
                 act.check_new_drs(ctx, period);
             });
@@ -190,23 +235,23 @@ impl DrSender {
 /// an error
 #[derive(Debug)]
 enum DrSenderError {
-    /// The data request bytes are not a valid DataRequestOutput
+    /// Cannot deserialize data request bytecode as read from the WitnetOracle contract
     Deserialization { msg: String },
-    /// The DataRequestOutput is invalid (wrong number of witnesses, wrong min_consensus_percentage)
+    /// Invalid data request SLA parameters
     Validation { msg: String },
-    /// The RADRequest is invalid (malformed radon script)
+    /// Malformed Radon script
     RadonValidation { msg: String },
-    /// The specified collateral amount is invalid
+    /// Invalid collateral amount
     InvalidCollateral { msg: String },
     /// E.g. the WIP-0022 reward to collateral ratio is not satisfied
     InvalidReward { msg: String },
-    /// Overflow when calculating the data request value
+    /// Invalid data request total value
     InvalidValue { msg: String },
     /// The cost of the data request is greater than the maximum allowed by the configuration of
     /// this bridge node
     ValueGreaterThanAllowed {
         dr_value_nanowits: u64,
-        max_dr_value_nanowits: u64,
+        dr_max_value_nanowits: u64,
     },
 }
 
@@ -233,12 +278,12 @@ impl fmt::Display for DrSenderError {
             }
             DrSenderError::ValueGreaterThanAllowed {
                 dr_value_nanowits,
-                max_dr_value_nanowits,
+                dr_max_value_nanowits,
             } => {
                 write!(
                     f,
                     "data request value ({}) higher than maximum allowed ({})",
-                    dr_value_nanowits, max_dr_value_nanowits
+                    dr_value_nanowits, dr_max_value_nanowits
                 )
             }
         }
@@ -269,19 +314,17 @@ impl DrSenderError {
 
 fn deserialize_and_validate_dr_bytes(
     dr_bytes: &[u8],
-    max_dr_value_nanowits: u64,
+    dr_min_collateral_nanowits: u64,
+    dr_max_value_nanowits: u64,
 ) -> Result<DataRequestOutput, DrSenderError> {
     match DataRequestOutput::from_pb_bytes(dr_bytes) {
         Err(e) => Err(DrSenderError::Deserialization { msg: e.to_string() }),
         Ok(dr_output) => {
-            // TODO: read from consensus constants
-            let collateral_minimum = 1_000_000_000;
-            // TODO: read from consensus_constants
             let required_reward_collateral_ratio =
                 PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
             validate_data_request_output(
                 &dr_output,
-                collateral_minimum,
+                dr_output.collateral, // we don't want to ever alter the dro_hash 
                 required_reward_collateral_ratio,
                 &current_active_wips(),
             )
@@ -294,11 +337,11 @@ fn deserialize_and_validate_dr_bytes(
 
             // Collateral value validation
             // If collateral is equal to 0 means that is equal to collateral_minimum value
-            if (dr_output.collateral != 0) && (dr_output.collateral < collateral_minimum) {
+            if (dr_output.collateral != 0) && (dr_output.collateral < dr_min_collateral_nanowits) {
                 return Err(DrSenderError::InvalidCollateral {
                     msg: format!(
                         "Collateral ({}) must be greater than the minimum ({})",
-                        dr_output.collateral, collateral_minimum
+                        dr_output.collateral, dr_min_collateral_nanowits
                     ),
                 });
             }
@@ -311,10 +354,10 @@ fn deserialize_and_validate_dr_bytes(
             let dr_value_nanowits = dr_output
                 .checked_total_value()
                 .map_err(|e| DrSenderError::InvalidValue { msg: e.to_string() })?;
-            if dr_value_nanowits > max_dr_value_nanowits {
+            if dr_value_nanowits > dr_max_value_nanowits {
                 return Err(DrSenderError::ValueGreaterThanAllowed {
                     dr_value_nanowits,
-                    max_dr_value_nanowits,
+                    dr_max_value_nanowits,
                 });
             }
 
