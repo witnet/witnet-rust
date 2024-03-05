@@ -114,13 +114,15 @@ impl EthPoller {
                     last_dr_id = skip_first;
                 }
                 if last_dr_id < next_dr_id {
-                    if last_dr_id + max_batch_size > next_dr_id {
+                    if next_dr_id > last_dr_id + max_batch_size {
                         next_dr_id = last_dr_id + max_batch_size;
                     }
                     let init_index = usize::try_from(last_dr_id + 1).unwrap();
-                    let last_index = usize::try_from(next_dr_id).unwrap();
+                    let last_index = usize::try_from(next_dr_id + 1).unwrap();
                     let ids = init_index..last_index;
                     let ids: Vec<Token> = ids.map(|id| Token::Uint(id.into())).collect();
+
+                    log::debug!("getQueryStatusBatch params => {}", Token::Tuple(ids.clone()));
 
                     let queries_status: Result<Vec<u8>, web3::contract::Error> = wrb_contract
                         .query(
