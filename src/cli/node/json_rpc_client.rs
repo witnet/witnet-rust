@@ -41,7 +41,9 @@ use witnet_data_structures::{
 };
 use witnet_node::actors::{
     chain_manager::run_dr_locally,
-    json_rpc::api::{AddrType, GetBlockChainParams, GetTransactionOutput, PeersResult},
+    json_rpc::api::{
+        AddrType, GetBlockChainParams, GetTransactionOutput, PeersResult, QueryStakesArgument,
+    },
     messages::{
         AuthorizeStake, BuildDrt, BuildStakeParams, BuildStakeResponse, BuildVtt, GetBalanceTarget,
         GetReputationResult, MagicEither, SignalingInfo, StakeAuthorization,
@@ -1822,6 +1824,34 @@ pub fn priority(addr: SocketAddr, json: bool) -> Result<(), failure::Error> {
     } else {
         println!("{}", estimate);
     }
+
+    Ok(())
+}
+
+pub fn query_stakes(
+    addr: SocketAddr,
+    validator: Option<String>,
+    withdrawer: Option<String>,
+) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
+
+    let params = match (validator, withdrawer) {
+        (Some(validator), Some(withdrawer)) => {
+            Some(QueryStakesArgument::Key((validator, withdrawer)))
+        }
+        (Some(validator), _) => Some(QueryStakesArgument::Validator(validator)),
+        (_, Some(withdrawer)) => Some(QueryStakesArgument::Withdrawer(withdrawer)),
+        (None, None) => None,
+    };
+
+    let response = send_request(
+        &mut stream,
+        &format!(
+            r#"{{"jsonrpc": "2.0","method": "queryStakes", "params": {}, "id": 1}}"#,
+            serde_json::to_string(&params).unwrap()
+        ),
+    )?;
+    log::info!("{}", response);
 
     Ok(())
 }

@@ -290,6 +290,11 @@ pub fn exec_cmd(
         Command::AuthorizeStake { node, withdrawer } => {
             rpc::authorize_st(node.unwrap_or(default_jsonrpc), withdrawer)
         }
+        Command::QueryStakes {
+            node,
+            withdrawer,
+            validator,
+        } => rpc::query_stakes(node.unwrap_or(default_jsonrpc), withdrawer, validator),
     }
 }
 
@@ -783,6 +788,15 @@ pub enum Command {
         node: Option<SocketAddr>,
         /// Withdrawer address
         #[structopt(long = "withdrawer")]
+        withdrawer: Option<String>,
+    },
+    QueryStakes {
+        /// Socket address of the Witnet node to query
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
+        #[structopt(short = "v", long = "validator")]
+        validator: Option<String>,
+        #[structopt(short = "w", long = "withdrawer")]
         withdrawer: Option<String>,
     },
 }
