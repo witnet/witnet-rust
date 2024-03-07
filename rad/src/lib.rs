@@ -25,10 +25,11 @@ use crate::{
         create_radon_script_from_filters_and_reducer, execute_radon_script, unpack_radon_script,
         RadonScriptExecutionSettings,
     },
-    types::{array::RadonArray, bytes::RadonBytes, string::RadonString, RadonTypes},
+    types::{array::RadonArray, bytes::RadonBytes, map::RadonMap, string::RadonString, RadonTypes},
     user_agents::UserAgent,
 };
 use core::convert::From;
+use std::collections::BTreeMap;
 use witnet_net::client::http::{WitnetHttpBody, WitnetHttpRequest};
 
 pub mod conditions;
@@ -173,6 +174,31 @@ fn string_response_with_data_report(
     execute_radon_script(input, &radon_script, context, settings)
 }
 
+/// Handle HTTP-HEAD response with data, and return a `RadonReport`.
+fn headers_response_with_data_report(
+    retrieve: &RADRetrieve,
+    response: &str,
+    context: &mut ReportContext<RadonTypes>,
+    settings: RadonScriptExecutionSettings,
+) -> Result<RadonReport<RadonTypes>> {
+    let headers: BTreeMap<String, RadonTypes> = response
+        .split("\r\n")
+        .map(|line| {
+            let parts: Vec<&str> = line.split(':').map(|part| part.trim()).collect();
+            // todo: check there are two parts, and two parts only
+            // todo: make sure that values from repeated keys get appended within a RadonArray
+            (
+                String::from(parts[0]),
+                RadonTypes::from(RadonString::from(parts[1])),
+            )
+        })
+        .collect();
+    let input = RadonTypes::from(RadonMap::from(headers));
+    let radon_script = unpack_radon_script(&retrieve.script)?;
+
+    execute_radon_script(input, &radon_script, context, settings)
+}
+
 /// Handle Rng response with data report
 fn rng_response_with_data_report(
     response: &str,
@@ -197,6 +223,9 @@ pub fn run_retrieval_with_data_report(
         RADType::HttpPost => {
             string_response_with_data_report(retrieve, response, context, settings)
         }
+        RADType::HttpHead => {
+            headers_response_with_data_report(retrieve, response, context, settings)
+        }
         _ => Err(RadError::UnknownRetrieval),
     }
 }
@@ -214,7 +243,7 @@ pub fn run_retrieval_with_data(
         .map(RadonReport::into_inner)
 }
 
-/// Handle generic HTTP (GET/POST) response
+/// Handle generic HTTP (GET/POST/HEAD) response
 async fn http_response(
     retrieve: &RADRetrieve,
     context: &mut ReportContext<RadonTypes>,
@@ -259,6 +288,10 @@ async fn http_response(
                     WitnetHttpBody::from(retrieve.body.clone()),
                 )
             }
+            RADType::HttpHead => (
+                builder.method("HEAD").uri(&retrieve.url),
+                WitnetHttpBody::empty(),
+            ),
             _ => panic!(
                 "Called http_response with invalid retrieval kind {:?}",
                 retrieve.kind
@@ -357,6 +390,7 @@ pub async fn run_retrieval_report(
         RADType::HttpGet => http_response(retrieve, context, settings, client).await,
         RADType::Rng => rng_response(context, settings).await,
         RADType::HttpPost => http_response(retrieve, context, settings, client).await,
+        RADType::HttpHead => http_response(retrieve, context, settings, client).await,
         _ => Err(RadError::UnknownRetrieval),
     }
 }
