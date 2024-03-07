@@ -468,15 +468,17 @@ async fn split_by_gas_limit(
             .function("reportResultBatch")
             .and_then(|f| f.encode_input(&eth_report_result_batch_params.into_tokens()));
 
-        let estimated_profit: Result<U256, web3::contract::Error> = wrb_contract
+        let params = (
+            Token::Array(query_ids),
+            Token::Bytes(eth_report_result_batch_msg_data.unwrap_or_default()),
+            Token::Uint(eth_gas_price),
+            Token::Uint(eth_nanowit_wei_price),
+        );
+
+        let estimated_profit: Result<(U256, U256), web3::contract::Error> = wrb_contract
             .query(
                 "estimateReportEarnings",
-                Token::Tuple(vec![
-                    Token::Tuple(query_ids),
-                    Token::Bytes(eth_report_result_batch_msg_data.unwrap_or_default()),
-                    Token::Uint(eth_gas_price),
-                    Token::Uint(eth_nanowit_wei_price),
-                ]),
+                params,
                 eth_from,
                 contract::Options::with(|opt| {
                     opt.gas = eth_max_gas.map(Into::into);
@@ -487,13 +489,12 @@ async fn split_by_gas_limit(
             .await;
 
         match estimated_profit {
-            Ok(estimated_profit) if estimated_profit > U256::from(0) => {
+            Ok((revenues, expenses)) => {
                 log::debug!(
-                    "reportResultBatch (x{} drs) estimated profit: {:?} ETH",
+                    "reportResultBatch (x{} drs) estimated profit: {} - {} ETH",
                     batch_params.len(),
-                    Unit::Wei(&estimated_profit.to_string())
-                        .to_eth_str()
-                        .unwrap_or_default(),
+                    Unit::Wei(&revenues.to_string()).to_eth_str().unwrap_or_default(),
+                    Unit::Wei(&expenses.to_string()).to_eth_str().unwrap_or_default(),
                 );
                 v.push((batch_params, estimated_gas));
                 continue;

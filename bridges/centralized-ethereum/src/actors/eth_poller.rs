@@ -122,12 +122,10 @@ impl EthPoller {
                     let ids = init_index..last_index;
                     let ids: Vec<Token> = ids.map(|id| Token::Uint(id.into())).collect();
 
-                    log::debug!("getQueryStatusBatch params => {}", Token::Tuple(ids.clone()));
-
-                    let queries_status: Result<Vec<u8>, web3::contract::Error> = wrb_contract
+                    let queries_status: Result<Vec<Token>, web3::contract::Error> = wrb_contract
                         .query(
                             "getQueryStatusBatch",
-                            Token::Tuple(ids.clone()),
+                            ids.clone(),
                             None,
                             contract::Options::default(),
                             None,
@@ -138,7 +136,8 @@ impl EthPoller {
                         let mut posted_ids: Vec<Token> = vec![];
                         for (pos, status) in queries_status.iter().enumerate() {
                             let query_id = ids[pos].to_owned().into_uint().unwrap();
-                            match WitnetQueryStatus::from_code(*status) {
+                            let status: u8 = status.to_string().parse().unwrap();
+                            match WitnetQueryStatus::from_code(status) {
                                 WitnetQueryStatus::Unknown => {
                                     log::debug!("[{}]: not available.", query_id);
                                 }
@@ -160,7 +159,7 @@ impl EthPoller {
                                 wrb_contract
                                     .query(
                                         "extractWitnetDataRequests",
-                                        Token::Tuple(posted_ids.clone()),
+                                        posted_ids.clone(),
                                         None,
                                         contract::Options::default(),
                                         None,
