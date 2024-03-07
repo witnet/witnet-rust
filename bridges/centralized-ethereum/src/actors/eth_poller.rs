@@ -75,11 +75,12 @@ impl EthPoller {
     }
 
     fn check_new_requests_from_ethereum(&self, ctx: &mut Context<Self>, period: Duration) {
-        log::debug!("Checking posted queries on the WitnetOracle contract...");
 
         let wrb_contract = self.wrb_contract.clone().unwrap();
         let skip_first = U256::from(self.skip_first);
         let max_batch_size = self.max_batch_size;
+
+        log::debug!("Polling WitnetOracle at {:?}", wrb_contract.address());
 
         // Check requests
         let fut = async move {
@@ -118,7 +119,7 @@ impl EthPoller {
                         next_dr_id = last_dr_id + max_batch_size;
                     }
                     let init_index = usize::try_from(last_dr_id + 1).unwrap();
-                    let last_index = usize::try_from(next_dr_id + 1).unwrap();
+                    let last_index = usize::try_from(next_dr_id).unwrap();
                     let ids = init_index..last_index;
                     let ids: Vec<Token> = ids.map(|id| Token::Uint(id.into())).collect();
 
@@ -139,14 +140,14 @@ impl EthPoller {
                             let status: u8 = status.to_string().parse().unwrap();
                             match WitnetQueryStatus::from_code(status) {
                                 WitnetQueryStatus::Unknown => {
-                                    log::debug!("[{}]: not available.", query_id);
+                                    log::warn!("Skipped unavailable query [{}]", query_id);
                                 }
                                 WitnetQueryStatus::Posted => {
-                                    log::info!("[{}]: not yet reported.", query_id);
+                                    log::info!("Detected new query [{}]", query_id);
                                     posted_ids.push(Token::Uint(query_id));
                                 }
                                 WitnetQueryStatus::Reported | WitnetQueryStatus::Finalized => {
-                                    log::debug!("[{}]: already reported.", query_id);
+                                    log::info!("Skipped already solved query [{}]", query_id);
                                     dr_database_addr.do_send(SetDrState {
                                         dr_id: query_id,
                                         dr_state: DrState::Finished,
@@ -177,7 +178,7 @@ impl EthPoller {
                                 }
                             } else {
                                 log::error!(
-                                    "Fail to extract Witnet Data Request bytecodes from queries {:?}",
+                                    "Fail to extract Witnet request bytecodes from queries {:?}",
                                     posted_ids
                                 );
                             }
@@ -186,7 +187,7 @@ impl EthPoller {
                         log::error!(
                             "Fail to get status of queries #{} to #{}: {}",
                             init_index,
-                            last_index,
+                            next_dr_id,
                             queries_status.unwrap_err().to_string()
                         );
                     }

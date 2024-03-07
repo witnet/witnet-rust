@@ -92,7 +92,11 @@ impl DrSender {
                 let res = witnet_client.send(req).await;
                 witnet_node_pkh = match res {
                     Ok(Ok(res)) => match serde_json::from_value::<String>(res) {
-                        Ok(pkh) => Some(pkh),
+                        Ok(pkh) => {
+                            log::info!("Pkh is {}", pkh);
+
+                            Some(pkh)
+                        }
                         Err(_) => None,
                     },
                     Ok(Err(_)) => {
@@ -108,10 +112,12 @@ impl DrSender {
                 };
             } else {
                 // TODO: alert if number of big enough utxos is less number of drs to broadcast
-                // let req = jsonrpc::Request::method("getUtxoInfo")
+                // let req = jsonrpc::Request::method("getBalance")
                 //     .timeout(Duration::from_millis(5_000))
-                //     .params(witnet_node_pkh.unwrap())
+                //     .params(witnet_node_pkh.clone().unwrap())
                 //     .expect("getUtxoInfo params failed serialization");
+                // let res = witnet_client.send(req).await;
+                // log::debug!("Balance of {:?}: {:?} nanoWIT", witnet_node_pkh.unwrap(), res)
             }
 
             // process latest drs added or set as New in the database
@@ -145,6 +151,7 @@ impl DrSender {
                             Ok(dr_tx) => {
                                 match serde_json::from_value::<DRTransaction>(dr_tx) {
                                     Ok(dr_tx) => {
+                                        log::info!("[{}] => dr_tx = {}", dr_id, dr_tx.hash());
                                         // Save dr_tx_hash in database and set state to Pending
                                         dr_database_addr
                                             .send(SetDrInfoBridge(
@@ -161,14 +168,14 @@ impl DrSender {
                                     }
                                     Err(e) => {
                                         // Unexpected error deserializing hash
-                                        panic!("[{}]: cannot deserialize dr_tx: {}", dr_id, e);
+                                        panic!("[{}] >< cannot deserialize dr_tx: {}", dr_id, e);
                                     }
                                 }
                             }
                             Err(e) => {
                                 // Error sending transaction: node not synced, not enough balance, etc.
                                 // Do nothing, will retry later.
-                                log::error!("[{}]: cannot broadcast dr_tx: {}", dr_id, e);
+                                log::error!("[{}] >< cannot broadcast dr_tx: {}", dr_id, e);
                                 continue;
                             }
                         }
@@ -176,7 +183,7 @@ impl DrSender {
                     Err(err) => {
                         // Error deserializing or validating data request: mark data request as
                         // error and report error as result to ethereum.
-                        log::error!("[{}]: unacceptable data request bytecode: {}", dr_id, err);
+                        log::error!("[{}] >< unacceptable data request bytecode: {}", dr_id, err);
                         let result = err.encode_cbor();
                         // In this case there is no data request transaction, so
                         // we set both the dr_tx_hash and dr_tally_tx_hash to zero values.

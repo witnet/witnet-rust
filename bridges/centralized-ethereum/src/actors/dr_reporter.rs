@@ -123,7 +123,7 @@ impl Handler<DrReporterMsg> for DrReporter {
         msg.reports.retain(|report| {
             if self.pending_dr_reports.contains(&report.dr_id) {
                 // Timeout is not over yet, no action is needed
-                log::debug!("[{}]: currently being reported...", report.dr_id);
+                log::debug!("[{}] => ignored as it's currently being reported", report.dr_id);
 
                 false
             } else {
@@ -228,14 +228,13 @@ impl Handler<DrReporterMsg> for DrReporter {
             )
             .await;
 
-            log::debug!(
-                "[{:?}] will be reported in {} transactions",
-                dr_ids,
-                batched_reports.len()
+            log::info!(
+                "{:?} will be reported in {} transactions",
+                dr_ids, batched_reports.len(),
             );
 
             for (batched_report, eth_gas_limit) in batched_reports {
-                log::debug!("Executing reportResultBatch {:?}", batched_report);
+                // log::debug!("Executing reportResultBatch {:?}", batched_report);
 
                 let receipt_fut = wrb_contract.call_with_confirmations(
                     "reportResultBatch",
@@ -251,7 +250,7 @@ impl Handler<DrReporterMsg> for DrReporter {
                 let receipt = tokio::time::timeout(eth_tx_timeout, receipt_fut).await;
                 match receipt {
                     Ok(Ok(receipt)) => {
-                        log::debug!("[{:?}]: tx receipt: {:?}", dr_ids, receipt);
+                        log::debug!("{:?} <> {:?}", dr_ids, receipt);
                         match handle_receipt(&receipt).await {
                             Ok(()) => {
                                 let mut dismissed_dr_reports: HashSet<DrId> = Default::default();
@@ -261,7 +260,7 @@ impl Handler<DrReporterMsg> for DrReporter {
                                     {
                                         if dismissed_dr_reports.insert(dismissed_dr_id) {
                                             log::warn!(
-                                                "[{}]: dismissed => {}",
+                                                "[{}] >< dismissed due to \"{}\" ...",
                                                 dismissed_dr_id,
                                                 reason
                                             );
@@ -282,7 +281,7 @@ impl Handler<DrReporterMsg> for DrReporter {
                                     } else {
                                         // Finalize data requests that got successfully reported
                                         log::info!(
-                                            "[{}]: success => drTallyTxHash: {}",
+                                            "[{}] <= dr_tally_tx = {}",
                                             report.dr_id,
                                             report.dr_tally_tx_hash
                                         );
@@ -298,8 +297,7 @@ impl Handler<DrReporterMsg> for DrReporter {
                             }
                             Err(()) => {
                                 log::error!(
-                                    "[{:?}]: evm tx failed: {}",
-                                    dr_ids,
+                                    "reportResultBatch(..) tx reverted: {}",
                                     receipt.transaction_hash
                                 );
                             }
@@ -309,13 +307,16 @@ impl Handler<DrReporterMsg> for DrReporter {
                         // Error in call_with_confirmations
                         log::error!(
                             "{}: {:?}",
-                            format!("reportResultBatch{:?}", &batched_report),
+                            format!("Cannot call reportResultBatch{:?}", &batched_report),
                             e
                         );
                     }
                     Err(elapsed) => {
                         // Timeout is over
-                        log::warn!("[{:?}]: evm tx timeout after {}", dr_ids, elapsed);
+                        log::warn!(
+                            "Timeout ({} secs) when calling reportResultBatch{:?}", 
+                            elapsed, &batched_report
+                        );
                     }
                 }
             }
@@ -323,15 +324,15 @@ impl Handler<DrReporterMsg> for DrReporter {
             if let Ok(x) = eth.balance(eth_from, None).await {
                 if x < eth_from_balance {
                     log::warn!(
-                        "EVM address {} loss: -{} ETH",
+                        "EVM address {} loss = -{} ETH",
                         eth_from,
                         Unit::Wei(&(eth_from_balance - x).to_string())
                             .to_eth_str()
                             .unwrap_or_default()
                     );
-                } else {
+                } else if x > eth_from_balance {
                     log::debug!(
-                        "EVM address {} revenue: +{} ETH",
+                        "EVM address {} revenue = +{} ETH",
                         eth_from,
                         Unit::Wei(&(x - eth_from_balance).to_string())
                             .to_eth_str()
@@ -425,8 +426,9 @@ async fn split_by_gas_limit(
         if let Err(e) = estimated_gas {
             if batch_params.len() <= 1 {
                 // Skip this single-query batch if still not possible to estimate gas
-                log::error!("Cannot estimate gas limit:  {:?}", e);
-                log::warn!("Skipping report: {:?}", batch_params);
+                log::error!("Cannot estimate gas limit: {:?}", e);
+                log::warn!("Skipping report batch: {:?}", batch_params);
+            
             } else {
                 // Split batch in half if gas estimation is not possible
                 let (batch_tuples_1, batch_tuples_2) =
@@ -440,7 +442,7 @@ async fn split_by_gas_limit(
 
         let estimated_gas = estimated_gas.unwrap();
         log::debug!(
-            "reportResultBatch (x{} drs) estimated gas:    {:?}",
+            "reportResultBatch (x{} drs) estimated gas: {:?}",
             batch_params.len(),
             estimated_gas
         );
@@ -499,11 +501,11 @@ async fn split_by_gas_limit(
                 v.push((batch_params, estimated_gas));
                 continue;
             }
-            Ok(_) => {
-                if batch_params.len() <= 1 {
-                    log::warn!("Skipping unprofitable report: {:?}", batch_params);
-                }
-            }
+            // Ok(_) => {
+            //     if batch_params.len() <= 1 {
+            //         log::warn!("Skipping unprofitable report: {:?}", batch_params);
+            //     }
+            // }
             Err(e) => {
                 if batch_params.len() <= 1 {
                     log::error!("Cannot estimate report profit: {:?}", e);

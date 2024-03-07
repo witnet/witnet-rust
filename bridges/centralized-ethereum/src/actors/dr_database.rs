@@ -122,7 +122,7 @@ impl Actor for DrDatabase {
                 |dr_database_from_storage, act, _| match dr_database_from_storage {
                     Ok(dr_database_from_storage) => {
                         if let Some(mut dr_database_from_storage) = dr_database_from_storage {
-                            log::info!("Load database from storage");
+                            log::info!("Database loaded from storage");
                             act.dr = std::mem::take(&mut dr_database_from_storage.dr);
                             act.max_dr_id = dr_database_from_storage.max_dr_id;
                         } else {
