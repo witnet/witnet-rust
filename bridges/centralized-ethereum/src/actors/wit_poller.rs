@@ -103,11 +103,7 @@ impl WitPoller {
                             current_commit_round: dr_commits_round,
                             ..
                         })) => {
-                            log::info!(
-                                "[{}] <= dr_tx = {}",
-                                dr_id,
-                                dr_tx_hash
-                            );
+                            log::info!("[{}] <= dr_tx = {}", dr_id, dr_tx_hash);
 
                             let result = tally.tally.clone();
                             // Get timestamp of the epoch at which all data request commit txs
@@ -144,11 +140,7 @@ impl WitPoller {
                         }
                     };
                 } else {
-                    log::debug!(
-                        "[{}] <> dr_tx = {}",
-                        dr_id,
-                        dr_tx_hash
-                    );
+                    log::debug!("[{}] <> dr_tx = {}", dr_id, dr_tx_hash);
                 }
 
                 let elapsed_secs = current_timestamp - dr_tx_creation_timestamp;
