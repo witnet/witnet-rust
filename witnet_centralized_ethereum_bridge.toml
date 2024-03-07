@@ -1,59 +1,60 @@
-# Address of the witnet node JSON-RPC server
-witnet_jsonrpc_socket = "127.0.0.1:21338"
+# Ethereum account used to create the transactions
+eth_from = "0x8c49CAfC4542D9EA9107D4E48412ACEd2A68aA77"
+
+# Ethereum account balance under which alerts will be logged
+eth_from_balance_threshold = 100000000000000000
 
 # Url of the ethereum client
-eth_jsonrpc_url = "http://127.0.0.1:8544"
+eth_jsonrpc_url = "http://127.0.0.1:8503"
 
-# Address of the WitnetRequestsBoard deployed contract
-eth_witnet_oracle = "0x6cE42a35C61ccfb42907EEE57eDF14Bb69C7fEF4"
+# Max number of queries to be batched together
+eth_max_batch_size = 64
 
-# Address of a Request Example deployed contract
-request_example_contract_addr = "0xEaA9e7Ea612b169f5b41cfF86dA6322f57264a19"
+# Price of $nanoWit in Wei, used to improve estimation of report profits
+eth_nanowit_wei_price = 1
 
-# Ethereum account used to create the transactions
-eth_from = "0x8d86Bc475bEDCB08179c5e6a4d494EbD3b44Ea8B"
-
-# Period to check for new requests in the WRB
+# Polling period for checking new queries in the WitnetOracle contract
 eth_new_drs_polling_rate_ms = 45_000
 
-# Period to check for completed requests in Witnet
-witnet_tallies_polling_rate_ms = 45_000
-
-# Period to post new requests to Witnet
-witnet_polling_rate_ms = 45_000
-
-# If the data request has been sent to witnet but it is not included in a block, retry after this many milliseconds
-witnet_dr_tx_retry_timeout_ms = 600_000 # 10 minutes
-
-# Maximum data request result size (in bytes)
-# TODO: Choose a proper value
-witnet_dr_max_result_size = 100
+# Number of block confirmations needed to assume finality when sending transactions to ethereum
+eth_txs_confirmations = 2
 
 # Max time to wait for an ethereum transaction to be confirmed before returning an error
-eth_txs_timeout_ms = 900_000 # 15 minutes
+eth_txs_timeout_ms = 900000
 
-# Max value that will be accepted by the bridge node in a data request
-# This is the maximum amount that the relayer is willing to lose per one data request
-witnet_dr_max_value_nanowits = 100_000_000_000
+# Address of the WitnetRequestsBoard deployed contract
+eth_witnet_oracle = "0x77703aE126B971c9946d562F41Dd47071dA00777"
+
+
+# Minimum collateral required on data requests read from the WitnetOracle contract
+witnet_dr_min_collateral_nanowits = 20000000000
+
+# Maximium data request transaction fee assumed by the bridge
+witnet_dr_max_fee_nanowits = 100000
+
+# Maximum data request result size (in bytes) will accept to report
+witnet_dr_max_result_size = 64
+
+# Maximum data request value that the bridge will accept to relay
+witnet_dr_max_value_nanowits = 100000000000
+
+# Polling period for checking resolution of data requests in the Witnet blockchain
+witnet_dr_txs_polling_rate_ms = 45000
+
+# Max time to wait for data request resolutions, in milliseconds
+witnet_dr_txs_timeout_ms = 600000
+
+# Address of the witnet node JSON-RPC server
+witnet_jsonrpc_socket = "127.0.0.1:21338"
 
 # Running in the witnet testnet?
 witnet_testnet = false
 
-# Number of block confirmations needed to assume finality when sending transactions to ethereum
-eth_txs_confirmations = 1
 
-# Miner fee for the witnet data request transactions, in nanowits
-witnet_dr_max_fee_nanowits = 10_000
-
-# Max ratio between the gas price recommended by the provider and the gas price of the requests in the WRB
-# That is, the bridge will refrain from paying more than these times the gas price originally set forth by the requesters.
-report_result_max_network_gas_price_ratio = 1.0
-
+[eth_gas_limits]
 # Gas limits for some methods.
 # To let the client estimate, comment out the fields
-[eth_gas_limits]
-post_data_request = 10000000
-report_result = 2000000
+#report_result = 2000000
 
 [storage]
 # Path of the folder where RocksDB storage files will be written to.
