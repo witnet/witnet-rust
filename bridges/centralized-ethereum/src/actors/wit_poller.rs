@@ -104,9 +104,8 @@ impl WitPoller {
                             ..
                         })) => {
                             log::info!(
-                                "[{}]: found tally {} for dr_tx {}",
+                                "[{}] <= dr_tx = {}",
                                 dr_id,
-                                &tally.hash(),
                                 dr_tx_hash
                             );
 
@@ -137,7 +136,7 @@ impl WitPoller {
                         }
                         Err(e) => {
                             log::error!(
-                                "[{}]: cannot deserialize dataRequestReport([{}]): {:?}",
+                                "[{}] => cannot deserialize dr_tx = {}: {:?}",
                                 dr_id,
                                 dr_tx_hash,
                                 e
@@ -146,17 +145,16 @@ impl WitPoller {
                     };
                 } else {
                     log::debug!(
-                        "[{}]: dataRequestReport([{}]) call error: {}",
+                        "[{}] <> dr_tx = {}",
                         dr_id,
-                        dr_tx_hash,
-                        report.unwrap_err().to_string()
+                        dr_tx_hash
                     );
                 }
 
                 let elapsed_secs = current_timestamp - dr_tx_creation_timestamp;
                 if elapsed_secs >= timeout_secs {
-                    log::debug!(
-                        "[{}]: retrying new dr_tx after {} secs",
+                    log::warn!(
+                        "[{}] => will retry new dr_tx after {} secs",
                         dr_id,
                         elapsed_secs
                     );
