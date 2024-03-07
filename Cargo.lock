@@ -5329,7 +5329,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_data_structures"
-version = "1.7.1"
+version = "2.0.0"
 dependencies = [
  "bech32",
  "bencher",
@@ -5501,7 +5501,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_toolkit"
-version = "1.7.1"
+version = "2.0.0"
 dependencies = [
  "failure",
  "hex",
@@ -5544,7 +5544,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_wallet"
-version = "1.7.1"
+version = "2.0.0"
 dependencies = [
  "actix",
  "async-jsonrpc-client",
