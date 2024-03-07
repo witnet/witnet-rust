@@ -123,7 +123,10 @@ impl Handler<DrReporterMsg> for DrReporter {
         msg.reports.retain(|report| {
             if self.pending_dr_reports.contains(&report.dr_id) {
                 // Timeout is not over yet, no action is needed
-                log::debug!("[{}] => ignored as it's currently being reported", report.dr_id);
+                log::debug!(
+                    "[{}] => ignored as it's currently being reported",
+                    report.dr_id
+                );
 
                 false
             } else {
@@ -230,7 +233,8 @@ impl Handler<DrReporterMsg> for DrReporter {
 
             log::info!(
                 "{:?} will be reported in {} transactions",
-                dr_ids, batched_reports.len(),
+                dr_ids,
+                batched_reports.len(),
             );
 
             for (batched_report, eth_gas_limit) in batched_reports {
@@ -314,8 +318,9 @@ impl Handler<DrReporterMsg> for DrReporter {
                     Err(elapsed) => {
                         // Timeout is over
                         log::warn!(
-                            "Timeout ({} secs) when calling reportResultBatch{:?}", 
-                            elapsed, &batched_report
+                            "Timeout ({} secs) when calling reportResultBatch{:?}",
+                            elapsed,
+                            &batched_report
                         );
                     }
                 }
@@ -428,7 +433,6 @@ async fn split_by_gas_limit(
                 // Skip this single-query batch if still not possible to estimate gas
                 log::error!("Cannot estimate gas limit: {:?}", e);
                 log::warn!("Skipping report batch: {:?}", batch_params);
-            
             } else {
                 // Split batch in half if gas estimation is not possible
                 let (batch_tuples_1, batch_tuples_2) =
@@ -495,8 +499,12 @@ async fn split_by_gas_limit(
                 log::debug!(
                     "reportResultBatch (x{} drs) estimated profit: {} - {} ETH",
                     batch_params.len(),
-                    Unit::Wei(&revenues.to_string()).to_eth_str().unwrap_or_default(),
-                    Unit::Wei(&expenses.to_string()).to_eth_str().unwrap_or_default(),
+                    Unit::Wei(&revenues.to_string())
+                        .to_eth_str()
+                        .unwrap_or_default(),
+                    Unit::Wei(&expenses.to_string())
+                        .to_eth_str()
+                        .unwrap_or_default(),
                 );
                 v.push((batch_params, estimated_gas));
                 continue;

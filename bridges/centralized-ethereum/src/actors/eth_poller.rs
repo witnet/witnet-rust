@@ -75,7 +75,6 @@ impl EthPoller {
     }
 
     fn check_new_requests_from_ethereum(&self, ctx: &mut Context<Self>, period: Duration) {
-
         let wrb_contract = self.wrb_contract.clone().unwrap();
         let skip_first = U256::from(self.skip_first);
         let max_batch_size = self.max_batch_size;
