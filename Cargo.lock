@@ -5478,7 +5478,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_node"
-version = "1.7.1"
+version = "2.0.0"
 dependencies = [
  "actix",
  "ansi_term",
