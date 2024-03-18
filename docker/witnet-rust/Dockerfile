@@ -1,4 +1,4 @@
-FROM ubuntu:noble
+FROM --platform=$TARGETPLATFORM ubuntu:noble
 
 # Install basic environment dependencies
 RUN apt update && apt install -y --no-install-recommends \
