@@ -8,7 +8,7 @@ use witnet_data_structures::{
     transaction::DRTransaction,
 };
 
-use crate::validations::*;
+use crate::eligibility::legacy::*;
 
 fn calculate_reppoe_threshold_v1(
     rep_eng: &ReputationEngine,

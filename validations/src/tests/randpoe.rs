@@ -5,7 +5,7 @@ use witnet_data_structures::chain::{
     Alpha, Hash, PublicKeyHash, Reputation, ReputationEngine,
 };
 
-use crate::validations::*;
+use crate::eligibility::legacy::*;
 
 #[test]
 fn target_randpoe() {

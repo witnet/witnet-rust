@@ -2,23 +2,23 @@ use std::fmt::{Debug, Display, Formatter};
 use std::{rc::Rc, str::FromStr, sync::RwLock};
 
 use failure::Error;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::{chain::PublicKeyHash, proto::ProtobufConvert};
 
-use super::prelude::*;
+use crate::staking::prelude::*;
 
 /// Just a type alias for consistency of using the same data type to represent power.
 pub type Power = u64;
 
 /// The resulting type for all the fallible functions in this module.
-pub type StakingResult<T, Address, Coins, Epoch> = Result<T, StakesError<Address, Coins, Epoch>>;
+pub type StakesResult<T, Address, Coins, Epoch> = Result<T, StakesError<Address, Coins, Epoch>>;
 
 /// Newtype for a reference-counted and read-write-locked instance of `Stake`.
 ///
 /// This newtype is needed for implementing `PartialEq` manually on the locked data, which cannot be done directly
 /// because those are externally owned types.
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default)]
 pub struct SyncStake<Address, Coins, Epoch, Power>
 where
     Address: Default,
@@ -26,6 +26,20 @@ where
 {
     /// The lock itself.
     pub value: Rc<RwLock<Stake<Address, Coins, Epoch, Power>>>,
+}
+
+impl<Address, Coins, Epoch, Power> From<Stake<Address, Coins, Epoch, Power>>
+    for SyncStake<Address, Coins, Epoch, Power>
+where
+    Address: Default,
+    Epoch: Default,
+{
+    #[inline]
+    fn from(value: Stake<Address, Coins, Epoch, Power>) -> Self {
+        SyncStake {
+            value: Rc::new(RwLock::new(value)),
+        }
+    }
 }
 
 impl<Address, Coins, Epoch, Power> PartialEq for SyncStake<Address, Coins, Epoch, Power>
@@ -39,6 +53,35 @@ where
         let other_stake = other.value.read().unwrap();
 
         self_stake.coins.eq(&other_stake.coins) && other_stake.epochs.eq(&other_stake.epochs)
+    }
+}
+
+impl<'de, Address, Coins, Epoch, Power> Deserialize<'de> for SyncStake<Address, Coins, Epoch, Power>
+where
+    Address: Default,
+    Epoch: Default,
+    Stake<Address, Coins, Epoch, Power>: Deserialize<'de>,
+{
+    #[inline]
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        <Stake<Address, Coins, Epoch, Power>>::deserialize(deserializer).map(SyncStake::from)
+    }
+}
+
+impl<Address, Coins, Epoch, Power> Serialize for SyncStake<Address, Coins, Epoch, Power>
+where
+    Address: Default,
+    Epoch: Default,
+    Stake<Address, Coins, Epoch, Power>: Serialize,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        self.value.read().unwrap().serialize(serializer)
     }
 }
 
