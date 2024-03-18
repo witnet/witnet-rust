@@ -5482,6 +5482,7 @@ dependencies = [
  "hex",
  "itertools 0.11.0",
  "log 0.4.20",
+ "num-traits",
  "url",
  "witnet_config",
  "witnet_crypto",

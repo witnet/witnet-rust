@@ -8482,7 +8482,7 @@ fn st_no_inputs() {
     // Try to create a stake tx with no inputs
     let st_output = StakeOutput {
         value: MIN_STAKE_NANOWITS + 1,
-        authorization: KeyedSignature::default(),
+        ..Default::default()
     };
 
     let st_body = StakeTransactionBody::new(vec![], st_output, None);
@@ -8516,8 +8516,8 @@ fn st_one_input_but_no_signature() {
 
     // No signatures but 1 input
     let stake_output = StakeOutput {
-        authorization: KeyedSignature::default(),
         value: MIN_STAKE_NANOWITS + 1,
+        ..Default::default()
     };
 
     let stake_tx_body = StakeTransactionBody::new(vec![vti], stake_output, None);
@@ -8552,8 +8552,8 @@ fn st_below_min_stake() {
 
     // No signatures but 1 input
     let stake_output = StakeOutput {
-        authorization: KeyedSignature::default(),
         value: 1,
+        ..Default::default()
     };
 
     let stake_tx_body = StakeTransactionBody::new(vec![vti], stake_output, None);

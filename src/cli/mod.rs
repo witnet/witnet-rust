@@ -57,6 +57,7 @@ pub fn exec(
     let _guard = init_logger(log_opts);
     witnet_data_structures::set_environment(config.environment);
 
+    log::debug!("{:#?}", config);
     for (version, epoch) in config.protocol.iter() {
         if let Some(epoch) = epoch {
             register_protocol_version(version, epoch);
