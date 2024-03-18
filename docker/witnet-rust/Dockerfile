@@ -1,14 +1,14 @@
-FROM --platform=$TARGETPLATFORM ubuntu:jammy
+FROM ubuntu:noble
 
 # Install basic environment dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt update && apt install -y --no-install-recommends \
     ca-certificates \
     curl \
-    netcat \
+    netcat-traditional \
     jq
 
 # Clean up apt packages so the docker image is as compact as possible
-RUN apt-get clean && apt-get autoremove
+RUN apt clean && apt autoremove
 
 # Set needed environment variables
 ENV RUST_BACKTRACE=1
