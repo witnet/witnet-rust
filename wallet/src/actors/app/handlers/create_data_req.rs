@@ -136,6 +136,7 @@ fn validate(
         minimum_collateral,
         required_reward_collateral_ratio,
         &current_active_wips(),
+        None,
     )
     .map_err(|err| app::field_error("request", format!("{}", err)));
 

@@ -74,6 +74,14 @@ pub enum TransactionError {
     #[fail(display = "Data Request witnesses number must be greater than zero")]
     InsufficientWitnesses,
     #[fail(
+        display = "Number of data Request witnesses must be at most one fourth of the number of validators: {} > {}",
+        witnesses, one_fourth_of_validators
+    )]
+    TooManyWitnesses {
+        witnesses: u16,
+        one_fourth_of_validators: usize,
+    },
+    #[fail(
         display = "Mismatch between expected tally ({:?}) and miner tally ({:?})",
         expected_tally, miner_tally
     )]

@@ -732,6 +732,7 @@ fn deserialize_and_validate_hex_dr(
         collateral_minimum,
         required_reward_collateral_ratio,
         &current_active_wips(),
+        None,
     )?;
     validate_rad_request(&dr.data_request, &current_active_wips())?;
 
