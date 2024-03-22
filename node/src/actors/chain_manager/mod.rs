@@ -80,6 +80,7 @@ use witnet_data_structures::{
     },
     utxo_pool::{Diff, OwnUnspentOutputsPool, UnspentOutputsPool, UtxoWriteBatch},
     vrf::VrfCtx,
+    wit::Wit,
 };
 use witnet_rad::types::RadonTypes;
 use witnet_util::timestamp::seconds_to_human_string;
@@ -699,6 +700,7 @@ impl ChainManager {
                 &chain_info.consensus_constants,
                 resynchronizing,
                 &active_wips,
+                &self.chain_state.stakes,
                 Some(&mut transaction_visitor),
             )?;
 
@@ -840,6 +842,7 @@ impl ChainManager {
                     &chain_info.consensus_constants,
                     false,
                     &active_wips,
+                    &self.chain_state.stakes,
                     Some(&mut transaction_visitor),
                 ) {
                     Ok(utxo_diff) => {
@@ -1438,6 +1441,7 @@ impl ChainManager {
                 // than or equal to the current epoch
                 block_epoch: current_epoch,
             };
+            let stakes = &self.chain_state.stakes;
             let collateral_age = if active_wips.wip0027() {
                 PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE
             } else {
@@ -1464,6 +1468,7 @@ impl ChainManager {
                 chain_info.consensus_constants.minimum_difficulty,
                 required_reward_collateral_ratio,
                 &active_wips,
+                &stakes,
                 chain_info.consensus_constants.superblock_period,
             ))
             .into_actor(self)
@@ -2011,6 +2016,7 @@ impl ChainManager {
                 block_number,
                 &consensus_constants,
                 &active_wips,
+                &act.chain_state.stakes,
                 None,
             );
             async {
@@ -2786,6 +2792,7 @@ pub fn process_validations(
     consensus_constants: &ConsensusConstants,
     resynchronizing: bool,
     active_wips: &ActiveWips,
+    stakes: &Stakes<PublicKeyHash, Wit, u32, u64>,
     transaction_visitor: Option<&mut dyn Visitor<Visitable = (Transaction, u64, u32)>>,
 ) -> Result<Diff, failure::Error> {
     if !resynchronizing {
@@ -2815,6 +2822,7 @@ pub fn process_validations(
         block_number,
         consensus_constants,
         active_wips,
+        stakes,
         transaction_visitor,
     )?;
 
