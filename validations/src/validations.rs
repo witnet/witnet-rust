@@ -34,6 +34,7 @@ use witnet_data_structures::{
     get_protocol_version,
     proto::versioning::{ProtocolVersion, VersionedHashable},
     radon_report::{RadonReport, ReportContext},
+    staking::stakes::Stakes,
     transaction::{
         CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, StakeTransaction,
         TallyTransaction, Transaction, UnstakeTransaction, VTTransaction,
@@ -42,7 +43,7 @@ use witnet_data_structures::{
     types::visitor::Visitor,
     utxo_pool::{Diff, UnspentOutputsPool, UtxoDiff},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfCtx},
-    wit::NANOWITS_PER_WIT,
+    wit::{Wit, NANOWITS_PER_WIT},
 };
 use witnet_rad::{
     conditions::{
@@ -480,6 +481,7 @@ pub fn validate_dr_transaction<'a>(
     max_dr_weight: u32,
     required_reward_collateral_ratio: u64,
     active_wips: &ActiveWips,
+    stakes: &Stakes<PublicKeyHash, Wit, u32, u64>,
 ) -> Result<(Vec<&'a Input>, Vec<&'a ValueTransferOutput>, u64), failure::Error> {
     if dr_tx.weight() > max_dr_weight {
         return Err(TransactionError::DataRequestWeightLimitExceeded {
@@ -547,6 +549,7 @@ pub fn validate_dr_transaction<'a>(
         collateral_minimum,
         required_reward_collateral_ratio,
         active_wips,
+        Some(stakes),
     )?;
 
     // Collateral value validation
@@ -582,9 +585,20 @@ pub fn validate_data_request_output(
     collateral_minimum: u64,
     required_reward_collateral_ratio: u64,
     active_wips: &ActiveWips,
+    stakes: Option<&Stakes<PublicKeyHash, Wit, u32, u64>>,
 ) -> Result<(), TransactionError> {
     if request.witnesses < 1 {
         return Err(TransactionError::InsufficientWitnesses);
+    }
+
+    // Number of data request witnesses should be at most the number of validators divided by four
+    if let Some(stakes) = stakes {
+        if usize::from(request.witnesses) > stakes.validator_count() / 4 {
+            return Err(TransactionError::TooManyWitnesses {
+                witnesses: request.witnesses,
+                one_fourth_of_validators: stakes.validator_count() / 4,
+            });
+        }
     }
 
     if request.witness_reward < 1 {
@@ -1599,6 +1613,7 @@ pub fn validate_block_transactions(
     block_number: u32,
     consensus_constants: &ConsensusConstants,
     active_wips: &ActiveWips,
+    stakes: &Stakes<PublicKeyHash, Wit, u32, u64>,
     mut visitor: Option<&mut dyn Visitor<Visitable = (Transaction, u64, u32)>>,
 ) -> Result<Diff, failure::Error> {
     let epoch = block.block_header.beacon.checkpoint;
@@ -1843,6 +1858,7 @@ pub fn validate_block_transactions(
             consensus_constants.max_dr_weight,
             required_reward_collateral_ratio,
             active_wips,
+            stakes,
         )?;
         total_fee += fee;
 
@@ -2132,6 +2148,7 @@ pub fn validate_new_transaction(
     minimum_reppoe_difficulty: u32,
     required_reward_collateral_ratio: u64,
     active_wips: &ActiveWips,
+    stakes: &Stakes<PublicKeyHash, Wit, u32, u64>,
     superblock_period: u16,
 ) -> Result<u64, failure::Error> {
     let utxo_diff = UtxoDiff::new(unspent_outputs_pool, block_number);
@@ -2157,6 +2174,7 @@ pub fn validate_new_transaction(
             max_dr_weight,
             required_reward_collateral_ratio,
             active_wips,
+            stakes,
         )
         .map(|(_, _, fee)| fee),
         Transaction::Commit(tx) => validate_commit_transaction(

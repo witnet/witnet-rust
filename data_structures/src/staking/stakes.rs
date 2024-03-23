@@ -311,6 +311,11 @@ where
         }
     }
 
+    /// Return the total number of validators.
+    pub fn validator_count(&self) -> usize {
+        self.by_validator.len()
+    }
+
     /// Query stakes by stake key.
     #[inline(always)]
     fn query_by_key(&self, key: StakeKey<Address>) -> StakingResult<Coins, Address, Coins, Epoch> {
