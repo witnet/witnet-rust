@@ -22,7 +22,7 @@ fn inner_get(input: &RadonMap, args: &[Value]) -> Result<RadonTypes, RadError> {
     input
         .value()
         .get(&key)
-        .map(Clone::clone)
+        .cloned()
         .ok_or_else(|| not_found(key))
 }
 
