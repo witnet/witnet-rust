@@ -120,7 +120,7 @@ pub fn from_env() -> Result<Config, envy::Error> {
 thread_local! {
     /// Thread-local flag to indicate the `nested_toml_if_using_envy` function that we are indeed
     /// using envy.
-    static USING_ENVY: Cell<bool> = Cell::new(false);
+    static USING_ENVY: Cell<bool> = const { Cell::new(false) };
 }
 
 /// If using the `envy` crate to deserialize this value, try to deserialize it as a TOML string.

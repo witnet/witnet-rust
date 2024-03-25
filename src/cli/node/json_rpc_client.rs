@@ -1953,10 +1953,10 @@ struct JsonRpcError {
 /// Id. Can be null, a number, or a string
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
-enum Id<'a> {
+enum Id {
     Null,
-    Number(u64),
-    String(&'a str),
+    Number(),
+    String(),
 }
 
 /// A failed request returns an error with code and message

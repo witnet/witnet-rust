@@ -625,7 +625,7 @@ impl Worker {
                     .body
                     .outputs
                     .get(output.output_index as usize)
-                    .map(ValueTransferOutput::clone)
+                    .cloned()
                     .ok_or_else(|| {
                         Error::OutputIndexNotFound(output.output_index, format!("{:?}", txn))
                     }),
@@ -633,21 +633,21 @@ impl Worker {
                     .body
                     .outputs
                     .get(output.output_index as usize)
-                    .map(ValueTransferOutput::clone)
+                    .cloned()
                     .ok_or_else(|| {
                         Error::OutputIndexNotFound(output.output_index, format!("{:?}", txn))
                     }),
                 Transaction::Tally(tally) => tally
                     .outputs
                     .get(output.output_index as usize)
-                    .map(ValueTransferOutput::clone)
+                    .cloned()
                     .ok_or_else(|| {
                         Error::OutputIndexNotFound(output.output_index, format!("{:?}", txn))
                     }),
                 Transaction::Mint(mint) => mint
                     .outputs
                     .get(output.output_index as usize)
-                    .map(ValueTransferOutput::clone)
+                    .cloned()
                     .ok_or_else(|| {
                         Error::OutputIndexNotFound(output.output_index, format!("{:?}", txn))
                     }),
@@ -655,7 +655,7 @@ impl Worker {
                     .body
                     .outputs
                     .get(output.output_index as usize)
-                    .map(ValueTransferOutput::clone)
+                    .cloned()
                     .ok_or_else(|| {
                         Error::OutputIndexNotFound(output.output_index, format!("{:?}", txn))
                     }),

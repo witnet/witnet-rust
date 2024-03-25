@@ -11,6 +11,7 @@ pub use error::Error;
 
 type PubSubHandler = pubsub::PubSubHandler<Arc<pubsub::Session>>;
 
+// We need to pass the server as an argument to avoid dropping it before the start had finished
 /// TODO: doc
 #[allow(dead_code)]
 pub struct Server(server::Server);
