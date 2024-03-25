@@ -64,7 +64,7 @@ fn inner_get(input: &RadonArray, args: &[Value]) -> Result<RadonTypes, RadError>
     input
         .value()
         .get(index)
-        .map(Clone::clone)
+        .cloned()
         .ok_or_else(|| not_found(index))
 }
 

@@ -48,7 +48,7 @@ pub fn from_str(contents: &str) -> Result<PartialConfig, toml::de::Error> {
 }
 
 #[cfg(test)]
-thread_local!(static FILE_CONTENTS: Cell<&'static str> = Cell::new(""));
+thread_local!(static FILE_CONTENTS: Cell<&'static str> = const { Cell::new("") });
 
 #[cfg(test)]
 fn read_file_contents(_filename: &Path, contents: &mut String) -> io::Result<usize> {
