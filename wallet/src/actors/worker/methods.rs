@@ -55,6 +55,7 @@ impl Worker {
             RadonScriptExecutionSettings::enable_all(),
             None,
             Some(self.params.witnessing.clone()),
+            false,
         )
     }
 

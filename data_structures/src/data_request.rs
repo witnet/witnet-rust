@@ -242,7 +242,7 @@ impl DataRequestPool {
     /// for reveal (the node should send a reveal transaction).
     /// This function must be called after `add_data_requests_from_block`, in order to update
     /// the stage of all the data requests.
-    pub fn update_data_request_stages(&mut self) -> Vec<RevealTransaction> {
+    pub fn update_data_request_stages(&mut self, validator_count: usize) -> Vec<RevealTransaction> {
         let waiting_for_reveal = &mut self.waiting_for_reveal;
         let data_requests_by_epoch = &mut self.data_requests_by_epoch;
         let extra_rounds = self.extra_rounds;
@@ -252,7 +252,9 @@ impl DataRequestPool {
             .filter_map(|(dr_pointer, dr_state)| {
                 // We can notify the user that a data request from "my_claims" is available
                 // for reveal.
-                dr_state.update_stage(extra_rounds);
+                let too_many_witnesses =
+                    data_request_has_too_many_witnesses(&dr_state.data_request, validator_count);
+                dr_state.update_stage(extra_rounds, too_many_witnesses);
                 match dr_state.stage {
                     DataRequestStage::REVEAL => {
                         // When a data request changes from commit stage to reveal stage, it should
@@ -366,6 +368,14 @@ impl DataRequestPool {
     /// Get the detailed state of a data request.
     pub fn data_request_state(&self, dr_pointer: &Hash) -> Option<&DataRequestState> {
         self.data_request_pool.get(dr_pointer)
+    }
+
+    /// Get the detailed state of a data request.
+    pub fn data_request_state_mutable(
+        &mut self,
+        dr_pointer: &Hash,
+    ) -> Option<&mut DataRequestState> {
+        self.data_request_pool.get_mut(dr_pointer)
     }
 
     /// Get the data request info of the finished data requests, to be persisted to the storage
@@ -524,6 +534,14 @@ pub fn calculate_reward_collateral_ratio(
     };
 
     saturating_div_ceil(dr_collateral, witness_reward)
+}
+
+/// Function to check if a data request requires too many witnesses
+pub fn data_request_has_too_many_witnesses(
+    dr_output: &DataRequestOutput,
+    validator_count: usize,
+) -> bool {
+    usize::from(dr_output.witnesses) > validator_count / 4
 }
 
 /// Saturating version of `u64::div_ceil`.

@@ -52,7 +52,7 @@ pub fn try_data_request(
     } else {
         RadonScriptExecutionSettings::disable_all()
     };
-    let report = witnet_rad::try_data_request(request, settings, None, None);
+    let report = witnet_rad::try_data_request(request, settings, None, None, false);
 
     Ok(report)
 }

@@ -44,7 +44,12 @@ pub fn evaluate_tally_precondition_clause(
     minimum_consensus: f64,
     num_commits: usize,
     active_wips: &ActiveWips,
+    too_many_witnesses: bool,
 ) -> Result<TallyPreconditionClauseResult, RadError> {
+    // Short-circuit if there are not enough stakers
+    if too_many_witnesses {
+        return Err(RadError::TooManyWitnesses);
+    }
     // Short-circuit if there were no commits
     if num_commits == 0 {
         return Err(RadError::InsufficientCommits);

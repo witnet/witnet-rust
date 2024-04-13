@@ -71,6 +71,7 @@ use witnet_data_structures::{
     data_request::DataRequestPool,
     get_environment, get_protocol_version,
     proto::versioning::ProtocolVersion,
+    radon_error::RadonError,
     radon_report::{RadonReport, ReportContext},
     staking::prelude::*,
     superblock::{ARSIdentities, AddSuperBlockVote, SuperBlockConsensus},
@@ -83,7 +84,7 @@ use witnet_data_structures::{
     vrf::VrfCtx,
     wit::Wit,
 };
-use witnet_rad::types::RadonTypes;
+use witnet_rad::{error::RadError::TooManyWitnesses, types::RadonTypes};
 use witnet_util::timestamp::seconds_to_human_string;
 use witnet_validations::{
     eligibility::legacy::VrfSlots,
@@ -700,6 +701,7 @@ impl ChainManager {
             let mut transaction_visitor = PriorityVisitor::default();
 
             let protocol_version = get_protocol_version(self.current_epoch);
+            let validator_count = self.chain_state.stakes.validator_count();
             let utxo_diff = process_validations(
                 &block,
                 self.current_epoch.unwrap_or_default(),
@@ -717,6 +719,7 @@ impl ChainManager {
                 Some(&mut transaction_visitor),
                 protocol_version,
                 &self.chain_state.stakes,
+                validator_count,
             )?;
 
             // Extract the collected priorities from the internal state of the visitor
@@ -751,6 +754,8 @@ impl ChainManager {
 
                 return;
             }
+
+            let validator_count = self.chain_state.stakes.validator_count();
 
             let hash_block = block.hash();
             // If this candidate has not been seen before, validate it
@@ -863,6 +868,7 @@ impl ChainManager {
                     Some(&mut transaction_visitor),
                     protocol_version,
                     &self.chain_state.stakes,
+                    validator_count,
                 ) {
                     Ok(utxo_diff) => {
                         let priorities = transaction_visitor.take_state();
@@ -952,6 +958,7 @@ impl ChainManager {
                 let block_hash = block.hash();
                 let block_epoch = block.block_header.beacon.checkpoint;
                 let block_signals = block.block_header.signals;
+                let validator_count = stakes.validator_count();
 
                 // Update `highest_block_checkpoint`
                 let beacon = CheckpointBeacon {
@@ -1065,7 +1072,7 @@ impl ChainManager {
                         let reveals = self
                             .chain_state
                             .data_request_pool
-                            .update_data_request_stages();
+                            .update_data_request_stages(validator_count);
 
                         for reveal in reveals {
                             // Send AddTransaction message to self
@@ -1091,7 +1098,7 @@ impl ChainManager {
                         let reveals = self
                             .chain_state
                             .data_request_pool
-                            .update_data_request_stages();
+                            .update_data_request_stages(validator_count);
 
                         for reveal in reveals {
                             // Send AddTransaction message to self
@@ -1117,7 +1124,7 @@ impl ChainManager {
                         let reveals = self
                             .chain_state
                             .data_request_pool
-                            .update_data_request_stages();
+                            .update_data_request_stages(validator_count);
 
                         show_info_dr(&self.chain_state.data_request_pool, &block);
 
@@ -2020,6 +2027,7 @@ impl ChainManager {
         vrf_input: CheckpointVRF,
         chain_beacon: CheckpointBeacon,
         epoch_constants: EpochConstants,
+        validator_count: usize,
     ) -> ResponseActFuture<Self, Result<Diff, failure::Error>> {
         let block_number = self.chain_state.block_number();
         let mut signatures_to_verify = vec![];
@@ -2063,6 +2071,7 @@ impl ChainManager {
                 &consensus_constants,
                 &active_wips,
                 None,
+                validator_count,
             );
             async {
                 // Short-circuit if validation failed
@@ -2840,6 +2849,7 @@ pub fn process_validations(
     transaction_visitor: Option<&mut dyn Visitor<Visitable = (Transaction, u64, u32)>>,
     protocol_version: ProtocolVersion,
     stakes: &Stakes<PublicKeyHash, Wit, u32, u64>,
+    validator_count: usize,
 ) -> Result<Diff, failure::Error> {
     if !resynchronizing {
         let mut signatures_to_verify = vec![];
@@ -2871,6 +2881,7 @@ pub fn process_validations(
         consensus_constants,
         active_wips,
         transaction_visitor,
+        validator_count,
     )?;
 
     if !resynchronizing {
@@ -2954,7 +2965,17 @@ fn update_pools(
 ) -> ReputationInfo {
     let mut rep_info = ReputationInfo::new();
 
+    let mut data_requests_with_too_many_witnesses = HashSet::<Hash>::new();
     for ta_tx in &block.txns.tally_txns {
+        // Track data requests which were already processed with a TooManyWitnesses error
+        if RadonTypes::try_from(ta_tx.tally.as_slice())
+            == Ok(RadonTypes::RadonError(
+                RadonError::try_from(TooManyWitnesses).unwrap(),
+            ))
+        {
+            data_requests_with_too_many_witnesses.insert(ta_tx.dr_pointer);
+        }
+
         // Process tally transactions: used to update reputation engine
         rep_info.update(ta_tx, data_request_pool, own_pkh, node_stats);
 
@@ -2971,6 +2992,11 @@ fn update_pools(
     }
 
     for dr_tx in &block.txns.data_request_txns {
+        if data_requests_with_too_many_witnesses.contains(&dr_tx.hash()) {
+            log::debug!("Skipping data request {} as it was already processed with a TooManyWitnesses error", dr_tx.hash());
+            transactions_pool.dr_remove(dr_tx);
+            continue;
+        }
         if let Err(e) = data_request_pool.process_data_request(
             dr_tx,
             block.block_header.beacon.checkpoint,

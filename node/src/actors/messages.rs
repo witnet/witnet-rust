@@ -1052,6 +1052,8 @@ pub struct RunTally {
     /// Active Witnet protocol improvements as of the block that will include this tally.
     /// Used to select the correct version of the validation logic.
     pub active_wips: ActiveWips,
+    /// Variable indicating if the amount of requested witnesses exceeds a certain fraction of the amount of stakers
+    pub too_many_witnesses: bool,
 }
 
 impl Message for ResolveRA {
