@@ -64,6 +64,7 @@ pub fn try_data_request(
     settings: RadonScriptExecutionSettings,
     inputs_injection: Option<&[&str]>,
     witnessing: Option<WitnessingConfig<witnet_net::Uri>>,
+    too_many_witnesses: bool,
 ) -> RADRequestExecutionReport {
     #[cfg(not(test))]
     let active_wips = current_active_wips();
@@ -116,6 +117,7 @@ pub fn try_data_request(
         0.2,
         1,
         &current_active_wips(),
+        too_many_witnesses,
     );
 
     let aggregation_report = match clause_result {
@@ -1550,6 +1552,7 @@ mod tests {
             RadonScriptExecutionSettings::enable_all(),
             None,
             None,
+            false,
         );
         let tally_result = report.tally.into_inner();
 
@@ -1593,6 +1596,7 @@ mod tests {
             RadonScriptExecutionSettings::enable_all(),
             None,
             None,
+            false,
         );
         let tally_result = report.tally.into_inner();
 
@@ -1645,6 +1649,7 @@ mod tests {
             RadonScriptExecutionSettings::enable_all(),
             None,
             None,
+            false,
         );
         let tally_result = report.tally.into_inner();
 
@@ -1697,6 +1702,7 @@ mod tests {
             RadonScriptExecutionSettings::enable_all(),
             None,
             None,
+            false,
         );
         let tally_result = report.tally.into_inner();
 
@@ -1749,6 +1755,7 @@ mod tests {
             RadonScriptExecutionSettings::enable_all(),
             None,
             None,
+            false,
         );
         let tally_result = report.tally.into_inner();
 
@@ -1814,6 +1821,7 @@ mod tests {
             RadonScriptExecutionSettings::enable_all(),
             Some(&["1", "1", "error"]),
             None,
+            false,
         );
         let tally_result = report.tally.into_inner();
 

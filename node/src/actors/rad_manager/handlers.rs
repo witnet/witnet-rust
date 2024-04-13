@@ -84,8 +84,13 @@ impl Handler<ResolveRA> for RadManager {
 
             // Evaluate tally precondition to ensure that at least 20% of the data sources are not errors.
             // This stage does not need to evaluate the postcondition.
-            let clause_result =
-                evaluate_tally_precondition_clause(retrieve_responses, 0.2, 1, &msg.active_wips);
+            let clause_result = evaluate_tally_precondition_clause(
+                retrieve_responses,
+                0.2,
+                1,
+                &msg.active_wips,
+                false,
+            );
             match clause_result {
                 Ok(TallyPreconditionClauseResult::MajorityOfValues {
                     values,
@@ -135,6 +140,7 @@ impl Handler<RunTally> for RadManager {
                 msg.min_consensus_ratio,
                 msg.commits_count,
                 &msg.active_wips,
+                msg.too_many_witnesses,
             )
         };
 
@@ -273,6 +279,7 @@ mod tests {
                     rad_request,
                     timeout: None,
                     active_wips,
+                    too_many_witnesses: false,
                 })
                 .await
                 .unwrap()
@@ -312,6 +319,7 @@ mod tests {
                     rad_request,
                     timeout: None,
                     active_wips,
+                    too_many_witnesses: false,
                 })
                 .await
                 .unwrap()

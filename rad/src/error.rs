@@ -293,6 +293,9 @@ pub enum RadError {
     /// No commits received
     #[fail(display = "Insufficient commits received")]
     InsufficientCommits,
+    /// No commits received
+    #[fail(display = "Too many witnesses request for the amount of stakers")]
+    TooManyWitnesses,
     /// No reveals received
     #[fail(display = "No reveals received")]
     NoReveals,
@@ -435,6 +438,7 @@ impl RadError {
             RadonErrors::ScriptTooManyCalls => RadError::ScriptTooManyCalls,
             RadonErrors::Overflow => RadError::Overflow,
             RadonErrors::InsufficientCommits => RadError::InsufficientCommits,
+            RadonErrors::TooManyWitnesses => RadError::TooManyWitnesses,
             RadonErrors::NoReveals => RadError::NoReveals,
             RadonErrors::SourceScriptNotCBOR => RadError::SourceScriptNotCBOR,
             RadonErrors::SourceScriptNotArray => RadError::SourceScriptNotArray,
@@ -585,6 +589,7 @@ impl RadError {
             RadError::Overflow => RadonErrors::Overflow,
             RadError::DivisionByZero => RadonErrors::DivisionByZero,
             RadError::InsufficientCommits => RadonErrors::InsufficientCommits,
+            RadError::TooManyWitnesses => RadonErrors::TooManyWitnesses,
             RadError::NoReveals => RadonErrors::NoReveals,
             RadError::RetrieveTimeout => RadonErrors::RetrieveTimeout,
             RadError::InsufficientConsensus { .. } => RadonErrors::InsufficientConsensus,
