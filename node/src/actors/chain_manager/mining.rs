@@ -25,11 +25,11 @@ use witnet_data_structures::{
         tapi::{after_second_hard_fork, ActiveWips},
         Block, BlockHeader, BlockMerkleRoots, BlockTransactions, Bn256PublicKey, CheckpointBeacon,
         CheckpointVRF, DataRequestOutput, EpochConstants, Hash, Hashable, Input, PublicKeyHash,
-        TransactionsPool, ValueTransferOutput,
+        RADTally, TransactionsPool, ValueTransferOutput,
     },
     data_request::{
         calculate_witness_reward, calculate_witness_reward_before_second_hard_fork, create_tally,
-        DataRequestPool,
+        data_request_has_too_many_witnesses, DataRequestPool,
     },
     error::TransactionError,
     get_environment, get_protocol_version,
@@ -56,7 +56,8 @@ use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{
     block_reward, calculate_liars_and_errors_count_from_tally, calculate_mining_probability,
     calculate_randpoe_threshold, calculate_reppoe_threshold, dr_transaction_fee, merkle_tree_root,
-    st_transaction_fee, tally_bytes_on_encode_error, update_utxo_diff, vt_transaction_fee,
+    run_tally, st_transaction_fee, tally_bytes_on_encode_error, update_utxo_diff,
+    vt_transaction_fee,
 };
 
 use crate::{
@@ -156,6 +157,8 @@ impl ChainManager {
             block_epoch: current_epoch,
         };
 
+        let validator_count = self.chain_state.stakes.validator_count();
+
         // Create a VRF proof and if eligible build block
         signature_mngr::vrf_prove(VrfMessage::block_mining(vrf_input))
             .map(move |res| {
@@ -228,11 +231,12 @@ impl ChainManager {
                 };
 
                 // Build the block using the supplied beacon and eligibility proof
+                let block_number = act.chain_state.block_number();
                 let (block_header, txns) = build_block(
                     (
                         &mut act.transactions_pool,
                         &act.chain_state.unspent_outputs_pool,
-                        &act.chain_state.data_request_pool,
+                        &mut act.chain_state.data_request_pool,
                     ),
                     max_vt_weight,
                     max_dr_weight,
@@ -242,7 +246,7 @@ impl ChainManager {
                     &tally_transactions,
                     own_pkh,
                     epoch_constants,
-                    act.chain_state.block_number(),
+                    block_number,
                     collateral_minimum,
                     bn256_public_key,
                     act.external_address,
@@ -251,6 +255,7 @@ impl ChainManager {
                     halving_period,
                     tapi_version,
                     &active_wips,
+                    validator_count,
                 );
 
                 // Sign the block hash
@@ -271,6 +276,7 @@ impl ChainManager {
                     vrf_input,
                     beacon,
                     epoch_constants,
+                    validator_count,
                 )
                 .map_ok(|_diff, act, _ctx| {
                     // Send AddCandidates message to self
@@ -756,6 +762,7 @@ impl ChainManager {
                                 script: dr_state.data_request.data_request.tally.clone(),
                                 commits_count,
                                 active_wips: active_wips_inside_move.clone(),
+                                too_many_witnesses: false,
                             })
                             .await
                             .unwrap_or_else(|e| {
@@ -822,7 +829,11 @@ impl ChainManager {
 /// TODO: simplify function signature, e.g. through merging multiple related fields into new data structures.
 #[allow(clippy::too_many_arguments)]
 pub fn build_block(
-    pools_ref: (&mut TransactionsPool, &UnspentOutputsPool, &DataRequestPool),
+    pools_ref: (
+        &mut TransactionsPool,
+        &UnspentOutputsPool,
+        &mut DataRequestPool,
+    ),
     max_vt_weight: u32,
     max_dr_weight: u32,
     max_st_weight: u32,
@@ -840,6 +851,7 @@ pub fn build_block(
     halving_period: u32,
     tapi_signals: u32,
     active_wips: &ActiveWips,
+    validator_count: usize,
 ) -> (BlockHeader, BlockTransactions) {
     let (transactions_pool, unspent_outputs_pool, dr_pool) = pools_ref;
     let epoch = beacon.checkpoint;
@@ -991,6 +1003,48 @@ pub fn build_block(
                 dr_tx.body.outputs.iter(),
                 dr_tx.hash(),
             );
+
+            // Number of data request witnesses should be at most the number of validators divided by four
+            if data_request_has_too_many_witnesses(&dr_tx.body.dr_output, validator_count) {
+                log::debug!("Data request {} has too many witnesses", dr_tx.hash());
+
+                // Temporarily insert the data request into the dr_pool
+                if let Err(e) = dr_pool.process_data_request(dr_tx, epoch, &Hash::default()) {
+                    log::error!("Error adding data request to the data request pool: {}", e);
+                }
+                if let Some(dr_state) = dr_pool.data_request_state_mutable(&dr_tx.hash()) {
+                    dr_state.update_stage(0, true);
+                } else {
+                    log::error!("Could not find data request state");
+                }
+
+                // The result of `RunTally` will be published as tally
+                let tally_script = RADTally {
+                    filters: vec![],
+                    reducer: 0,
+                };
+                let tally_result = run_tally(
+                    vec![], // reveals
+                    &tally_script,
+                    0.0, // minimum consensus percentage
+                    0,   // commit count
+                    active_wips,
+                    true, // too many witnesses
+                );
+
+                let pkh = dr_tx.signatures[0].public_key.pkh();
+                tally_txns.push(create_tally(
+                    dr_tx.hash(),
+                    &dr_tx.body.dr_output,
+                    pkh,
+                    &tally_result,
+                    vec![],         // No revealers
+                    HashSet::new(), // No committers
+                    collateral_minimum,
+                    tally_bytes_on_encode_error(),
+                    active_wips,
+                ));
+            }
 
             data_request_txns.push(dr_tx.clone());
             transaction_fees = transaction_fees.saturating_add(transaction_fee);

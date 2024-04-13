@@ -50,6 +50,8 @@ pub enum RadonErrors {
     InsufficientCommits = 0x52,
     /// Generic error during tally execution
     TallyExecution = 0x53,
+    /// Insufficient stakers to resolve the data request
+    TooManyWitnesses = 0x54,
     /// Invalid reveal serialization (malformed reveals are converted to this value)
     MalformedReveal = 0x60,
     /// Failed to encode reveal

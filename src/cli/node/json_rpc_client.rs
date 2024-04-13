@@ -1373,6 +1373,7 @@ pub fn data_request_report(
                     non_error_min,
                     commits_count,
                     &active_wips,
+                    false,
                 );
 
                 local_tally = Some(report.into_inner());

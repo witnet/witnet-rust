@@ -28,7 +28,8 @@ use witnet_data_structures::{
     },
     data_request::{
         calculate_reward_collateral_ratio, calculate_tally_change, calculate_witness_reward,
-        calculate_witness_reward_before_second_hard_fork, create_tally, DataRequestPool,
+        calculate_witness_reward_before_second_hard_fork, create_tally,
+        data_request_has_too_many_witnesses, DataRequestPool,
     },
     error::{BlockError, DataRequestError, TransactionError},
     get_protocol_version,
@@ -789,6 +790,7 @@ pub fn run_tally_panic_safe(
     non_error_min: f64,
     commits_count: usize,
     active_wips: &ActiveWips,
+    too_many_witnesses: bool,
 ) -> RadonReport<RadonTypes> {
     let unwind_fn = || {
         let results = serial_iter_decode(
@@ -810,7 +812,14 @@ pub fn run_tally_panic_safe(
             active_wips,
         );
 
-        run_tally(results, tally, non_error_min, commits_count, active_wips)
+        run_tally(
+            results,
+            tally,
+            non_error_min,
+            commits_count,
+            active_wips,
+            too_many_witnesses,
+        )
     };
 
     match panic::catch_unwind(unwind_fn) {
@@ -833,10 +842,16 @@ pub fn run_tally(
     non_error_min: f64,
     commits_count: usize,
     active_wips: &ActiveWips,
+    too_many_witnesses: bool,
 ) -> RadonReport<RadonTypes> {
     let results_len = results.len();
-    let clause_result =
-        evaluate_tally_precondition_clause(results, non_error_min, commits_count, active_wips);
+    let clause_result = evaluate_tally_precondition_clause(
+        results,
+        non_error_min,
+        commits_count,
+        active_wips,
+        too_many_witnesses,
+    );
     let mut report =
         construct_report_from_clause_result(clause_result, tally, results_len, active_wips);
     if active_wips.wips_0009_0011_0012() {
@@ -858,6 +873,7 @@ fn create_expected_tally_transaction(
     dr_pool: &DataRequestPool,
     collateral_minimum: u64,
     active_wips: &ActiveWips,
+    too_many_witnesses: bool,
 ) -> Result<(TallyTransaction, DataRequestState), failure::Error> {
     // Get DataRequestState
     let dr_pointer = ta_tx.dr_pointer;
@@ -888,6 +904,7 @@ fn create_expected_tally_transaction(
         non_error_min,
         commit_length,
         active_wips,
+        too_many_witnesses,
     );
     let ta_tx = create_tally(
         dr_pointer,
@@ -931,9 +948,25 @@ pub fn validate_tally_transaction<'a>(
     dr_pool: &DataRequestPool,
     collateral_minimum: u64,
     active_wips: &ActiveWips,
+    validator_count: usize,
 ) -> Result<(Vec<&'a ValueTransferOutput>, u64), failure::Error> {
-    let (expected_ta_tx, dr_state) =
-        create_expected_tally_transaction(ta_tx, dr_pool, collateral_minimum, active_wips)?;
+    let too_many_witnesses;
+    if let Some(dr_state) = dr_pool.data_request_state(&ta_tx.dr_pointer) {
+        too_many_witnesses =
+            data_request_has_too_many_witnesses(&dr_state.data_request, validator_count);
+    } else {
+        return Err(TransactionError::DataRequestNotFound {
+            hash: ta_tx.dr_pointer,
+        }
+        .into());
+    }
+    let (expected_ta_tx, dr_state) = create_expected_tally_transaction(
+        ta_tx,
+        dr_pool,
+        collateral_minimum,
+        active_wips,
+        too_many_witnesses,
+    )?;
 
     let sorted_out_of_consensus = ta_tx.out_of_consensus.iter().cloned().sorted().collect();
     let sorted_expected_out_of_consensus = expected_ta_tx
@@ -1600,6 +1633,7 @@ pub fn validate_block_transactions(
     consensus_constants: &ConsensusConstants,
     active_wips: &ActiveWips,
     mut visitor: Option<&mut dyn Visitor<Visitable = (Transaction, u64, u32)>>,
+    validator_count: usize,
 ) -> Result<Diff, failure::Error> {
     let epoch = block.block_header.beacon.checkpoint;
     let is_genesis = block.is_genesis(&consensus_constants.genesis_hash);
@@ -1766,6 +1800,7 @@ pub fn validate_block_transactions(
             dr_pool,
             consensus_constants.collateral_minimum,
             active_wips,
+            validator_count,
         )?;
 
         if !active_wips.wips_0009_0011_0012() && transaction.tally == tally_bytes_on_encode_error()
