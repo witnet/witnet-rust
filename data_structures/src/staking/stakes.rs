@@ -1,5 +1,6 @@
 use std::{
-    collections::{btree_map::Entry, BTreeMap},
+    cmp::PartialOrd,
+    collections::{btree_map::Entry, BTreeMap, HashSet},
     fmt::{Debug, Display},
     ops::{Add, Div, Mul, Sub},
 };
@@ -80,6 +81,9 @@ where
     ///  it never gets persisted and rather always read from constants, or hide the field and the related method
     ///  behind a #[test] thing.
     minimum_stakeable: Option<Coins>,
+    /// A listing of all active validators (mined a block or solved a data request) indexed by the validator address
+    /// and the epoch of when it was active as value
+    by_active: BTreeMap<Address, Epoch>,
 }
 
 impl<Address, Coins, Epoch, Power> Stakes<Address, Coins, Epoch, Power>
@@ -108,7 +112,8 @@ where
         + Debug
         + Display
         + Send
-        + Sync,
+        + Sync
+        + PartialOrd,
     Power: Copy + Default + Ord + Add<Output = Power> + Div<Output = Power>,
     u64: From<Coins> + From<Power>,
 {
@@ -251,6 +256,7 @@ where
             // No need to keep the entry if the stake has gone to zero
             if final_coins.is_zero() {
                 by_address_entry.remove();
+                self.by_active.remove(&key.validator);
                 self.by_coins.remove(&CoinsAndAddresses {
                     coins: initial_coins,
                     addresses: key,
@@ -308,6 +314,29 @@ where
             Ok(QueryStakesKey::Validator(validator)) => self.query_by_validator(validator),
             Ok(QueryStakesKey::Withdrawer(withdrawer)) => self.query_by_withdrawer(withdrawer),
             Err(_) => Err(StakesError::EmptyQuery),
+        }
+    }
+
+    /// Return the total number of validators.
+    pub fn validator_count(&self, active_since: Option<Epoch>) -> usize {
+        match active_since {
+            None => self.by_active.len(),
+            Some(epoch) => {
+                let mut count = 0;
+                for (_, active) in self.by_active.iter() {
+                    if *active >= epoch {
+                        count += 1;
+                    }
+                }
+                count
+            }
+        }
+    }
+
+    /// Update the active epoch of the validators passed as an argument
+    pub fn update_active_epoch(&mut self, validators: HashSet<Address>, active: Epoch) {
+        for validator in validators {
+            self.by_active.entry(validator).and_modify(|validator| *validator = active).or_insert(active);
         }
     }
 
@@ -372,7 +401,8 @@ where
         + Debug
         + Display
         + Send
-        + Sync,
+        + Sync
+        + PartialOrd,
     Power: Add<Output = Power> + Copy + Default + Div<Output = Power> + Ord + Debug,
     Wit: Mul<Epoch, Output = Power>,
     u64: From<Wit> + From<Power>,
@@ -419,7 +449,8 @@ where
         + Debug
         + Send
         + Sync
-        + Display,
+        + Display
+        + PartialOrd,
     Power: Add<Output = Power> + Copy + Default + Div<Output = Power> + Ord + Debug,
     Wit: Mul<Epoch, Output = Power>,
     u64: From<Wit> + From<Power>,

@@ -972,6 +972,24 @@ impl ChainManager {
 
                 let miner_pkh = block.block_header.proof.proof.pkh();
 
+                // Track all active addresses to update the active epoch of all validators
+                let mut active_addresses: HashSet<PublicKeyHash> = HashSet::new();
+                active_addresses.insert(miner_pkh);
+
+                for ta_tx in &block.txns.tally_txns {
+                    // Only update active epoch of honest validators
+                    // If there was a liar or error committer, the last output is the creator of the data request
+                    // This is not guaranteed to be a validator, so do not update its active epoch
+                    let data_requester_output = ta_tx.out_of_consensus.len() + ta_tx.error_committers.len() > 0;
+                    for (i, output) in ta_tx.outputs.iter().enumerate() {
+                        if data_requester_output && i == ta_tx.outputs.len() - 1 {
+                            break;
+                        }
+                        active_addresses.insert(output.pkh);
+                    }
+                }
+                stakes.update_active_epoch(active_addresses, block_epoch);
+
                 // Do not update reputation or stakes when consolidating genesis block
                 if block_hash != chain_info.consensus_constants.genesis_hash {
                     update_reputation(
