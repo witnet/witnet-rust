@@ -333,10 +333,22 @@ where
         }
     }
 
+    /// Get a vector of all validator that were active since a given epoch
+    pub fn get_active_validators(&self, active_since: Epoch) -> Vec<Address> {
+        self.by_active
+            .iter()
+            .filter(|(_, epoch)| **epoch >= active_since)
+            .map(|(address, _)| address.clone())
+            .collect()
+    }
+
     /// Update the active epoch of the validators passed as an argument
     pub fn update_active_epoch(&mut self, validators: HashSet<Address>, active: Epoch) {
         for validator in validators {
-            self.by_active.entry(validator).and_modify(|validator| *validator = active).or_insert(active);
+            self.by_active
+                .entry(validator)
+                .and_modify(|validator| *validator = active)
+                .or_insert(active);
         }
     }
 

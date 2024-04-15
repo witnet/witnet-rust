@@ -52,16 +52,16 @@ pub enum SuperBlockConsensus {
     Unknown,
 }
 
-/// ARS identities
+/// Validator identities
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-pub struct ARSIdentities {
-    // HashSet of the identities in a specific ARS
+pub struct ValidatorIdentities {
+    // HashSet of the validator identities at a specific block height
     identities: HashSet<PublicKeyHash>,
-    // Ordered vector of the identities in a specific ARS
+    // Ordered vector of the most recently active validator identities at a specific block height
     ordered_identities: Vec<PublicKeyHash>,
 }
 
-impl ARSIdentities {
+impl ValidatorIdentities {
     pub fn len(&self) -> usize {
         self.identities.len()
     }
@@ -71,13 +71,13 @@ impl ARSIdentities {
     }
 
     pub fn new(ordered_identities: Vec<PublicKeyHash>) -> Self {
-        ARSIdentities {
+        ValidatorIdentities {
             identities: ordered_identities.iter().cloned().collect(),
             ordered_identities,
         }
     }
 
-    pub fn get_rep_ordered_bn256_list(&self, alt_keys: &AltKeys) -> Vec<Bn256PublicKey> {
+    pub fn get_ordered_bn256_list(&self, alt_keys: &AltKeys) -> Vec<Bn256PublicKey> {
         self.ordered_identities
             .iter()
             .filter_map(|pkh| alt_keys.get_bn256(pkh).cloned())
@@ -225,10 +225,10 @@ impl SuperBlockVotesMempool {
 /// State related to superblocks
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SuperBlockState {
-    // Structure of the current Active Reputation Set identities
-    ars_current_identities: ARSIdentities,
-    // Structure of the previous Active Reputation Set identities
-    ars_previous_identities: ARSIdentities,
+    // Structure of the current set of validator identities
+    validator_current_identities: ValidatorIdentities,
+    // Structure of the previous set of validator identities
+    validator_previous_identities: ValidatorIdentities,
     /// The most recently created superblock. This one is yet to be voted and decided upon.
     current_superblock: Option<SuperBlock>,
     // Current superblock beacon including the superblock hash created by this node
@@ -246,8 +246,8 @@ impl SuperBlockState {
     pub fn new(superblock_genesis_hash: Hash, bootstrap_committee: Vec<PublicKeyHash>) -> Self {
         Self {
             signing_committee: bootstrap_committee.clone().into_iter().collect(),
-            ars_previous_identities: ARSIdentities::new(bootstrap_committee.clone()),
-            ars_current_identities: ARSIdentities::new(bootstrap_committee),
+            validator_previous_identities: ValidatorIdentities::new(bootstrap_committee.clone()),
+            validator_current_identities: ValidatorIdentities::new(bootstrap_committee),
             current_superblock_beacon: CheckpointBeacon {
                 checkpoint: 0,
                 hash_prev_block: superblock_genesis_hash,
@@ -306,7 +306,7 @@ impl SuperBlockState {
                 Some(true) => self.insert_vote(sbv.clone()),
                 Some(false) => {
                     if sbv.superblock_index == current_superblock_index
-                        || self.ars_previous_identities.is_empty()
+                        || self.validator_previous_identities.is_empty()
                     {
                         AddSuperBlockVote::NotInSigningCommittee
                     } else {
@@ -402,13 +402,13 @@ impl SuperBlockState {
         }
     }
 
-    fn update_ars_identities(&mut self, new_identities: ARSIdentities) {
-        self.ars_previous_identities = std::mem::take(&mut self.ars_current_identities);
-        self.ars_current_identities = new_identities;
+    fn update_validator_identities(&mut self, new_identities: ValidatorIdentities) {
+        self.validator_previous_identities = std::mem::take(&mut self.validator_current_identities);
+        self.validator_current_identities = new_identities;
     }
 
     /// Produces a `SuperBlock` that includes the blocks in `block_headers` if there is at least one of them.
-    /// `ars_identities` will be used to validate all the superblock votes received for the
+    /// `validator_identities` will be used to validate all the superblock votes received for the
     /// next superblock. The votes for the current superblock must be validated using them
     /// to calculate the superblock_signing_committee.
     /// The ordered bn256 keys will be merkelized and appended to the superblock
@@ -416,7 +416,7 @@ impl SuperBlockState {
     pub fn build_superblock(
         &mut self,
         block_headers: &[BlockHeader],
-        ars_identities: ARSIdentities,
+        validator_identities: ValidatorIdentities,
         signing_committee_size: u32,
         superblock_index: u32,
         last_block_in_previous_superblock: Hash,
@@ -424,9 +424,9 @@ impl SuperBlockState {
         sync_superblock: Option<SuperBlock>,
         block_epoch: Epoch,
     ) -> SuperBlock {
-        let key_leaves = hash_key_leaves(&ars_identities.get_rep_ordered_bn256_list(alt_keys));
+        let key_leaves = hash_key_leaves(&validator_identities.get_ordered_bn256_list(alt_keys));
 
-        self.update_ars_identities(ars_identities);
+        self.update_validator_identities(validator_identities);
 
         // During synchronization we use the superblock received as consensus by our outbounds
         // to have the right value of the signing committee size. From now on, we have all the values
@@ -434,7 +434,7 @@ impl SuperBlockState {
         let superblock = if let Some(sb) = sync_superblock {
             // Before updating the superblock_beacon, calculate the signing committee
             let signing_committee = calculate_superblock_signing_committee(
-                self.ars_previous_identities.clone(),
+                self.validator_previous_identities.clone(),
                 sb.signing_committee_length,
                 superblock_index,
                 self.current_superblock_beacon.hash_prev_block,
@@ -453,7 +453,7 @@ impl SuperBlockState {
         } else {
             // Before updating the superblock_beacon, calculate the signing committee
             let signing_committee = calculate_superblock_signing_committee(
-                self.ars_previous_identities.clone(),
+                self.validator_previous_identities.clone(),
                 signing_committee_size,
                 superblock_index,
                 self.current_superblock_beacon.hash_prev_block,
@@ -562,18 +562,18 @@ impl SuperBlockState {
 /// Calculates the superblock signing committee for a given superblock hash and ars
 #[allow(clippy::cast_possible_truncation)]
 pub fn calculate_superblock_signing_committee(
-    ars_identities: ARSIdentities,
+    validator_identities: ValidatorIdentities,
     signing_committee_size: u32,
     current_superblock_index: u32,
     superblock_hash: Hash,
     block_epoch: Epoch,
 ) -> HashSet<PublicKeyHash> {
     // If the number of identities is lower than committee_size all the members of the ARS sign the superblock
-    if ars_identities.len() < usize::try_from(signing_committee_size).unwrap() {
-        ars_identities.identities
+    if validator_identities.len() < usize::try_from(signing_committee_size).unwrap() {
+        validator_identities.identities
     } else if after_second_hard_fork(block_epoch, get_environment()) {
         // Start counting the members of the subset from:
-        // sha256(superblock_hash || superblock_index) % ars_identities.len()
+        // sha256(superblock_hash || superblock_index) % validator_identities.len()
         let superblock_hash_and_index_bytes = [
             superblock_hash.as_ref(),
             current_superblock_index.to_be_bytes().as_ref(),
@@ -582,12 +582,12 @@ pub fn calculate_superblock_signing_committee(
         let superblock_hash_and_index_bytes_hashed =
             Hash::from(calculate_sha256(&superblock_hash_and_index_bytes));
         let first = superblock_hash_and_index_bytes_hashed
-            .div_mod(ars_identities.len() as u64)
+            .div_mod(validator_identities.len() as u64)
             .1 as usize;
 
         // Get the subset
         let subset = magic_partition_2(
-            &ars_identities.ordered_identities,
+            &validator_identities.ordered_identities,
             first,
             signing_committee_size.try_into().unwrap(),
             superblock_hash_and_index_bytes_hashed.as_ref(),
@@ -603,11 +603,11 @@ pub fn calculate_superblock_signing_committee(
         // Start counting the members of the subset from the superblock_hash plus superblock index hash
         let mut first = u32::from(first_byte_sb_hash) + u32::from(first_byte_index_hash);
         // We need to choose a first member from all the potential ARS members
-        first %= ars_identities.len() as u32;
+        first %= validator_identities.len() as u32;
 
         // Get the subset
         let subset = magic_partition(
-            &ars_identities.ordered_identities.to_vec(),
+            &validator_identities.ordered_identities.to_vec(),
             first.try_into().unwrap(),
             signing_committee_size.try_into().unwrap(),
         );
@@ -956,7 +956,7 @@ mod tests {
 
         let sb1 = sbs.build_superblock(
             &block_headers,
-            ARSIdentities::new(ars2),
+            ValidatorIdentities::new(ars2),
             100,
             0,
             Hash::default(),
@@ -1005,12 +1005,12 @@ mod tests {
         let block_headers = vec![BlockHeader::default()];
         let pkhs = vec![create_pkh(1)];
         let keys = vec![create_bn256(1)];
-        let ars_identities = ARSIdentities::new(pkhs.clone());
+        let validator_identities = ValidatorIdentities::new(pkhs.clone());
         let alt_keys = create_alt_keys(pkhs, keys);
         let genesis_hash = Hash::default();
         let sb1 = sbs.build_superblock(
             &block_headers,
-            ars_identities,
+            validator_identities,
             100,
             0,
             genesis_hash,
@@ -1035,12 +1035,12 @@ mod tests {
         let genesis_hash = Hash::default();
         let pkhs = vec![create_pkh(1)];
         let keys = vec![create_bn256(1)];
-        let ars_identities = ARSIdentities::new(pkhs.clone());
+        let validator_identities = ValidatorIdentities::new(pkhs.clone());
         let alt_keys = create_alt_keys(pkhs, keys);
 
         let first_superblock = sbs.build_superblock(
             &block_headers,
-            ars_identities.clone(),
+            validator_identities.clone(),
             100,
             0,
             genesis_hash,
@@ -1052,7 +1052,7 @@ mod tests {
         let expected_superblock = SuperBlock::new(
             0,
             hash_merkle_tree_root(&hash_key_leaves(
-                &ars_identities.get_rep_ordered_bn256_list(&alt_keys),
+                &validator_identities.get_ordered_bn256_list(&alt_keys),
             )),
             Hash::default(),
             0,
@@ -1068,13 +1068,13 @@ mod tests {
                 .unwrap();
 
         let expected_sbs = SuperBlockState {
-            ars_current_identities: ars_identities,
+            ars_current_identities: validator_identities,
             signing_committee: HashSet::new(),
             current_superblock_beacon: CheckpointBeacon {
                 checkpoint: 0,
                 hash_prev_block: expected_superblock_hash,
             },
-            ars_previous_identities: ARSIdentities::default(),
+            ars_previous_identities: ValidatorIdentities::default(),
             ..Default::default()
         };
         assert_eq!(sbs, expected_sbs);
@@ -1087,14 +1087,14 @@ mod tests {
         let block_headers = vec![BlockHeader::default()];
         let pkhs = vec![create_pkh(1)];
         let keys = vec![create_bn256(1)];
-        let ars_identities = ARSIdentities::new(pkhs.clone());
+        let validator_identities = ValidatorIdentities::new(pkhs.clone());
         let alt_keys = create_alt_keys(pkhs, keys);
 
         let genesis_hash = Hash::default();
 
         sbs.build_superblock(
             &block_headers,
-            ars_identities.clone(),
+            validator_identities.clone(),
             100,
             0,
             genesis_hash,
@@ -1106,7 +1106,7 @@ mod tests {
         let expected_second_superblock = SuperBlock::new(
             1,
             hash_merkle_tree_root(&hash_key_leaves(
-                &ars_identities.get_rep_ordered_bn256_list(&alt_keys),
+                &validator_identities.get_ordered_bn256_list(&alt_keys),
             )),
             Hash::default(),
             1,
@@ -1118,7 +1118,7 @@ mod tests {
         assert_eq!(
             sbs.build_superblock(
                 &[],
-                ars_identities.clone(),
+                validator_identities.clone(),
                 100,
                 1,
                 genesis_hash,
@@ -1135,8 +1135,8 @@ mod tests {
             checkpoint: 1,
             hash_prev_block: expected_second_superblock.hash(),
         };
-        expected_sbs.signing_committee = ars_identities.identities.iter().cloned().collect();
-        expected_sbs.ars_previous_identities = ars_identities;
+        expected_sbs.signing_committee = validator_identities.identities.iter().cloned().collect();
+        expected_sbs.ars_previous_identities = validator_identities;
         assert_eq!(sbs, expected_sbs);
     }
 
@@ -1156,13 +1156,13 @@ mod tests {
         let block_headers = vec![BlockHeader::default()];
         let pkhs = vec![create_pkh(1)];
         let keys = vec![create_bn256(1)];
-        let ars_identities = ARSIdentities::new(pkhs.clone());
+        let validator_identities = ValidatorIdentities::new(pkhs.clone());
         let alt_keys = create_alt_keys(pkhs, keys);
 
         let genesis_hash = Hash::default();
         let _sb1 = sbs.build_superblock(
             &block_headers,
-            ars_identities.clone(),
+            validator_identities.clone(),
             100,
             0,
             genesis_hash,
@@ -1179,7 +1179,7 @@ mod tests {
 
         let _sb2 = sbs.build_superblock(
             &block_headers,
-            ars_identities,
+            validator_identities,
             100,
             1,
             genesis_hash,
@@ -1213,9 +1213,9 @@ mod tests {
         let p1 = PublicKey::from_bytes([1; 33]);
         let pkhs = vec![p1.pkh()];
         let keys = vec![create_bn256(1)];
-        let ars0 = ARSIdentities::new(vec![]);
-        let ars1 = ARSIdentities::new(pkhs.clone());
-        let ars2 = ARSIdentities::new(pkhs.clone());
+        let ars0 = ValidatorIdentities::new(vec![]);
+        let ars1 = ValidatorIdentities::new(pkhs.clone());
+        let ars2 = ValidatorIdentities::new(pkhs.clone());
 
         let alt_keys = create_alt_keys(pkhs, keys);
 
@@ -1276,9 +1276,9 @@ mod tests {
         let p1 = PublicKey::from_bytes([1; 33]);
         let pkhs = vec![p1.pkh()];
         let keys = vec![create_bn256(1)];
-        let ars0 = ARSIdentities::new(vec![]);
-        let ars1 = ARSIdentities::new(pkhs.clone());
-        let ars2 = ARSIdentities::new(pkhs.clone());
+        let ars0 = ValidatorIdentities::new(vec![]);
+        let ars1 = ValidatorIdentities::new(pkhs.clone());
+        let ars2 = ValidatorIdentities::new(pkhs.clone());
         let alt_keys = create_alt_keys(pkhs, keys);
 
         // Superblock votes for index 0 cannot be validated because we do not know the ARS for index -1
@@ -1339,9 +1339,9 @@ mod tests {
         let p1 = PublicKey::from_bytes([1; 33]);
         let pkhs = vec![p1.pkh()];
         let keys = vec![create_bn256(1)];
-        let ars0 = ARSIdentities::new(vec![]);
-        let ars1 = ARSIdentities::new(pkhs.clone());
-        let ars2 = ARSIdentities::new(pkhs.clone());
+        let ars0 = ValidatorIdentities::new(vec![]);
+        let ars1 = ValidatorIdentities::new(pkhs.clone());
+        let ars2 = ValidatorIdentities::new(pkhs.clone());
         let alt_keys = create_alt_keys(pkhs, keys);
 
         // Superblock votes for index 0 cannot be validated because we do not know the ARS for index -1
@@ -1402,9 +1402,9 @@ mod tests {
         let p1 = PublicKey::from_bytes([1; 33]);
         let pkhs = vec![p1.pkh()];
         let keys = vec![create_bn256(1)];
-        let ars0 = ARSIdentities::new(vec![]);
-        let ars1 = ARSIdentities::new(pkhs.clone());
-        let ars2 = ARSIdentities::new(pkhs.clone());
+        let ars0 = ValidatorIdentities::new(vec![]);
+        let ars1 = ValidatorIdentities::new(pkhs.clone());
+        let ars2 = ValidatorIdentities::new(pkhs.clone());
         let alt_keys = create_alt_keys(pkhs, keys);
 
         // Superblock votes for index 0 cannot be validated because we do not know the ARS for index -1
@@ -1479,11 +1479,11 @@ mod tests {
         let p2 = PublicKey::from_bytes([2; 33]);
         let p3 = PublicKey::from_bytes([3; 33]);
 
-        let ars0 = ARSIdentities::new(vec![]);
-        let ars1 = ARSIdentities::new(vec![p1.pkh()]);
-        let ars2 = ARSIdentities::new(vec![p2.pkh()]);
-        let ars3 = ARSIdentities::new(vec![p3.pkh()]);
-        let ars4 = ARSIdentities::new(vec![]);
+        let ars0 = ValidatorIdentities::new(vec![]);
+        let ars1 = ValidatorIdentities::new(vec![p1.pkh()]);
+        let ars2 = ValidatorIdentities::new(vec![p2.pkh()]);
+        let ars3 = ValidatorIdentities::new(vec![p3.pkh()]);
+        let ars4 = ValidatorIdentities::new(vec![]);
         let pkhs = vec![p1.pkh(), p2.pkh(), p3.pkh()];
         let keys = vec![create_bn256(1), create_bn256(2), create_bn256(3)];
         let alt_keys = create_alt_keys(pkhs, keys);
@@ -1634,7 +1634,7 @@ mod tests {
 
         let pkhs = vec![p1.pkh(), p2.pkh(), p3.pkh()];
         let keys = vec![create_bn256(1), create_bn256(2), create_bn256(3)];
-        let ars_identities = ARSIdentities::new(pkhs.clone());
+        let validator_identities = ValidatorIdentities::new(pkhs.clone());
         let alt_keys = create_alt_keys(pkhs, keys);
 
         let create_votes = |superblock_hash, superblock_index| {
@@ -1659,7 +1659,7 @@ mod tests {
         // (because it does not exist). When adding a vote it will return NotInSigningCommittee
         let sb0 = sbs.build_superblock(
             &block_headers,
-            ars_identities.clone(),
+            validator_identities.clone(),
             100,
             0,
             genesis_hash,
@@ -1687,10 +1687,10 @@ mod tests {
             AddSuperBlockVote::NotInSigningCommittee
         );
 
-        // Create a superblock with the ars_identities
+        // Create a superblock with the validator_identities
         let sb1 = sbs.build_superblock(
             &block_headers,
-            ars_identities.clone(),
+            validator_identities.clone(),
             100,
             1,
             genesis_hash,
@@ -1719,7 +1719,7 @@ mod tests {
 
         let sb2 = sbs.build_superblock(
             &block_headers,
-            ars_identities,
+            validator_identities,
             100,
             2,
             genesis_hash,
@@ -1765,9 +1765,9 @@ mod tests {
         ];
         let alt_keys = create_alt_keys(pkhs1.clone(), keys);
 
-        let ars0 = ARSIdentities::new(pkhs0);
-        let ars1 = ARSIdentities::new(pkhs1);
-        let ars2 = ARSIdentities::new(pkhs2);
+        let ars0 = ValidatorIdentities::new(pkhs0);
+        let ars1 = ValidatorIdentities::new(pkhs1);
+        let ars2 = ValidatorIdentities::new(pkhs2);
 
         let create_votes = |superblock_hash, superblock_index| {
             let mut v1 = SuperBlockVote::new_unsigned(superblock_hash, superblock_index);
@@ -1894,14 +1894,14 @@ mod tests {
 
         let pkhs = vec![p1.pkh(), p2.pkh(), p3.pkh()];
         let keys = vec![create_bn256(1), create_bn256(2), create_bn256(3)];
-        let ars_identities = ARSIdentities::new(pkhs.clone());
+        let validator_identities = ValidatorIdentities::new(pkhs.clone());
         let alt_keys = create_alt_keys(pkhs, keys);
 
         let block_headers = vec![BlockHeader::default()];
         let genesis_hash = Hash::default();
         let _sb1 = sbs.build_superblock(
             &block_headers,
-            ars_identities.clone(),
+            validator_identities.clone(),
             100,
             0,
             genesis_hash,
@@ -1912,7 +1912,7 @@ mod tests {
 
         let expected_sb2 = mining_build_superblock(
             &block_headers,
-            &hash_key_leaves(&ars_identities.get_rep_ordered_bn256_list(&alt_keys)),
+            &hash_key_leaves(&validator_identities.get_ordered_bn256_list(&alt_keys)),
             1,
             genesis_hash,
             3,
@@ -1929,7 +1929,7 @@ mod tests {
         // Create the second superblock afterwards
         let sb2 = sbs.build_superblock(
             &block_headers,
-            ars_identities.clone(),
+            validator_identities.clone(),
             100,
             1,
             genesis_hash,
@@ -1954,7 +1954,7 @@ mod tests {
         // set as "InvalidIndex"
         let _sb3 = sbs.build_superblock(
             &block_headers,
-            ars_identities,
+            validator_identities,
             100,
             2,
             genesis_hash,
@@ -1982,7 +1982,7 @@ mod tests {
 
         let pkhs = vec![p1.pkh(), p2.pkh(), p3.pkh()];
         let keys = vec![create_bn256(1), create_bn256(2), create_bn256(3)];
-        let ars_identities = ARSIdentities::new(pkhs.clone());
+        let validator_identities = ValidatorIdentities::new(pkhs.clone());
         let alt_keys = create_alt_keys(pkhs, keys);
 
         let block_headers = vec![BlockHeader::default()];
@@ -1990,7 +1990,7 @@ mod tests {
         // superblock with index 0.
         let _sb1 = sbs.build_superblock(
             &block_headers,
-            ars_identities.clone(),
+            validator_identities.clone(),
             2,
             0,
             genesis_hash,
@@ -2001,7 +2001,7 @@ mod tests {
         // superblock with index 1
         let sb2 = sbs.build_superblock(
             &block_headers,
-            ars_identities.clone(),
+            validator_identities.clone(),
             2,
             1,
             genesis_hash,
@@ -2012,7 +2012,7 @@ mod tests {
 
         let expected_sb2 = mining_build_superblock(
             &block_headers,
-            &hash_key_leaves(&ars_identities.get_rep_ordered_bn256_list(&alt_keys)),
+            &hash_key_leaves(&validator_identities.get_ordered_bn256_list(&alt_keys)),
             1,
             genesis_hash,
             2,
@@ -2060,13 +2060,13 @@ mod tests {
         let block_headers = vec![BlockHeader::default()];
         let pkhs = vec![create_pkh(1)];
         let keys = vec![create_bn256(1)];
-        let ars_identities = ARSIdentities::new(pkhs.clone());
+        let validator_identities = ValidatorIdentities::new(pkhs.clone());
         let alt_keys = create_alt_keys(pkhs, keys);
 
         let genesis_hash = Hash::default();
         let _sb1 = sbs.build_superblock(
             &block_headers,
-            ars_identities,
+            validator_identities,
             100,
             2,
             genesis_hash,
@@ -2089,13 +2089,13 @@ mod tests {
         let block_headers = vec![BlockHeader::default()];
         let pkhs = vec![create_pkh(1)];
         let keys = vec![create_bn256(1)];
-        let ars_identities = ARSIdentities::new(pkhs.clone());
+        let validator_identities = ValidatorIdentities::new(pkhs.clone());
         let alt_keys = create_alt_keys(pkhs, keys);
 
         let genesis_hash = Hash::default();
         let _sb1 = sbs.build_superblock(
             &block_headers,
-            ars_identities.clone(),
+            validator_identities.clone(),
             100,
             2,
             genesis_hash,
@@ -2106,7 +2106,7 @@ mod tests {
 
         let _sb2 = sbs.build_superblock(
             &block_headers,
-            ars_identities,
+            validator_identities,
             2,
             5,
             genesis_hash,
@@ -2142,7 +2142,7 @@ mod tests {
             create_bn256(3),
             create_bn256(4),
         ];
-        let ars_identities = ARSIdentities::new(pkhs.clone());
+        let validator_identities = ValidatorIdentities::new(pkhs.clone());
         let alt_keys = create_alt_keys(pkhs, keys);
 
         let block_headers = vec![BlockHeader::default()];
@@ -2150,7 +2150,7 @@ mod tests {
         // superblock with index 0.
         let _sb1 = sbs.build_superblock(
             &block_headers,
-            ars_identities.clone(),
+            validator_identities.clone(),
             2,
             0,
             genesis_hash,
@@ -2161,7 +2161,7 @@ mod tests {
         // superblock with index 1
         let sb2 = sbs.build_superblock(
             &block_headers,
-            ars_identities.clone(),
+            validator_identities.clone(),
             2,
             1,
             genesis_hash,
@@ -2172,7 +2172,7 @@ mod tests {
 
         let expected_sb2 = mining_build_superblock(
             &block_headers,
-            &hash_key_leaves(&ars_identities.get_rep_ordered_bn256_list(&alt_keys)),
+            &hash_key_leaves(&validator_identities.get_ordered_bn256_list(&alt_keys)),
             1,
             genesis_hash,
             2,
@@ -2223,14 +2223,14 @@ mod tests {
 
         let pkhs = vec![p1.pkh(), p2.pkh(), p3.pkh()];
         let keys = vec![create_bn256(1), create_bn256(2), create_bn256(3)];
-        let ars_identities = ARSIdentities::new(pkhs.clone());
+        let validator_identities = ValidatorIdentities::new(pkhs.clone());
         let alt_keys = create_alt_keys(pkhs, keys);
 
         let block_headers = vec![BlockHeader::default()];
         let genesis_hash = Hash::default();
         let _sb1 = sbs.build_superblock(
             &block_headers,
-            ars_identities.clone(),
+            validator_identities.clone(),
             100,
             0,
             genesis_hash,
@@ -2238,7 +2238,7 @@ mod tests {
             None,
             1,
         );
-        sbs.ars_previous_identities = ars_identities.clone();
+        sbs.ars_previous_identities = validator_identities.clone();
         let committee_size = 4;
         let subset = calculate_superblock_signing_committee(
             sbs.ars_previous_identities,
@@ -2247,7 +2247,7 @@ mod tests {
             sbs.current_superblock_beacon.hash_prev_block,
             1,
         );
-        assert_eq!(ars_identities.len(), subset.len());
+        assert_eq!(validator_identities.len(), subset.len());
     }
     #[test]
     fn test_build_superblock_with_optional_superblock() {
@@ -2268,7 +2268,7 @@ mod tests {
             create_bn256(4),
             create_bn256(5),
         ];
-        let ars = ARSIdentities::new(pkhs.clone());
+        let ars = ValidatorIdentities::new(pkhs.clone());
         let alt_keys = create_alt_keys(pkhs, keys);
 
         sbs.ars_current_identities = ars.clone();
@@ -2342,14 +2342,14 @@ mod tests {
             p7.pkh(),
             p8.pkh(),
         ];
-        let ars_identities = ARSIdentities::new(pkhs.clone());
+        let validator_identities = ValidatorIdentities::new(pkhs.clone());
         let alt_keys = create_alt_keys(pkhs, vec![]);
 
         let block_headers = vec![BlockHeader::default()];
         let genesis_hash = Hash::default();
         let _sb1 = sbs.build_superblock(
             &block_headers,
-            ars_identities.clone(),
+            validator_identities.clone(),
             4,
             0,
             genesis_hash,
@@ -2357,7 +2357,7 @@ mod tests {
             None,
             1,
         );
-        sbs.ars_previous_identities = ars_identities;
+        sbs.ars_previous_identities = validator_identities;
         let committee_size = 4;
         let subset = calculate_superblock_signing_committee(
             sbs.ars_previous_identities,
@@ -2387,14 +2387,14 @@ mod tests {
         let p3 = PublicKey::from_bytes([3; 33]);
 
         let pkhs = vec![p1.pkh(), p2.pkh(), p3.pkh()];
-        let ars_identities = ARSIdentities::new(pkhs.clone());
+        let validator_identities = ValidatorIdentities::new(pkhs.clone());
         let alt_keys = create_alt_keys(pkhs, vec![]);
 
         let block_headers = vec![BlockHeader::default()];
         let genesis_hash = Hash::default();
         let _sb1 = sbs.build_superblock(
             &block_headers,
-            ars_identities.clone(),
+            validator_identities.clone(),
             2,
             0,
             genesis_hash,
@@ -2402,7 +2402,7 @@ mod tests {
             None,
             1,
         );
-        sbs.ars_previous_identities = ars_identities.clone();
+        sbs.ars_previous_identities = validator_identities.clone();
         let committee_size = 2;
         let subset = calculate_superblock_signing_committee(
             sbs.ars_previous_identities,
@@ -2416,7 +2416,7 @@ mod tests {
         assert_eq!(subset, vec![p1.pkh(), p3.pkh()].into_iter().collect());
         assert_eq!(usize::try_from(committee_size).unwrap(), subset.len());
 
-        sbs.ars_previous_identities = ars_identities;
+        sbs.ars_previous_identities = validator_identities;
         let committee_size = 2;
         let subset_2 = calculate_superblock_signing_committee(
             sbs.ars_previous_identities.clone(),
@@ -2568,12 +2568,12 @@ mod tests {
     #[test]
     fn test_get_beacon_2() {
         let superblock_state = SuperBlockState {
-            ars_current_identities: ARSIdentities::default(),
+            ars_current_identities: ValidatorIdentities::default(),
             current_superblock_beacon: CheckpointBeacon {
                 checkpoint: 0,
                 hash_prev_block: Hash::SHA256([1; 32]),
             },
-            ars_previous_identities: ARSIdentities::default(),
+            ars_previous_identities: ValidatorIdentities::default(),
             ..Default::default()
         };
         let beacon = superblock_state.get_beacon();
@@ -2590,12 +2590,12 @@ mod tests {
     #[test]
     fn test_get_beacon_3() {
         let superblock_state = SuperBlockState {
-            ars_current_identities: ARSIdentities::default(),
+            ars_current_identities: ValidatorIdentities::default(),
             current_superblock_beacon: CheckpointBeacon {
                 checkpoint: 1,
                 hash_prev_block: Hash::default(),
             },
-            ars_previous_identities: ARSIdentities::default(),
+            ars_previous_identities: ValidatorIdentities::default(),
             ..Default::default()
         };
         let beacon = superblock_state.get_beacon();
@@ -2645,9 +2645,9 @@ mod tests {
             create_bn256(4),
             create_bn256(5),
         ];
-        let ars0 = ARSIdentities::new(vec![]);
-        let ars1 = ARSIdentities::new(pkhs.clone());
-        let ars2 = ARSIdentities::new(pkhs.clone());
+        let ars0 = ValidatorIdentities::new(vec![]);
+        let ars1 = ValidatorIdentities::new(pkhs.clone());
+        let ars2 = ValidatorIdentities::new(pkhs.clone());
 
         let alt_keys = create_alt_keys(pkhs, keys);
 

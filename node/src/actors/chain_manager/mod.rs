@@ -61,7 +61,7 @@ use witnet_data_structures::{
         penalize_factor,
         priority::{Priorities, PriorityEngine, PriorityVisitor},
         reputation_issuance,
-        tapi::{after_second_hard_fork, current_active_wips, in_emergency_period, ActiveWips},
+        tapi::{after_second_hard_fork, current_active_wips, ActiveWips},
         Alpha, AltKeys, Block, BlockHeader, Bn256PublicKey, ChainImport, ChainInfo, ChainState,
         CheckpointBeacon, CheckpointVRF, ConsensusConstants, DataRequestInfo, DataRequestOutput,
         DataRequestStage, Epoch, EpochConstants, Hash, Hashable, InventoryEntry, InventoryItem,
@@ -72,7 +72,7 @@ use witnet_data_structures::{
     get_environment,
     radon_report::{RadonReport, ReportContext},
     staking::prelude::*,
-    superblock::{ARSIdentities, AddSuperBlockVote, SuperBlockConsensus},
+    superblock::{AddSuperBlockVote, SuperBlockConsensus, ValidatorIdentities},
     transaction::{RevealTransaction, TallyTransaction, Transaction},
     types::{
         visitor::{StatefulVisitor, Visitor},
@@ -980,7 +980,8 @@ impl ChainManager {
                     // Only update active epoch of honest validators
                     // If there was a liar or error committer, the last output is the creator of the data request
                     // This is not guaranteed to be a validator, so do not update its active epoch
-                    let data_requester_output = ta_tx.out_of_consensus.len() + ta_tx.error_committers.len() > 0;
+                    let data_requester_output =
+                        ta_tx.out_of_consensus.len() + ta_tx.error_committers.len() > 0;
                     for (i, output) in ta_tx.outputs.iter().enumerate() {
                         if data_requester_output && i == ta_tx.outputs.len() - 1 {
                             break;
@@ -1894,30 +1895,11 @@ impl ChainManager {
                 }
 
                 let chain_info = act.chain_state.chain_info.as_ref().unwrap();
-                let reputation_engine = act.chain_state.reputation_engine.as_ref().unwrap();
                 let last_superblock_signed_by_bootstrap = last_superblock_signed_by_bootstrap(&chain_info.consensus_constants);
 
-                let ars_members =
-                    // Before reaching the epoch activity_period + collateral_age the bootstrap committee signs the superblock
-                    // collateral_age is measured in blocks instead of epochs, but this only means that the period in which
-                    // the bootstrap committee signs is at least epoch activity_period + collateral_age
-                    if let Some(ars_members) = in_emergency_period(superblock_index, get_environment()) {
-                        // Bootstrap committee
-                        ars_members
-                    } else if superblock_index >= last_superblock_signed_by_bootstrap {
-                        reputation_engine.get_rep_ordered_ars_list()
-                    } else {
-                        chain_info
-                            .consensus_constants
-                            .bootstrapping_committee
-                            .iter()
-                            .map(|add| add.parse().expect("Malformed bootstrapping committee"))
-                            .collect()
-                    };
-
-                // Get the list of members of the ARS with reputation greater than 0
-                // the list itself is ordered by decreasing reputation
-                let ars_identities = ARSIdentities::new(ars_members);
+                // Get the list of validators sorted by most recently active
+                let validators = act.chain_state.stakes.get_active_validators(block_epoch - 2000);
+                let ars_identities = ValidatorIdentities::new(validators);
 
                 // After the second hard fork, the superblock committee size must be at least 50
                 let min_committee_size = if after_second_hard_fork(block_epoch, get_environment()) {
