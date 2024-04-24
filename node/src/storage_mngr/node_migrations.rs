@@ -1,8 +1,11 @@
-use super::*;
 use witnet_data_structures::{
-    chain::{tapi::TapiEngine, ChainState},
+    chain::{ChainState, Epoch, PublicKeyHash, tapi::TapiEngine},
+    staking::stakes::Stakes,
     utxo_pool::UtxoWriteBatch,
+    wit::Wit,
 };
+
+use super::*;
 
 macro_rules! as_failure {
     ($e:expr) => {
@@ -55,6 +58,17 @@ fn migrate_chain_state_v2_to_v3(chain_state_bytes: &mut [u8]) {
     chain_state_bytes[0..4].copy_from_slice(&db_version_bytes);
 }
 
+fn migrate_chain_state_v3_to_v4(old_chain_state_bytes: &[u8]) -> Vec<u8> {
+    let db_version: u32 = 4;
+    let db_version_bytes = db_version.to_le_bytes();
+
+    // Extra fields in ChainState v4:
+    let stakes = Stakes::<PublicKeyHash, Wit, Epoch, u64>::default();
+    let stakes_bytes = bincode::serialize(&stakes).unwrap();
+
+    [&db_version_bytes, &old_chain_state_bytes[4..], &stakes_bytes].concat()
+}
+
 fn migrate_chain_state(mut bytes: Vec<u8>) -> Result<ChainState, failure::Error> {
     loop {
         match check_chain_state_version(&bytes) {
@@ -73,6 +87,11 @@ fn migrate_chain_state(mut bytes: Vec<u8>) -> Result<ChainState, failure::Error>
                 log::debug!("Successfully migrated ChainState v2 to v3");
             }
             Ok(3) => {
+                // Migrate from v3 to v4
+                bytes = migrate_chain_state_v3_to_v4(&bytes);
+                log::debug!("Successfully migrated ChainState v3 to v4");
+            }
+            Ok(4) => {
                 // Latest version
                 // Skip the first 4 bytes because they are used to encode db_version
                 return match deserialize(&bytes[4..]) {
@@ -193,9 +212,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde::{Deserialize, Serialize};
+
     use witnet_data_structures::chain::ChainInfo;
+
+    use super::*;
 
     #[test]
     fn bincode_version() {

@@ -36,6 +36,7 @@ use witnet_data_structures::{
     proto::versioning::{ProtocolVersion, VersionedHashable},
     radon_error::RadonError,
     radon_report::{RadonReport, ReportContext, TypeLike},
+    staking::prelude::*,
     transaction::{
         CommitTransaction, CommitTransactionBody, DRTransactionBody, MintTransaction,
         RevealTransaction, RevealTransactionBody, StakeTransactionBody, TallyTransaction,
@@ -54,17 +55,18 @@ use witnet_rad::{
 };
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::{
-    eligibility::legacy::*,
+    eligibility::{current::Eligibility, legacy::*},
     validations::{
         block_reward, calculate_liars_and_errors_count_from_tally, dr_transaction_fee,
         merkle_tree_root, st_transaction_fee, tally_bytes_on_encode_error, update_utxo_diff,
         vt_transaction_fee,
     },
 };
+use witnet_validations::eligibility::current::Eligible;
 
 use crate::{
     actors::{
-        chain_manager::{ChainManager, StateMachine},
+        chain_manager::{ChainManager, ChainManagerError, StateMachine},
         messages::{AddCommitReveal, ResolveRA, RunTally},
         rad_manager::RadManager,
     },
@@ -73,137 +75,97 @@ use crate::{
 
 impl ChainManager {
     /// Try to mine a block
-    pub fn try_mine_block(&mut self, ctx: &mut Context<Self>) {
+    pub fn try_mine_block(&mut self, ctx: &mut Context<Self>) -> Result<(), ChainManagerError> {
         if !self.mining_enabled {
-            log::debug!("Mining is disabled in the configuration");
-            return;
+            return Err(ChainManagerError::MiningIsDisabled);
         }
 
         // We only want to mine in Synced state
         if self.sm_state != StateMachine::Synced {
-            log::debug!(
-                "Not mining because node is not in Synced state (current state is {:?})",
-                self.sm_state
-            );
-            return;
+            return Err(ChainManagerError::NotSynced { current_state: self.sm_state });
         }
 
-        if self.current_epoch.is_none() {
-            log::warn!("Cannot mine a block because current epoch is unknown");
+        let current_epoch = self.current_epoch.ok_or(ChainManagerError::ChainNotReady)?;
+        let own_pkh =  self.own_pkh.ok_or(ChainManagerError::ChainNotReady)?;
+        let epoch_constants = self.epoch_constants.ok_or(ChainManagerError::ChainNotReady)?;
+        let chain_info = self.chain_state.chain_info.clone().ok_or(ChainManagerError::ChainNotReady)?;
 
-            return;
-        }
-        if self.own_pkh.is_none() {
-            log::warn!("PublicKeyHash is not set. All mined wits will be lost!");
-        }
-
-        if self.chain_state.reputation_engine.is_none() {
-            log::warn!("Reputation engine is not set");
-
-            return;
-        }
-        if self.epoch_constants.is_none() {
-            log::warn!("EpochConstants is not set");
-
-            return;
-        }
-        if self.chain_state.chain_info.is_none() {
-            log::warn!("ChainInfo is not set");
-
-            return;
-        }
-        let epoch_constants = self.epoch_constants.unwrap();
-        let rep_engine = self.chain_state.reputation_engine.as_ref().unwrap().clone();
-        let total_identities = u32::try_from(rep_engine.ars().active_identities_number()).unwrap();
-
-        let current_epoch = self.current_epoch.unwrap();
-
-        let chain_info = self.chain_state.chain_info.as_mut().unwrap();
         let max_vt_weight = chain_info.consensus_constants.max_vt_weight;
         let max_dr_weight = chain_info.consensus_constants.max_dr_weight;
         let max_st_weight = PSEUDO_CONSENSUS_CONSTANTS_POS_MAX_STAKE_BLOCK_WEIGHT;
         let mining_bf = chain_info.consensus_constants.mining_backup_factor;
-        let mining_rf = chain_info.consensus_constants.mining_replication_factor;
         let collateral_minimum = chain_info.consensus_constants.collateral_minimum;
         let minimum_difficulty = chain_info.consensus_constants.minimum_difficulty;
         let initial_block_reward = chain_info.consensus_constants.initial_block_reward;
         let halving_period = chain_info.consensus_constants.halving_period;
-        let epochs_with_minimum_difficulty = chain_info
-            .consensus_constants
-            .epochs_with_minimum_difficulty;
 
         let mut beacon = chain_info.highest_block_checkpoint;
         let mut vrf_input = chain_info.highest_vrf_output;
 
-        if beacon.checkpoint >= current_epoch {
-            // We got a block from the future
-            // Due to block consolidation from epoch N is done in epoch N+1,
-            // and chain beacon is the same that the last block known.
-            // Our chain beacon always come from the past epoch. So, a chain beacon
-            // with the current epoch is the same error if it is come from the future
-            log::error!(
-                "The current highest checkpoint beacon is from the future ({:?} >= {:?})",
-                beacon.checkpoint,
-                current_epoch
-            );
-            return;
+        if get_protocol_version(self.current_epoch) == ProtocolVersion::V2_0 {
+            let key = StakeKey::from((own_pkh, own_pkh));
+            let eligibility = self.chain_state.stakes.mining_eligibility(key, current_epoch).map_err(ChainManagerError::Staking)?;
+
+            match eligibility {
+                Eligible::Yes => {
+                    log::info!("Hurray! Found eligibility for proposing a block candidate!");
+                }
+                Eligible::No(_) => {
+                    log::debug!("No eligibility for proposing a block candidate.")
+                }
+            }
         }
+
         // The highest checkpoint beacon should contain the current epoch
         beacon.checkpoint = current_epoch;
         vrf_input.checkpoint = current_epoch;
 
-        let own_pkh = self.own_pkh.unwrap_or_default();
-        let is_ars_member = rep_engine.is_ars_member(&own_pkh);
-        let active_wips = ActiveWips {
-            active_wips: self.chain_state.tapi_engine.wip_activation.clone(),
-            block_epoch: current_epoch,
+        let target_hash = if get_protocol_version(self.current_epoch) == ProtocolVersion::V2_0 {
+            Hash::max()
+        } else {
+            let rep_engine = self.chain_state.reputation_engine.as_ref().unwrap().clone();
+            let total_identities = u32::try_from(rep_engine.ars().active_identities_number()).unwrap();
+            let epochs_with_minimum_difficulty = chain_info
+                .consensus_constants
+                .epochs_with_minimum_difficulty;
+
+            let active_wips = ActiveWips {
+                active_wips: self.chain_state.tapi_engine.wip_activation.clone(),
+                block_epoch: current_epoch,
+            };
+
+            // invalid: vrf_hash > target_hash
+            let (target_hash, _probability) = calculate_randpoe_threshold(
+                total_identities,
+                mining_bf,
+                current_epoch,
+                minimum_difficulty,
+                epochs_with_minimum_difficulty,
+                &active_wips,
+            );
+
+            target_hash
         };
 
-        // Create a VRF proof and if eligible build block
         signature_mngr::vrf_prove(VrfMessage::block_mining(vrf_input))
             .map(move |res| {
                 res.map_err(|e| log::error!("Failed to create block eligibility proof: {}", e))
                     .map(move |(vrf_proof, vrf_proof_hash)| {
-                        // invalid: vrf_hash > target_hash
-                        let (target_hash, probability) = calculate_randpoe_threshold(
-                            total_identities,
-                            mining_bf,
-                            current_epoch,
-                            minimum_difficulty,
-                            epochs_with_minimum_difficulty,
-                            &active_wips,
-                        );
-                        let proof_invalid = vrf_proof_hash > target_hash;
+                        // For legacy protocol versions, check if our proof meets some thresholds
+
+                        if vrf_proof_hash > target_hash {
+                            Err(())?;
+                        }
 
                         log::info!(
-                            "Probability to create a valid mining proof: {:.6}%",
-                            probability * 100_f64
+                            "{} Discovered eligibility for mining a block for epoch #{}",
+                            Yellow.bold().paint("[Mining]"),
+                            Yellow.bold().paint(beacon.checkpoint.to_string())
                         );
-                        log::trace!("Target hash: {}", target_hash);
-                        log::trace!("Our proof:   {}", vrf_proof_hash);
-                        if proof_invalid {
-                            log::debug!("No eligibility for mining a block");
-                            Err(())
-                        } else {
-                            log::info!(
-                                "{} Discovered eligibility for mining a block for epoch #{}",
-                                Yellow.bold().paint("[Mining]"),
-                                Yellow.bold().paint(beacon.checkpoint.to_string())
-                            );
-                            let mining_prob = calculate_mining_probability(
-                                &rep_engine,
-                                own_pkh,
-                                mining_rf,
-                                mining_bf,
-                            );
-                            // Discount the already reached probability
-                            let mining_prob = mining_prob / probability * 100.0;
-                            log::info!(
-                                "Probability that the mined block will be selected: {:.6}%",
-                                mining_prob
-                            );
-                            Ok(vrf_proof)
-                        }
+
+                        // TODO: figure out if mining probability estimates make any sense in the context of PoS
+
+                        Ok::<_, ()>(vrf_proof)
                     })
             })
             .flatten_err()
@@ -216,12 +178,8 @@ impl ChainManager {
             .and_then(move |(vrf_proof, tally_transactions), act, _ctx| {
                 let eligibility_claim = BlockEligibilityClaim { proof: vrf_proof };
 
-                // If pkh is in ARS, no need to send bn256 public key
-                let bn256_public_key = if is_ars_member {
-                    None
-                } else {
-                    act.bn256_public_key.clone()
-                };
+                // TODO: assess if bn256 keys are redundant
+                let bn256_public_key = act.bn256_public_key.clone();
 
                 let tapi_version = act.tapi_signals_mask(current_epoch);
 
@@ -275,25 +233,27 @@ impl ChainManager {
                     beacon,
                     epoch_constants,
                 )
-                .map_ok(|_diff, act, _ctx| {
-                    // Send AddCandidates message to self
-                    // This will run all the validations again
+                    .map_ok(|_diff, act, _ctx| {
+                        // Send AddCandidates message to self
+                        // This will run all the validations again
 
-                    let block_hash = block.hash();
-                    // FIXME(#1773): Currently last_block_proposed is not used, but removing it is a breaking change
-                    act.chain_state.node_stats.last_block_proposed = block_hash;
-                    act.chain_state.node_stats.block_proposed_count += 1;
-                    log::info!(
+                        let block_hash = block.hash();
+                        // FIXME(#1773): Currently last_block_proposed is not used, but removing it is a breaking change
+                        act.chain_state.node_stats.last_block_proposed = block_hash;
+                        act.chain_state.node_stats.block_proposed_count += 1;
+                        log::info!(
                         "Proposed block candidate {}",
                         Yellow.bold().paint(block_hash.to_string())
                     );
 
-                    act.process_candidate(block);
-                })
-                .map_err(|e, _, _| log::error!("Error trying to mine a block: {}", e))
+                        act.process_candidate(block);
+                    })
+                    .map_err(|e, _, _| log::error!("Error trying to mine a block: {}", e))
             })
             .map(|_res: Result<(), ()>, _act, _ctx| ())
             .wait(ctx);
+
+        Ok(())
     }
 
     /// Try to mine a data_request

@@ -1228,6 +1228,11 @@ impl Hash {
             Hash::SHA256(bytes) => *bytes,
         }
     }
+
+    /// Creates an instance of Hash where all bytes are set to their max value.
+    pub fn max() -> Self {
+        Self::SHA256([u8::MAX; 32])
+    }
 }
 
 /// Error when parsing hash from string
@@ -3805,11 +3810,12 @@ pub struct ChainState {
     pub superblock_state: SuperBlockState,
     /// TAPI Engine
     pub tapi_engine: TapiEngine,
+    /// Tracks stakes for every validator in the network
+    #[serde(default)]
+    pub stakes: Stakes<PublicKeyHash, Wit, Epoch, u64>,
     /// Unspent Outputs Pool
     #[serde(skip)]
     pub unspent_outputs_pool: UnspentOutputsPool,
-    /// Tracks stakes for every validator in the network
-    pub stakes: Stakes<PublicKeyHash, Wit, Epoch, u64>,
 }
 
 impl ChainState {

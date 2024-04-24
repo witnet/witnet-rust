@@ -79,6 +79,7 @@ where
     ///  the minimum through TAPI or whatever. Maybe what we can do is set a skip directive for the Serialize macro so
     ///  it never gets persisted and rather always read from constants, or hide the field and the related method
     ///  behind a #[test] thing.
+    #[serde(skip)]
     minimum_stakeable: Option<Coins>,
 }
 

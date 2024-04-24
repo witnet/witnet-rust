@@ -129,7 +129,7 @@ pub enum ChainManagerError {
     #[fail(display = "A block does not exist")]
     BlockDoesNotExist,
     /// Optional fields of ChainManager are not properly initialized yet
-    #[fail(display = "ChainManager is not ready yet")]
+    #[fail(display = "ChainManager is not ready yet. This may self-fix in a little while")]
     ChainNotReady,
     /// The node attempted to do an action that is only allowed while `ChainManager`
     /// is in `Synced` state.
@@ -158,6 +158,15 @@ pub enum ChainManagerError {
         /// Tells what the current epoch was
         current_superblock_index: u32,
     },
+    /// Tried to mine block candidates but mining is disabled through configuration.
+    #[fail(display = "Mining is disabled through configuration")]
+    MiningIsDisabled,
+    /// A staking-related error happened.
+    #[fail(display = "A staking-related error happened: {:?}", _0)]
+    Staking(StakesError<PublicKeyHash, witnet_data_structures::wit::Wit, Epoch>),
+    /// The node is not eligible to perform a certain action.
+    #[fail(display = "The node is not eligible to perform this action")]
+    NotEligible,
 }
 
 /// Synchronization target determined by the beacons received from outbound peers
