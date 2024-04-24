@@ -7,7 +7,7 @@ use std::{
 };
 
 /// All errors related to the staking functionality.
-#[derive(Debug, PartialEq, Fail)]
+#[derive(Debug, Eq, PartialEq, Fail)]
 pub enum StakesError<Address, Coins, Epoch>
 where
     Address: Debug + Display + Sync + Send + 'static,

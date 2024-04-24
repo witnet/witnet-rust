@@ -1739,7 +1739,19 @@ impl Handler<TryMineBlock> for ChainManager {
     type Result = ();
 
     fn handle(&mut self, _msg: TryMineBlock, ctx: &mut Self::Context) -> Self::Result {
-        self.try_mine_block(ctx);
+        if let Err(e) = self.try_mine_block(ctx) {
+            match e {
+                // Lack of eligibility is logged as debug
+                e @ ChainManagerError::NotEligible => {
+                    log::debug!("{}", e);
+                }
+                // Any other errors are logged as warning (considering that this is a best-effort
+                // method)
+                e  => {
+                    log::warn!("{}", e);
+                }
+            }
+        }
     }
 }
 
