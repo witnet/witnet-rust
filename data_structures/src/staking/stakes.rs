@@ -308,7 +308,7 @@ where
     pub fn query_stakes<TIQSK>(
         &mut self,
         query: TIQSK,
-    ) -> StakingResult<Coins, Address, Coins, Epoch>
+    ) -> StakesResult<Coins, Address, Coins, Epoch>
     where
         TIQSK: TryInto<QueryStakesKey<Address>>,
     {
@@ -322,7 +322,7 @@ where
 
     /// Query stakes by stake key.
     #[inline(always)]
-    fn query_by_key(&self, key: StakeKey<Address>) -> StakingResult<Coins, Address, Coins, Epoch> {
+    fn query_by_key(&self, key: StakeKey<Address>) -> StakesResult<Coins, Address, Coins, Epoch> {
         Ok(self
             .by_key
             .get(&key)
@@ -334,10 +334,7 @@ where
 
     /// Query stakes by validator address.
     #[inline(always)]
-    fn query_by_validator(
-        &self,
-        validator: Address,
-    ) -> StakingResult<Coins, Address, Coins, Epoch> {
+    fn query_by_validator(&self, validator: Address) -> StakesResult<Coins, Address, Coins, Epoch> {
         Ok(self
             .by_validator
             .get(&validator)
@@ -352,7 +349,7 @@ where
     fn query_by_withdrawer(
         &self,
         withdrawer: Address,
-    ) -> StakingResult<Coins, Address, Coins, Epoch> {
+    ) -> StakesResult<Coins, Address, Coins, Epoch> {
         Ok(self
             .by_withdrawer
             .get(&withdrawer)

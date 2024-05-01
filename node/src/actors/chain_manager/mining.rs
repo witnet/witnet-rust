@@ -55,14 +55,16 @@ use witnet_rad::{
 };
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::{
-    eligibility::{current::Eligibility, legacy::*},
+    eligibility::{
+        current::{Eligibility, Eligible},
+        legacy::*,
+    },
     validations::{
         block_reward, calculate_liars_and_errors_count_from_tally, dr_transaction_fee,
         merkle_tree_root, st_transaction_fee, tally_bytes_on_encode_error, update_utxo_diff,
         vt_transaction_fee,
     },
 };
-use witnet_validations::eligibility::current::Eligible;
 
 use crate::{
     actors::{
@@ -82,13 +84,21 @@ impl ChainManager {
 
         // We only want to mine in Synced state
         if self.sm_state != StateMachine::Synced {
-            return Err(ChainManagerError::NotSynced { current_state: self.sm_state });
+            return Err(ChainManagerError::NotSynced {
+                current_state: self.sm_state,
+            });
         }
 
         let current_epoch = self.current_epoch.ok_or(ChainManagerError::ChainNotReady)?;
-        let own_pkh =  self.own_pkh.ok_or(ChainManagerError::ChainNotReady)?;
-        let epoch_constants = self.epoch_constants.ok_or(ChainManagerError::ChainNotReady)?;
-        let chain_info = self.chain_state.chain_info.clone().ok_or(ChainManagerError::ChainNotReady)?;
+        let own_pkh = self.own_pkh.ok_or(ChainManagerError::ChainNotReady)?;
+        let epoch_constants = self
+            .epoch_constants
+            .ok_or(ChainManagerError::ChainNotReady)?;
+        let chain_info = self
+            .chain_state
+            .chain_info
+            .clone()
+            .ok_or(ChainManagerError::ChainNotReady)?;
 
         let max_vt_weight = chain_info.consensus_constants.max_vt_weight;
         let max_dr_weight = chain_info.consensus_constants.max_dr_weight;
@@ -104,7 +114,11 @@ impl ChainManager {
 
         if get_protocol_version(self.current_epoch) == ProtocolVersion::V2_0 {
             let key = StakeKey::from((own_pkh, own_pkh));
-            let eligibility = self.chain_state.stakes.mining_eligibility(key, current_epoch).map_err(ChainManagerError::Staking)?;
+            let eligibility = self
+                .chain_state
+                .stakes
+                .mining_eligibility(key, current_epoch)
+                .map_err(ChainManagerError::Staking)?;
 
             match eligibility {
                 Eligible::Yes => {
@@ -124,7 +138,8 @@ impl ChainManager {
             Hash::max()
         } else {
             let rep_engine = self.chain_state.reputation_engine.as_ref().unwrap().clone();
-            let total_identities = u32::try_from(rep_engine.ars().active_identities_number()).unwrap();
+            let total_identities =
+                u32::try_from(rep_engine.ars().active_identities_number()).unwrap();
             let epochs_with_minimum_difficulty = chain_info
                 .consensus_constants
                 .epochs_with_minimum_difficulty;
@@ -233,22 +248,22 @@ impl ChainManager {
                     beacon,
                     epoch_constants,
                 )
-                    .map_ok(|_diff, act, _ctx| {
-                        // Send AddCandidates message to self
-                        // This will run all the validations again
+                .map_ok(|_diff, act, _ctx| {
+                    // Send AddCandidates message to self
+                    // This will run all the validations again
 
-                        let block_hash = block.hash();
-                        // FIXME(#1773): Currently last_block_proposed is not used, but removing it is a breaking change
-                        act.chain_state.node_stats.last_block_proposed = block_hash;
-                        act.chain_state.node_stats.block_proposed_count += 1;
-                        log::info!(
+                    let block_hash = block.hash();
+                    // FIXME(#1773): Currently last_block_proposed is not used, but removing it is a breaking change
+                    act.chain_state.node_stats.last_block_proposed = block_hash;
+                    act.chain_state.node_stats.block_proposed_count += 1;
+                    log::info!(
                         "Proposed block candidate {}",
                         Yellow.bold().paint(block_hash.to_string())
                     );
 
-                        act.process_candidate(block);
-                    })
-                    .map_err(|e, _, _| log::error!("Error trying to mine a block: {}", e))
+                    act.process_candidate(block);
+                })
+                .map_err(|e, _, _| log::error!("Error trying to mine a block: {}", e))
             })
             .map(|_res: Result<(), ()>, _act, _ctx| ())
             .wait(ctx);
