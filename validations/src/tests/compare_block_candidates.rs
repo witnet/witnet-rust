@@ -2,7 +2,7 @@ use witnet_data_structures::chain::{tapi::current_active_wips, Hash, Reputation}
 
 use std::cmp::Ordering;
 
-use crate::{validations::*, eligibility::legacy::*};
+use crate::{eligibility::legacy::*, validations::*};
 
 #[test]
 fn test_compare_candidate_same_section() {
