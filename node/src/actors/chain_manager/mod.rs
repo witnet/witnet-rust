@@ -69,7 +69,8 @@ use witnet_data_structures::{
         SuperBlock, SuperBlockVote, TransactionsPool,
     },
     data_request::DataRequestPool,
-    get_environment,
+    get_environment, get_protocol_version,
+    proto::versioning::ProtocolVersion,
     radon_report::{RadonReport, ReportContext},
     staking::prelude::*,
     superblock::{ARSIdentities, AddSuperBlockVote, SuperBlockConsensus},
@@ -80,6 +81,7 @@ use witnet_data_structures::{
     },
     utxo_pool::{Diff, OwnUnspentOutputsPool, UnspentOutputsPool, UtxoWriteBatch},
     vrf::VrfCtx,
+    wit::Wit,
 };
 use witnet_rad::types::RadonTypes;
 use witnet_util::timestamp::seconds_to_human_string;
@@ -697,6 +699,7 @@ impl ChainManager {
 
             let mut transaction_visitor = PriorityVisitor::default();
 
+            let protocol_version = get_protocol_version(self.current_epoch);
             let utxo_diff = process_validations(
                 &block,
                 self.current_epoch.unwrap_or_default(),
@@ -712,6 +715,8 @@ impl ChainManager {
                 resynchronizing,
                 &active_wips,
                 Some(&mut transaction_visitor),
+                protocol_version,
+                &self.chain_state.stakes,
             )?;
 
             // Extract the collected priorities from the internal state of the visitor
@@ -801,6 +806,7 @@ impl ChainManager {
                         return;
                     }
                 };
+                let protocol_version = get_protocol_version(Some(block.block_header.beacon.checkpoint));
 
                 if let Some(best_candidate) = &self.best_candidate {
                     let best_hash = best_candidate.block.hash();
@@ -824,6 +830,7 @@ impl ChainManager {
                         best_candidate.vrf_proof,
                         best_candidate_is_active,
                         &target_vrf_slots,
+                        protocol_version,
                     ) != Ordering::Greater
                     {
                         log::debug!("Ignoring new block candidate ({}) because a better one ({}) has been already validated", hash_block, best_hash);
@@ -853,6 +860,8 @@ impl ChainManager {
                     false,
                     &active_wips,
                     Some(&mut transaction_visitor),
+                    protocol_version,
+                    &self.chain_state.stakes,
                 ) {
                     Ok(utxo_diff) => {
                         let priorities = transaction_visitor.take_state();
@@ -1992,6 +2001,7 @@ impl ChainManager {
             active_wips: self.chain_state.tapi_engine.wip_activation.clone(),
             block_epoch: block.block_header.beacon.checkpoint,
         };
+        let protocol_version = get_protocol_version(Some(block.block_header.beacon.checkpoint));
         let res = validate_block(
             &block,
             current_epoch,
@@ -2001,6 +2011,8 @@ impl ChainManager {
             self.chain_state.reputation_engine.as_ref().unwrap(),
             &consensus_constants,
             &active_wips,
+            protocol_version,
+            &self.chain_state.stakes,
         );
 
         let fut = async {
@@ -2799,6 +2811,8 @@ pub fn process_validations(
     resynchronizing: bool,
     active_wips: &ActiveWips,
     transaction_visitor: Option<&mut dyn Visitor<Visitable = (Transaction, u64, u32)>>,
+    protocol_version: ProtocolVersion,
+    stakes: &Stakes<PublicKeyHash, Wit, u32, u64>,
 ) -> Result<Diff, failure::Error> {
     if !resynchronizing {
         let mut signatures_to_verify = vec![];
@@ -2811,6 +2825,8 @@ pub fn process_validations(
             rep_eng,
             consensus_constants,
             active_wips,
+            protocol_version,
+            stakes,
         )?;
         verify_signatures(signatures_to_verify, vrf_ctx)?;
     }
