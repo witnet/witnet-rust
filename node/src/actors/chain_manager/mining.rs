@@ -111,7 +111,8 @@ impl ChainManager {
                     log::info!("Hurray! Found eligibility for proposing a block candidate!");
                 }
                 Eligible::No(_) => {
-                    log::debug!("No eligibility for proposing a block candidate.")
+                    log::debug!("No eligibility for proposing a block candidate.");
+                    return Ok(());
                 }
             }
         }
