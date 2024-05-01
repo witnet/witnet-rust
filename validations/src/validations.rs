@@ -34,6 +34,10 @@ use witnet_data_structures::{
     get_protocol_version,
     proto::versioning::{ProtocolVersion, VersionedHashable},
     radon_report::{RadonReport, ReportContext},
+    staking::{
+        prelude::StakeKey,
+        stakes::Stakes,
+    },
     transaction::{
         CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, StakeTransaction,
         TallyTransaction, Transaction, UnstakeTransaction, VTTransaction,
@@ -42,7 +46,7 @@ use witnet_data_structures::{
     types::visitor::Visitor,
     utxo_pool::{Diff, UnspentOutputsPool, UtxoDiff},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfCtx},
-    wit::NANOWITS_PER_WIT,
+    wit::{NANOWITS_PER_WIT, Wit},
 };
 use witnet_rad::{
     conditions::{
@@ -55,7 +59,13 @@ use witnet_rad::{
     types::{serial_iter_decode, RadonTypes},
 };
 
-use crate::eligibility::legacy::*;
+use crate::eligibility::{
+    current::{
+        Eligible, Eligibility,
+        IneligibilityReason::{InsufficientPower, NotStaking},
+    },
+    legacy::*,
+};
 
 // TODO: move to a configuration
 const MAX_STAKE_BLOCK_WEIGHT: u32 = 10_000_000;
@@ -2033,6 +2043,8 @@ pub fn validate_block(
     rep_eng: &ReputationEngine,
     consensus_constants: &ConsensusConstants,
     active_wips: &ActiveWips,
+    protocol_version: ProtocolVersion,
+    stakes: &Stakes<PublicKeyHash, Wit, u32, u64>,
 ) -> Result<(), failure::Error> {
     let block_epoch = block.block_header.beacon.checkpoint;
     let hash_prev_block = block.block_header.beacon.hash_prev_block;
@@ -2060,15 +2072,28 @@ pub fn validate_block(
         // with the genesis_block_hash
         validate_genesis_block(block, consensus_constants.genesis_hash).map_err(Into::into)
     } else {
-        let total_identities = u32::try_from(rep_eng.ars().active_identities_number())?;
-        let (target_hash, _) = calculate_randpoe_threshold(
-            total_identities,
-            consensus_constants.mining_backup_factor,
-            block_epoch,
-            consensus_constants.minimum_difficulty,
-            consensus_constants.epochs_with_minimum_difficulty,
-            active_wips,
-        );
+        let target_hash = if protocol_version == ProtocolVersion::V2_0 {
+            let validator = block.block_sig.public_key.pkh();
+            let validator_key = StakeKey::from((validator, validator));
+            let eligibility = stakes.mining_eligibility(validator_key, block_epoch);
+            if eligibility == Ok(Eligible::No(InsufficientPower)) || eligibility == Ok(Eligible::No(NotStaking)) {
+                return Err(BlockError::ValidatorNotEligible{ validator }.into());
+            }
+
+            Hash::max()
+        } else {
+            let total_identities = u32::try_from(rep_eng.ars().active_identities_number())?;
+            let (target_hash, _) = calculate_randpoe_threshold(
+                total_identities,
+                consensus_constants.mining_backup_factor,
+                block_epoch,
+                consensus_constants.minimum_difficulty,
+                consensus_constants.epochs_with_minimum_difficulty,
+                active_wips,
+            );
+
+            target_hash
+        };
 
         add_block_vrf_signature_to_verify(
             signatures_to_verify,
@@ -2289,33 +2314,47 @@ pub fn compare_block_candidates(
     b2_vrf_hash: Hash,
     b2_is_active: bool,
     s: &VrfSlots,
+    version: ProtocolVersion,
 ) -> Ordering {
-    let section1 = s.slot(&b1_vrf_hash);
-    let section2 = s.slot(&b2_vrf_hash);
-    // Bigger section implies worse block candidate
-    section1
-        .cmp(&section2)
-        .reverse()
-        // Blocks created with nodes with reputation are better candidates than the others
-        .then({
-            match (b1_rep.0 > 0, b2_rep.0 > 0) {
-                (true, false) => Ordering::Greater,
-                (false, true) => Ordering::Less,
-                _ => Ordering::Equal,
-            }
-        })
-        // Blocks created with active nodes are better candidates than the others
-        .then({
-            match (b1_is_active, b2_is_active) {
-                (true, false) => Ordering::Greater,
-                (false, true) => Ordering::Less,
-                _ => Ordering::Equal,
-            }
-        })
+    let ordering = if version == ProtocolVersion::V2_0 {
         // Bigger vrf hash implies worse block candidate
-        .then(b1_vrf_hash.cmp(&b2_vrf_hash).reverse())
-        // Bigger block implies worse block candidate
-        .then(b1_hash.cmp(&b2_hash).reverse())
+        b1_vrf_hash
+            .cmp(&b2_vrf_hash)
+            .reverse()
+            // Bigger block implies worse block candidate
+            .then(
+                b1_hash.cmp(&b2_hash).reverse()
+            )
+    } else {
+        let section1 = s.slot(&b1_vrf_hash);
+        let section2 = s.slot(&b2_vrf_hash);
+        // Bigger section implies worse block candidate
+        section1
+            .cmp(&section2)
+            .reverse()
+            // Blocks created with nodes with reputation are better candidates than the others
+            .then({
+                match (b1_rep.0 > 0, b2_rep.0 > 0) {
+                    (true, false) => Ordering::Greater,
+                    (false, true) => Ordering::Less,
+                    _ => Ordering::Equal,
+                }
+            })
+            // Blocks created with active nodes are better candidates than the others
+            .then({
+                match (b1_is_active, b2_is_active) {
+                    (true, false) => Ordering::Greater,
+                    (false, true) => Ordering::Less,
+                    _ => Ordering::Equal,
+                }
+            })
+            // Bigger vrf hash implies worse block candidate
+            .then(b1_vrf_hash.cmp(&b2_vrf_hash).reverse())
+            // Bigger block implies worse block candidate
+            .then(b1_hash.cmp(&b2_hash).reverse())
+    };
+
+    ordering
 }
 
 /// Blocking process to verify signatures
