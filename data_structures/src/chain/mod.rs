@@ -4598,7 +4598,7 @@ mod tests {
 
     use crate::{
         proto::versioning::{ProtocolVersion, VersionedHashable},
-        superblock::{mining_build_superblock, ARSIdentities},
+        superblock::{mining_build_superblock, ValidatorIdentities},
         transaction::{CommitTransactionBody, RevealTransactionBody, VTTransactionBody},
     };
 
@@ -6479,11 +6479,11 @@ mod tests {
 
         let expected_order = vec![p1_bls, p2_bls, p3_bls];
         let ordered_identities = rep_engine.get_rep_ordered_ars_list();
-        let ars_identities = ARSIdentities::new(ordered_identities);
+        let validator_identities = ValidatorIdentities::new(ordered_identities);
 
         assert_eq!(
             expected_order,
-            ars_identities.get_rep_ordered_bn256_list(&alt_keys)
+            validator_identities.get_ordered_bn256_list(&alt_keys)
         );
     }
 
@@ -6521,11 +6521,11 @@ mod tests {
 
         let expected_order = vec![p1_bls, p2_bls, p3_bls];
         let ordered_identities = rep_engine.get_rep_ordered_ars_list();
-        let ars_identities = ARSIdentities::new(ordered_identities);
+        let validator_identities = ValidatorIdentities::new(ordered_identities);
 
         assert_eq!(
             expected_order,
-            ars_identities.get_rep_ordered_bn256_list(&alt_keys)
+            validator_identities.get_ordered_bn256_list(&alt_keys)
         );
     }
 
@@ -6579,11 +6579,11 @@ mod tests {
 
         let expected_order = vec![p1_bls, p2_bls, p4_bls, p5_bls, p3_bls];
         let ordered_identities = rep_engine.get_rep_ordered_ars_list();
-        let ars_identities = ARSIdentities::new(ordered_identities);
+        let validator_identities = ValidatorIdentities::new(ordered_identities);
 
         assert_eq!(
             expected_order,
-            ars_identities.get_rep_ordered_bn256_list(&alt_keys)
+            validator_identities.get_ordered_bn256_list(&alt_keys)
         );
     }
 
