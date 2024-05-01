@@ -12,6 +12,7 @@ pub use error::Error;
 type PubSubHandler = pubsub::PubSubHandler<Arc<pubsub::Session>>;
 
 /// TODO: doc
+#[allow(dead_code)]
 pub struct Server(server::Server);
 
 impl Server {

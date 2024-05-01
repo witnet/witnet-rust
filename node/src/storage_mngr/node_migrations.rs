@@ -1,5 +1,5 @@
 use witnet_data_structures::{
-    chain::{ChainState, Epoch, PublicKeyHash, tapi::TapiEngine},
+    chain::{tapi::TapiEngine, ChainState, Epoch, PublicKeyHash},
     staking::stakes::Stakes,
     utxo_pool::UtxoWriteBatch,
     wit::Wit,
@@ -66,7 +66,12 @@ fn migrate_chain_state_v3_to_v4(old_chain_state_bytes: &[u8]) -> Vec<u8> {
     let stakes = Stakes::<PublicKeyHash, Wit, Epoch, u64>::default();
     let stakes_bytes = bincode::serialize(&stakes).unwrap();
 
-    [&db_version_bytes, &old_chain_state_bytes[4..], &stakes_bytes].concat()
+    [
+        &db_version_bytes,
+        &old_chain_state_bytes[4..],
+        &stakes_bytes,
+    ]
+    .concat()
 }
 
 fn migrate_chain_state(mut bytes: Vec<u8>) -> Result<ChainState, failure::Error> {

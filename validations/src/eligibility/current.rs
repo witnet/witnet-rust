@@ -1,4 +1,7 @@
-use std::ops::{Add, Div, Mul, Sub};
+use std::{
+    fmt::{Debug, Display},
+    ops::{Add, Div, Mul, Sub},
+};
 use witnet_data_structures::staking::prelude::*;
 
 const MINING_REPLICATION_FACTOR: usize = 4;
@@ -31,7 +34,12 @@ impl From<IneligibilityReason> for Eligible {
 }
 
 /// Trait providing eligibility calculation for multiple protocol capabilities.
-pub trait Eligibility<Address, Coins, Epoch, Power> {
+pub trait Eligibility<Address, Coins, Epoch, Power>
+where
+    Address: Debug + Display + Sync + Send + 'static,
+    Coins: Debug + Display + Sync + Send + 'static,
+    Epoch: Debug + Display + Sync + Send + 'static,
+{
     /// Tells whether a VRF proof meets the requirements to become eligible for mining. Unless an error occurs, returns
     /// an `Eligibility` structure signaling eligibility or lack thereof (in which case you also get an
     /// `IneligibilityReason`.
@@ -62,25 +70,36 @@ pub trait Eligibility<Address, Coins, Epoch, Power> {
         witnesses: u8,
         round: u8,
     ) -> StakesResult<Eligible, Address, Coins, Epoch>
-        where
-            ISK: Into<StakeKey<Address>>;
+    where
+        ISK: Into<StakeKey<Address>>;
 
     /// Tells whether a VRF proof meets the requirements to become eligible for witnessing. Because this function
     /// returns a simple `bool`, it is best-effort: both lack of eligibility and any error cases are mapped to `false`.
-    fn witnessing_eligibility_bool<ISK>(&self, key: ISK, epoch: Epoch, witnesses: u8, round: u8) -> bool
-        where
-            ISK: Into<StakeKey<Address>>,
+    fn witnessing_eligibility_bool<ISK>(
+        &self,
+        key: ISK,
+        epoch: Epoch,
+        witnesses: u8,
+        round: u8,
+    ) -> bool
+    where
+        ISK: Into<StakeKey<Address>>,
     {
-        matches!(self.witnessing_eligibility(key, epoch, witnesses, round), Ok(Eligible::Yes))
+        matches!(
+            self.witnessing_eligibility(key, epoch, witnesses, round),
+            Ok(Eligible::Yes)
+        )
     }
 }
 
 impl<Address, Coins, Epoch, Power> Eligibility<Address, Coins, Epoch, Power>
     for Stakes<Address, Coins, Epoch, Power>
 where
-    Address: Default,
+    Address: Clone + Debug + Default + Display + Ord + Sync + Send + 'static,
     Coins: Copy
+        + Debug
         + Default
+        + Display
         + Ord
         + From<u64>
         + Into<u64>
@@ -88,10 +107,28 @@ where
         + Add<Output = Coins>
         + Sub<Output = Coins>
         + Mul
-        + Mul<Epoch, Output = Power>,
-    Address: Clone + Ord + 'static,
-    Epoch: Copy + Default + num_traits::Saturating + Sub<Output = Epoch> + From<u32>,
-    Power: Copy + Default + Ord + Add<Output = Power> + Sub<Output = Power> + Mul<Output = Power> + Div<Output = Power> + From<u64>,
+        + Mul<Epoch, Output = Power>
+        + Sync
+        + Send
+        + 'static,
+    Epoch: Copy
+        + Debug
+        + Default
+        + Display
+        + num_traits::Saturating
+        + Sub<Output = Epoch>
+        + From<u32>
+        + Sync
+        + Send
+        + 'static,
+    Power: Copy
+        + Default
+        + Ord
+        + Add<Output = Power>
+        + Sub<Output = Power>
+        + Mul<Output = Power>
+        + Div<Output = Power>
+        + From<u64>,
     u64: From<Coins> + From<Power>,
 {
     fn mining_eligibility<ISK>(
@@ -140,7 +177,16 @@ where
         Ok(Eligible::Yes)
     }
 
-    fn witnessing_eligibility<ISK>(&self, key: ISK, epoch: Epoch, witnesses: u8, round: u8) -> StakesResult<Eligible, Address, Coins, Epoch> where ISK: Into<StakeKey<Address>> {
+    fn witnessing_eligibility<ISK>(
+        &self,
+        key: ISK,
+        epoch: Epoch,
+        witnesses: u8,
+        round: u8,
+    ) -> StakesResult<Eligible, Address, Coins, Epoch>
+    where
+        ISK: Into<StakeKey<Address>>,
+    {
         let power = match self.query_power(key, Capability::Witnessing, epoch) {
             Ok(p) => p,
             Err(e) => {
@@ -174,14 +220,15 @@ where
         let stakers = self.stakes_count();
         let quantile = stakers / rf;
         // TODO: verify if defaulting to 0 makes sense
-        let (_, threshold_power) = rank.nth(quantile).unwrap_or_default() ;
+        let (_, threshold_power) = rank.nth(quantile).unwrap_or_default();
         let dividend = Power::from(WITNESSING_MAX_ROUNDS as u64) * power;
-        let divisor = max_power * Power::from((rf - WITNESSING_MAX_ROUNDS) as u64) - Power::from(rf as u64) * threshold_power;
+        let divisor = max_power * Power::from((rf - WITNESSING_MAX_ROUNDS) as u64)
+            - Power::from(rf as u64) * threshold_power;
         let threshold = dividend / divisor;
         println!("{}", u64::from(power));
         println!("{}", u64::from(threshold));
         if power <= threshold {
-            return Ok(IneligibilityReason::InsufficientPower.into())
+            return Ok(IneligibilityReason::InsufficientPower.into());
         }
 
         Ok(Eligible::Yes)
@@ -223,10 +270,7 @@ mod tests {
         );
         assert_eq!(stakes.mining_eligibility_bool(isk, 0), false);
 
-        assert_eq!(
-            stakes.mining_eligibility(isk, 100),
-            Ok(Eligible::Yes)
-        );
+        assert_eq!(stakes.mining_eligibility(isk, 100), Ok(Eligible::Yes));
         assert_eq!(stakes.mining_eligibility_bool(isk, 100), true);
     }
 

@@ -1747,7 +1747,7 @@ impl Handler<TryMineBlock> for ChainManager {
                 }
                 // Any other errors are logged as warning (considering that this is a best-effort
                 // method)
-                e  => {
+                e => {
                     log::warn!("{}", e);
                 }
             }
