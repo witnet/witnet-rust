@@ -2979,6 +2979,10 @@ fn update_pools(
         transactions_pool.remove_one_reveal(&re_tx.body.dr_pointer, &re_tx.body.pkh, &re_tx.hash());
     }
 
+    for st_tx in &block.txns.stake_txns {
+        transactions_pool.st_remove(st_tx);
+    }
+
     // Update own_utxos
     utxo_diff.visit(
         own_utxos,
