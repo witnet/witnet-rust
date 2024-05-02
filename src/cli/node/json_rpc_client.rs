@@ -964,14 +964,14 @@ pub fn send_st(
         build_stake_params.fee = prompt_user_for_priority_selection(estimates)?;
     }
 
-    let confirmation = if requires_confirmation.unwrap_or(true) {
-        let params = BuildStakeParams {
-            dry_run: true,
-            ..build_stake_params.clone()
-        };
-        let (dry, _): (BuildStakeResponse, _) =
-            issue_method("stake", Some(params), &mut stream, id.next())?;
+    let params = BuildStakeParams {
+        dry_run: true,
+        ..build_stake_params.clone()
+    };
+    let (dry, _): (BuildStakeResponse, _) =
+        issue_method("stake", Some(params), &mut stream, id.next())?;
 
+    let confirmation = if requires_confirmation.unwrap_or(true) {
         // Exactly what it says: shows all the facts about the staking transaction, and expects confirmation through
         // user input
         if prompt_user_for_stake_confirmation(&dry)? {
@@ -980,7 +980,7 @@ pub fn send_st(
             None
         }
     } else {
-        None
+        Some(dry)
     };
 
     if let Some(dry) = confirmation {
