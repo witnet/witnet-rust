@@ -924,6 +924,13 @@ impl ChainManager {
             }
         };
 
+        let current_epoch = if let Some(epoch) = self.current_epoch {
+            epoch
+        } else {
+            log::error!("Current epoch not loaded in ChainManager");
+            return;
+        };
+
         match self.chain_state {
             ChainState {
                 chain_info: Some(ref mut chain_info),
@@ -992,6 +999,10 @@ impl ChainManager {
                 );
 
                 let miner_pkh = block.block_header.proof.proof.pkh();
+
+                // Reset the coin age of the miner for all staked coins
+                let key = StakeKey::from((miner_pkh, miner_pkh));
+                let _ = stakes.reset_age(key, Capability::Mining, current_epoch);
 
                 // Do not update reputation or stakes when consolidating genesis block
                 if block_hash != chain_info.consensus_constants.genesis_hash {
