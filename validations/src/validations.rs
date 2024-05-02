@@ -1885,25 +1885,6 @@ pub fn validate_block_transactions(
     }
     let dr_hash_merkle_root = dr_mt.root();
 
-    if !is_genesis {
-        // Validate mint
-        validate_mint_transaction(
-            &block.txns.mint,
-            total_fee,
-            block_beacon.checkpoint,
-            consensus_constants.initial_block_reward,
-            consensus_constants.halving_period,
-        )?;
-
-        // Insert mint in utxo
-        update_utxo_diff(
-            &mut utxo_diff,
-            vec![],
-            block.txns.mint.outputs.iter(),
-            block.txns.mint.hash(),
-        );
-    }
-
     let protocol_version = get_protocol_version(Some(epoch));
     let (st_root, ut_root) = if protocol_version != ProtocolVersion::V1_7 {
         // validate stake transactions in a block
@@ -2007,6 +1988,25 @@ pub fn validate_block_transactions(
         // Nullify stake and unstake merkle roots for the legacy protocol version
         (hash::EMPTY_SHA256, hash::EMPTY_SHA256)
     };
+
+    if !is_genesis {
+        // Validate mint
+        validate_mint_transaction(
+            &block.txns.mint,
+            total_fee,
+            block_beacon.checkpoint,
+            consensus_constants.initial_block_reward,
+            consensus_constants.halving_period,
+        )?;
+
+        // Insert mint in utxo
+        update_utxo_diff(
+            &mut utxo_diff,
+            vec![],
+            block.txns.mint.outputs.iter(),
+            block.txns.mint.hash(),
+        );
+    }
 
     // Validate Merkle Root
     let merkle_roots = BlockMerkleRoots {
