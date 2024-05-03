@@ -806,7 +806,8 @@ impl ChainManager {
                         return;
                     }
                 };
-                let protocol_version = get_protocol_version(Some(block.block_header.beacon.checkpoint));
+                let protocol_version =
+                    get_protocol_version(Some(block.block_header.beacon.checkpoint));
 
                 if let Some(best_candidate) = &self.best_candidate {
                     let best_hash = best_candidate.block.hash();
