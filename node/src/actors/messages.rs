@@ -30,7 +30,7 @@ use witnet_data_structures::{
     staking::{aux::StakeKey, stakes::QueryStakesKey},
     transaction::{
         CommitTransaction, DRTransaction, RevealTransaction, StakeTransaction, Transaction,
-        VTTransaction,
+        UnstakeTransaction, VTTransaction,
     },
     transaction_factory::NodeBalance,
     types::LastBeacon,
@@ -241,6 +241,36 @@ pub struct BuildStake {
 
 impl Message for BuildStake {
     type Result = Result<StakeTransaction, failure::Error>;
+}
+
+/// Builds an `UnstakeTransaction`
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct BuildUnstake {
+    /// Amount to unstake
+    #[serde(default)]
+    pub value: u64,
+    /// Node address operating the staked coins
+    pub operator: PublicKeyHash,
+    /// Construct the transaction but do not broadcast it
+    #[serde(default)]
+    pub dry_run: bool,
+}
+
+impl Message for BuildUnstake {
+    type Result = Result<UnstakeTransaction, failure::Error>;
+}
+
+/// Builds a `UnstakeTransaction` from a list of `ValueTransferOutput`s
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct BuildUnstakeParams {
+    /// Amount to unstake
+    #[serde(default)]
+    pub value: u64,
+    /// Node address operating the staked coins
+    pub operator: MagicEither<String, PublicKeyHash>,
+    /// Construct the transaction but do not broadcast it
+    #[serde(default)]
+    pub dry_run: bool,
 }
 
 /// Builds a `StakeTransaction` from a list of `ValueTransferOutput`s
@@ -1443,5 +1473,11 @@ impl<L, R> MagicEither<L, R> {
             Self::Left(l) => trick(l),
             Self::Right(r) => Ok(r),
         }
+    }
+}
+
+impl<L: Default, R: Default> Default for MagicEither<L, R> {
+    fn default() -> Self {
+        MagicEither::Left(L::default())
     }
 }

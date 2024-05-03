@@ -310,9 +310,8 @@ message StakeTransaction {
 }
 
 message UnstakeTransactionBody {
-    PublicKeyHash validator = 1;
+    PublicKeyHash operator = 1;
     ValueTransferOutput withdrawal = 2;
-    ValueTransferOutput change = 3;
 }
 
 message UnstakeTransaction {
