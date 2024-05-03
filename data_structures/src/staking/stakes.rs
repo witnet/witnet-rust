@@ -7,7 +7,12 @@ use std::{
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use crate::{chain::PublicKeyHash, get_environment, transaction::StakeTransaction, wit::Wit};
+use crate::{
+    chain::PublicKeyHash,
+    get_environment,
+    transaction::{StakeTransaction, UnstakeTransaction},
+    wit::Wit,
+};
 
 use super::prelude::*;
 
@@ -414,6 +419,49 @@ where
     Ok(())
 }
 
+/// Removes stake, based on the data from a unstake transaction.
+///
+/// This function was made static instead of adding it to `impl Stakes` because it is not generic over `Address` and
+/// `Coins`.
+pub fn process_unstake_transaction<Epoch, Power>(
+    stakes: &mut Stakes<PublicKeyHash, Wit, Epoch, Power>,
+    transaction: &UnstakeTransaction,
+) -> StakingResult<(), PublicKeyHash, Wit, Epoch>
+where
+    Epoch: Copy
+        + Default
+        + Sub<Output = Epoch>
+        + num_traits::Saturating
+        + From<u32>
+        + Debug
+        + Display
+        + Send
+        + Sync,
+    Power: Add<Output = Power> + Copy + Default + Div<Output = Power> + Ord + Debug,
+    Wit: Mul<Epoch, Output = Power>,
+    u64: From<Wit> + From<Power>,
+{
+    let key: StakeKey<PublicKeyHash> = StakeKey {
+        validator: transaction.body.operator,
+        withdrawer: transaction.body.withdrawal.pkh,
+    };
+
+    let coins = Wit::from_nanowits(transaction.body.withdrawal.value);
+
+    let environment = get_environment();
+    log::debug!(
+        "{} removed {} Wit stake",
+        key.validator.bech32(environment),
+        coins.wits_and_nanowits().0,
+    );
+
+    stakes.remove_stake(key, coins)?;
+
+    log::debug!("Current state of the stakes tracker: {:#?}", stakes);
+
+    Ok(())
+}
+
 /// Adds stakes, based on the data from multiple stake transactions.
 ///
 /// This function was made static instead of adding it to `impl Stakes` because it is not generic over `Address` and
@@ -439,6 +487,34 @@ where
 {
     for transaction in transactions {
         process_stake_transaction(stakes, transaction, epoch)?;
+    }
+
+    Ok(())
+}
+/// Removes stakes, based on the data from multiple unstake transactions.
+///
+/// This function was made static instead of adding it to `impl Stakes` because it is not generic over `Address` and
+/// `Coins`.
+pub fn process_unstake_transactions<'a, Epoch, Power>(
+    stakes: &mut Stakes<PublicKeyHash, Wit, Epoch, Power>,
+    transactions: impl Iterator<Item = &'a UnstakeTransaction>,
+) -> Result<(), StakesError<PublicKeyHash, Wit, Epoch>>
+where
+    Epoch: Copy
+        + Default
+        + Sub<Output = Epoch>
+        + num_traits::Saturating
+        + From<u32>
+        + Debug
+        + Send
+        + Sync
+        + Display,
+    Power: Add<Output = Power> + Copy + Default + Div<Output = Power> + Ord + Debug,
+    Wit: Mul<Epoch, Output = Power>,
+    u64: From<Wit> + From<Power>,
+{
+    for transaction in transactions {
+        process_unstake_transaction(stakes, transaction)?;
     }
 
     Ok(())

@@ -1038,7 +1038,12 @@ impl ChainManager {
                             block_epoch,
                         );
                     }
-                    //process_unstake_transactions(stakes, block.txns.unstake_txns.iter(), block_epoch);
+
+                    let unstake_txns_count = block.txns.unstake_txns.len();
+                    if unstake_txns_count > 0 {
+                        let _ =
+                            process_unstake_transactions(stakes, block.txns.unstake_txns.iter());
+                    }
                 }
 
                 // Update bn256 public keys with block information
