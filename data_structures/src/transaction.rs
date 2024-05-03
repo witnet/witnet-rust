@@ -837,7 +837,7 @@ impl UnstakeTransaction {
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
 #[protobuf_convert(pb = "witnet::UnstakeTransactionBody")]
 pub struct UnstakeTransactionBody {
-    pub validator: PublicKeyHash,
+    pub operator: PublicKeyHash,
     pub withdrawal: ValueTransferOutput,
 
     #[protobuf_convert(skip)]
@@ -847,9 +847,9 @@ pub struct UnstakeTransactionBody {
 
 impl UnstakeTransactionBody {
     /// Creates a new stake transaction body.
-    pub fn new(validator: PublicKeyHash, withdrawal: ValueTransferOutput) -> Self {
+    pub fn new(operator: PublicKeyHash, withdrawal: ValueTransferOutput) -> Self {
         UnstakeTransactionBody {
-            validator,
+            operator,
             withdrawal,
             ..Default::default()
         }
