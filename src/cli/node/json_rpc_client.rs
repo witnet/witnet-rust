@@ -33,7 +33,9 @@ use witnet_data_structures::{
     fee::Fee,
     get_environment,
     proto::ProtobufConvert,
-    transaction::{DRTransaction, StakeTransaction, Transaction, VTTransaction},
+    transaction::{
+        DRTransaction, StakeTransaction, Transaction, UnstakeTransaction, VTTransaction,
+    },
     transaction_factory::NodeBalance,
     types::SequentialId,
     utxo_pool::{UtxoInfo, UtxoSelectionStrategy},
@@ -45,8 +47,9 @@ use witnet_node::actors::{
         AddrType, GetBlockChainParams, GetTransactionOutput, PeersResult, QueryStakesArgument,
     },
     messages::{
-        AuthorizeStake, BuildDrt, BuildStakeParams, BuildStakeResponse, BuildVtt, GetBalanceTarget,
-        GetReputationResult, MagicEither, SignalingInfo, StakeAuthorization,
+        AuthorizeStake, BuildDrt, BuildStakeParams, BuildStakeResponse, BuildUnstakeParams,
+        BuildVtt, GetBalanceTarget, GetReputationResult, MagicEither, SignalingInfo,
+        StakeAuthorization,
     },
 };
 use witnet_rad::types::RadonTypes;
@@ -1048,6 +1051,42 @@ pub fn authorize_st(addr: SocketAddr, withdrawer: Option<String>) -> Result<(), 
         "Authorization code:\n{}\nQR code for myWitWallet:\n{}",
         auth_string, auth_ascii
     );
+
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn send_ut(
+    addr: SocketAddr,
+    value: u64,
+    operator: MagicEither<String, PublicKeyHash>,
+    dry_run: bool,
+) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
+    let mut id = SequentialId::initialize(1u8);
+
+    let build_unstake_params = BuildUnstakeParams {
+        operator,
+        value,
+        dry_run,
+    };
+
+    // Finally ask the node to create the transaction.
+    let (_, (request, response)): (UnstakeTransaction, _) = issue_method(
+        "unstake",
+        Some(build_unstake_params),
+        &mut stream,
+        id.next(),
+    )?;
+
+    // On dry run mode, print the request, otherwise, print the response.
+    // This is kept like this strictly for backwards compatibility.
+    // TODO: wouldn't it be better to always print the response or both?
+    if dry_run {
+        println!("{}", request);
+    } else {
+        println!("{}", response);
+    }
 
     Ok(())
 }
