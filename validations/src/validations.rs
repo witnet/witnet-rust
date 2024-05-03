@@ -34,10 +34,7 @@ use witnet_data_structures::{
     get_protocol_version,
     proto::versioning::{ProtocolVersion, VersionedHashable},
     radon_report::{RadonReport, ReportContext},
-    staking::{
-        prelude::StakeKey,
-        stakes::Stakes,
-    },
+    staking::{prelude::StakeKey, stakes::Stakes},
     transaction::{
         CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, StakeTransaction,
         TallyTransaction, Transaction, UnstakeTransaction, VTTransaction,
@@ -46,7 +43,7 @@ use witnet_data_structures::{
     types::visitor::Visitor,
     utxo_pool::{Diff, UnspentOutputsPool, UtxoDiff},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfCtx},
-    wit::{NANOWITS_PER_WIT, Wit},
+    wit::{Wit, NANOWITS_PER_WIT},
 };
 use witnet_rad::{
     conditions::{
@@ -61,7 +58,7 @@ use witnet_rad::{
 
 use crate::eligibility::{
     current::{
-        Eligible, Eligibility,
+        Eligibility, Eligible,
         IneligibilityReason::{InsufficientPower, NotStaking},
     },
     legacy::*,
@@ -2076,8 +2073,10 @@ pub fn validate_block(
             let validator = block.block_sig.public_key.pkh();
             let validator_key = StakeKey::from((validator, validator));
             let eligibility = stakes.mining_eligibility(validator_key, block_epoch);
-            if eligibility == Ok(Eligible::No(InsufficientPower)) || eligibility == Ok(Eligible::No(NotStaking)) {
-                return Err(BlockError::ValidatorNotEligible{ validator }.into());
+            if eligibility == Ok(Eligible::No(InsufficientPower))
+                || eligibility == Ok(Eligible::No(NotStaking))
+            {
+                return Err(BlockError::ValidatorNotEligible { validator }.into());
             }
 
             Hash::max()
@@ -2322,9 +2321,7 @@ pub fn compare_block_candidates(
             .cmp(&b2_vrf_hash)
             .reverse()
             // Bigger block implies worse block candidate
-            .then(
-                b1_hash.cmp(&b2_hash).reverse()
-            )
+            .then(b1_hash.cmp(&b2_hash).reverse())
     } else {
         let section1 = s.slot(&b1_vrf_hash);
         let section2 = s.slot(&b2_vrf_hash);

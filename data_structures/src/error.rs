@@ -472,10 +472,7 @@ pub enum BlockError {
     )]
     MissingExpectedTallies { count: usize, block_hash: Hash },
     /// Missing expected tallies
-    #[fail(
-        display = "Validator {} is not eligible to propose a block",
-        validator,
-    )]
+    #[fail(display = "Validator {} is not eligible to propose a block", validator)]
     ValidatorNotEligible { validator: PublicKeyHash },
 }
 
