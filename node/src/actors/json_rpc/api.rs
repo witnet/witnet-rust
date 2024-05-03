@@ -40,13 +40,14 @@ use crate::{
         json_rpc::Subscriptions,
         messages::{
             AddCandidates, AddPeers, AddTransaction, AuthorizeStake, BuildDrt, BuildStake,
-            BuildStakeParams, BuildStakeResponse, BuildVtt, ClearPeers, DropAllPeers,
-            EstimatePriority, GetBalance, GetBalanceTarget, GetBlocksEpochRange,
-            GetConsolidatedPeers, GetDataRequestInfo, GetEpoch, GetHighestCheckpointBeacon,
-            GetItemBlock, GetItemSuperblock, GetItemTransaction, GetKnownPeers,
-            GetMemoryTransaction, GetMempool, GetNodeStats, GetReputation, GetSignalingInfo,
-            GetState, GetSupplyInfo, GetUtxoInfo, InitializePeers, IsConfirmedBlock, QueryStake,
-            QueryStakesParams, Rewind, SnapshotExport, SnapshotImport, StakeAuthorization,
+            BuildStakeParams, BuildStakeResponse, BuildUnstake, BuildUnstakeParams, BuildVtt,
+            ClearPeers, DropAllPeers, EstimatePriority, GetBalance, GetBalanceTarget,
+            GetBlocksEpochRange, GetConsolidatedPeers, GetDataRequestInfo, GetEpoch,
+            GetHighestCheckpointBeacon, GetItemBlock, GetItemSuperblock, GetItemTransaction,
+            GetKnownPeers, GetMemoryTransaction, GetMempool, GetNodeStats, GetReputation,
+            GetSignalingInfo, GetState, GetSupplyInfo, GetUtxoInfo, InitializePeers,
+            IsConfirmedBlock, QueryStake, QueryStakesParams, Rewind, SnapshotExport,
+            SnapshotImport, StakeAuthorization,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -287,6 +288,15 @@ pub fn attach_sensitive_methods<H>(
             "authorizeStake",
             params,
             |params| authorize_stake(params.parse()),
+        ))
+    });
+
+    server.add_actix_method(system, "unstake", move |params| {
+        Box::pin(if_authorized(
+            enable_sensitive_methods,
+            "unstake",
+            params,
+            |params| unstake(params.parse()),
         ))
     });
 }
@@ -2016,6 +2026,39 @@ pub async fn stake(params: Result<BuildStakeParams, Error>) -> JsonRpcResult {
                     serde_json::to_value(transaction).map_err(internal_error)
                 }
             }
+            Ok(Err(e)) => {
+                let err = internal_error_s(e);
+                Err(err)
+            }
+            Err(e) => {
+                let err = internal_error_s(e);
+                Err(err)
+            }
+        })
+        .await
+}
+
+/// Build an unstake transaction
+pub async fn unstake(params: Result<BuildUnstakeParams, Error>) -> JsonRpcResult {
+    // Short-circuit if parameters are wrong
+    let params = params?;
+
+    let operator = params
+        .operator
+        .try_do_magic(|hex_str| PublicKeyHash::from_bech32(get_environment(), &hex_str))
+        .map_err(internal_error)?;
+
+    // Construct a BuildUnstake message that we can relay to the ChainManager for creation of the Unstake transaction
+    let build_unstake = BuildUnstake {
+        operator,
+        value: params.value,
+        dry_run: params.dry_run,
+    };
+
+    ChainManager::from_registry()
+        .send(build_unstake)
+        .map(|res| match res {
+            Ok(Ok(transaction)) => serde_json::to_value(transaction).map_err(internal_error),
             Ok(Err(e)) => {
                 let err = internal_error_s(e);
                 Err(err)
