@@ -928,8 +928,18 @@ impl ChainManager {
         let current_epoch = if let Some(epoch) = self.current_epoch {
             epoch
         } else {
-            log::error!("Current epoch not loaded in ChainManager");
-            return;
+            // If there is no epoch set, it's because the chain is yet to be bootstrapped, or because of a data race
+            match self.chain_state.chain_info.as_ref() {
+                // If the chain is yet to be bootstrapped (the block we are processing is the genesis block), set the epoch to zero
+                Some(chain_info) if chain_info.consensus_constants.genesis_hash == block.hash() => {
+                    0
+                }
+                // In case of data race, shortcut the function
+                _ => {
+                    log::error!("Current epoch not loaded in ChainManager");
+                    return;
+                }
+            }
         };
 
         match self.chain_state {
