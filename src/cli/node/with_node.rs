@@ -292,9 +292,9 @@ pub fn exec_cmd(
         }
         Command::QueryStakes {
             node,
-            withdrawer,
             validator,
-        } => rpc::query_stakes(node.unwrap_or(default_jsonrpc), withdrawer, validator),
+            withdrawer,
+        } => rpc::query_stakes(node.unwrap_or(default_jsonrpc), validator, withdrawer),
     }
 }
 
