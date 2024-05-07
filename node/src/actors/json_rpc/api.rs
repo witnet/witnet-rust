@@ -1948,62 +1948,24 @@ pub async fn snapshot_import(params: Result<SnapshotImportParams, Error>) -> Jso
 pub async fn stake(params: Result<BuildStakeParams, Error>) -> JsonRpcResult {
     // Short-circuit if parameters are wrong
     let params = params?;
-    let validator;
 
-    // If a withdrawer address is not specified, default to local node address
-    let withdrawer_was_provided = params.withdrawer.is_some();
-    let withdrawer = if let Some(address) = params.withdrawer {
-        let address = address
-            .try_do_magic(|hex_str| PublicKeyHash::from_bech32(get_environment(), &hex_str))
-            .map_err(internal_error)?;
-        log::debug!("[STAKE] A withdrawer address was provided: {}", address);
-
-        address
-    } else {
-        let pk = signature_mngr::public_key().await.unwrap();
-        let address = PublicKeyHash::from_public_key(&pk);
-        log::debug!(
-            "[STAKE] No withdrawer address was provided, using the node's own address: {}",
-            address
-        );
-
-        address
-    };
+    let withdrawer = PublicKeyHash::from_bech32(get_environment(), &params.withdrawer)
+        .map_err(internal_error)?;
+    log::debug!(
+        "[STAKE] A withdrawer address was provided: {}",
+        params.withdrawer
+    );
 
     // This is the actual message that gets signed as part of the authorization
     let msg = withdrawer.as_secp256k1_msg();
 
-    // If no authorization message is provided, generate a new one using the withdrawer address
-    let authorization = if let Some(signature) = params.authorization {
-        let signature = signature
-            .try_do_magic(|hex_str| KeyedSignature::from_recoverable_hex(&hex_str, &msg))
-            .map_err(internal_error)?;
-        validator = PublicKeyHash::from_public_key(&signature.public_key);
-        log::debug!(
-            "[STAKE] A stake authorization was provided, and it was signed by validator {}",
-            validator
-        );
-
-        // Avoid the risky situation where an authorization is provided, but it's authorizing a 3rd-party withdrawer
-        // without stating the withdrawer address explicitly. Why is this risky? Because the validator address is
-        // derived from the authorization itself using ECDSA recovery. If the withdrawer used here does not match the
-        // one that was authorized, the resulting stake will not only be non-withdrawable, but also not operable by the
-        // validator, because the ECDSA recovery will recover the wrong public key.
-        if !withdrawer_was_provided && withdrawer != validator {
-            return Err(internal_error_s("The provided authorization is signed by a third party but no withdrawer address was provided. Please provide a withdrawer address."));
-        }
-
-        signature
-    } else {
-        let signature = signature_mngr::sign_data(msg)
-            .map(|res| res.map_err(internal_error))
-            .await
-            .map_err(internal_error)?;
-        validator = PublicKeyHash::from_public_key(&signature.public_key);
-        log::debug!("[STAKE] No stake authorization was provided, producing one using the node's own address: {}", validator);
-
-        signature
-    };
+    let authorization = KeyedSignature::from_recoverable_hex(&params.authorization, &msg)
+        .map_err(internal_error)?;
+    let validator = PublicKeyHash::from_public_key(&authorization.public_key);
+    log::debug!(
+        "[STAKE] A stake authorization was provided, and it was signed by validator {}",
+        validator
+    );
 
     let key = StakeKey {
         validator,

@@ -10,7 +10,7 @@ use structopt::StructOpt;
 use witnet_config::config::Config;
 use witnet_data_structures::{chain::Epoch, fee::Fee};
 use witnet_node as node;
-use witnet_node::actors::messages::{GetBalanceTarget, MagicEither};
+use witnet_node::actors::messages::GetBalanceTarget;
 
 use super::json_rpc_client as rpc;
 
@@ -273,6 +273,7 @@ pub fn exec_cmd(
             node,
             value,
             authorization,
+            validator,
             withdrawer,
             fee,
             require_confirmation,
@@ -280,8 +281,9 @@ pub fn exec_cmd(
         } => rpc::send_st(
             node.unwrap_or(default_jsonrpc),
             value,
-            authorization.map(MagicEither::Left),
-            withdrawer.map(MagicEither::Left),
+            authorization,
+            validator,
+            withdrawer,
             fee.map(Fee::absolute_from_nanowits),
             None,
             require_confirmation,
@@ -766,10 +768,13 @@ pub enum Command {
         value: u64,
         /// Stake authorization code (the withdrawer address, signed by the validator node)
         #[structopt(long = "authorization")]
-        authorization: Option<String>,
+        authorization: String,
+        /// Validator
+        #[structopt(long = "validator")]
+        validator: String,
         /// Withdrawer
         #[structopt(long = "withdrawer")]
-        withdrawer: Option<String>,
+        withdrawer: String,
         /// Fee
         #[structopt(long = "fee")]
         fee: Option<u64>,

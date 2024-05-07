@@ -248,13 +248,13 @@ impl Message for BuildStake {
 pub struct BuildStakeParams {
     /// Authorization signature and public key
     #[serde(default)]
-    pub authorization: Option<MagicEither<String, KeyedSignature>>,
+    pub authorization: String,
     /// List of `ValueTransferOutput`s
     #[serde(default)]
     pub value: u64,
     /// Withdrawer
     #[serde(default)]
-    pub withdrawer: Option<MagicEither<String, PublicKeyHash>>,
+    pub withdrawer: String,
     /// Fee
     #[serde(default)]
     pub fee: Fee,
