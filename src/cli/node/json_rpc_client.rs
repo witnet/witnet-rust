@@ -46,7 +46,7 @@ use witnet_node::actors::{
     },
     messages::{
         AuthorizeStake, BuildDrt, BuildStakeParams, BuildStakeResponse, BuildVtt, GetBalanceTarget,
-        GetReputationResult, MagicEither, SignalingInfo, StakeAuthorization,
+        GetReputationResult, SignalingInfo, StakeAuthorization,
     },
 };
 use witnet_rad::types::RadonTypes;
@@ -867,8 +867,9 @@ pub fn send_dr(
 pub fn send_st(
     addr: SocketAddr,
     value: u64,
-    authorization: Option<MagicEither<String, KeyedSignature>>,
-    withdrawer: Option<MagicEither<String, PublicKeyHash>>,
+    authorization: String,
+    validator: String,
+    withdrawer: String,
     fee: Option<Fee>,
     sorted_bigger: Option<bool>,
     requires_confirmation: Option<bool>,
@@ -970,6 +971,14 @@ pub fn send_st(
     };
     let (dry, _): (BuildStakeResponse, _) =
         issue_method("stake", Some(params), &mut stream, id.next())?;
+
+    if validator != dry.validator.to_string() {
+        bail!(
+            "The specified validator ({}) does not match the validator recovered from the authorization string ({}), please double check all arguments.",
+            validator,
+            dry.validator.to_string(),
+        );
+    }
 
     let confirmation = if requires_confirmation.unwrap_or(true) {
         // Exactly what it says: shows all the facts about the staking transaction, and expects confirmation through
