@@ -112,12 +112,6 @@ impl DrSender {
                 };
             } else {
                 // TODO: alert if number of big enough utxos is less number of drs to broadcast
-                // let req = jsonrpc::Request::method("getBalance")
-                //     .timeout(Duration::from_millis(5_000))
-                //     .params(witnet_node_pkh.clone().unwrap())
-                //     .expect("getUtxoInfo params failed serialization");
-                // let res = witnet_client.send(req).await;
-                // log::debug!("Balance of {:?}: {:?} nanoWIT", witnet_node_pkh.unwrap(), res)
             }
 
             // process latest drs added or set as New in the database
