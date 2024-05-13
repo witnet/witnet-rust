@@ -101,7 +101,7 @@ pub struct DrReporterMsg {
 pub struct Report {
     /// Data Request's unique query id as known by the WitnetOracle contract
     pub dr_id: DrId,
-    /// Timestamp at which reported result was actually generated
+    /// Timestamp at which the reported result was actually generated
     pub dr_timestamp: u64,
     /// Hash of the Data Request Transaction in the Witnet blockchain
     pub dr_tx_hash: Hash,
@@ -327,23 +327,26 @@ impl Handler<DrReporterMsg> for DrReporter {
             }
 
             if let Ok(x) = eth.balance(eth_from, None).await {
-                if x < eth_from_balance {
-                    log::warn!(
-                        "EVM address {} loss = -{} ETH",
-                        eth_from,
-                        Unit::Wei(&(eth_from_balance - x).to_string())
-                            .to_eth_str()
-                            .unwrap_or_default()
-                    );
-                } else if x > eth_from_balance {
-                    log::debug!(
-                        "EVM address {} revenue = +{} ETH",
-                        eth_from,
-                        Unit::Wei(&(x - eth_from_balance).to_string())
-                            .to_eth_str()
-                            .unwrap_or_default()
-                    );
-                    eth_from_balance_alert = false;
+                match x.cmp(&eth_from_balance) {
+                    std::cmp::Ordering::Less => {
+                        log::warn!(
+                            "EVM address {} loss = -{} ETH",
+                            eth_from,
+                            Unit::Wei(&(eth_from_balance - x).to_string())
+                                .to_eth_str()
+                                .unwrap_or_default()
+                        );
+                    }
+                    std::cmp::Ordering::Equal | std::cmp::Ordering::Greater => {
+                        log::debug!(
+                            "EVM address {} revenue = +{} ETH",
+                            eth_from,
+                            Unit::Wei(&(x - eth_from_balance).to_string())
+                                .to_eth_str()
+                                .unwrap_or_default()
+                        );
+                        eth_from_balance_alert = false;
+                    }
                 }
             }
 
@@ -386,10 +389,11 @@ fn parse_batch_report_error_log(
     match (&query_id.value, &reason.value) {
         (Token::Uint(query_id), Token::String(reason)) => Some((*query_id, reason.to_string())),
         _ => {
-            panic!(
+            log::error!(
                 "Invalid BatchReportError params: {:?}",
                 batch_report_error_log_params
             );
+            None
         }
     }
 }
