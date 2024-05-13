@@ -140,6 +140,10 @@ impl EthPoller {
                             match WitnetQueryStatus::from_code(status) {
                                 WitnetQueryStatus::Unknown => {
                                     log::warn!("Skipped unavailable query [{}]", query_id);
+                                    dr_database_addr.do_send(SetDrState {
+                                        dr_id: query_id,
+                                        dr_state: DrState::Dismissed,
+                                    });
                                 }
                                 WitnetQueryStatus::Posted => {
                                     log::info!("Detected new query [{}]", query_id);
