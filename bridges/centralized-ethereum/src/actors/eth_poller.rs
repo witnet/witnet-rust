@@ -105,7 +105,7 @@ impl EthPoller {
 
             let last_dr_id = dr_database_addr.send(GetLastDrId).await;
 
-            if let (Ok(mut next_dr_id), Ok(Ok(mut last_dr_id))) = (next_dr_id, last_dr_id) {
+            if let (Ok(next_dr_id), Ok(Ok(mut last_dr_id))) = (next_dr_id, last_dr_id) {
                 if last_dr_id < skip_first {
                     log::debug!(
                         "Skipping first {} queries as per SKIP_FIRST config param",
@@ -113,14 +113,18 @@ impl EthPoller {
                     );
                     last_dr_id = skip_first;
                 }
-                if last_dr_id < next_dr_id {
-                    if next_dr_id > last_dr_id + max_batch_size {
-                        next_dr_id = last_dr_id + max_batch_size;
-                    }
+                while last_dr_id < next_dr_id {
                     let init_index = usize::try_from(last_dr_id + 1).unwrap();
-                    let last_index = usize::try_from(next_dr_id).unwrap();
+                    let last_index = match next_dr_id.cmp(&(last_dr_id + max_batch_size)) {
+                        std::cmp::Ordering::Greater => {
+                            usize::try_from(last_dr_id + max_batch_size).unwrap()
+                        }
+                        _ => usize::try_from(next_dr_id).unwrap(),
+                    };
                     let ids = init_index..last_index;
                     let ids: Vec<Token> = ids.map(|id| Token::Uint(id.into())).collect();
+
+                    last_dr_id += U256::from(max_batch_size);
 
                     let queries_status: Result<Vec<Token>, web3::contract::Error> = wrb_contract
                         .query(
