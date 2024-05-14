@@ -10,7 +10,7 @@ use structopt::StructOpt;
 use witnet_config::config::Config;
 use witnet_data_structures::{chain::Epoch, fee::Fee};
 use witnet_node as node;
-use witnet_node::actors::messages::GetBalanceTarget;
+use witnet_node::actors::messages::{GetBalanceTarget, MagicEither};
 
 use super::json_rpc_client as rpc;
 
@@ -281,9 +281,9 @@ pub fn exec_cmd(
         } => rpc::send_st(
             node.unwrap_or(default_jsonrpc),
             value,
-            authorization,
-            validator,
-            withdrawer,
+            MagicEither::Left(authorization),
+            MagicEither::Left(validator),
+            MagicEither::Left(withdrawer),
             fee.map(Fee::absolute_from_nanowits),
             None,
             require_confirmation,

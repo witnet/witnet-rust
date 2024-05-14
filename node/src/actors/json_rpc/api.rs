@@ -1949,17 +1949,22 @@ pub async fn stake(params: Result<BuildStakeParams, Error>) -> JsonRpcResult {
     // Short-circuit if parameters are wrong
     let params = params?;
 
-    let withdrawer = PublicKeyHash::from_bech32(get_environment(), &params.withdrawer)
+    let withdrawer = params
+        .withdrawer
+        .clone()
+        .try_do_magic(|hex_str| PublicKeyHash::from_bech32(get_environment(), &hex_str))
         .map_err(internal_error)?;
     log::debug!(
-        "[STAKE] A withdrawer address was provided: {}",
-        params.withdrawer
+        "[STAKE] Creating stake transaction with withdrawer address: {}",
+        withdrawer
     );
 
     // This is the actual message that gets signed as part of the authorization
     let msg = withdrawer.as_secp256k1_msg();
 
-    let authorization = KeyedSignature::from_recoverable_hex(&params.authorization, &msg)
+    let authorization = params
+        .authorization
+        .try_do_magic(|hex_str| KeyedSignature::from_recoverable_hex(&hex_str, &msg))
         .map_err(internal_error)?;
     let validator = PublicKeyHash::from_public_key(&authorization.public_key);
     log::debug!(

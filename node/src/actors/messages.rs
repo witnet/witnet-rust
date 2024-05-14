@@ -248,13 +248,13 @@ impl Message for BuildStake {
 pub struct BuildStakeParams {
     /// Authorization signature and public key
     #[serde(default)]
-    pub authorization: String,
+    pub authorization: MagicEither<String, KeyedSignature>,
     /// List of `ValueTransferOutput`s
     #[serde(default)]
     pub value: u64,
     /// Withdrawer
     #[serde(default)]
-    pub withdrawer: String,
+    pub withdrawer: MagicEither<String, PublicKeyHash>,
     /// Fee
     #[serde(default)]
     pub fee: Fee,
@@ -1443,5 +1443,11 @@ impl<L, R> MagicEither<L, R> {
             Self::Left(l) => trick(l),
             Self::Right(r) => Ok(r),
         }
+    }
+}
+
+impl<L, R: Default> Default for MagicEither<L, R> {
+    fn default() -> Self {
+        MagicEither::Right(R::default())
     }
 }
