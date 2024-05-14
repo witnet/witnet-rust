@@ -46,7 +46,7 @@ use witnet_node::actors::{
     },
     messages::{
         AuthorizeStake, BuildDrt, BuildStakeParams, BuildStakeResponse, BuildVtt, GetBalanceTarget,
-        GetReputationResult, SignalingInfo, StakeAuthorization,
+        GetReputationResult, MagicEither, SignalingInfo, StakeAuthorization,
     },
 };
 use witnet_rad::types::RadonTypes;
@@ -867,9 +867,9 @@ pub fn send_dr(
 pub fn send_st(
     addr: SocketAddr,
     value: u64,
-    authorization: String,
-    validator: String,
-    withdrawer: String,
+    authorization: MagicEither<String, KeyedSignature>,
+    validator: MagicEither<String, PublicKeyHash>,
+    withdrawer: MagicEither<String, PublicKeyHash>,
     fee: Option<Fee>,
     sorted_bigger: Option<bool>,
     requires_confirmation: Option<bool>,
@@ -972,10 +972,12 @@ pub fn send_st(
     let (dry, _): (BuildStakeResponse, _) =
         issue_method("stake", Some(params), &mut stream, id.next())?;
 
-    if validator != dry.validator.to_string() {
+    let validator_address = validator
+        .try_do_magic(|hex_str| PublicKeyHash::from_bech32(get_environment(), &hex_str))?;
+    if validator_address != dry.validator {
         bail!(
             "The specified validator ({}) does not match the validator recovered from the authorization string ({}), please double check all arguments.",
-            validator,
+            validator_address,
             dry.validator.to_string(),
         );
     }
