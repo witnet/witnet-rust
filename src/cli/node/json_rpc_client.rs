@@ -972,14 +972,51 @@ pub fn send_st(
     let (dry, _): (BuildStakeResponse, _) =
         issue_method("stake", Some(params), &mut stream, id.next())?;
 
+    let environment = get_environment();
     let validator_address = validator
         .try_do_magic(|hex_str| PublicKeyHash::from_bech32(get_environment(), &hex_str))?;
     if validator_address != dry.validator {
         bail!(
             "The specified validator ({}) does not match the validator recovered from the authorization string ({}), please double check all arguments.",
             validator_address,
-            dry.validator.to_string(),
+            dry.validator.bech32(environment),
         );
+    }
+
+    let dry_validator = dry.validator.bech32(environment);
+    let dry_withdrawer = dry.withdrawer.bech32(environment);
+
+    // Check if there is already a validator running
+    let query_stakes_params = Some(QueryStakesArgument::Validator(dry_validator.clone()));
+    let response = send_request(
+        &mut stream,
+        &format!(
+            r#"{{"jsonrpc": "2.0","method": "queryStakes", "params": {}, "id": 1}}"#,
+            serde_json::to_string(&query_stakes_params).unwrap()
+        ),
+    )?;
+    // If the response is an error, no validator was found in the stakes entry, so the staking transaction can be created
+    if !response.contains("error") {
+        // If there is already a validator running check that its withdrawer address matches
+        let query_stakes_params = Some(QueryStakesArgument::Key((
+            dry_validator.clone(),
+            dry_withdrawer.clone(),
+        )));
+        let response = send_request(
+            &mut stream,
+            &format!(
+                r#"{{"jsonrpc": "2.0","method": "queryStakes", "params": {}, "id": 1}}"#,
+                serde_json::to_string(&query_stakes_params).unwrap()
+            ),
+        )?;
+        // If this response contains an error the StakeKey (validator, withdrawer) did not exist
+        // Because the validator does exist, this implies the supplied withdrawer is different
+        if response.contains("error") {
+            bail!(
+                "The validator {} was started with a withdrawer address different from the one requested.",
+                dry_validator,
+            );
+        }
     }
 
     let confirmation = if requires_confirmation.unwrap_or(true) {
@@ -1003,7 +1040,6 @@ pub fn send_st(
         println!("> {}", request);
         println!("< {}", response);
 
-        let environment = get_environment();
         let value = Wit::from_nanowits(st.body.output.value).to_string();
         let staker = dry
             .staker
@@ -1012,10 +1048,8 @@ pub fn send_st(
             .collect::<HashSet<_>>()
             .iter()
             .join(",");
-        let validator = dry.validator.bech32(environment);
-        let withdrawer = dry.withdrawer.bech32(environment);
 
-        println!("Congratulations! {} Wit have been staked by addresses {:?} onto validator {}, using {} as the withdrawal address.", value, staker, validator, withdrawer);
+        println!("Congratulations! {} Wit have been staked by addresses {:?} onto validator {}, using {} as the withdrawal address.", value, staker, dry_validator, dry_withdrawer);
     } else {
         println!("The stake facts have not been confirmed. No stake transaction has been created.");
     }
