@@ -983,7 +983,17 @@ pub fn build_block(
         }
     }
 
+    let mut included_validators = HashSet::<PublicKeyHash>::new();
     for st_tx in transactions_pool.st_iter() {
+        let validator_pkh = st_tx.body.output.authorization.public_key.pkh();
+        if included_validators.contains(&validator_pkh) {
+            log::debug!(
+                "Cannot include more than one stake transaction for {} in a single block",
+                validator_pkh
+            );
+            continue;
+        }
+
         let transaction_weight = st_tx.weight();
         let transaction_fee = match st_transaction_fee(st_tx, &utxo_diff, epoch, epoch_constants) {
             Ok(x) => x,
@@ -1014,6 +1024,8 @@ pub fn build_block(
         if st_weight > max_st_weight.saturating_sub(min_st_weight) {
             break;
         }
+
+        included_validators.insert(validator_pkh);
     }
 
     // Include Mint Transaction by miner
