@@ -13,7 +13,6 @@ pub mod stakes;
 /// staking-related.
 pub mod prelude {
     pub use crate::capabilities::*;
-
     pub use super::errors::*;
     pub use super::helpers::*;
     pub use super::stake::*;
