@@ -25,7 +25,6 @@ pub type Power = u64;
 
 /// The resulting type for all the fallible functions in this module.
 pub type StakesResult<T, Address, Coins, Epoch> = Result<T, StakesError<Address, Coins, Epoch>>;
-
 /// Pairs a stake key and the stake data it refers.
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
 pub struct StakeEntry<const UNIT: u8, Address, Coins, Epoch, Nonce, Power>
