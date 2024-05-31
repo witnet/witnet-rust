@@ -27,7 +27,7 @@ use witnet_data_structures::{
     },
     fee::{deserialize_fee_backwards_compatible, Fee},
     radon_report::RadonReport,
-    staking::{aux::StakeKey, stakes::QueryStakesKey},
+    staking::{helpers::StakeKey, stakes::QueryStakesKey},
     transaction::{
         CommitTransaction, DRTransaction, RevealTransaction, StakeTransaction, Transaction,
         UnstakeTransaction, VTTransaction,

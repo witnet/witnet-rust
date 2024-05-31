@@ -1,5 +1,6 @@
 use std::{
     fmt::{Debug, Display},
+    iter::Sum,
     ops::{Add, Div, Mul, Sub},
 };
 use witnet_data_structures::staking::prelude::*;
@@ -37,7 +38,7 @@ impl From<IneligibilityReason> for Eligible {
 pub trait Eligibility<Address, Coins, Epoch, Power>
 where
     Address: Debug + Display + Sync + Send + 'static,
-    Coins: Debug + Display + Sync + Send + 'static,
+    Coins: Debug + Display + Sync + Send + Sum + 'static,
     Epoch: Debug + Display + Sync + Send + 'static,
 {
     /// Tells whether a VRF proof meets the requirements to become eligible for mining. Unless an error occurs, returns
@@ -45,19 +46,19 @@ where
     /// `IneligibilityReason`.
     fn mining_eligibility<ISK>(
         &self,
-        key: ISK,
+        validator: ISK,
         epoch: Epoch,
     ) -> StakesResult<Eligible, Address, Coins, Epoch>
     where
-        ISK: Into<StakeKey<Address>>;
+        ISK: Into<Address>;
 
     /// Tells whether a VRF proof meets the requirements to become eligible for mining. Because this function returns a
     /// simple `bool`, it is best-effort: both lack of eligibility and any error cases are mapped to `false`.
-    fn mining_eligibility_bool<ISK>(&self, key: ISK, epoch: Epoch) -> bool
+    fn mining_eligibility_bool<ISK>(&self, validator: ISK, epoch: Epoch) -> bool
     where
-        ISK: Into<StakeKey<Address>>,
+        ISK: Into<Address>,
     {
-        matches!(self.mining_eligibility(key, epoch), Ok(Eligible::Yes))
+        matches!(self.mining_eligibility(validator, epoch), Ok(Eligible::Yes))
     }
 
     /// Tells whether a VRF proof meets the requirements to become eligible for witnessing. Unless an error occurs,
@@ -65,28 +66,28 @@ where
     /// `IneligibilityReason`.
     fn witnessing_eligibility<ISK>(
         &self,
-        key: ISK,
+        validator: ISK,
         epoch: Epoch,
         witnesses: u8,
         round: u8,
     ) -> StakesResult<Eligible, Address, Coins, Epoch>
     where
-        ISK: Into<StakeKey<Address>>;
+        ISK: Into<Address>;
 
     /// Tells whether a VRF proof meets the requirements to become eligible for witnessing. Because this function
     /// returns a simple `bool`, it is best-effort: both lack of eligibility and any error cases are mapped to `false`.
     fn witnessing_eligibility_bool<ISK>(
         &self,
-        key: ISK,
+        validator: ISK,
         epoch: Epoch,
         witnesses: u8,
         round: u8,
     ) -> bool
     where
-        ISK: Into<StakeKey<Address>>,
+        ISK: Into<Address>,
     {
         matches!(
-            self.witnessing_eligibility(key, epoch, witnesses, round),
+            self.witnessing_eligibility(validator, epoch, witnesses, round),
             Ok(Eligible::Yes)
         )
     }
@@ -110,6 +111,7 @@ where
         + Mul<Epoch, Output = Power>
         + Sync
         + Send
+        + Sum
         + 'static,
     Epoch: Copy
         + Debug
@@ -128,18 +130,19 @@ where
         + Sub<Output = Power>
         + Mul<Output = Power>
         + Div<Output = Power>
-        + From<u64>,
+        + From<u64>
+        + Sum,
     u64: From<Coins> + From<Power>,
 {
     fn mining_eligibility<ISK>(
         &self,
-        key: ISK,
+        validator: ISK,
         epoch: Epoch,
     ) -> StakesResult<Eligible, Address, Coins, Epoch>
     where
-        ISK: Into<StakeKey<Address>>,
+        ISK: Into<Address>,
     {
-        let power = match self.query_power(key, Capability::Mining, epoch) {
+        let power = match self.query_power(validator, Capability::Mining, epoch) {
             Ok(p) => p,
             Err(e) => {
                 // Early exit if the stake key does not exist
@@ -185,7 +188,7 @@ where
         round: u8,
     ) -> StakesResult<Eligible, Address, Coins, Epoch>
     where
-        ISK: Into<StakeKey<Address>>,
+        ISK: Into<Address>,
     {
         let power = match self.query_power(key, Capability::Witnessing, epoch) {
             Ok(p) => p,
@@ -242,7 +245,7 @@ mod tests {
     #[test]
     fn test_mining_eligibility_no_stakers() {
         let stakes = <Stakes<String, _, _, _>>::with_minimum(100u64);
-        let isk = ("validator", "withdrawer");
+        let isk = "validator";
 
         assert_eq!(
             stakes.mining_eligibility(isk, 0),
@@ -260,7 +263,7 @@ mod tests {
     #[test]
     fn test_mining_eligibility_absolute_power() {
         let mut stakes = <Stakes<String, _, _, _>>::with_minimum(100u64);
-        let isk = ("validator", "withdrawer");
+        let isk = "validator";
 
         stakes.add_stake(isk, 1_000, 0).unwrap();
 
@@ -277,7 +280,7 @@ mod tests {
     #[test]
     fn test_witnessing_eligibility_no_stakers() {
         let stakes = <Stakes<String, _, _, _>>::with_minimum(100u64);
-        let isk = ("validator", "withdrawer");
+        let isk = "validator";
 
         assert_eq!(
             stakes.witnessing_eligibility(isk, 0, 10, 0),
@@ -295,7 +298,7 @@ mod tests {
     #[test]
     fn test_witnessing_eligibility_absolute_power() {
         let mut stakes = <Stakes<String, _, _, _>>::with_minimum(100u64);
-        let isk = ("validator", "withdrawer");
+        let isk = "validator";
 
         stakes.add_stake(isk, 1_000, 0).unwrap();
 

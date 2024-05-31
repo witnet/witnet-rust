@@ -36,7 +36,6 @@ use witnet_data_structures::{
     proto::versioning::{ProtocolVersion, VersionedHashable},
     radon_error::RadonError,
     radon_report::{RadonReport, ReportContext, TypeLike},
-    staking::prelude::*,
     transaction::{
         CommitTransaction, CommitTransactionBody, DRTransactionBody, MintTransaction,
         RevealTransaction, RevealTransactionBody, StakeTransactionBody, TallyTransaction,
@@ -113,11 +112,10 @@ impl ChainManager {
         let mut vrf_input = chain_info.highest_vrf_output;
 
         if get_protocol_version(self.current_epoch) == ProtocolVersion::V2_0 {
-            let key = StakeKey::from((own_pkh, own_pkh));
             let eligibility = self
                 .chain_state
                 .stakes
-                .mining_eligibility(key, current_epoch)
+                .mining_eligibility(own_pkh, current_epoch)
                 .map_err(ChainManagerError::Staking)?;
 
             match eligibility {
