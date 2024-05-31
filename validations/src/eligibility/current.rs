@@ -202,7 +202,7 @@ where
         };
 
         let mut rank = self.rank(Capability::Mining, epoch);
-        let rf = 2usize.pow(round as u32) * witnesses as usize;
+        let rf = 2usize.pow(u32::from(round)) * witnesses as usize;
 
         // Requirement no. 2 from the WIP:
         //  "the witnessing power of the block proposer is in the `rf / stakers`th quantile among the witnessing powers
@@ -251,13 +251,13 @@ mod tests {
             stakes.mining_eligibility(isk, 0),
             Ok(Eligible::No(IneligibilityReason::NotStaking))
         );
-        assert_eq!(stakes.mining_eligibility_bool(isk, 0), false);
+        assert!(!stakes.mining_eligibility_bool(isk, 0));
 
         assert_eq!(
             stakes.mining_eligibility(isk, 100),
             Ok(Eligible::No(IneligibilityReason::NotStaking))
         );
-        assert_eq!(stakes.mining_eligibility_bool(isk, 100), false);
+        assert!(!stakes.mining_eligibility_bool(isk, 100));
     }
 
     #[test]
@@ -271,10 +271,10 @@ mod tests {
             stakes.mining_eligibility(isk, 0),
             Ok(Eligible::No(IneligibilityReason::InsufficientPower))
         );
-        assert_eq!(stakes.mining_eligibility_bool(isk, 0), false);
+        assert!(!stakes.mining_eligibility_bool(isk, 0));
 
         assert_eq!(stakes.mining_eligibility(isk, 100), Ok(Eligible::Yes));
-        assert_eq!(stakes.mining_eligibility_bool(isk, 100), true);
+        assert!(stakes.mining_eligibility_bool(isk, 100));
     }
 
     #[test]
@@ -286,13 +286,13 @@ mod tests {
             stakes.witnessing_eligibility(isk, 0, 10, 0),
             Ok(Eligible::No(IneligibilityReason::NotStaking))
         );
-        assert_eq!(stakes.witnessing_eligibility_bool(isk, 0, 10, 0), false);
+        assert!(!stakes.witnessing_eligibility_bool(isk, 0, 10, 0));
 
         assert_eq!(
             stakes.witnessing_eligibility(isk, 100, 10, 0),
             Ok(Eligible::No(IneligibilityReason::NotStaking))
         );
-        assert_eq!(stakes.witnessing_eligibility_bool(isk, 100, 10, 0), false);
+        assert!(!stakes.witnessing_eligibility_bool(isk, 100, 10, 0));
     }
 
     #[test]
@@ -306,12 +306,12 @@ mod tests {
             stakes.witnessing_eligibility(isk, 0, 10, 0),
             Ok(Eligible::No(IneligibilityReason::InsufficientPower))
         );
-        assert_eq!(stakes.witnessing_eligibility_bool(isk, 0, 10, 0), false);
+        assert!(!stakes.witnessing_eligibility_bool(isk, 0, 10, 0));
 
         assert_eq!(
             stakes.witnessing_eligibility(isk, 100, 10, 0),
             Ok(Eligible::Yes)
         );
-        assert_eq!(stakes.witnessing_eligibility_bool(isk, 100, 10, 0), true);
+        assert!(stakes.witnessing_eligibility_bool(isk, 100, 10, 0));
     }
 }

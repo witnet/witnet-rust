@@ -79,6 +79,7 @@ where
         let product_added = coins * epoch;
 
         let coins_after = coins_before + coins;
+        #[allow(clippy::cast_possible_truncation)]
         let epoch_after = Epoch::from(
             (u64::from(product_before + product_added) / u64::from(coins_after)) as u32,
         );

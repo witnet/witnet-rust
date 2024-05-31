@@ -375,15 +375,13 @@ fn p2p_sessions_consolidate() {
     assert!(sessions
         .outbound_unconsolidated
         .collection
-        .get(&outbound_address)
-        .is_some());
+        .contains_key(&outbound_address));
     assert_eq!(sessions.outbound_consolidated.collection.len(), 0);
     assert_eq!(sessions.inbound_consolidated.collection.len(), 0);
     assert!(sessions
         .inbound_unconsolidated
         .collection
-        .get(&inbound_address)
-        .is_some());
+        .contains_key(&inbound_address));
 
     // Consolidate session
     assert!(sessions
@@ -397,14 +395,12 @@ fn p2p_sessions_consolidate() {
     assert!(sessions
         .outbound_consolidated
         .collection
-        .get(&outbound_address)
-        .is_some());
+        .contains_key(&outbound_address));
     assert_eq!(sessions.outbound_unconsolidated.collection.len(), 0);
     assert!(sessions
         .inbound_consolidated
         .collection
-        .get(&inbound_address)
-        .is_some());
+        .contains_key(&inbound_address));
 }
 
 /// Check the consensus of outbound consolidated sessions
@@ -434,8 +430,7 @@ fn p2p_sessions_consensus() {
     assert!(sessions
         .outbound_consolidated
         .collection
-        .get(&outbound_address)
-        .is_some());
+        .contains_key(&outbound_address));
 
     assert_eq!(sessions.outbound_unconsolidated.collection.len(), 0);
     assert_eq!(sessions.outbound_consolidated.collection.len(), 1);

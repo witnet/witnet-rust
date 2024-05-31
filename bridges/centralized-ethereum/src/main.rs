@@ -119,7 +119,10 @@ fn run(callback: fn()) -> Result<(), String> {
 
         // Initialize Storage Manager
         let mut node_config = NodeConfig::default();
-        node_config.storage.db_path = config.storage.db_path.clone();
+        node_config
+            .storage
+            .db_path
+            .clone_from(&config.storage.db_path);
         storage_mngr::start_from_config(node_config);
     });
 

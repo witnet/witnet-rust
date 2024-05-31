@@ -5,6 +5,7 @@ use partial_struct::PartialStruct;
 fn test_partial_derive() {
     #[derive(PartialStruct, Debug, Clone, PartialEq)]
     #[partial_struct(derive(Debug, Clone, PartialEq))]
+    #[allow(dead_code)]
     struct Obj;
 
     let p = PartialObj;
