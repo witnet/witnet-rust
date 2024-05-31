@@ -161,9 +161,7 @@ mod tests {
         assert_eq!(output, expected);
 
         // Deactivate WIP-0017
-        active_wips
-            .active_wips
-            .remove(&"WIP0017-0018-0019".to_string());
+        active_wips.active_wips.remove("WIP0017-0018-0019");
         context.active_wips = Some(active_wips);
 
         let expected_err = RadError::UnsupportedReducer {

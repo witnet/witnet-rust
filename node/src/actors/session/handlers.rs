@@ -81,6 +81,7 @@ enum HandshakeError {
 impl WriteHandler<Error> for Session {}
 
 /// Payload for the notification for a specific epoch
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct EpochPayload;
 

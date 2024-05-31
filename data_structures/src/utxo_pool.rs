@@ -311,26 +311,23 @@ impl OwnUnspentOutputsPool {
             map: HashMap::default(),
         }
     }
-    pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&u64>
+    pub fn get<Q: ?Sized + std::hash::Hash + Eq>(&self, k: &Q) -> Option<&u64>
     where
         OutputPointer: std::borrow::Borrow<Q>,
-        Q: std::hash::Hash + Eq,
     {
         self.map.get(k)
     }
 
-    pub fn get_mut<Q: ?Sized>(&mut self, k: &Q) -> Option<&mut u64>
+    pub fn get_mut<Q: ?Sized + std::hash::Hash + Eq>(&mut self, k: &Q) -> Option<&mut u64>
     where
         OutputPointer: std::borrow::Borrow<Q>,
-        Q: std::hash::Hash + Eq,
     {
         self.map.get_mut(k)
     }
 
-    pub fn contains_key<Q: ?Sized>(&self, k: &Q) -> bool
+    pub fn contains_key<Q: ?Sized + std::hash::Hash + Eq>(&self, k: &Q) -> bool
     where
         OutputPointer: std::borrow::Borrow<Q>,
-        Q: std::hash::Hash + Eq,
     {
         self.map.contains_key(k)
     }
