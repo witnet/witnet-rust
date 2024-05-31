@@ -517,6 +517,7 @@ pub fn calculate_reward_collateral_ratio(
     witness_reward: u64,
 ) -> u64 {
     let dr_collateral = if collateral == 0 {
+        // if collateral is equal to 0 means that is equal to collateral_minimum value
         collateral_minimum
     } else {
         collateral
