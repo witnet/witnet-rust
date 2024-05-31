@@ -11,6 +11,7 @@ use std::{fmt, time::Duration};
 use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
 use witnet_data_structures::{
     chain::{tapi::current_active_wips, DataRequestOutput, Hashable},
+    data_request::calculate_reward_collateral_ratio,
     error::TransactionError,
     proto::ProtobufConvert,
     radon_error::RadonErrors,
@@ -177,7 +178,7 @@ impl DrSender {
                     Err(err) => {
                         // Error deserializing or validating data request: mark data request as
                         // error and report error as result to ethereum.
-                        log::error!("[{}] >< unacceptable data request bytecode: {}", dr_id, err);
+                        log::error!("[{}] >< unacceptable data request: {}", dr_id, err);
                         let result = err.encode_cbor();
                         // In this case there is no data request transaction, so
                         // we set both the dr_tx_hash and dr_tally_tx_hash to zero values.
@@ -310,12 +311,11 @@ fn deserialize_and_validate_dr_bytes(
     match DataRequestOutput::from_pb_bytes(dr_bytes) {
         Err(e) => Err(DrSenderError::Deserialization { msg: e.to_string() }),
         Ok(dr_output) => {
-            let required_reward_collateral_ratio =
-                PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
+            let mut dr_output = dr_output.clone();
             validate_data_request_output(
                 &dr_output,
-                dr_output.collateral, // we don't want to ever alter the dro_hash
-                required_reward_collateral_ratio,
+                dr_min_collateral_nanowits, // dro_hash may be altered if dr_output.collateral goes below this value
+                PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO,
                 &current_active_wips(),
             )
             .map_err(|e| match e {
@@ -326,7 +326,27 @@ fn deserialize_and_validate_dr_bytes(
             })?;
 
             // Collateral value validation
-            // If collateral is equal to 0 means that is equal to collateral_minimum value
+            if dr_output.collateral < dr_min_collateral_nanowits {
+                // modify data request's collateral if below some minimum,
+                // while maintaining same reward collateral ratio in such case:
+                let reward_collateral_ratio = calculate_reward_collateral_ratio(
+                    dr_output.collateral,
+                    dr_min_collateral_nanowits,
+                    dr_output.witness_reward,
+                );
+                let dro_hash = dr_output.hash();
+                let dro_prev_collateral = dr_output.collateral;
+                let dro_prev_witness_reward = dr_output.witness_reward;
+                dr_output.collateral = dr_min_collateral_nanowits;
+                dr_output.witness_reward = calculate_reward_collateral_ratio(
+                    dr_min_collateral_nanowits,
+                    dr_min_collateral_nanowits,
+                    reward_collateral_ratio,
+                );
+                log::warn!("DRO [{}]: witnessing collateral ({}) increased to mininum ({})", dro_hash, dro_prev_collateral, dr_min_collateral_nanowits);
+                log::warn!("DRO [{}]: witnessing reward ({}) proportionally increased ({})", dro_hash, dro_prev_witness_reward, dr_output.witness_reward)
+                
+            }
             if (dr_output.collateral != 0) && (dr_output.collateral < dr_min_collateral_nanowits) {
                 return Err(DrSenderError::InvalidCollateral {
                     msg: format!(
