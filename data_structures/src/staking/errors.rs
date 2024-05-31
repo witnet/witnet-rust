@@ -1,4 +1,4 @@
-use crate::staking::aux::StakeKey;
+use crate::staking::helpers::StakeKey;
 use failure::Fail;
 use std::{
     convert::From,
