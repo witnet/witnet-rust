@@ -1056,7 +1056,7 @@ pub fn validate_tally_transaction<'a>(
             if is_after_second_hard_fork {
                 if honests_count > 0 {
                     // Make sure every rewarded address is a revealer
-                    if dr_state.info.reveals.get(&output.pkh).is_none() {
+                    if !dr_state.info.reveals.contains_key(&output.pkh) {
                         return Err(TransactionError::RevealNotFound.into());
                     }
                     // Make sure every rewarded address passed the tally function, a.k.a. "is honest" / "is not a liar"
@@ -1086,7 +1086,7 @@ pub fn validate_tally_transaction<'a>(
                     }
                 } else {
                     // Make sure every rewarded address is a committer
-                    if dr_state.info.commits.get(&output.pkh).is_none() {
+                    if !dr_state.info.commits.contains_key(&output.pkh) {
                         return Err(TransactionError::CommitNotFound.into());
                     }
                     // Validation of the reward, must be equal to the collateral
@@ -1102,7 +1102,7 @@ pub fn validate_tally_transaction<'a>(
                 // Old logic used before second hard fork
                 if reveals_count > 0 {
                     // Make sure every rewarded address is a revealer
-                    if dr_state.info.reveals.get(&output.pkh).is_none() {
+                    if !dr_state.info.reveals.contains_key(&output.pkh) {
                         return Err(TransactionError::RevealNotFound.into());
                     }
                     // Make sure every rewarded address passed the tally function, a.k.a. "is honest" / "is not a liar"
@@ -2314,7 +2314,7 @@ pub fn compare_block_candidates(
     s: &VrfSlots,
     version: ProtocolVersion,
 ) -> Ordering {
-    let ordering = if version == ProtocolVersion::V2_0 {
+    if version == ProtocolVersion::V2_0 {
         // Bigger vrf hash implies worse block candidate
         b1_vrf_hash
             .cmp(&b2_vrf_hash)
@@ -2348,9 +2348,7 @@ pub fn compare_block_candidates(
             .then(b1_vrf_hash.cmp(&b2_vrf_hash).reverse())
             // Bigger block implies worse block candidate
             .then(b1_hash.cmp(&b2_hash).reverse())
-    };
-
-    ordering
+    }
 }
 
 /// Blocking process to verify signatures

@@ -1642,7 +1642,7 @@ impl KeyedSignature {
         compact: &[u8],
         message: &[u8],
     ) -> Result<Self, Secp256k1ConversionError> {
-        let recid = RecoveryId::from_i32(compact[0] as i32)
+        let recid = RecoveryId::from_i32(i32::from(compact[0]))
             .map_err(|e| Secp256k1ConversionError::Secp256k1 { inner: e })?;
         let recoverable = RecoverableSignature::from_compact(&compact[1..], recid)
             .map_err(|e| Secp256k1ConversionError::Secp256k1 { inner: e })?;

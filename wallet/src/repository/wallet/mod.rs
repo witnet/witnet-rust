@@ -819,7 +819,7 @@ where
             // Check if any input or output is from the wallet (input is an UTXO or output points to any wallet's pkh)
             if inputs
                 .iter()
-                .any(|input| state.utxo_set.get(&input.output_pointer().into()).is_some())
+                .any(|input| state.utxo_set.contains_key(&input.output_pointer().into()))
                 || outputs.iter().any(check_db_and_transient)
             {
                 filtered_txns.push(txn.clone());

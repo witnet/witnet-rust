@@ -47,6 +47,7 @@ pub trait Database {
         K: AsRef<[u8]>,
         V: serde::de::DeserializeOwned;
 
+    #[allow(dead_code)]
     fn contains<K, V>(&self, key: &Key<K, V>) -> Result<bool>
     where
         K: AsRef<[u8]>;
