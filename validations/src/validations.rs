@@ -34,7 +34,7 @@ use witnet_data_structures::{
     get_protocol_version,
     proto::versioning::{ProtocolVersion, VersionedHashable},
     radon_report::{RadonReport, ReportContext},
-    staking::{prelude::StakeKey, stakes::Stakes},
+    staking::stakes::Stakes,
     transaction::{
         CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, StakeTransaction,
         TallyTransaction, Transaction, UnstakeTransaction, VTTransaction,
@@ -2071,8 +2071,7 @@ pub fn validate_block(
     } else {
         let target_hash = if protocol_version == ProtocolVersion::V2_0 {
             let validator = block.block_sig.public_key.pkh();
-            let validator_key = StakeKey::from((validator, validator));
-            let eligibility = stakes.mining_eligibility(validator_key, block_epoch);
+            let eligibility = stakes.mining_eligibility(validator, block_epoch);
             if eligibility == Ok(Eligible::No(InsufficientPower))
                 || eligibility == Ok(Eligible::No(NotStaking))
             {

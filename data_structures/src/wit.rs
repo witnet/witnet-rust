@@ -1,8 +1,8 @@
-use std::{fmt, ops::*};
+use std::{fmt, iter::Sum, ops::*};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{chain::Epoch, staking::aux::Power};
+use crate::{chain::Epoch, staking::helpers::Power};
 
 /// 1 nanowit is the minimal unit of value
 /// 1 wit = 10^9 nanowits
@@ -135,6 +135,19 @@ impl From<u64> for Wit {
 impl From<Wit> for u64 {
     fn from(value: Wit) -> Self {
         value.0
+    }
+}
+
+impl Sum for Wit {
+    fn sum<I>(iter: I) -> Self
+    where
+        I: Iterator<Item = Wit>,
+    {
+        let mut total = Wit::from_nanowits(0);
+        for w in iter {
+            total = total + w;
+        }
+        total
     }
 }
 

@@ -1,6 +1,7 @@
 use std::{
     collections::{btree_map::Entry, BTreeMap},
     fmt::{Debug, Display},
+    iter::Sum,
     ops::{Add, Div, Mul, Sub},
 };
 
@@ -66,9 +67,9 @@ where
     /// A listing of all the stakers, indexed by their address.
     by_key: BTreeMap<StakeKey<Address>, SyncStake<Address, Coins, Epoch, Power>>,
     /// A listing of all the stakers, indexed by validator.
-    by_validator: BTreeMap<Address, SyncStake<Address, Coins, Epoch, Power>>,
+    by_validator: BTreeMap<Address, Vec<SyncStake<Address, Coins, Epoch, Power>>>,
     /// A listing of all the stakers, indexed by withdrawer.
-    by_withdrawer: BTreeMap<Address, SyncStake<Address, Coins, Epoch, Power>>,
+    by_withdrawer: BTreeMap<Address, Vec<SyncStake<Address, Coins, Epoch, Power>>>,
     /// A listing of all the stakers, indexed by their coins and address.
     ///
     /// Because this uses a compound key to prevent duplicates, if we want to know which addresses
@@ -99,7 +100,8 @@ where
         + Debug
         + Send
         + Sync
-        + Display,
+        + Display
+        + Sum,
     Address: Clone + Ord + 'static + Debug,
     Epoch: Copy
         + Default
@@ -110,7 +112,7 @@ where
         + Display
         + Send
         + Sync,
-    Power: Copy + Default + Ord + Add<Output = Power> + Div<Output = Power>,
+    Power: Copy + Default + Ord + Add<Output = Power> + Div<Output = Power> + Sum,
     u64: From<Coins> + From<Power>,
 {
     /// Register a certain amount of additional stake for a certain address and epoch.
@@ -126,6 +128,7 @@ where
         let key = key.into();
 
         // Find or create a matching stake entry
+        let stake_found = self.by_key.contains_key(&key);
         let stake = self.by_key.entry(key.clone()).or_default();
 
         // Actually increase the number of coins
@@ -144,13 +147,22 @@ where
         self.by_coins
             .insert(coins_and_addresses.clone(), stake.clone());
 
-        let validator_key = coins_and_addresses.clone().addresses.validator;
-        self.by_validator.remove(&validator_key);
-        self.by_validator.insert(validator_key, stake.clone());
+        if !stake_found {
+            let validator_key = coins_and_addresses.clone().addresses.validator;
+            if let Some(validator) = self.by_validator.get_mut(&validator_key) {
+                validator.push(stake.clone());
+            } else {
+                self.by_validator.insert(validator_key, vec![stake.clone()]);
+            }
 
-        let withdrawer_key = coins_and_addresses.addresses.withdrawer;
-        self.by_withdrawer.remove(&withdrawer_key);
-        self.by_withdrawer.insert(withdrawer_key, stake.clone());
+            let withdrawer_key = coins_and_addresses.addresses.withdrawer;
+            if let Some(withdrawer) = self.by_withdrawer.get_mut(&withdrawer_key) {
+                withdrawer.push(stake.clone());
+            } else {
+                self.by_withdrawer
+                    .insert(withdrawer_key, vec![stake.clone()]);
+            }
+        }
 
         Ok(stake.value.read()?.clone())
     }
@@ -193,22 +205,26 @@ where
     /// Tells what is the power of an identity in the network on a certain epoch.
     pub fn query_power<ISK>(
         &self,
-        key: ISK,
+        validator: ISK,
         capability: Capability,
         epoch: Epoch,
     ) -> StakesResult<Power, Address, Coins, Epoch>
     where
-        ISK: Into<StakeKey<Address>>,
+        ISK: Into<Address>,
     {
-        let key = key.into();
+        let validator = validator.into();
 
-        Ok(self
-            .by_key
-            .get(&key)
-            .ok_or(StakesError::EntryNotFound { key })?
-            .value
-            .read()?
-            .power(capability, epoch))
+        let validator = self
+            .by_validator
+            .get(&validator)
+            .ok_or(StakesError::ValidatorNotFound { validator })?;
+
+        Ok(validator
+            .iter()
+            .map(|stake| stake.value.read().unwrap().power(capability, epoch))
+            .collect::<Vec<Power>>()
+            .into_iter()
+            .sum())
     }
 
     /// For a given capability, obtain the full list of stakers ordered by their power in that
@@ -276,22 +292,27 @@ where
     /// epoch.
     pub fn reset_age<ISK>(
         &mut self,
-        key: ISK,
+        validator: ISK,
         capability: Capability,
         current_epoch: Epoch,
     ) -> StakesResult<(), Address, Coins, Epoch>
     where
-        ISK: Into<StakeKey<Address>>,
+        ISK: Into<Address>,
     {
-        let key = key.into();
+        let validator = validator.into();
 
-        let mut stake = self
-            .by_key
-            .get_mut(&key)
-            .ok_or(StakesError::EntryNotFound { key })?
-            .value
-            .write()?;
-        stake.epochs.update(capability, current_epoch);
+        let stakes = self
+            .by_validator
+            .get_mut(&validator)
+            .ok_or(StakesError::ValidatorNotFound { validator })?;
+        stakes.iter_mut().for_each(|stake| {
+            stake
+                .value
+                .write()
+                .unwrap()
+                .epochs
+                .update(capability, current_epoch)
+        });
 
         Ok(())
     }
@@ -335,13 +356,17 @@ where
     /// Query stakes by validator address.
     #[inline(always)]
     fn query_by_validator(&self, validator: Address) -> StakesResult<Coins, Address, Coins, Epoch> {
-        Ok(self
+        let validator = self
             .by_validator
             .get(&validator)
-            .ok_or(StakesError::ValidatorNotFound { validator })?
-            .value
-            .read()?
-            .coins)
+            .ok_or(StakesError::ValidatorNotFound { validator })?;
+
+        Ok(validator
+            .iter()
+            .map(|stake| stake.value.read().unwrap().coins)
+            .collect::<Vec<Coins>>()
+            .into_iter()
+            .sum())
     }
 
     /// Query stakes by withdrawer address.
@@ -350,13 +375,17 @@ where
         &self,
         withdrawer: Address,
     ) -> StakesResult<Coins, Address, Coins, Epoch> {
-        Ok(self
+        let withdrawer = self
             .by_withdrawer
             .get(&withdrawer)
-            .ok_or(StakesError::WithdrawerNotFound { withdrawer })?
-            .value
-            .read()?
-            .coins)
+            .ok_or(StakesError::WithdrawerNotFound { withdrawer })?;
+
+        Ok(withdrawer
+            .iter()
+            .map(|stake| stake.value.read().unwrap().coins)
+            .collect::<Vec<Coins>>()
+            .into_iter()
+            .sum())
     }
 }
 
@@ -379,7 +408,7 @@ where
         + Display
         + Send
         + Sync,
-    Power: Add<Output = Power> + Copy + Default + Div<Output = Power> + Ord + Debug,
+    Power: Add<Output = Power> + Copy + Default + Div<Output = Power> + Ord + Debug + Sum,
     Wit: Mul<Epoch, Output = Power>,
     u64: From<Wit> + From<Power>,
 {
@@ -426,7 +455,7 @@ where
         + Send
         + Sync
         + Display,
-    Power: Add<Output = Power> + Copy + Default + Div<Output = Power> + Ord + Debug,
+    Power: Add<Output = Power> + Copy + Default + Div<Output = Power> + Ord + Debug + Sum,
     Wit: Mul<Epoch, Output = Power>,
     u64: From<Wit> + From<Power>,
 {
@@ -461,21 +490,15 @@ mod tests {
 
         // Let's check default power
         assert_eq!(
-            stakes.query_power(alice_charlie, Capability::Mining, 0),
-            Err(StakesError::EntryNotFound {
-                key: StakeKey {
-                    validator: alice.into(),
-                    withdrawer: charlie.into()
-                },
+            stakes.query_power(alice, Capability::Mining, 0),
+            Err(StakesError::ValidatorNotFound {
+                validator: alice.into(),
             })
         );
         assert_eq!(
-            stakes.query_power(alice_charlie, Capability::Mining, 1_000),
-            Err(StakesError::EntryNotFound {
-                key: StakeKey {
-                    validator: alice.into(),
-                    withdrawer: charlie.into()
-                },
+            stakes.query_power(alice, Capability::Mining, 1_000),
+            Err(StakesError::ValidatorNotFound {
+                validator: alice.into(),
             })
         );
 
@@ -492,20 +515,11 @@ mod tests {
         );
 
         // Let's see how Alice's stake accrues power over time
+        assert_eq!(stakes.query_power(alice, Capability::Mining, 99), Ok(0));
+        assert_eq!(stakes.query_power(alice, Capability::Mining, 100), Ok(0));
+        assert_eq!(stakes.query_power(alice, Capability::Mining, 101), Ok(100));
         assert_eq!(
-            stakes.query_power(alice_charlie, Capability::Mining, 99),
-            Ok(0)
-        );
-        assert_eq!(
-            stakes.query_power(alice_charlie, Capability::Mining, 100),
-            Ok(0)
-        );
-        assert_eq!(
-            stakes.query_power(alice_charlie, Capability::Mining, 101),
-            Ok(100)
-        );
-        assert_eq!(
-            stakes.query_power(alice_charlie, Capability::Mining, 200),
+            stakes.query_power(alice, Capability::Mining, 200),
             Ok(10_000)
         );
 
@@ -521,19 +535,19 @@ mod tests {
             )
         );
         assert_eq!(
-            stakes.query_power(alice_charlie, Capability::Mining, 299),
+            stakes.query_power(alice, Capability::Mining, 299),
             Ok(19_950)
         );
         assert_eq!(
-            stakes.query_power(alice_charlie, Capability::Mining, 300),
+            stakes.query_power(alice, Capability::Mining, 300),
             Ok(20_100)
         );
         assert_eq!(
-            stakes.query_power(alice_charlie, Capability::Mining, 301),
+            stakes.query_power(alice, Capability::Mining, 301),
             Ok(20_250)
         );
         assert_eq!(
-            stakes.query_power(alice_charlie, Capability::Mining, 400),
+            stakes.query_power(alice, Capability::Mining, 400),
             Ok(35_100)
         );
 
@@ -551,41 +565,32 @@ mod tests {
 
         // Before Bob stakes, Alice has all the power
         assert_eq!(
-            stakes.query_power(alice_charlie, Capability::Mining, 999),
+            stakes.query_power(alice, Capability::Mining, 999),
             Ok(124950)
         );
-        assert_eq!(
-            stakes.query_power(bob_david, Capability::Mining, 999),
-            Ok(0)
-        );
+        assert_eq!(stakes.query_power(bob, Capability::Mining, 999), Ok(0));
 
         // New stakes don't change power in the same epoch
         assert_eq!(
-            stakes.query_power(alice_charlie, Capability::Mining, 1_000),
+            stakes.query_power(alice, Capability::Mining, 1_000),
             Ok(125100)
         );
-        assert_eq!(
-            stakes.query_power(bob_david, Capability::Mining, 1_000),
-            Ok(0)
-        );
+        assert_eq!(stakes.query_power(bob, Capability::Mining, 1_000), Ok(0));
 
         // Shortly after, Bob's stake starts to gain power
         assert_eq!(
-            stakes.query_power(alice_charlie, Capability::Mining, 1_001),
+            stakes.query_power(alice, Capability::Mining, 1_001),
             Ok(125250)
         );
-        assert_eq!(
-            stakes.query_power(bob_david, Capability::Mining, 1_001),
-            Ok(500)
-        );
+        assert_eq!(stakes.query_power(bob, Capability::Mining, 1_001), Ok(500));
 
         // After enough time, Bob overpowers Alice
         assert_eq!(
-            stakes.query_power(alice_charlie, Capability::Mining, 2_000),
+            stakes.query_power(alice, Capability::Mining, 2_000),
             Ok(275_100)
         );
         assert_eq!(
-            stakes.query_power(bob_david, Capability::Mining, 2_000),
+            stakes.query_power(bob, Capability::Mining, 2_000),
             Ok(500_000)
         );
     }
@@ -610,27 +615,24 @@ mod tests {
 
         // Let's really start our test at epoch 100
         assert_eq!(
-            stakes.query_power(alice_charlie, Capability::Mining, 100),
+            stakes.query_power(alice, Capability::Mining, 100),
             Ok(1_000)
         );
+        assert_eq!(stakes.query_power(bob, Capability::Mining, 100), Ok(1_600));
         assert_eq!(
-            stakes.query_power(bob_david, Capability::Mining, 100),
-            Ok(1_600)
-        );
-        assert_eq!(
-            stakes.query_power(charlie_erin, Capability::Mining, 100),
+            stakes.query_power(charlie, Capability::Mining, 100),
             Ok(2_100)
         );
         assert_eq!(
-            stakes.query_power(alice_charlie, Capability::Witnessing, 100),
+            stakes.query_power(alice, Capability::Witnessing, 100),
             Ok(1_000)
         );
         assert_eq!(
-            stakes.query_power(bob_david, Capability::Witnessing, 100),
+            stakes.query_power(bob, Capability::Witnessing, 100),
             Ok(1_600)
         );
         assert_eq!(
-            stakes.query_power(charlie_erin, Capability::Witnessing, 100),
+            stakes.query_power(charlie, Capability::Witnessing, 100),
             Ok(2_100)
         );
         assert_eq!(
@@ -651,31 +653,23 @@ mod tests {
         );
 
         // Now let's slash Charlie's mining coin age right after
-        stakes
-            .reset_age(charlie_erin, Capability::Mining, 101)
-            .unwrap();
+        stakes.reset_age(charlie, Capability::Mining, 101).unwrap();
         assert_eq!(
-            stakes.query_power(alice_charlie, Capability::Mining, 101),
+            stakes.query_power(alice, Capability::Mining, 101),
+            Ok(1_010)
+        );
+        assert_eq!(stakes.query_power(bob, Capability::Mining, 101), Ok(1_620));
+        assert_eq!(stakes.query_power(charlie, Capability::Mining, 101), Ok(0));
+        assert_eq!(
+            stakes.query_power(alice, Capability::Witnessing, 101),
             Ok(1_010)
         );
         assert_eq!(
-            stakes.query_power(bob_david, Capability::Mining, 101),
+            stakes.query_power(bob, Capability::Witnessing, 101),
             Ok(1_620)
         );
         assert_eq!(
-            stakes.query_power(charlie_erin, Capability::Mining, 101),
-            Ok(0)
-        );
-        assert_eq!(
-            stakes.query_power(alice_charlie, Capability::Witnessing, 101),
-            Ok(1_010)
-        );
-        assert_eq!(
-            stakes.query_power(bob_david, Capability::Witnessing, 101),
-            Ok(1_620)
-        );
-        assert_eq!(
-            stakes.query_power(charlie_erin, Capability::Witnessing, 101),
+            stakes.query_power(charlie, Capability::Witnessing, 101),
             Ok(2_130)
         );
         assert_eq!(
@@ -697,27 +691,24 @@ mod tests {
 
         // Don't panic, Charlie! After enough time, you can take over again ;)
         assert_eq!(
-            stakes.query_power(alice_charlie, Capability::Mining, 300),
+            stakes.query_power(alice, Capability::Mining, 300),
             Ok(3_000)
         );
+        assert_eq!(stakes.query_power(bob, Capability::Mining, 300), Ok(5_600));
         assert_eq!(
-            stakes.query_power(bob_david, Capability::Mining, 300),
-            Ok(5_600)
-        );
-        assert_eq!(
-            stakes.query_power(charlie_erin, Capability::Mining, 300),
+            stakes.query_power(charlie, Capability::Mining, 300),
             Ok(5_970)
         );
         assert_eq!(
-            stakes.query_power(alice_charlie, Capability::Witnessing, 300),
+            stakes.query_power(alice, Capability::Witnessing, 300),
             Ok(3_000)
         );
         assert_eq!(
-            stakes.query_power(bob_david, Capability::Witnessing, 300),
+            stakes.query_power(bob, Capability::Witnessing, 300),
             Ok(5_600)
         );
         assert_eq!(
-            stakes.query_power(charlie_erin, Capability::Witnessing, 300),
+            stakes.query_power(charlie, Capability::Witnessing, 300),
             Ok(8_100)
         );
         assert_eq!(
