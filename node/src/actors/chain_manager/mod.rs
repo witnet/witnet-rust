@@ -1019,8 +1019,7 @@ impl ChainManager {
                 let miner_pkh = block.block_header.proof.proof.pkh();
 
                 // Reset the coin age of the miner for all staked coins
-                let key = StakeKey::from((miner_pkh, miner_pkh));
-                let _ = stakes.reset_age(key, Capability::Mining, current_epoch);
+                let _ = stakes.reset_age(miner_pkh, Capability::Mining, current_epoch);
 
                 // Do not update reputation or stakes when consolidating genesis block
                 if block_hash != chain_info.consensus_constants.genesis_hash {
