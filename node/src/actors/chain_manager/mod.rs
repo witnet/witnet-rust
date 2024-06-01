@@ -4042,6 +4042,7 @@ mod tests {
                     vrf_hash_2,
                     false,
                     &VrfSlots::new(vec![Hash::default()]),
+                    ProtocolVersion::V1_7,
                 ),
                 Ordering::Greater
             );
