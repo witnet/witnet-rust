@@ -23,12 +23,15 @@ use witnet_data_structures::{
         calculate_tally_change, calculate_witness_reward, create_tally, DataRequestPool,
     },
     error::{BlockError, DataRequestError, Secp256k1ConversionError, TransactionError},
+    proto::versioning::ProtocolVersion,
     radon_error::RadonError,
     radon_report::{RadonReport, ReportContext, TypeLike},
+    staking::prelude::Stakes,
     transaction::*,
     transaction_factory::transaction_outputs_sum,
     utxo_pool::{UnspentOutputsPool, UtxoDiff},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfCtx},
+    wit::Wit,
 };
 use witnet_protected::Protected;
 use witnet_rad::{
@@ -8808,6 +8811,8 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
         &rep_eng,
         &consensus_constants,
         &active_wips,
+        ProtocolVersion::V1_7,
+        &Stakes::<PublicKeyHash, Wit, u32, u64>::default(),
     )?;
     verify_signatures_test(signatures_to_verify)?;
     let mut signatures_to_verify = vec![];
@@ -9083,6 +9088,8 @@ fn block_difficult_proof() {
                 &rep_eng,
                 &consensus_constants,
                 &current_active_wips(),
+                ProtocolVersion::V1_7,
+                &Stakes::<PublicKeyHash, Wit, u32, u64>::default(),
             )?;
             verify_signatures_test(signatures_to_verify)?;
             let mut signatures_to_verify = vec![];
@@ -9790,6 +9797,8 @@ fn test_blocks_with_limits(
             &rep_eng,
             &consensus_constants,
             &current_active_wips(),
+            ProtocolVersion::V1_7,
+            &Stakes::<PublicKeyHash, Wit, u32, u64>::default(),
         )?;
         verify_signatures_test(signatures_to_verify)?;
         let mut signatures_to_verify = vec![];
@@ -10300,6 +10309,8 @@ fn genesis_block_after_not_bootstrap_hash() {
         &rep_eng,
         &consensus_constants,
         &current_active_wips(),
+        ProtocolVersion::V1_7,
+        &Stakes::<PublicKeyHash, Wit, u32, u64>::default(),
     );
     assert_eq!(signatures_to_verify, vec![]);
 
@@ -10380,6 +10391,8 @@ fn genesis_block_value_overflow() {
         &rep_eng,
         &consensus_constants,
         &current_active_wips(),
+        ProtocolVersion::V1_7,
+        &Stakes::<PublicKeyHash, Wit, u32, u64>::default(),
     )
     .unwrap();
     assert_eq!(signatures_to_verify, vec![]);
@@ -10465,6 +10478,8 @@ fn genesis_block_full_validate() {
         &rep_eng,
         &consensus_constants,
         &current_active_wips(),
+        ProtocolVersion::V1_7,
+        &Stakes::<PublicKeyHash, Wit, u32, u64>::default(),
     )
     .unwrap();
     assert_eq!(signatures_to_verify, vec![]);

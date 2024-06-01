@@ -7,8 +7,6 @@ use witnet_data_structures::chain::{
     Alpha, Environment, PublicKeyHash, Reputation, ReputationEngine,
 };
 
-// To benchmark the old algorithm, comment out this import:
-use witnet_validations::validations;
 // To benchmark the old algorithm, comment out the line that says cfg any:
 #[cfg(any())]
 mod validations {
@@ -87,7 +85,7 @@ fn be<I>(
     }
     // Initialize cache
     rep_eng.total_active_reputation();
-    validations::calculate_reppoe_threshold(
+    witnet_validations::eligibility::legacy::calculate_reppoe_threshold(
         &rep_eng,
         &my_pkh,
         num_witnesses,
@@ -101,7 +99,7 @@ fn be<I>(
         if invalidate_threshold_cache {
             rep_eng.clear_threshold_cache();
         }
-        validations::calculate_reppoe_threshold(
+        witnet_validations::eligibility::legacy::calculate_reppoe_threshold(
             &rep_eng,
             &my_pkh,
             num_witnesses,
