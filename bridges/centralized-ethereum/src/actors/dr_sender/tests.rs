@@ -4,14 +4,14 @@ use witnet_data_structures::chain::{RADAggregate, RADRequest, RADRetrieve, RADTa
 #[test]
 fn deserialize_empty_dr() {
     // An empty data request is invalid with error 0xE0: BridgeMalformedRequest
-    let err = deserialize_and_validate_dr_bytes(&[], 1).unwrap_err();
+    let err = deserialize_and_validate_dr_bytes(&[], 0, 1).unwrap_err();
     assert_eq!(err.encode_cbor(), vec![216, 39, 129, 24, 224]);
 }
 
 #[test]
 fn deserialize_dr_not_protobuf() {
     // A malformed data request is invalid with error 0xE0: BridgeMalformedRequest
-    let err = deserialize_and_validate_dr_bytes(&[1, 2, 3, 4], 1).unwrap_err();
+    let err = deserialize_and_validate_dr_bytes(&[1, 2, 3, 4], 0, 1).unwrap_err();
     assert_eq!(err.encode_cbor(), vec![216, 39, 129, 24, 224]);
 }
 
@@ -55,7 +55,8 @@ fn deserialize_dr_high_value() {
     let dro_bytes = dro.to_pb_bytes().unwrap();
     // Setting the maximum allowed value to 1 nanowit below that will result in an error 0xE1:
     // BridgePoorIncentives
-    let err = deserialize_and_validate_dr_bytes(&dro_bytes, total_value - 1).unwrap_err();
+    let err =
+        deserialize_and_validate_dr_bytes(&dro_bytes, 1_000_000_000, total_value - 1).unwrap_err();
     assert_eq!(err.encode_cbor(), vec![216, 39, 129, 24, 225]);
 }
 
@@ -78,7 +79,7 @@ fn deserialize_dr_collateral_one_nanowit() {
     assert_eq!(total_value, 20_000_000);
 
     let dro_bytes = dro.to_pb_bytes().unwrap();
-    let err = deserialize_and_validate_dr_bytes(&dro_bytes, total_value).unwrap_err();
+    let err = deserialize_and_validate_dr_bytes(&dro_bytes, 1, total_value).unwrap_err();
     assert_eq!(err.encode_cbor(), vec![216, 39, 129, 24, 224]);
 }
 
@@ -95,7 +96,7 @@ fn deserialize_dr_value_overflow() {
     };
 
     let dro_bytes = dro.to_pb_bytes().unwrap();
-    let err = deserialize_and_validate_dr_bytes(&dro_bytes, 1).unwrap_err();
+    let err = deserialize_and_validate_dr_bytes(&dro_bytes, 0, 1).unwrap_err();
     assert_eq!(err.encode_cbor(), vec![216, 39, 129, 24, 224]);
 }
 
@@ -115,6 +116,7 @@ fn deserialize_and_validate_dr_bytes_wip_0022() {
     let dro_bytes = dro.to_pb_bytes().unwrap();
     let witnet_dr_max_value_nanowits = 100_000_000_000;
     let err =
-        deserialize_and_validate_dr_bytes(&dro_bytes, witnet_dr_max_value_nanowits).unwrap_err();
+        deserialize_and_validate_dr_bytes(&dro_bytes, 1_000_000_000, witnet_dr_max_value_nanowits)
+            .unwrap_err();
     assert_eq!(err.encode_cbor(), vec![216, 39, 129, 24, 224]);
 }

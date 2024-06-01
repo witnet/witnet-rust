@@ -1,4 +1,7 @@
-use witnet_data_structures::chain::{tapi::current_active_wips, Hash, Reputation};
+use witnet_data_structures::{
+    chain::{tapi::current_active_wips, Hash, Reputation},
+    proto::versioning::ProtocolVersion,
+};
 
 use std::cmp::Ordering;
 
@@ -33,6 +36,7 @@ fn test_compare_candidate_same_section() {
                                     vrf_j,
                                     act_j,
                                     &vrf_sections,
+                                    ProtocolVersion::V1_7,
                                 ),
                                 Ordering::Less
                             );
@@ -47,6 +51,7 @@ fn test_compare_candidate_same_section() {
                                     vrf_j,
                                     act_j,
                                     &vrf_sections,
+                                    ProtocolVersion::V1_7,
                                 ),
                                 Ordering::Greater
                             );
@@ -73,6 +78,7 @@ fn test_compare_candidate_same_section() {
                             vrf_j,
                             false,
                             &vrf_sections,
+                            ProtocolVersion::V1_7,
                         ),
                         Ordering::Greater
                     );
@@ -87,6 +93,7 @@ fn test_compare_candidate_same_section() {
                             vrf_j,
                             true,
                             &vrf_sections,
+                            ProtocolVersion::V1_7,
                         ),
                         Ordering::Less
                     );
@@ -109,6 +116,7 @@ fn test_compare_candidate_same_section() {
                     vrf_2,
                     true,
                     &vrf_sections,
+                    ProtocolVersion::V1_7,
                 ),
                 Ordering::Greater
             );
@@ -123,6 +131,7 @@ fn test_compare_candidate_same_section() {
                     vrf_1,
                     true,
                     &vrf_sections,
+                    ProtocolVersion::V1_7,
                 ),
                 Ordering::Less
             );
@@ -141,6 +150,7 @@ fn test_compare_candidate_same_section() {
             vrf_1,
             true,
             &vrf_sections,
+            ProtocolVersion::V1_7,
         ),
         Ordering::Greater
     );
@@ -155,6 +165,7 @@ fn test_compare_candidate_same_section() {
             vrf_1,
             true,
             &vrf_sections,
+            ProtocolVersion::V1_7,
         ),
         Ordering::Less
     );
@@ -171,6 +182,7 @@ fn test_compare_candidate_same_section() {
             vrf_1,
             true,
             &vrf_sections,
+            ProtocolVersion::V1_7,
         ),
         Ordering::Equal
     );
@@ -207,6 +219,7 @@ fn test_compare_candidate_different_section() {
                                     vrf_2,
                                     act_j,
                                     &vrf_sections,
+                                    ProtocolVersion::V1_7,
                                 ),
                                 Ordering::Greater
                             );
@@ -221,6 +234,7 @@ fn test_compare_candidate_different_section() {
                                     vrf_1,
                                     act_j,
                                     &vrf_sections,
+                                    ProtocolVersion::V1_7,
                                 ),
                                 Ordering::Less
                             );
@@ -255,6 +269,7 @@ fn test_compare_candidate_different_reputation_bigger_than_zero() {
             vrf_2,
             true,
             &vrf_sections,
+            ProtocolVersion::V1_7,
         ),
         Ordering::Greater
     );
@@ -270,6 +285,7 @@ fn test_compare_candidate_different_reputation_bigger_than_zero() {
             vrf_1,
             true,
             &vrf_sections,
+            ProtocolVersion::V1_7,
         ),
         Ordering::Less
     );

@@ -1243,6 +1243,7 @@ mod tests {
         // Set `max_vt_weight` and `max_dr_weight` to zero (no transaction should be included)
         let max_vt_weight = 0;
         let max_dr_weight = 0;
+        let max_st_weight = 0;
 
         // Fields required to mine a block
         let block_beacon = CheckpointBeacon::default();
@@ -1272,6 +1273,7 @@ mod tests {
             (&mut transaction_pool, &unspent_outputs_pool, &dr_pool),
             max_vt_weight,
             max_dr_weight,
+            max_st_weight,
             block_beacon,
             block_proof,
             &[],
