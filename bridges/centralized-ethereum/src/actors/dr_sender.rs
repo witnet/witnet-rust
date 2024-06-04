@@ -311,7 +311,7 @@ fn deserialize_and_validate_dr_bytes(
     match DataRequestOutput::from_pb_bytes(dr_bytes) {
         Err(e) => Err(DrSenderError::Deserialization { msg: e.to_string() }),
         Ok(dr_output) => {
-            let mut dr_output = dr_output.clone();
+            let mut dr_output = dr_output;
             validate_data_request_output(
                 &dr_output,
                 dr_min_collateral_nanowits, // dro_hash may be altered if dr_output.collateral goes below this value
@@ -343,9 +343,18 @@ fn deserialize_and_validate_dr_bytes(
                     dr_min_collateral_nanowits,
                     reward_collateral_ratio,
                 );
-                log::warn!("DRO [{}]: witnessing collateral ({}) increased to mininum ({})", dro_hash, dro_prev_collateral, dr_min_collateral_nanowits);
-                log::warn!("DRO [{}]: witnessing reward ({}) proportionally increased ({})", dro_hash, dro_prev_witness_reward, dr_output.witness_reward)
-                
+                log::warn!(
+                    "DRO [{}]: witnessing collateral ({}) increased to minimum ({})",
+                    dro_hash,
+                    dro_prev_collateral,
+                    dr_min_collateral_nanowits
+                );
+                log::warn!(
+                    "DRO [{}]: witnessing reward ({}) proportionally increased ({})",
+                    dro_hash,
+                    dro_prev_witness_reward,
+                    dr_output.witness_reward
+                )
             }
             if (dr_output.collateral != 0) && (dr_output.collateral < dr_min_collateral_nanowits) {
                 return Err(DrSenderError::InvalidCollateral {
