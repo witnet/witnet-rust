@@ -135,7 +135,8 @@ where
         + Mul<Output = Power>
         + Div<Output = Power>
         + From<u64>
-        + Sum,
+        + Sum
+        + Display,
     u64: From<Coins> + From<Power>,
 {
     fn mining_eligibility<ISK>(
@@ -157,26 +158,13 @@ where
             }
         };
 
-        let mut rank = self.rank(Capability::Mining, epoch);
-
-        // Requirement no. 3 from the WIP:
-        //  "the mining power of the block proposer is greater than `max_power / rf`"
-        // (This goes before no. 2 because it is cheaper, computation-wise, and we want validations to exit ASAP)
-        // TODO: verify if defaulting to 0 makes sense
-        let (_, max_power) = rank.next().unwrap_or_default();
-        let threshold = max_power / Power::from(MINING_REPLICATION_FACTOR as u64);
-        if power <= threshold {
-            return Ok(IneligibilityReason::InsufficientPower.into());
-        }
-
         // Requirement no. 2 from the WIP:
         //  "the mining power of the block proposer is in the `rf / stakers`th quantile among the mining powers of all
         //  the stakers"
-        let stakers = self.stakes_count();
-        let quantile = stakers / MINING_REPLICATION_FACTOR;
         // TODO: verify if defaulting to 0 makes sense
-        let (_, threshold) = rank.nth(quantile).unwrap_or_default();
-        if power <= threshold {
+        let mut rank = self.rank(Capability::Mining, epoch);
+        let (_, threshold) = rank.nth(MINING_REPLICATION_FACTOR - 1).unwrap_or_default();
+        if power < threshold {
             return Ok(IneligibilityReason::InsufficientPower.into());
         }
 

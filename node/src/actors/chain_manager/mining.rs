@@ -112,7 +112,11 @@ impl ChainManager {
         let mut beacon = chain_info.highest_block_checkpoint;
         let mut vrf_input = chain_info.highest_vrf_output;
 
-        if get_protocol_version(self.current_epoch) == ProtocolVersion::V2_0 {
+        // The highest checkpoint beacon should contain the current epoch
+        beacon.checkpoint = current_epoch;
+        vrf_input.checkpoint = current_epoch;
+
+        let target_hash = if get_protocol_version(self.current_epoch) == ProtocolVersion::V2_0 {
             let eligibility = self
                 .chain_state
                 .stakes
@@ -128,13 +132,7 @@ impl ChainManager {
                     return Ok(());
                 }
             }
-        }
 
-        // The highest checkpoint beacon should contain the current epoch
-        beacon.checkpoint = current_epoch;
-        vrf_input.checkpoint = current_epoch;
-
-        let target_hash = if get_protocol_version(self.current_epoch) == ProtocolVersion::V2_0 {
             Hash::max()
         } else {
             let rep_engine = self.chain_state.reputation_engine.as_ref().unwrap().clone();
