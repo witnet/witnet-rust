@@ -35,7 +35,7 @@ use witnet_data_structures::{
     get_protocol_version,
     proto::versioning::{ProtocolVersion, VersionedHashable},
     radon_report::{RadonReport, ReportContext},
-    staking::stakes::Stakes,
+    staking::{prelude::Power, stakes::Stakes},
     transaction::{
         CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, StakeTransaction,
         TallyTransaction, Transaction, UnstakeTransaction, VTTransaction,
@@ -2346,20 +2346,31 @@ pub fn compare_block_candidates(
     b1_rep: Reputation,
     b1_vrf_hash: Hash,
     b1_is_active: bool,
+    b1_power: Power,
     b2_hash: Hash,
     b2_rep: Reputation,
     b2_vrf_hash: Hash,
     b2_is_active: bool,
+    b2_power: Power,
     s: &VrfSlots,
     version: ProtocolVersion,
 ) -> Ordering {
     if version == ProtocolVersion::V2_0 {
-        // Bigger vrf hash implies worse block candidate
-        b1_vrf_hash
-            .cmp(&b2_vrf_hash)
-            .reverse()
-            // Bigger block implies worse block candidate
-            .then(b1_hash.cmp(&b2_hash).reverse())
+        // Higher power wins
+        if b1_power > b2_power {
+            Ordering::Greater
+        // Lower power loses
+        } else if b1_power < b2_power {
+            Ordering::Less
+        // Equal power, first compare VRF hash and finally the block hash
+        } else {
+            // Bigger vrf hash implies worse block candidate
+            b1_vrf_hash
+                .cmp(&b2_vrf_hash)
+                .reverse()
+                // Bigger block implies worse block candidate
+                .then(b1_hash.cmp(&b2_hash).reverse())
+        }
     } else {
         let section1 = s.slot(&b1_vrf_hash);
         let section2 = s.slot(&b2_vrf_hash);
