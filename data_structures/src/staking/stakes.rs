@@ -116,7 +116,9 @@ where
         + Debug
         + Display
         + Send
-        + Sync,
+        + Sync
+        + Add<Output = Epoch>
+        + Div<Output = Epoch>,
     Power: Copy + Default + Ord + Add<Output = Power> + Div<Output = Power> + Sum,
     u64: From<Coins> + From<Power>,
 {
@@ -284,6 +286,7 @@ where
         validator: ISK,
         capability: Capability,
         current_epoch: Epoch,
+        reset_factor: u32,
     ) -> StakesResult<(), Address, Coins, Epoch>
     where
         ISK: Into<Address>,
@@ -295,12 +298,14 @@ where
             .get_mut(&validator)
             .ok_or(StakesError::ValidatorNotFound { validator })?;
         stakes.iter_mut().for_each(|stake| {
+            let old_epoch = stake.value.write().unwrap().epochs.get(capability);
+            let update_epoch = (current_epoch - old_epoch) / Epoch::from(reset_factor);
             stake
                 .value
                 .write()
                 .unwrap()
                 .epochs
-                .update(capability, current_epoch)
+                .update(capability, old_epoch + update_epoch);
         });
 
         Ok(())
@@ -501,7 +506,9 @@ where
         + Debug
         + Display
         + Send
-        + Sync,
+        + Sync
+        + Add<Output = Epoch>
+        + Div<Output = Epoch>,
     Power: Add<Output = Power> + Copy + Default + Div<Output = Power> + Ord + Debug + Sum,
     Wit: Mul<Epoch, Output = Power>,
     u64: From<Wit> + From<Power>,
@@ -547,7 +554,9 @@ where
         + Debug
         + Display
         + Send
-        + Sync,
+        + Sync
+        + Add<Output = Epoch>
+        + Div<Output = Epoch>,
     Power: Add<Output = Power> + Copy + Default + Div<Output = Power> + Ord + Debug + Sum,
     Wit: Mul<Epoch, Output = Power>,
     u64: From<Wit> + From<Power>,
@@ -591,7 +600,9 @@ where
         + Debug
         + Send
         + Sync
-        + Display,
+        + Display
+        + Add<Output = Epoch>
+        + Div<Output = Epoch>,
     Power: Add<Output = Power> + Copy + Default + Div<Output = Power> + Ord + Debug + Sum,
     Wit: Mul<Epoch, Output = Power>,
     u64: From<Wit> + From<Power>,
@@ -619,7 +630,9 @@ where
         + Debug
         + Send
         + Sync
-        + Display,
+        + Display
+        + Add<Output = Epoch>
+        + Div<Output = Epoch>,
     Power: Add<Output = Power> + Copy + Default + Div<Output = Power> + Ord + Debug + Sum,
     Wit: Mul<Epoch, Output = Power>,
     u64: From<Wit> + From<Power>,
@@ -818,7 +831,9 @@ mod tests {
         );
 
         // Now let's slash Charlie's mining coin age right after
-        stakes.reset_age(charlie, Capability::Mining, 101).unwrap();
+        stakes
+            .reset_age(charlie, Capability::Mining, 101, 1)
+            .unwrap();
         assert_eq!(
             stakes.query_power(alice, Capability::Mining, 101),
             Ok(1_010)
@@ -892,6 +907,63 @@ mod tests {
                 (alice_charlie.into(), 3_000)
             ]
         );
+    }
+
+    #[test]
+    fn test_rank_proportional_reset() {
+        // First, lets create a setup with a few stakers
+        let mut stakes = Stakes::<String, u64, u64, u64>::with_minimum(5);
+        let alice = "Alice";
+        let bob = "Bob";
+        let charlie = "Charlie";
+        let david = "David";
+        let erin = "Erin";
+
+        let alice_bob = (alice, bob);
+        let bob_charlie = (bob, charlie);
+        let charlie_david = (charlie, david);
+        let david_erin = (david, erin);
+        let erin_alice = (erin, alice);
+
+        stakes.add_stake(alice_bob, 10, 0).unwrap();
+        stakes.add_stake(bob_charlie, 20, 10).unwrap();
+        stakes.add_stake(charlie_david, 30, 20).unwrap();
+        stakes.add_stake(david_erin, 40, 30).unwrap();
+        stakes.add_stake(erin_alice, 50, 40).unwrap();
+
+        // Power of validators at epoch 90:
+        //      alice_bob:      10 * (90 - 0) = 900
+        //      bob_charlie:    20 * (90 - 10) = 1600
+        //      charlie_david:  30 * (90 - 20) = 2100
+        //      david_erin:     40 * (90 - 30) = 2400
+        //      erin_alice:     50 * (90 - 40) = 2500
+        let rank_subset: Vec<_> = stakes
+            .rank(Capability::Mining, 90)
+            .take(4)
+            .map(|sk| sk)
+            .collect();
+        for (i, (stake_key, _)) in rank_subset.into_iter().enumerate() {
+            let _ = stakes.reset_age(
+                stake_key.validator,
+                Capability::Mining,
+                90,
+                (i + 1).try_into().unwrap(),
+            );
+        }
+
+        // Slashed with a factor 1 / 1
+        assert_eq!(stakes.query_power(erin, Capability::Mining, 90), Ok(0));
+        // Slashed with a factor 1 / 2
+        assert_eq!(stakes.query_power(david, Capability::Mining, 90), Ok(1200));
+        // Slashed with a factor 1 / 3
+        assert_eq!(
+            stakes.query_power(charlie, Capability::Mining, 90),
+            Ok(1410)
+        );
+        // Slashed with a factor 1 / 4
+        assert_eq!(stakes.query_power(bob, Capability::Mining, 90), Ok(1200));
+        // Not slashed
+        assert_eq!(stakes.query_power(alice, Capability::Mining, 90), Ok(900));
     }
 
     #[test]
@@ -981,7 +1053,7 @@ mod tests {
             bincode::deserialize(serialized.as_slice()).unwrap();
 
         deserialized
-            .reset_age(alice.clone(), Capability::Mining, 789)
+            .reset_age(alice.clone(), Capability::Mining, 789, 1)
             .ok();
         deserialized.query_by_validator(alice).unwrap();
 

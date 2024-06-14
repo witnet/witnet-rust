@@ -121,6 +121,8 @@ where
         + Display
         + num_traits::Saturating
         + Sub<Output = Epoch>
+        + Add<Output = Epoch>
+        + Div<Output = Epoch>
         + From<u32>
         + Sync
         + Send

@@ -14,11 +14,14 @@ use witnet_config::defaults::{
     PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE,
 };
 use witnet_data_structures::{
+    capabilities::Capability,
     chain::{
         tapi::ActiveWips, Block, ChainState, CheckpointBeacon, DataRequestInfo, Epoch, Hash,
         Hashable, NodeStats, PublicKeyHash, SuperBlockVote, SupplyInfo, ValueTransferOutput,
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
+    get_protocol_version,
+    proto::versioning::ProtocolVersion,
     staking::errors::StakesError,
     transaction::{
         DRTransaction, StakeTransaction, Transaction, UnstakeTransaction, VTTransaction,
@@ -71,6 +74,8 @@ pub const SYNCED_BANNER: &str = r"
 ║ to learn how to monitor the progress of your node  ║
 ║ (balance, reputation, proposed blocks, etc.)       ║
 ╚════════════════════════════════════════════════════╝";
+
+const MINING_REPLICATION_FACTOR: usize = 4;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR MESSAGE HANDLERS
@@ -156,6 +161,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                 match self.chain_state {
                     ChainState {
                         reputation_engine: Some(_),
+                        ref mut stakes,
                         ..
                     } => {
                         if self.epoch_constants.is_none() || self.vrf_ctx.is_none() {
@@ -180,6 +186,26 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                                 "There was no valid block candidate to consolidate for epoch {}",
                                 previous_epoch
                             );
+                            if get_protocol_version(Some(previous_epoch)) == ProtocolVersion::V2_0 {
+                                let rank_subset: Vec<_> = stakes
+                                    .rank(Capability::Mining, previous_epoch)
+                                    .take(MINING_REPLICATION_FACTOR)
+                                    .map(|sk| sk)
+                                    .collect();
+                                for (i, (stake_key, _)) in rank_subset.into_iter().enumerate() {
+                                    log::warn!(
+                                        "Slashed the power of {} as it did not propose a block",
+                                        stake_key.validator
+                                    );
+                                    let _ = stakes.reset_age(
+                                        stake_key.validator,
+                                        Capability::Mining,
+                                        msg.checkpoint,
+                                        // This should never fail
+                                        (i + 1).try_into().unwrap(),
+                                    );
+                                }
+                            }
                         }
 
                         // Send last beacon on block consolidation
