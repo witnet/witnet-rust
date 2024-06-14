@@ -825,16 +825,34 @@ impl ChainManager {
                             // than the other to avoid the "activeness" comparison
                             is_active
                         };
+                    let power = match self.chain_state.stakes.query_power(
+                        *block_pkh,
+                        Capability::Mining,
+                        block.block_header.beacon.checkpoint,
+                    ) {
+                        Ok(power) => power,
+                        Err(_) => 0,
+                    };
+                    let best_candidate_power = match self.chain_state.stakes.query_power(
+                        best_pkh,
+                        Capability::Mining,
+                        best_candidate.block.block_header.beacon.checkpoint,
+                    ) {
+                        Ok(power) => power,
+                        Err(_) => 0,
+                    };
 
                     if compare_block_candidates(
                         hash_block,
                         reputation,
                         vrf_proof,
                         is_active,
+                        power,
                         best_hash,
                         best_candidate.reputation,
                         best_candidate.vrf_proof,
                         best_candidate_is_active,
+                        best_candidate_power,
                         &target_vrf_slots,
                         protocol_version,
                     ) != Ordering::Greater
