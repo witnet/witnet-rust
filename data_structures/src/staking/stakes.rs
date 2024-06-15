@@ -2,7 +2,7 @@ use std::{
     collections::{btree_map::Entry, BTreeMap},
     fmt::{Debug, Display},
     iter::Sum,
-    ops::{Add, Div, Mul, Sub},
+    ops::{Add, Div, Mul, Rem, Sub},
 };
 
 use itertools::Itertools;
@@ -91,7 +91,7 @@ where
 
 impl<Address, Coins, Epoch, Power> Stakes<Address, Coins, Epoch, Power>
 where
-    Address: Clone + Debug + Default + Ord + Send + Sync + Display,
+    Address: Clone + Debug + Default + Ord + Send + Sync + Display + 'static,
     Coins: Copy
         + Default
         + Ord
@@ -107,6 +107,8 @@ where
         + Sync
         + Display
         + Sum
+        + Div<Output = Coins>
+        + Rem<Output = Coins>
         + PrecisionLoss,
     Epoch: Copy
         + Default
@@ -307,6 +309,32 @@ where
                 .epochs
                 .update(capability, old_epoch + update_epoch);
         });
+
+        Ok(())
+    }
+
+    /// Add a reward to the validator's balance
+    pub fn add_reward<ISK>(
+        &mut self,
+        validator: ISK,
+        coins: Coins,
+        current_epoch: Epoch,
+    ) -> StakesResult<(), Address, Coins, Epoch>
+    where
+        ISK: Into<Address>,
+    {
+        let validator = validator.into();
+
+        let stakes = self
+            .by_validator
+            .get_mut(&validator)
+            .ok_or(StakesError::ValidatorNotFound { validator })?;
+
+        let _ = stakes[0]
+            .value
+            .write()
+            .unwrap()
+            .add_stake(coins, current_epoch, Some(0.into()));
 
         Ok(())
     }

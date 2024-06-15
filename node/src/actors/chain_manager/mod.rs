@@ -80,7 +80,7 @@ use witnet_data_structures::{
         visitor::{StatefulVisitor, Visitor},
         LastBeacon,
     },
-    utxo_pool::{Diff, OwnUnspentOutputsPool, UnspentOutputsPool, UtxoWriteBatch},
+    utxo_pool::{Diff, OwnUnspentOutputsPool, UnspentOutputsPool, UtxoDiff, UtxoWriteBatch},
     vrf::VrfCtx,
     wit::Wit,
 };
@@ -89,8 +89,9 @@ use witnet_util::timestamp::seconds_to_human_string;
 use witnet_validations::{
     eligibility::legacy::VrfSlots,
     validations::{
-        compare_block_candidates, validate_block, validate_block_transactions,
-        validate_new_transaction, validate_rad_request, verify_signatures,
+        compare_block_candidates, dr_transaction_fee, st_transaction_fee, ut_transaction_fee,
+        validate_block, validate_block_transactions, validate_new_transaction,
+        validate_rad_request, verify_signatures, vt_transaction_fee,
     },
 };
 
@@ -1022,6 +1023,43 @@ impl ChainManager {
                 chain_info.highest_block_checkpoint = beacon;
                 chain_info.highest_vrf_output = vrf_input;
 
+                let miner_pkh = block.block_header.proof.proof.pkh();
+
+                // Reset the coin age of the miner for all staked coins
+                if get_protocol_version(Some(block_epoch)) == ProtocolVersion::V2_0 {
+                    let _ = stakes.reset_age(miner_pkh, Capability::Mining, current_epoch, 1);
+
+                    let epoch_constants = self.epoch_constants.unwrap();
+                    let utxo_diff =
+                        UtxoDiff::new(&self.chain_state.unspent_outputs_pool, block_epoch);
+
+                    let mut transaction_fees = 0;
+                    for vt_tx in &block.txns.value_transfer_txns {
+                        transaction_fees +=
+                            vt_transaction_fee(vt_tx, &utxo_diff, current_epoch, epoch_constants)
+                                .unwrap_or_default();
+                    }
+                    for dr_tx in &block.txns.data_request_txns {
+                        transaction_fees +=
+                            dr_transaction_fee(dr_tx, &utxo_diff, current_epoch, epoch_constants)
+                                .unwrap_or_default();
+                    }
+                    for st_tx in &block.txns.stake_txns {
+                        transaction_fees +=
+                            st_transaction_fee(st_tx, &utxo_diff, current_epoch, epoch_constants)
+                                .unwrap_or_default();
+                    }
+                    for ut_tx in &block.txns.unstake_txns {
+                        transaction_fees += ut_transaction_fee(ut_tx).unwrap_or_default();
+                    }
+
+                    let _ = stakes.add_reward(
+                        miner_pkh,
+                        Wit::from(50_000_000_000) + Wit::from(transaction_fees),
+                        current_epoch,
+                    );
+                }
+
                 let rep_info = update_pools(
                     &block,
                     &mut self.chain_state.unspent_outputs_pool,
@@ -1033,13 +1071,6 @@ impl ChainManager {
                     &mut self.chain_state.node_stats,
                     self.sm_state,
                 );
-
-                let miner_pkh = block.block_header.proof.proof.pkh();
-
-                // Reset the coin age of the miner for all staked coins
-                if get_protocol_version(Some(block_epoch)) == ProtocolVersion::V2_0 {
-                    let _ = stakes.reset_age(miner_pkh, Capability::Mining, current_epoch, 1);
-                }
 
                 // Do not update reputation or stakes when consolidating genesis block
                 if block_hash != chain_info.consensus_constants.genesis_hash {

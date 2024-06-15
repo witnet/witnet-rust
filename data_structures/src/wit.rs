@@ -78,6 +78,14 @@ impl Div for Wit {
     }
 }
 
+impl Rem for Wit {
+    type Output = Self;
+
+    fn rem(self, rhs: Self) -> Self::Output {
+        Self::from_nanowits(self.nanowits() % rhs.nanowits())
+    }
+}
+
 impl Mul for Wit {
     type Output = Self;
 
