@@ -3,7 +3,7 @@ use std::{
     fmt::{Debug, Display, Formatter},
     iter::Sum,
     marker::PhantomData,
-    ops::{Add, Div, Mul, Sub},
+    ops::{Add, Div, Mul, Rem, Sub},
     rc::Rc,
     str::FromStr,
     sync::RwLock,
@@ -219,7 +219,7 @@ where
 
 impl<'de, Address, Coins, Epoch, Power> Deserialize<'de> for Stakes<Address, Coins, Epoch, Power>
 where
-    Address: Clone + Debug + Default + DeserializeOwned + Display + Ord + Send + Sync,
+    Address: Clone + Debug + Default + DeserializeOwned + Display + Ord + Send + Sync + 'static,
     Coins: Copy
         + Debug
         + Default
@@ -234,7 +234,9 @@ where
         + Sub<Output = Coins>
         + Sum
         + Sync
-        + Zero,
+        + Zero
+        + Div<Output = Coins>
+        + Rem<Output = Coins>,
     Epoch: Copy
         + Debug
         + Default
@@ -269,7 +271,7 @@ struct StakesVisitor<Address, Coins, Epoch, Power> {
 
 impl<'de, Address, Coins, Epoch, Power> Visitor<'de> for StakesVisitor<Address, Coins, Epoch, Power>
 where
-    Address: Clone + Debug + Default + Deserialize<'de> + Display + Ord + Send + Sync,
+    Address: Clone + Debug + Default + Deserialize<'de> + Display + Ord + Send + Sync + 'static,
     Coins: Copy
         + Debug
         + Default
@@ -284,7 +286,9 @@ where
         + Sub<Output = Coins>
         + Sum
         + Sync
-        + Zero,
+        + Zero
+        + Div<Output = Coins>
+        + Rem<Output = Coins>,
     Epoch: Copy
         + Debug
         + Default
