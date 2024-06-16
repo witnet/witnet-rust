@@ -249,7 +249,6 @@ impl ChainManager {
                     vrf_input,
                     beacon,
                     epoch_constants,
-                    validator_count,
                 )
                 .map_ok(|_diff, act, _ctx| {
                     // Send AddCandidates message to self

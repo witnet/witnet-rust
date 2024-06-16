@@ -86,6 +86,15 @@ where
         /// A withdrawer address.
         withdrawer: Address,
     },
+    /// Tried to add stake to a validator with a different withdrawer than the one initially set.
+    #[fail(
+        display = "Validator {} already has a different withdrawer set",
+        validator
+    )]
+    DifferentWithdrawer {
+        /// A validator address.
+        validator: Address,
+    },
     /// Tried to query for a stake entry without providing a validator or a withdrawer address.
     #[fail(
         display = "Tried to query a stake entry without providing a validator or a withdrawer address"

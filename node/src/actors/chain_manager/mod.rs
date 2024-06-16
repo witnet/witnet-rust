@@ -702,7 +702,6 @@ impl ChainManager {
             let mut transaction_visitor = PriorityVisitor::default();
 
             let protocol_version = get_protocol_version(self.current_epoch);
-            let validator_count = self.chain_state.stakes.validator_count();
             let utxo_diff = process_validations(
                 &block,
                 self.current_epoch.unwrap_or_default(),
@@ -720,7 +719,6 @@ impl ChainManager {
                 Some(&mut transaction_visitor),
                 protocol_version,
                 &self.chain_state.stakes,
-                validator_count,
             )?;
 
             // Extract the collected priorities from the internal state of the visitor
@@ -755,8 +753,6 @@ impl ChainManager {
 
                 return;
             }
-
-            let validator_count = self.chain_state.stakes.validator_count();
 
             let hash_block = block.hash();
             // If this candidate has not been seen before, validate it
@@ -887,7 +883,6 @@ impl ChainManager {
                     Some(&mut transaction_visitor),
                     protocol_version,
                     &self.chain_state.stakes,
-                    validator_count,
                 ) {
                     Ok(utxo_diff) => {
                         let priorities = transaction_visitor.take_state();
@@ -1570,6 +1565,7 @@ impl ChainManager {
                 required_reward_collateral_ratio,
                 &active_wips,
                 chain_info.consensus_constants.superblock_period,
+                &self.chain_state.stakes,
             ))
             .into_actor(self)
             .and_then(|fee, act, _ctx| {
@@ -2077,7 +2073,6 @@ impl ChainManager {
         vrf_input: CheckpointVRF,
         chain_beacon: CheckpointBeacon,
         epoch_constants: EpochConstants,
-        validator_count: usize,
     ) -> ResponseActFuture<Self, Result<Diff, failure::Error>> {
         let block_number = self.chain_state.block_number();
         let mut signatures_to_verify = vec![];
@@ -2121,7 +2116,7 @@ impl ChainManager {
                 &consensus_constants,
                 &active_wips,
                 None,
-                Some(validator_count),
+                &act.chain_state.stakes,
             );
             async {
                 // Short-circuit if validation failed
@@ -2899,7 +2894,6 @@ pub fn process_validations(
     transaction_visitor: Option<&mut dyn Visitor<Visitable = (Transaction, u64, u32)>>,
     protocol_version: ProtocolVersion,
     stakes: &Stakes<PublicKeyHash, Wit, u32, u64>,
-    validator_count: usize,
 ) -> Result<Diff, failure::Error> {
     if !resynchronizing {
         let mut signatures_to_verify = vec![];
@@ -2931,7 +2925,7 @@ pub fn process_validations(
         consensus_constants,
         active_wips,
         transaction_visitor,
-        Some(validator_count),
+        stakes,
     )?;
 
     if !resynchronizing {

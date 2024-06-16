@@ -413,6 +413,32 @@ where
         self.by_validator.len()
     }
 
+    /// Query stakes to check for an existing validator / withdrawer pair.
+    pub fn check_validator_withdrawer<ISK>(
+        &self,
+        validator: ISK,
+        withdrawer: ISK,
+    ) -> StakesResult<(), Address, Coins, Epoch>
+    where
+        ISK: Into<Address>,
+    {
+        let validator = validator.into();
+        let withdrawer = withdrawer.into();
+
+        let valid_staking_pair = if !self.by_validator.contains_key(&validator) {
+            Ok(())
+        } else {
+            let stake_key = StakeKey::from((validator.clone(), withdrawer));
+            if self.by_key.contains_key(&stake_key) {
+                Ok(())
+            } else {
+                Err(StakesError::DifferentWithdrawer { validator })
+            }
+        };
+
+        valid_staking_pair
+    }
+
     /// Query stakes by stake key.
     #[inline(always)]
     fn query_by_key(
@@ -1090,5 +1116,33 @@ mod tests {
             .mining;
 
         assert_eq!(epoch, 789);
+    }
+
+    #[test]
+    fn test_validator_withdrawer_pair() {
+        // First, lets create a setup with a few stakers
+        let mut stakes = Stakes::<String, u64, u64, u64>::with_minimum(5);
+        let alice = "Alice";
+        let bob = "Bob";
+        let charlie = "Charlie";
+
+        // Validator not used yet, so we can stake with any (validator, withdrawer) pair
+        assert_eq!(stakes.check_validator_withdrawer(alice, bob), Ok(()));
+        assert_eq!(stakes.check_validator_withdrawer(alice, charlie), Ok(()));
+
+        // Use the validator with a (validator, withdrawer) pair
+        stakes.add_stake((alice, bob), 10, 0).unwrap();
+
+        // The validator is used, we can still stake as long as the correct withdrawer is used
+        assert_eq!(stakes.check_validator_withdrawer(alice, bob), Ok(()));
+
+        // Validator used with another withdrawer address, throw an error
+        let valid_pair = stakes.check_validator_withdrawer(alice, charlie);
+        assert_eq!(
+            valid_pair,
+            Err(StakesError::DifferentWithdrawer {
+                validator: alice.into()
+            })
+        );
     }
 }
