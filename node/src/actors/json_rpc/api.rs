@@ -26,7 +26,8 @@ use witnet_data_structures::{
         tapi::ActiveWips, Block, DataRequestOutput, Epoch, Hash, Hashable, KeyedSignature,
         PublicKeyHash, RADType, StakeOutput, StateMachine, SyncStatus,
     },
-    get_environment,
+    get_environment, get_protocol_version,
+    proto::versioning::ProtocolVersion,
     staking::prelude::*,
     transaction::Transaction,
     vrf::VrfMessage,
@@ -799,14 +800,44 @@ pub async fn get_block(params: Params) -> Result<Value, Error> {
                     .map(|txn| txn.hash())
                     .collect();
 
-                Some(serde_json::json!({
+                let mut hashes = Some(serde_json::json!({
                     "mint" : output.txns.mint.hash(),
                     "value_transfer" : vtt_hashes,
                     "data_request" : drt_hashes,
                     "commit" : ct_hashes,
                     "reveal" : rt_hashes,
                     "tally" : tt_hashes
-                }))
+                }));
+
+                if get_protocol_version(Some(block_epoch)) == ProtocolVersion::V2_0 {
+                    let st_hashes: Vec<_> = output
+                        .txns
+                        .stake_txns
+                        .iter()
+                        .map(|txn| txn.hash())
+                        .collect();
+                    if let Some(ref mut hashes) = hashes {
+                        hashes
+                            .as_object_mut()
+                            .expect("The result of getBlock should be an object")
+                            .insert("stake".to_string(), serde_json::json!(st_hashes));
+                    }
+
+                    let ut_hashes: Vec<_> = output
+                        .txns
+                        .unstake_txns
+                        .iter()
+                        .map(|txn| txn.hash())
+                        .collect();
+                    if let Some(ref mut hashes) = hashes {
+                        hashes
+                            .as_object_mut()
+                            .expect("The result of getBlock should be an object")
+                            .insert("unstake".to_string(), serde_json::json!(ut_hashes));
+                    }
+                }
+
+                hashes
             } else {
                 None
             };
@@ -825,10 +856,40 @@ pub async fn get_block(params: Params) -> Result<Value, Error> {
                     .iter()
                     .map(|txn| txn.weight())
                     .collect();
-                Some(serde_json::json!({
-                    "value_transfer" : vtt_weights,
-                    "data_request" : drt_weights,
-                }))
+
+                let mut weights = Some(serde_json::json!({
+                    "value_transfer": vtt_weights,
+                    "data_request": drt_weights,
+                }));
+
+                if get_protocol_version(Some(block_epoch)) == ProtocolVersion::V2_0 {
+                    let st_weights: Vec<_> = output
+                        .txns
+                        .stake_txns
+                        .iter()
+                        .map(|txn| txn.weight())
+                        .collect();
+                    if let Some(ref mut weights) = weights {
+                        weights
+                            .as_object_mut()
+                            .expect("The result of getBlock should be an object")
+                            .insert("stake".to_string(), st_weights.into());
+                    }
+
+                    let ut_weights: Vec<_> = output
+                        .txns
+                        .unstake_txns
+                        .iter()
+                        .map(|txn| txn.weight())
+                        .collect();
+                    if let Some(ref mut weights) = weights {
+                        weights
+                            .as_object_mut()
+                            .expect("The result of getBlock should be an object")
+                            .insert("unstake".to_string(), ut_weights.into());
+                    }
+                }
+                weights
             } else {
                 None
             };
