@@ -1248,6 +1248,7 @@ pub fn validate_stake_transaction<'a>(
     epoch: Epoch,
     epoch_constants: EpochConstants,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
+    stakes: &Stakes<PublicKeyHash, Wit, u32, u64>,
 ) -> Result<ValidatedStakeTransaction<'a>, failure::Error> {
     // Check that the amount of coins to stake is equal or greater than the minimum allowed
     if st_tx.body.output.value < MIN_STAKE_NANOWITS {
@@ -1256,6 +1257,12 @@ pub fn validate_stake_transaction<'a>(
             stake: st_tx.body.output.value,
         })?;
     }
+
+    // A stake transaction can only stake on an existing validator if the withdrawer address is the same
+    stakes.check_validator_withdrawer(
+        st_tx.body.output.key.validator,
+        st_tx.body.output.key.withdrawer,
+    )?;
 
     validate_transaction_signature(
         &st_tx.signatures,
@@ -1657,7 +1664,7 @@ pub fn validate_block_transactions(
     consensus_constants: &ConsensusConstants,
     active_wips: &ActiveWips,
     mut visitor: Option<&mut dyn Visitor<Visitable = (Transaction, u64, u32)>>,
-    validator_count: Option<usize>,
+    stakes: &Stakes<PublicKeyHash, Wit, u32, u64>,
 ) -> Result<Diff, failure::Error> {
     let epoch = block.block_header.beacon.checkpoint;
     let is_genesis = block.is_genesis(&consensus_constants.genesis_hash);
@@ -1824,7 +1831,7 @@ pub fn validate_block_transactions(
             dr_pool,
             consensus_constants.collateral_minimum,
             active_wips,
-            validator_count,
+            Some(stakes.validator_count()),
             Some(epoch),
         )?;
 
@@ -1962,6 +1969,7 @@ pub fn validate_block_transactions(
                 epoch,
                 epoch_constants,
                 signatures_to_verify,
+                stakes,
             )?;
 
             total_fee += fee;
@@ -2209,6 +2217,7 @@ pub fn validate_new_transaction(
     required_reward_collateral_ratio: u64,
     active_wips: &ActiveWips,
     superblock_period: u16,
+    stakes: &Stakes<PublicKeyHash, Wit, u32, u64>,
 ) -> Result<u64, failure::Error> {
     let utxo_diff = UtxoDiff::new(unspent_outputs_pool, block_number);
 
@@ -2261,6 +2270,7 @@ pub fn validate_new_transaction(
             current_epoch,
             epoch_constants,
             signatures_to_verify,
+            stakes,
         )
         .map(|(_, _, fee, _, _)| fee),
         _ => Err(TransactionError::NotValidTransaction.into()),
