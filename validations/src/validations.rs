@@ -308,29 +308,37 @@ pub fn validate_mint_transaction(
         .into());
     }
 
-    let mint_value = transaction_outputs_sum(&mint_tx.outputs)?;
-    let block_reward_value = block_reward(mint_tx.epoch, initial_block_reward, halving_period);
-    // Mint value must be equal to block_reward + transaction fees
-    if mint_value != total_fees + block_reward_value {
-        return Err(BlockError::MismatchedMintValue {
-            mint_value,
-            fees_value: total_fees,
-            reward_value: block_reward_value,
-        }
-        .into());
-    }
-
-    if mint_tx.outputs.len() > 2 {
-        return Err(BlockError::TooSplitMint.into());
-    }
-
-    for (idx, output) in mint_tx.outputs.iter().enumerate() {
-        if output.value == 0 {
-            return Err(TransactionError::ZeroValueOutput {
-                tx_hash: mint_tx.hash(),
-                output_id: idx,
+    if get_protocol_version(Some(block_epoch)) != ProtocolVersion::V2_0 {
+        let mint_value = transaction_outputs_sum(&mint_tx.outputs)?;
+        let block_reward_value = block_reward(mint_tx.epoch, initial_block_reward, halving_period);
+        // Mint value must be equal to block_reward + transaction fees
+        if mint_value != total_fees + block_reward_value {
+            return Err(BlockError::MismatchedMintValue {
+                mint_value,
+                fees_value: total_fees,
+                reward_value: block_reward_value,
             }
             .into());
+        }
+
+        if mint_tx.outputs.len() > 2 {
+            return Err(BlockError::TooSplitMint.into());
+        }
+
+        for (idx, output) in mint_tx.outputs.iter().enumerate() {
+            if output.value == 0 {
+                return Err(TransactionError::ZeroValueOutput {
+                    tx_hash: mint_tx.hash(),
+                    output_id: idx,
+                }
+                .into());
+            }
+        }
+    } else {
+        let mut valid_mint_tx = MintTransaction::default();
+        valid_mint_tx.epoch = block_epoch;
+        if *mint_tx != valid_mint_tx {
+            return Err(BlockError::InvalidMintTransaction.into());
         }
     }
 
