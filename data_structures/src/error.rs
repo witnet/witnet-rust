@@ -362,6 +362,10 @@ pub enum BlockError {
         mint_epoch: Epoch,
         block_epoch: Epoch,
     },
+    #[fail(
+        display = "Mint transaction should be set to default after the activation of Witnet 2.0"
+    )]
+    InvalidMintTransaction,
     #[fail(display = "The block has an invalid PoE")]
     NotValidPoe,
     #[fail(

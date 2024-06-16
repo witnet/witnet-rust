@@ -1085,14 +1085,21 @@ pub fn build_block(
     }
 
     // Include Mint Transaction by miner
-    let reward = block_reward(epoch, initial_block_reward, halving_period) + transaction_fees;
-    let mint = MintTransaction::with_external_address(
-        epoch,
-        reward,
-        own_pkh,
-        external_address,
-        external_percentage,
-    );
+    let mint = if get_protocol_version(Some(epoch)) == ProtocolVersion::V2_0 {
+        let mut mint = MintTransaction::default();
+        mint.epoch = epoch;
+
+        mint
+    } else {
+        let reward = block_reward(epoch, initial_block_reward, halving_period) + transaction_fees;
+        MintTransaction::with_external_address(
+            epoch,
+            reward,
+            own_pkh,
+            external_address,
+            external_percentage,
+        )
+    };
 
     // Compute `hash_merkle_root` and build block header
     let vt_hash_merkle_root = merkle_tree_root(&value_transfer_txns);
