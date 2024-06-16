@@ -128,11 +128,15 @@ pub fn st_transaction_fee(
 ) -> Result<u64, failure::Error> {
     let in_value = transaction_inputs_sum(&st_tx.body.inputs, utxo_diff, epoch, epoch_constants)?;
     let out_value = st_tx.body.output.value;
+    let change_value = match &st_tx.body.change {
+        Some(change) => change.value,
+        None => 0,
+    };
 
-    if out_value > in_value {
+    if out_value + change_value > in_value {
         Err(TransactionError::NegativeFee.into())
     } else {
-        Ok(in_value - out_value)
+        Ok(in_value - out_value - change_value)
     }
 }
 
