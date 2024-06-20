@@ -1,11 +1,11 @@
 #![deny(missing_docs)]
 
-/// Auxiliary convenience types and data structures.
-pub mod helpers;
 /// Constants related to the staking functionality.
 pub mod constants;
 /// Errors related to the staking functionality.
 pub mod errors;
+/// Auxiliary convenience types and data structures.
+pub mod helpers;
 /// The data structure and related logic for stake entries.
 pub mod stake;
 /// The data structure and related logic for keeping track of multiple stake entries.
@@ -16,9 +16,9 @@ pub mod stakes;
 pub mod prelude {
     pub use crate::capabilities::*;
 
-    pub use super::helpers::*;
     pub use super::constants::*;
     pub use super::errors::*;
+    pub use super::helpers::*;
     pub use super::stake::*;
     pub use super::stakes::*;
 }

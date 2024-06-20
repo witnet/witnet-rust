@@ -63,13 +63,13 @@ where
     Coins: Ord,
     Epoch: Default,
 {
-    /// A listing of all the stakers, indexed by their address.
+    /// A listing of all the stake entries, indexed by their stake key.
     by_key: BTreeMap<StakeKey<Address>, SyncStake<Address, Coins, Epoch, Power>>,
-    /// A listing of all the stakers, indexed by validator.
-    by_validator: BTreeMap<Address, SyncStake<Address, Coins, Epoch, Power>>,
-    /// A listing of all the stakers, indexed by withdrawer.
-    by_withdrawer: BTreeMap<Address, SyncStake<Address, Coins, Epoch, Power>>,
-    /// A listing of all the stakers, indexed by their coins and address.
+    /// A listing of all the stake entries, indexed by validator.
+    by_validator: BTreeMap<Address, Vec<SyncStake<Address, Coins, Epoch, Power>>>,
+    /// A listing of all the stake entries, indexed by withdrawer.
+    by_withdrawer: BTreeMap<Address, Vec<SyncStake<Address, Coins, Epoch, Power>>>,
+    /// A listing of all the stake entries, indexed by their coins and address.
     ///
     /// Because this uses a compound key to prevent duplicates, if we want to know which addresses
     /// have staked a particular amount, we just need to run a range lookup on the tree.
@@ -146,11 +146,12 @@ where
 
         let validator_key = coins_and_addresses.clone().addresses.validator;
         self.by_validator.remove(&validator_key);
-        self.by_validator.insert(validator_key, stake.clone());
+        self.by_validator.insert(validator_key, vec![stake.clone()]);
 
         let withdrawer_key = coins_and_addresses.addresses.withdrawer;
         self.by_withdrawer.remove(&withdrawer_key);
-        self.by_withdrawer.insert(withdrawer_key, stake.clone());
+        self.by_withdrawer
+            .insert(withdrawer_key, vec![stake.clone()]);
 
         Ok(stake.value.read()?.clone())
     }
@@ -308,12 +309,12 @@ where
     pub fn query_stakes<TIQSK>(
         &mut self,
         query: TIQSK,
-    ) -> StakesResult<Coins, Address, Coins, Epoch>
+    ) -> StakesResult<Vec<Stake<Address, Coins, Epoch, Power>>, Address, Coins, Epoch>
     where
         TIQSK: TryInto<QueryStakesKey<Address>>,
     {
         match query.try_into() {
-            Ok(QueryStakesKey::Key(key)) => self.query_by_key(key),
+            Ok(QueryStakesKey::Key(key)) => self.query_by_key(key).map(|stake| vec![stake]),
             Ok(QueryStakesKey::Validator(validator)) => self.query_by_validator(validator),
             Ok(QueryStakesKey::Withdrawer(withdrawer)) => self.query_by_withdrawer(withdrawer),
             Err(_) => Err(StakesError::EmptyQuery),
@@ -322,26 +323,32 @@ where
 
     /// Query stakes by stake key.
     #[inline(always)]
-    fn query_by_key(&self, key: StakeKey<Address>) -> StakesResult<Coins, Address, Coins, Epoch> {
+    fn query_by_key(
+        &self,
+        key: StakeKey<Address>,
+    ) -> StakesResult<Stake<Address, Coins, Epoch, Power>, Address, Coins, Epoch> {
         Ok(self
             .by_key
             .get(&key)
             .ok_or(StakesError::EntryNotFound { key })?
             .value
             .read()?
-            .coins)
+            .clone())
     }
 
     /// Query stakes by validator address.
     #[inline(always)]
-    fn query_by_validator(&self, validator: Address) -> StakesResult<Coins, Address, Coins, Epoch> {
+    fn query_by_validator(
+        &self,
+        validator: Address,
+    ) -> StakesResult<Vec<Stake<Address, Coins, Epoch, Power>>, Address, Coins, Epoch> {
         Ok(self
             .by_validator
             .get(&validator)
             .ok_or(StakesError::ValidatorNotFound { validator })?
-            .value
-            .read()?
-            .coins)
+            .iter()
+            .map(|stake| stake.value.read().unwrap().clone())
+            .collect())
     }
 
     /// Query stakes by withdrawer address.
@@ -349,14 +356,14 @@ where
     fn query_by_withdrawer(
         &self,
         withdrawer: Address,
-    ) -> StakesResult<Coins, Address, Coins, Epoch> {
+    ) -> StakesResult<Vec<Stake<Address, Coins, Epoch, Power>>, Address, Coins, Epoch> {
         Ok(self
             .by_withdrawer
             .get(&withdrawer)
             .ok_or(StakesError::WithdrawerNotFound { withdrawer })?
-            .value
-            .read()?
-            .coins)
+            .iter()
+            .map(|stake| stake.value.read().unwrap().clone())
+            .collect())
     }
 }
 
@@ -753,11 +760,59 @@ mod tests {
         let charlie_erin = (charlie, erin);
 
         stakes.add_stake(alice_charlie, 10, 0).unwrap();
-        stakes.add_stake(bob_david, 20, 20).unwrap();
-        stakes.add_stake(charlie_erin, 30, 30).unwrap();
+        stakes.add_stake(bob_david, 20, 30).unwrap();
+        stakes.add_stake(charlie_erin, 40, 50).unwrap();
 
-        let result = stakes.query_stakes(QueryStakesKey::Key(alice_charlie.into()));
+        let result = stakes.query_stakes(QueryStakesKey::Key(bob_david.into()));
+        assert_eq!(
+            result,
+            Ok(vec![Stake::from_parts(
+                20,
+                CapabilityMap {
+                    mining: 30,
+                    witnessing: 30
+                }
+            )])
+        );
 
-        assert_eq!(result, Ok(10))
+        let result = stakes.query_by_validator(bob.into());
+        assert_eq!(
+            result,
+            Ok(vec![Stake::from_parts(
+                20,
+                CapabilityMap {
+                    mining: 30,
+                    witnessing: 30
+                }
+            )])
+        );
+
+        let result = stakes.query_by_validator(david.into());
+        assert_eq!(
+            result,
+            Err(StakesError::ValidatorNotFound {
+                validator: david.into()
+            })
+        );
+
+        let result = stakes.query_by_withdrawer(david.into());
+        assert_eq!(
+            result,
+            Ok(vec![Stake::from_parts(
+                20,
+                CapabilityMap {
+                    mining: 30,
+                    witnessing: 30
+                }
+            )])
+        );
+
+        let result = stakes.query_by_withdrawer(bob.into());
+        assert_eq!(
+            result,
+            Err(StakesError::WithdrawerNotFound {
+                withdrawer: bob.into()
+            })
+        );
     }
 }
