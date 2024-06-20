@@ -2,7 +2,7 @@ use std::{fmt, ops::*};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{chain::Epoch, staking::aux::Power};
+use crate::{chain::Epoch, staking::helpers::Power};
 
 /// 1 nanowit is the minimal unit of value
 /// 1 wit = 10^9 nanowits

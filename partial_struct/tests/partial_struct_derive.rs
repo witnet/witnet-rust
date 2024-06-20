@@ -1,7 +1,7 @@
 use partial_struct::PartialStruct;
 
 #[test]
-#[allow(clippy::redundant_clone)]
+#[allow(clippy::redundant_clone, dead_code)]
 fn test_partial_derive() {
     #[derive(PartialStruct, Debug, Clone, PartialEq)]
     #[partial_struct(derive(Debug, Clone, PartialEq))]
