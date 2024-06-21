@@ -60,9 +60,10 @@ use witnet_validations::{
         legacy::*,
     },
     validations::{
-        block_reward, calculate_liars_and_errors_count_from_tally,  dr_transaction_fee, merkle_tree_root,
-    run_tally, st_transaction_fee, tally_bytes_on_encode_error, update_utxo_diff,
-    vt_transaction_fee,},
+        block_reward, calculate_liars_and_errors_count_from_tally, dr_transaction_fee,
+        merkle_tree_root, run_tally, st_transaction_fee, tally_bytes_on_encode_error,
+        update_utxo_diff, vt_transaction_fee,
+    },
 };
 
 use crate::{
@@ -151,7 +152,7 @@ impl ChainManager {
 
             let validator_count = self.chain_state.stakes.validator_count();
 
-        // invalid: vrf_hash > target_hash
+            // invalid: vrf_hash > target_hash
             let (target_hash, _probability) = calculate_randpoe_threshold(
                 total_identities,
                 mining_bf,
