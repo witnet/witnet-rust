@@ -21,7 +21,11 @@ use actix::prelude::*;
 use failure::Error;
 
 use witnet_config::config::Config;
-use witnet_data_structures::chain::{CheckpointBeacon, EpochConstants};
+use witnet_data_structures::{
+    chain::{CheckpointBeacon, EpochConstants},
+    get_protocol_version_activation_epoch, get_protocol_version_period,
+    proto::versioning::ProtocolVersion,
+};
 use witnet_net::client::tcp::JsonRpcClient;
 use witnet_validations::witnessing::validate_witnessing_config;
 
@@ -47,10 +51,20 @@ pub fn run(conf: Config) -> Result<(), Error> {
     let db_file_name = conf.wallet.db_file_name;
     let node_urls = conf.wallet.node_url;
     let rocksdb_opts = conf.rocksdb.to_rocksdb_options();
+
+    let checkpoints_period = conf.consensus_constants.checkpoints_period;
+    let checkpoint_zero_timestamp = conf.consensus_constants.checkpoint_zero_timestamp;
+    let checkpoint_zero_timestamp_v2 = checkpoint_zero_timestamp
+        + get_protocol_version_activation_epoch(ProtocolVersion::V2_0) as i64
+            * checkpoints_period as i64;
+    let checkpoints_period_v2 = get_protocol_version_period(ProtocolVersion::V2_0);
     let epoch_constants = EpochConstants {
-        checkpoint_zero_timestamp: conf.consensus_constants.checkpoint_zero_timestamp,
-        checkpoints_period: conf.consensus_constants.checkpoints_period,
+        checkpoint_zero_timestamp,
+        checkpoints_period,
+        checkpoint_zero_timestamp_v2,
+        checkpoints_period_v2,
     };
+
     let genesis_hash = conf.consensus_constants.genesis_hash;
     let genesis_prev_hash = conf.consensus_constants.bootstrap_hash;
 

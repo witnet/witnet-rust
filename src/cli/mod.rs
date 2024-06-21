@@ -58,9 +58,9 @@ pub fn exec(
     witnet_data_structures::set_environment(config.environment);
 
     log::debug!("{:#?}", config);
-    for (version, epoch) in config.protocol.iter() {
-        if let Some(epoch) = epoch {
-            register_protocol_version(version, epoch);
+    for (version, epoch_period) in config.protocol.iter() {
+        if let Some((epoch, period)) = epoch_period {
+            register_protocol_version(version, epoch, period);
         }
     }
 

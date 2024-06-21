@@ -233,7 +233,7 @@ pub fn validate_commit_collateral(
         }
 
         // Verify that commits are only accepted after the time lock expired
-        let epoch_timestamp = epoch_constants.epoch_timestamp(epoch)?;
+        let (epoch_timestamp, _) = epoch_constants.epoch_timestamp(epoch)?;
         let vt_time_lock = i64::try_from(vt_output.time_lock)?;
         if vt_time_lock > epoch_timestamp {
             return Err(TransactionError::TimeLock {
@@ -708,7 +708,7 @@ pub fn validate_commit_transaction(
     // commit time_lock was disabled in the first hard fork
     if !active_wips.wip_0008() {
         // Verify that commits are only accepted after the time lock expired
-        let epoch_timestamp = epoch_constants.epoch_timestamp(epoch)?;
+        let (epoch_timestamp, _) = epoch_constants.epoch_timestamp(epoch)?;
         let dr_time_lock = i64::try_from(dr_output.data_request.time_lock)?;
         if dr_time_lock > epoch_timestamp {
             return Err(TransactionError::TimeLock {
