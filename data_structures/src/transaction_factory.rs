@@ -675,7 +675,7 @@ pub fn transaction_inputs_sum(
         })?;
 
         // Verify that commits are only accepted after the time lock expired
-        let epoch_timestamp = epoch_constants.epoch_timestamp(epoch)?;
+        let (epoch_timestamp, _) = epoch_constants.epoch_timestamp(epoch)?;
         let vt_time_lock = i64::try_from(vt_output.time_lock)?;
         if vt_time_lock > epoch_timestamp {
             return Err(TransactionError::TimeLock {

@@ -1,7 +1,10 @@
 use super::SessionsManager;
 use crate::config_mngr;
 use actix::prelude::*;
-use witnet_data_structures::chain::EpochConstants;
+use witnet_data_structures::{
+    chain::EpochConstants, get_protocol_version_activation_epoch, get_protocol_version_period,
+    proto::versioning::ProtocolVersion,
+};
 
 use witnet_util::timestamp::get_timestamp;
 
@@ -39,16 +42,18 @@ impl Actor for SessionsManager {
                     .set_range_limit(config.connections.reject_sybil_inbounds_range_limit);
 
                 // Initialized epoch from config
-                let mut checkpoints_period = config.consensus_constants.checkpoints_period;
+                let checkpoints_period = config.consensus_constants.checkpoints_period;
                 let checkpoint_zero_timestamp =
                     config.consensus_constants.checkpoint_zero_timestamp;
-                if checkpoints_period == 0 {
-                    log::warn!("Setting the checkpoint period to the minimum value of 1 second");
-                    checkpoints_period = 1;
-                }
+                let checkpoint_zero_timestamp_v2 = checkpoint_zero_timestamp
+                    + get_protocol_version_activation_epoch(ProtocolVersion::V2_0) as i64
+                        * checkpoints_period as i64;
+                let checkpoints_period_v2 = get_protocol_version_period(ProtocolVersion::V2_0);
                 let epoch_constants = EpochConstants {
                     checkpoint_zero_timestamp,
                     checkpoints_period,
+                    checkpoint_zero_timestamp_v2,
+                    checkpoints_period_v2,
                 };
                 act.current_epoch = epoch_constants
                     .epoch_at(get_timestamp())

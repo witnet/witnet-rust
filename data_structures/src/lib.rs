@@ -139,14 +139,18 @@ pub fn get_protocol_version(epoch: Option<Epoch>) -> ProtocolVersion {
 }
 
 /// Let the protocol versions controller know about the a protocol version, and its activation epoch.
-pub fn register_protocol_version(protocol_version: ProtocolVersion, epoch: Epoch) {
+pub fn register_protocol_version(
+    protocol_version: ProtocolVersion,
+    epoch: Epoch,
+    checkpoint_period: u16,
+) {
     log::debug!(
         "Registering protocol version {protocol_version}, which enters into force at epoch {epoch}"
     );
     // This unwrap is safe as long as the lock is not poisoned.
     // The lock can only become poisoned when a writer panics.
     let mut protocol_info = PROTOCOL.write().unwrap();
-    protocol_info.register(epoch, protocol_version);
+    protocol_info.register(epoch, protocol_version, checkpoint_period);
 }
 
 /// Set the protocol version that we are running.
@@ -161,6 +165,23 @@ pub fn set_protocol_version(protocol_version: ProtocolVersion) {
 pub fn refresh_protocol_version(current_epoch: Epoch) {
     let current_version = get_protocol_version(Some(current_epoch));
     set_protocol_version(current_version)
+}
+
+pub fn get_protocol_version_activation_epoch(protocol_version: ProtocolVersion) -> Epoch {
+    // This unwrap is safe as long as the lock is not poisoned.
+    // The lock can only become poisoned when a writer panics.
+    let protocol = PROTOCOL.write().unwrap();
+    protocol.all_versions.get_activation_epoch(protocol_version)
+}
+
+pub fn get_protocol_version_period(protocol_version: ProtocolVersion) -> u16 {
+    // This unwrap is safe as long as the lock is not poisoned.
+    // The lock can only become poisoned when a writer panics.
+    let protocol = PROTOCOL.write().unwrap();
+    match protocol.all_checkpoints_periods.get(&protocol_version) {
+        Some(period) => *period,
+        None => u16::MAX,
+    }
 }
 
 #[cfg(test)]
@@ -183,9 +204,9 @@ mod tests {
         assert_eq!(version, ProtocolVersion::V1_7);
 
         // Register the different protocol versions
-        register_protocol_version(ProtocolVersion::V1_7, 100);
-        register_protocol_version(ProtocolVersion::V1_8, 200);
-        register_protocol_version(ProtocolVersion::V2_0, 300);
+        register_protocol_version(ProtocolVersion::V1_7, 100, 45);
+        register_protocol_version(ProtocolVersion::V1_8, 200, 45);
+        register_protocol_version(ProtocolVersion::V2_0, 300, 20);
 
         // The initial protocol version should be the default one
         let version = get_protocol_version(Some(0));

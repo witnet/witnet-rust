@@ -334,7 +334,11 @@ impl ChainManager {
             let (collateral_age, checkpoint_period) = match &self.chain_state.chain_info {
                 Some(x) => (
                     x.consensus_constants.collateral_age,
-                    x.consensus_constants.checkpoints_period,
+                    // Unwraps should be safe if we have a chain_info object
+                    self.epoch_constants
+                        .unwrap()
+                        .get_epoch_period(current_epoch)
+                        .unwrap(),
                 ),
                 None => {
                     log::error!("ChainInfo is None");

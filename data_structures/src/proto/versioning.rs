@@ -31,11 +31,14 @@ use crate::{
 pub struct ProtocolInfo {
     pub current_version: ProtocolVersion,
     pub all_versions: VersionsMap,
+    pub all_checkpoints_periods: HashMap<ProtocolVersion, u16>,
 }
 
 impl ProtocolInfo {
-    pub fn register(&mut self, epoch: Epoch, version: ProtocolVersion) {
-        self.all_versions.register(epoch, version)
+    pub fn register(&mut self, epoch: Epoch, version: ProtocolVersion, checkpoint_period: u16) {
+        self.all_versions.register(epoch, version);
+        self.all_checkpoints_periods
+            .insert(version, checkpoint_period);
     }
 }
 
@@ -59,6 +62,13 @@ impl VersionsMap {
             .map(|(_, version)| version)
             .copied()
             .unwrap_or_default()
+    }
+
+    pub fn get_activation_epoch(&self, version: ProtocolVersion) -> Epoch {
+        match self.efv.get(&version) {
+            Some(epoch) => *epoch,
+            None => Epoch::MAX,
+        }
     }
 }
 

@@ -7,6 +7,8 @@ use rand::Rng;
 use witnet_data_structures::{
     chain::{Epoch, EpochConstants},
     error::EpochCalculationError,
+    get_protocol_version_activation_epoch, get_protocol_version_period,
+    proto::versioning::ProtocolVersion,
 };
 use witnet_util::timestamp::{
     duration_between_timestamps, get_timestamp, get_timestamp_nanos, update_global_timestamp,
@@ -85,15 +87,15 @@ impl EpochManager {
     pub fn set_checkpoint_zero_and_period(
         &mut self,
         checkpoint_zero_timestamp: i64,
-        mut checkpoints_period: u16,
+        checkpoints_period: u16,
+        checkpoint_zero_timestamp_v2: i64,
+        checkpoints_period_v2: u16,
     ) {
-        if checkpoints_period == 0 {
-            log::warn!("Setting the checkpoint period to the minimum value of 1 second");
-            checkpoints_period = 1;
-        }
         self.constants = Some(EpochConstants {
             checkpoint_zero_timestamp,
             checkpoints_period,
+            checkpoint_zero_timestamp_v2,
+            checkpoints_period_v2,
         });
     }
     /// Calculate the last checkpoint (current epoch) at the supplied timestamp
@@ -113,7 +115,10 @@ impl EpochManager {
     pub fn epoch_timestamp(&self, epoch: Epoch) -> EpochResult<i64> {
         match &self.constants {
             // Calculate (period * epoch + zero) with overflow checks
-            Some(x) => Ok(x.epoch_timestamp(epoch)?),
+            Some(x) => {
+                let (timestamp, _) = x.epoch_timestamp(epoch)?;
+                Ok(timestamp)
+            }
             None => Err(EpochManagerError::UnknownEpochConstants),
         }
     }
@@ -122,9 +127,15 @@ impl EpochManager {
         config_mngr::get()
             .into_actor(self)
             .and_then(|config, act, ctx| {
+                let checkpoint_zero_timestamp_v2 =
+                    config.consensus_constants.checkpoint_zero_timestamp
+                        + get_protocol_version_activation_epoch(ProtocolVersion::V2_0) as i64
+                            * config.consensus_constants.checkpoints_period as i64;
                 act.set_checkpoint_zero_and_period(
                     config.consensus_constants.checkpoint_zero_timestamp,
                     config.consensus_constants.checkpoints_period,
+                    checkpoint_zero_timestamp_v2,
+                    get_protocol_version_period(ProtocolVersion::V2_0),
                 );
                 log::info!(
                     "Checkpoint zero timestamp: {}, checkpoints period: {}",
