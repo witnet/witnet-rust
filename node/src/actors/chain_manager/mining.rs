@@ -1038,53 +1038,58 @@ pub fn build_block(
         }
     }
 
-    let mut included_validators = HashSet::<PublicKeyHash>::new();
-    for st_tx in transactions_pool.st_iter() {
-        let validator_pkh = st_tx.body.output.authorization.public_key.pkh();
-        if included_validators.contains(&validator_pkh) {
-            log::debug!(
-                "Cannot include more than one stake transaction for {} in a single block",
-                validator_pkh
-            );
-            continue;
-        }
+    let protocol_version = get_protocol_version(Some(epoch));
 
-        let transaction_weight = st_tx.weight();
-        let transaction_fee = match st_transaction_fee(st_tx, &utxo_diff, epoch, epoch_constants) {
-            Ok(x) => x,
-            Err(e) => {
-                log::warn!(
-                    "Error when calculating transaction fee for transaction: {}",
-                    e
+    if protocol_version != ProtocolVersion::V1_7 {
+        let mut included_validators = HashSet::<PublicKeyHash>::new();
+        for st_tx in transactions_pool.st_iter() {
+            let validator_pkh = st_tx.body.output.authorization.public_key.pkh();
+            if included_validators.contains(&validator_pkh) {
+                log::debug!(
+                    "Cannot include more than one stake transaction for {} in a single block",
+                    validator_pkh
                 );
                 continue;
             }
-        };
 
-        let new_st_weight = st_weight.saturating_add(transaction_weight);
-        if new_st_weight <= max_st_weight {
-            update_utxo_diff(
-                &mut utxo_diff,
-                st_tx.body.inputs.iter(),
-                st_tx.body.change.iter(),
-                st_tx.hash(),
-            );
-            stake_txns.push(st_tx.clone());
-            transaction_fees = transaction_fees.saturating_add(transaction_fee);
-            st_weight = new_st_weight;
+            let transaction_weight = st_tx.weight();
+            let transaction_fee =
+                match st_transaction_fee(st_tx, &utxo_diff, epoch, epoch_constants) {
+                    Ok(x) => x,
+                    Err(e) => {
+                        log::warn!(
+                            "Error when calculating transaction fee for transaction: {}",
+                            e
+                        );
+                        continue;
+                    }
+                };
+
+            let new_st_weight = st_weight.saturating_add(transaction_weight);
+            if new_st_weight <= max_st_weight {
+                update_utxo_diff(
+                    &mut utxo_diff,
+                    st_tx.body.inputs.iter(),
+                    st_tx.body.change.iter(),
+                    st_tx.hash(),
+                );
+                stake_txns.push(st_tx.clone());
+                transaction_fees = transaction_fees.saturating_add(transaction_fee);
+                st_weight = new_st_weight;
+            }
+
+            // The condition to stop is if the free space in the block for VTTransactions
+            // is less than the minimum stake transaction weight
+            if st_weight > max_st_weight.saturating_sub(min_st_weight) {
+                break;
+            }
+
+            included_validators.insert(validator_pkh);
         }
-
-        // The condition to stop is if the free space in the block for VTTransactions
-        // is less than the minimum stake transaction weight
-        if st_weight > max_st_weight.saturating_sub(min_st_weight) {
-            break;
-        }
-
-        included_validators.insert(validator_pkh);
     }
 
     // Include Mint Transaction by miner
-    let mint = if get_protocol_version(Some(epoch)) == ProtocolVersion::V2_0 {
+    let mint = if protocol_version == ProtocolVersion::V2_0 {
         let mut mint = MintTransaction::default();
         mint.epoch = epoch;
 
@@ -1107,9 +1112,7 @@ pub fn build_block(
     let reveal_hash_merkle_root = merkle_tree_root(&reveal_txns);
     let tally_hash_merkle_root = merkle_tree_root(&tally_txns);
 
-    let protocol = get_protocol_version(Some(beacon.checkpoint));
-
-    let stake_hash_merkle_root = if protocol == ProtocolVersion::V1_7 {
+    let stake_hash_merkle_root = if protocol_version == ProtocolVersion::V1_7 {
         log::debug!("Legacy protocol: the default stake hash merkle root will be used");
         Hash::default()
     } else {
@@ -1117,7 +1120,7 @@ pub fn build_block(
         merkle_tree_root(&stake_txns)
     };
 
-    let unstake_hash_merkle_root = if protocol == ProtocolVersion::V1_7 {
+    let unstake_hash_merkle_root = if protocol_version == ProtocolVersion::V1_7 {
         Hash::default()
     } else {
         merkle_tree_root(&unstake_txns)
