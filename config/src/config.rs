@@ -432,13 +432,13 @@ pub struct Tapi {
 /// Configuration related to protocol versions.
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Protocol {
-    pub v1_7: Option<Epoch>,
-    pub v1_8: Option<Epoch>,
-    pub v2_0: Option<Epoch>,
+    pub v1_7: Option<(Epoch, u16)>,
+    pub v1_8: Option<(Epoch, u16)>,
+    pub v2_0: Option<(Epoch, u16)>,
 }
 
 impl Protocol {
-    pub fn iter(&self) -> IntoIter<(ProtocolVersion, Option<Epoch>), 3> {
+    pub fn iter(&self) -> IntoIter<(ProtocolVersion, Option<(Epoch, u16)>), 3> {
         [
             (ProtocolVersion::V1_7, self.v1_7),
             (ProtocolVersion::V1_8, self.v1_8),

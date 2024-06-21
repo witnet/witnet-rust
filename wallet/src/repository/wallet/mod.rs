@@ -2047,8 +2047,12 @@ where
 
 fn convert_block_epoch_to_timestamp(epoch_constants: EpochConstants, epoch: Epoch) -> u64 {
     // In case of error, return timestamp 0
-    u64::try_from(epoch_constants.epoch_timestamp(epoch).unwrap_or(0))
-        .expect("Epoch timestamp should return a positive value")
+    match epoch_constants.epoch_timestamp(epoch) {
+        Ok((timestamp, _)) => {
+            u64::try_from(timestamp).expect("Epoch timestamp should return a positive value")
+        }
+        Err(_) => 0,
+    }
 }
 
 // Extract inputs and output from a transaction

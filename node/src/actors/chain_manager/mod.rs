@@ -1271,13 +1271,18 @@ impl ChainManager {
                             })
                             .into_actor(act)
                     })
-                    .map_ok(|res, act, ctx| {
+                    .map_ok(move |res, act, ctx| {
                         // Broadcast vote between one and ("superblock_period" - 5) epoch checkpoints later.
                         // This is used to prevent the race condition described in issue #1573
                         // It is also used to spread the CPU load by checking superblock votes along
                         // the superblock period with a safe margin
                         let mut rng = rand::thread_rng();
-                        let checkpoints_period = act.consensus_constants().checkpoints_period;
+                        // Should be safe here to just call unwraps
+                        let checkpoints_period = act
+                            .epoch_constants
+                            .unwrap()
+                            .get_epoch_period(current_epoch)
+                            .unwrap();
                         let superblock_period = act.consensus_constants().superblock_period;
                         let end_range = if superblock_period > 5 {
                             (superblock_period - 5) * checkpoints_period
@@ -4066,6 +4071,8 @@ mod tests {
             chain_manager.epoch_constants = Some(EpochConstants {
                 checkpoint_zero_timestamp: 0,
                 checkpoints_period: 1_000,
+                checkpoint_zero_timestamp_v2: i64::MAX,
+                checkpoints_period_v2: 1,
             });
             chain_manager.chain_state.chain_info = Some(ChainInfo {
                 environment: Environment::default(),
@@ -4195,6 +4202,8 @@ mod tests {
             chain_manager.epoch_constants = Some(EpochConstants {
                 checkpoint_zero_timestamp: 0,
                 checkpoints_period: 1_000,
+                checkpoint_zero_timestamp_v2: i64::MAX,
+                checkpoints_period_v2: 1,
             });
             chain_manager.chain_state.chain_info = Some(ChainInfo {
                 environment: Environment::default(),
