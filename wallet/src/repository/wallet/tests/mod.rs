@@ -494,7 +494,7 @@ fn test_create_transaction_components_which_value_overflows() {
             },
             model::OutputInfo {
                 pkh,
-                amount: std::u64::MAX - 1,
+                amount: u64::MAX - 1,
                 time_lock: 0,
             },
         ),
@@ -505,7 +505,7 @@ fn test_create_transaction_components_which_value_overflows() {
         index: 0,
     };
     let new_balance = model::BalanceInfo {
-        available: std::u64::MAX,
+        available: u64::MAX,
         locked: 0u64,
     };
 
@@ -516,7 +516,7 @@ fn test_create_transaction_components_which_value_overflows() {
     let (wallet, _db) = factories::wallet(Some(db));
     let mut state = wallet.state.write().unwrap();
     let pkh = factories::pkh();
-    let value = std::u64::MAX;
+    let value = u64::MAX;
     let fee = Fee::default();
     let time_lock = 0;
     let utxo_strategy = UtxoSelectionStrategy::Random { from: None };
@@ -976,7 +976,7 @@ fn test_index_transaction_errors_if_balance_overflow() {
         },
         ValueTransferOutput {
             pkh: address.pkh,
-            value: std::u64::MAX,
+            value: u64::MAX,
             time_lock: 0,
         },
     ];

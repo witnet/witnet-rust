@@ -14,6 +14,14 @@ pub type Power = u64;
 /// The resulting type for all the fallible functions in this module.
 pub type StakesResult<T, Address, Coins, Epoch> = Result<T, StakesError<Address, Coins, Epoch>>;
 
+/// The resulting type for functions in this module that return a single stake entry.
+pub type StakesEntryResult<Address, Coins, Epoch, Power> =
+    StakesResult<Stake<Address, Coins, Epoch, Power>, Address, Coins, Epoch>;
+
+/// The resulting type for functions in this module that return a vector of stake entries.
+pub type StakesVecResult<Address, Coins, Epoch, Power> =
+    StakesResult<Vec<Stake<Address, Coins, Epoch, Power>>, Address, Coins, Epoch>;
+
 /// Newtype for a reference-counted and read-write-locked instance of `Stake`.
 ///
 /// This newtype is needed for implementing `PartialEq` manually on the locked data, which cannot be done directly

@@ -242,7 +242,11 @@ impl DataRequestPool {
     /// for reveal (the node should send a reveal transaction).
     /// This function must be called after `add_data_requests_from_block`, in order to update
     /// the stage of all the data requests.
-    pub fn update_data_request_stages(&mut self, validator_count: usize) -> Vec<RevealTransaction> {
+    pub fn update_data_request_stages(
+        &mut self,
+        validator_count: Option<usize>,
+    ) -> Vec<RevealTransaction> {
+        let validator_count = validator_count.unwrap_or(crate::DEFAULT_VALIDATOR_COUNT_FOR_TESTS);
         let waiting_for_reveal = &mut self.waiting_for_reveal;
         let data_requests_by_epoch = &mut self.data_requests_by_epoch;
         let extra_rounds = self.extra_rounds;
@@ -779,7 +783,7 @@ mod tests {
         );
         assert!(p.to_be_stored.is_empty());
 
-        assert!(p.update_data_request_stages().is_empty());
+        assert!(p.update_data_request_stages(None).is_empty());
 
         (epoch, fake_block_hash, p, dr_transaction.hash())
     }
@@ -814,7 +818,7 @@ mod tests {
         );
         assert!(p.to_be_stored.is_empty());
 
-        assert!(p.update_data_request_stages().is_empty());
+        assert!(p.update_data_request_stages(None).is_empty());
 
         (epoch, fake_block_hash, p, dr_transaction.hash())
     }
@@ -849,7 +853,7 @@ mod tests {
         );
         assert!(p.to_be_stored.is_empty());
 
-        assert!(p.update_data_request_stages().is_empty());
+        assert!(p.update_data_request_stages(None).is_empty());
 
         (epoch, fake_block_hash, p, dr_transaction.hash())
     }
@@ -891,7 +895,7 @@ mod tests {
         assert!(p.data_requests_by_epoch[&epoch].contains(&dr_pointer));
 
         // Update stages
-        assert!(p.update_data_request_stages().is_empty());
+        assert!(p.update_data_request_stages(None).is_empty());
 
         // Now in reveal stage
         assert_eq!(
@@ -938,7 +942,7 @@ mod tests {
         );
 
         // Update stages
-        assert!(p.update_data_request_stages().is_empty());
+        assert!(p.update_data_request_stages(None).is_empty());
 
         // Now in tally stage
         assert_eq!(
@@ -963,7 +967,7 @@ mod tests {
         assert_eq!(p.data_request_state(&dr_pointer), None);
 
         // Update stages
-        assert!(p.update_data_request_stages().is_empty());
+        assert!(p.update_data_request_stages(None).is_empty());
 
         assert_eq!(p.to_be_stored.len(), 1);
         assert_eq!(
@@ -1033,7 +1037,7 @@ mod tests {
             .unwrap();
 
         // Update stages
-        assert!(p.update_data_request_stages().is_empty());
+        assert!(p.update_data_request_stages(None).is_empty());
 
         // Now in reveal stage 1
         assert_eq!(
@@ -1054,7 +1058,7 @@ mod tests {
             .unwrap();
 
         // Update stages
-        assert!(p.update_data_request_stages().is_empty());
+        assert!(p.update_data_request_stages(None).is_empty());
         // Now in reveal stage 2
         assert_eq!(
             p.data_request_pool[&dr_pointer].stage,
@@ -1066,7 +1070,7 @@ mod tests {
         );
 
         // Update stages
-        assert!(p.update_data_request_stages().is_empty());
+        assert!(p.update_data_request_stages(None).is_empty());
         // Now in reveal stage 3
         assert_eq!(
             p.data_request_pool[&dr_pointer].stage,
@@ -1078,7 +1082,7 @@ mod tests {
         );
 
         // Update stages
-        assert!(p.update_data_request_stages().is_empty());
+        assert!(p.update_data_request_stages(None).is_empty());
         // Now in tally stage
         assert_eq!(
             p.data_request_pool[&dr_pointer].stage,
@@ -1124,7 +1128,7 @@ mod tests {
             .unwrap();
 
         // Update stages
-        assert!(p.update_data_request_stages().is_empty());
+        assert!(p.update_data_request_stages(None).is_empty());
 
         // Now in reveal stage 1
         assert_eq!(
@@ -1145,7 +1149,7 @@ mod tests {
             .unwrap();
 
         // Update stages
-        assert!(p.update_data_request_stages().is_empty());
+        assert!(p.update_data_request_stages(None).is_empty());
         // Now in reveal stage 2
         assert_eq!(
             p.data_request_pool[&dr_pointer].stage,
@@ -1167,7 +1171,7 @@ mod tests {
             .unwrap();
 
         // Update stages
-        assert!(p.update_data_request_stages().is_empty());
+        assert!(p.update_data_request_stages(None).is_empty());
         // Now in tally stage
         assert_eq!(
             p.data_request_pool[&dr_pointer].stage,
@@ -1210,7 +1214,7 @@ mod tests {
             .unwrap();
 
         // Update stages
-        assert!(p.update_data_request_stages().is_empty());
+        assert!(p.update_data_request_stages(None).is_empty());
         // Now in reveal stage 1
         assert_eq!(
             p.data_request_pool[&dr_pointer].stage,
@@ -1222,7 +1226,7 @@ mod tests {
         );
 
         // Update stages
-        assert!(p.update_data_request_stages().is_empty());
+        assert!(p.update_data_request_stages(None).is_empty());
         // Now in reveal stage 2
         assert_eq!(
             p.data_request_pool[&dr_pointer].stage,
@@ -1234,7 +1238,7 @@ mod tests {
         );
 
         // Update stages
-        assert!(p.update_data_request_stages().is_empty());
+        assert!(p.update_data_request_stages(None).is_empty());
         // Now in reveal stage 3
         assert_eq!(
             p.data_request_pool[&dr_pointer].stage,
@@ -1246,7 +1250,7 @@ mod tests {
         );
 
         // Update stages
-        assert!(p.update_data_request_stages().is_empty());
+        assert!(p.update_data_request_stages(None).is_empty());
         // Now in tally stage, after 3 reveal stages with no reveals
         assert_eq!(
             p.data_request_pool[&dr_pointer].stage,
@@ -1302,7 +1306,7 @@ mod tests {
         );
 
         // Update stages. This will return our reveal transaction
-        let my_reveals = p.update_data_request_stages();
+        let my_reveals = p.update_data_request_stages(None);
         assert_eq!(my_reveals.len(), 1);
         let my_reveal = &my_reveals[0];
         assert_eq!(my_reveal, &reveal_transaction);
@@ -1343,7 +1347,7 @@ mod tests {
 
         // Since extra_commit_rounds = 0, updating again in commit stage will
         // move the data request to tally stage
-        assert!(p.update_data_request_stages().is_empty());
+        assert!(p.update_data_request_stages(None).is_empty());
 
         // Now in tally stage
         assert_eq!(
@@ -1370,7 +1374,7 @@ mod tests {
         assert_eq!(p.data_request_pool[&dr_pointer].backup_witnesses(), 1);
 
         // Second commitment round
-        assert!(p.update_data_request_stages().is_empty());
+        assert!(p.update_data_request_stages(None).is_empty());
         assert_eq!(
             p.data_request_pool[&dr_pointer].stage,
             DataRequestStage::COMMIT
@@ -1382,7 +1386,7 @@ mod tests {
         assert_eq!(p.data_request_pool[&dr_pointer].backup_witnesses(), 2);
 
         // Third commitment round
-        assert!(p.update_data_request_stages().is_empty());
+        assert!(p.update_data_request_stages(None).is_empty());
         assert_eq!(
             p.data_request_pool[&dr_pointer].stage,
             DataRequestStage::COMMIT
@@ -1395,7 +1399,7 @@ mod tests {
 
         // Since extra_commit_rounds = 1, updating again in commit stage will
         // move the data request to tally stage
-        assert!(p.update_data_request_stages().is_empty());
+        assert!(p.update_data_request_stages(None).is_empty());
 
         // Now in tally stage
         assert_eq!(
@@ -1421,7 +1425,7 @@ mod tests {
         );
         assert_eq!(p.data_request_pool[&dr_pointer].backup_witnesses(), 1);
 
-        assert!(p.update_data_request_stages().is_empty());
+        assert!(p.update_data_request_stages(None).is_empty());
 
         // Add commit and update stage
         let (_fake_block_hash, p, dr_pointer) =

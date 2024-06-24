@@ -259,6 +259,7 @@ pub enum Event {
 }
 
 /// Format of the output of getTransaction
+#[allow(dead_code)]
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetTransactionResponse {

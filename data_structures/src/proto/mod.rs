@@ -257,7 +257,7 @@ impl ProtobufConvert for u8 {
     }
     fn from_pb(pb: Self::ProtoStruct) -> Result<Self, Error> {
         ensure!(
-            pb <= Self::ProtoStruct::from(Self::max_value()),
+            pb <= Self::ProtoStruct::from(Self::MAX),
             "Integer out of range"
         );
         Ok(pb as Self)
@@ -272,7 +272,7 @@ impl ProtobufConvert for i8 {
     }
     fn from_pb(pb: Self::ProtoStruct) -> Result<Self, Error> {
         ensure!(
-            pb <= Self::ProtoStruct::from(Self::max_value()),
+            pb <= Self::ProtoStruct::from(Self::MAX),
             "Integer out of range"
         );
         Ok(Self::try_from(pb)?)
@@ -286,7 +286,7 @@ impl ProtobufConvert for u16 {
     }
     fn from_pb(pb: Self::ProtoStruct) -> Result<Self, Error> {
         ensure!(
-            pb <= Self::ProtoStruct::from(Self::max_value()),
+            pb <= Self::ProtoStruct::from(Self::MAX),
             "Integer out of range"
         );
         Ok(Self::try_from(pb)?)
@@ -300,7 +300,7 @@ impl ProtobufConvert for i16 {
     }
     fn from_pb(pb: Self::ProtoStruct) -> Result<Self, Error> {
         ensure!(
-            pb <= Self::ProtoStruct::from(Self::max_value()),
+            pb <= Self::ProtoStruct::from(Self::MAX),
             "Integer out of range"
         );
         Ok(Self::try_from(pb)?)

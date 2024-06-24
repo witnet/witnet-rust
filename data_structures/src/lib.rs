@@ -23,6 +23,8 @@ use crate::{
     proto::versioning::ProtocolVersion,
 };
 
+pub const DEFAULT_VALIDATOR_COUNT_FOR_TESTS: usize = 100;
+
 /// Module containing functions to generate Witnet's protocol messages
 pub mod builders;
 

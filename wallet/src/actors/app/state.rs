@@ -10,6 +10,7 @@ use witnet_net::client::tcp::jsonrpc::Subscribe;
 use super::*;
 
 /// Struct to manage the App actor state and its invariants.
+#[allow(dead_code)]
 #[derive(Default)]
 pub struct State {
     pub node_subscriptions: Arc<Mutex<HashMap<String, Subscribe>>>,

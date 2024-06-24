@@ -303,13 +303,13 @@ pub trait OutputsCollection {
         utxo_strategy: &UtxoSelectionStrategy,
         max_weight: u32,
     ) -> Result<TransactionInfo, TransactionError> {
-        // On error just assume the value is u64::max_value(), hoping that it is
+        // On error just assume the value is u64::MAX, hoping that it is
         // impossible to pay for this transaction
         let output_value: u64 = transaction_outputs_sum(&outputs)
-            .unwrap_or(u64::max_value())
+            .unwrap_or(u64::MAX)
             .checked_add(
                 dr_output
-                    .map(|o| o.checked_total_value().unwrap_or(u64::max_value()))
+                    .map(|o| o.checked_total_value().unwrap_or(u64::MAX))
                     .unwrap_or_default(),
             )
             .ok_or(TransactionError::OutputValueOverflow)?;

@@ -27,7 +27,7 @@ use witnet_data_structures::{
     },
     fee::{deserialize_fee_backwards_compatible, Fee},
     radon_report::RadonReport,
-    staking::{helpers::StakeKey, stakes::QueryStakesKey},
+    staking::prelude::*,
     transaction::{
         CommitTransaction, DRTransaction, RevealTransaction, StakeTransaction, Transaction,
         UnstakeTransaction, VTTransaction,
@@ -1036,6 +1036,8 @@ pub struct ResolveRA {
     /// Active Witnet protocol improvements as of the current epoch.
     /// Used to select the correct version of the validation logic.
     pub active_wips: ActiveWips,
+    /// Whether too many witnesses have been requested.
+    pub too_many_witnesses: bool,
 }
 
 /// Message for running the tally step of a data request.

@@ -626,8 +626,8 @@ pub async fn get_block_chain(params: Result<Option<GetBlockChainParams>, Error>)
             format!(
                 "out of bounds: {} must be between -{} and {} inclusive",
                 x,
-                u32::max_value(),
-                u32::max_value()
+                u32::MAX,
+                u32::MAX
             )
         })?;
 
@@ -2107,7 +2107,7 @@ pub async fn authorize_stake(params: Result<AuthorizeStake, Error>) -> JsonRpcRe
         .await
 }
 
-/// Param for query_stakes  
+/// Param for query_stakes
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum QueryStakesArgument {
     /// To query by stake validator

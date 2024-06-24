@@ -63,7 +63,7 @@ pub fn mean(input: &RadonArray, return_policy: MeanReturnPolicy) -> Result<Radon
     let value_len = value.len();
 
     match value.first() {
-        None => Ok(RadonTypes::from(RadonFloat::from(std::f64::NAN))),
+        None => Ok(RadonTypes::from(RadonFloat::from(f64::NAN))),
         Some(RadonTypes::Float(_)) => {
             let sum = value.iter().try_fold(0f64, |sum, item| match item {
                 RadonTypes::Float(f64_value) => Ok(sum + f64_value.value()),
@@ -244,7 +244,7 @@ mod tests {
     fn test_average_mean_empty() {
         let input = RadonArray::from(vec![]);
         let output = mean(&input, MeanReturnPolicy::ReturnFloat).unwrap();
-        assert_eq!(output, RadonTypes::from(RadonFloat::from(std::f64::NAN)));
+        assert_eq!(output, RadonTypes::from(RadonFloat::from(f64::NAN)));
     }
 
     #[test]

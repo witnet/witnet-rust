@@ -246,7 +246,7 @@ pub trait Defaults {
     /// Set the limit of retrievals per epoch to 65_535.
     /// This in practice equals no limit enforcement.
     fn mining_data_request_max_retrievals_per_epoch(&self) -> u16 {
-        core::u16::MAX
+        u16::MAX
     }
 
     /// Genesis block path, "./genesis_block.json" by default

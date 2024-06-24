@@ -1,4 +1,4 @@
-use std::{borrow::ToOwned, convert::TryFrom, i128};
+use std::{borrow::ToOwned, convert::TryFrom};
 
 use serde_cbor::value::{from_value, Value};
 
@@ -122,7 +122,7 @@ fn test_integer_absolute() {
     assert_eq!(absolute(&positive_integer).unwrap(), positive_integer);
     assert_eq!(absolute(&negative_integer).unwrap(), positive_integer);
     assert_eq!(
-        absolute(&RadonInteger::from(i128::min_value()))
+        absolute(&RadonInteger::from(i128::MIN))
             .unwrap_err()
             .to_string(),
         "Overflow error".to_string(),
@@ -157,7 +157,7 @@ fn test_integer_multiply() {
 
     let value = Value::Integer(3);
     assert_eq!(
-        multiply(&RadonInteger::from(i128::max_value()), &[value])
+        multiply(&RadonInteger::from(i128::MAX), &[value])
             .unwrap_err()
             .to_string(),
         "Overflow error".to_string(),
@@ -215,7 +215,7 @@ fn test_integer_negate() {
     assert_eq!(negate(&negative_integer).unwrap(), positive_integer);
 
     assert_eq!(
-        negate(&RadonInteger::from(i128::min_value()))
+        negate(&RadonInteger::from(i128::MIN))
             .unwrap_err()
             .to_string(),
         "Overflow error".to_string(),
@@ -259,7 +259,7 @@ fn test_integer_power() {
 
     assert_eq!(power(&rad_int, &[value]).unwrap(), RadonInteger::from(1000));
 
-    let rad_int = RadonInteger::from(i128::max_value());
+    let rad_int = RadonInteger::from(i128::MAX);
     let value = Value::Integer(3);
     assert_eq!(
         power(&rad_int, &[value]).unwrap_err().to_string(),

@@ -4408,11 +4408,11 @@ where
                 total_rep * n / remaining_rep
             };
 
-            return u32::try_from(factor).unwrap_or(u32::max_value());
+            return u32::try_from(factor).unwrap_or(u32::MAX);
         }
     }
 
-    u32::max_value()
+    u32::MAX
 }
 
 /// Witnessing Acts Counter
@@ -4510,7 +4510,7 @@ impl EpochConstants {
 
         Epoch::from(period)
             .checked_mul(epoch)
-            .filter(|&x| x <= Epoch::max_value() as Epoch)
+            .filter(|&x| x <= Epoch::MAX as Epoch)
             .map(i64::from)
             .and_then(|x| x.checked_add(zero))
             .ok_or(EpochCalculationError::Overflow)
@@ -6272,7 +6272,7 @@ mod tests {
     fn rep_threshold_zero() {
         let rep_engine = ReputationEngine::new(1000);
 
-        assert_eq!(rep_engine.threshold_factor(1), u32::max_value());
+        assert_eq!(rep_engine.threshold_factor(1), u32::MAX);
     }
 
     #[test]
@@ -6378,7 +6378,7 @@ mod tests {
             .unwrap();
         rep_engine.ars_mut().push_activity(vec![id2]);
 
-        assert_eq!(rep_engine.threshold_factor(10), u32::max_value());
+        assert_eq!(rep_engine.threshold_factor(10), u32::MAX);
     }
 
     #[test]
@@ -6445,7 +6445,7 @@ mod tests {
         assert_eq!(rep_engine.threshold_factor(6), 15);
         assert_eq!(rep_engine.threshold_factor(7), 50);
         assert_eq!(rep_engine.threshold_factor(8), 100);
-        assert_eq!(rep_engine.threshold_factor(9), u32::max_value());
+        assert_eq!(rep_engine.threshold_factor(9), u32::MAX);
     }
 
     #[test]

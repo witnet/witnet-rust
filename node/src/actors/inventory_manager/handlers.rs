@@ -465,7 +465,7 @@ mod tests {
         unspent_outputs_pool.insert(output1_pointer, output1, 0);
         assert!(unspent_outputs_pool.contains_key(&output1_pointer));
 
-        let dr_pool = DataRequestPool::default();
+        let mut dr_pool = DataRequestPool::default();
 
         // Fields required to mine a block
         let block_beacon = CheckpointBeacon {
@@ -478,7 +478,7 @@ mod tests {
         let active_wips = ActiveWips::default();
 
         let (block_header, txns) = build_block(
-            (&mut transaction_pool, &unspent_outputs_pool, &dr_pool),
+            (&mut transaction_pool, &unspent_outputs_pool, &mut dr_pool),
             max_vt_weight,
             max_dr_weight,
             max_st_weight,
@@ -496,6 +496,7 @@ mod tests {
             HALVING_PERIOD,
             0,
             &active_wips,
+            None,
         );
 
         Block::new(block_header, KeyedSignature::default(), txns)
