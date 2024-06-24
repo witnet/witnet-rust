@@ -45,6 +45,7 @@ use witnet_data_structures::{
     utxo_pool::{UnspentOutputsPool, UtxoDiff},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfMessage},
     wit::Wit,
+    DEFAULT_VALIDATOR_COUNT_FOR_TESTS,
 };
 use witnet_futures_utils::TryFutureExt2;
 use witnet_rad::{
@@ -148,8 +149,6 @@ impl ChainManager {
                 block_epoch: current_epoch,
             };
 
-            let validator_count = self.chain_state.stakes.validator_count();
-
             // invalid: vrf_hash > target_hash
             let (target_hash, _probability) = calculate_randpoe_threshold(
                 total_identities,
@@ -162,6 +161,8 @@ impl ChainManager {
 
             target_hash
         };
+
+        let validator_count = self.chain_state.stakes.validator_count();
 
         signature_mngr::vrf_prove(VrfMessage::block_mining(vrf_input))
             .map(move |res| {
@@ -229,7 +230,7 @@ impl ChainManager {
                     halving_period,
                     tapi_version,
                     &active_wips,
-                    validator_count,
+                    Some(validator_count),
                 );
 
                 // Sign the block hash
@@ -373,7 +374,7 @@ impl ChainManager {
             let cloned_retrieval_count2 = Arc::clone(&current_retrieval_count);
             let added_retrieval_count =
                 u16::try_from(dr_state.data_request.data_request.retrieve.len())
-                    .unwrap_or(core::u16::MAX);
+                    .unwrap_or(u16::MAX);
 
             let collateral_amount = Wit::from_nanowits(if dr_state.data_request.collateral == 0 {
                 self.chain_state
@@ -554,6 +555,7 @@ impl ChainManager {
                             rad_request,
                             timeout: data_request_timeout,
                             active_wips,
+                            too_many_witnesses: false,
                         })
                         .map(move |res|
                             res.map(move |result| match result {
@@ -827,8 +829,9 @@ pub fn build_block(
     halving_period: u32,
     tapi_signals: u32,
     active_wips: &ActiveWips,
-    validator_count: usize,
+    validator_count: Option<usize>,
 ) -> (BlockHeader, BlockTransactions) {
+    let validator_count = validator_count.unwrap_or(DEFAULT_VALIDATOR_COUNT_FOR_TESTS);
     let (transactions_pool, unspent_outputs_pool, dr_pool) = pools_ref;
     let epoch = beacon.checkpoint;
     let mut utxo_diff = UtxoDiff::new(unspent_outputs_pool, block_number);
@@ -1176,7 +1179,7 @@ mod tests {
         transaction_pool.insert(transaction.clone(), 0);
 
         let unspent_outputs_pool = UnspentOutputsPool::default();
-        let dr_pool = DataRequestPool::default();
+        let mut dr_pool = DataRequestPool::default();
 
         // Set `max_vt_weight` and `max_dr_weight` to zero (no transaction should be included)
         let max_vt_weight = 0;
@@ -1192,7 +1195,7 @@ mod tests {
 
         // Build empty block (because max weight is zero)
         let (block_header, txns) = build_block(
-            (&mut transaction_pool, &unspent_outputs_pool, &dr_pool),
+            (&mut transaction_pool, &unspent_outputs_pool, &mut dr_pool),
             max_vt_weight,
             max_dr_weight,
             max_st_weight,
@@ -1210,6 +1213,7 @@ mod tests {
             HALVING_PERIOD,
             0,
             &active_wips,
+            None,
         );
         let block = Block::new(block_header, KeyedSignature::default(), txns);
 
@@ -1238,7 +1242,7 @@ mod tests {
         transaction_pool.insert(transaction, 0);
 
         let unspent_outputs_pool = UnspentOutputsPool::default();
-        let dr_pool = DataRequestPool::default();
+        let mut dr_pool = DataRequestPool::default();
 
         // Set `max_vt_weight` and `max_dr_weight` to zero (no transaction should be included)
         let max_vt_weight = 0;
@@ -1270,7 +1274,7 @@ mod tests {
         // Build empty block (because max weight is zero)
 
         let (block_header, txns) = build_block(
-            (&mut transaction_pool, &unspent_outputs_pool, &dr_pool),
+            (&mut transaction_pool, &unspent_outputs_pool, &mut dr_pool),
             max_vt_weight,
             max_dr_weight,
             max_st_weight,
@@ -1288,6 +1292,7 @@ mod tests {
             HALVING_PERIOD,
             0,
             &active_wips,
+            None,
         );
 
         // Create a KeyedSignature
@@ -1384,7 +1389,7 @@ mod tests {
         unspent_outputs_pool.insert(output1_pointer, output1, 0);
         assert!(unspent_outputs_pool.contains_key(&output1_pointer));
 
-        let dr_pool = DataRequestPool::default();
+        let mut dr_pool = DataRequestPool::default();
 
         // Fields required to mine a block
         let block_beacon = CheckpointBeacon::default();
@@ -1400,7 +1405,7 @@ mod tests {
         // Build block with
 
         let (block_header, txns) = build_block(
-            (&mut transaction_pool, &unspent_outputs_pool, &dr_pool),
+            (&mut transaction_pool, &unspent_outputs_pool, &mut dr_pool),
             max_vt_weight,
             max_dr_weight,
             max_st_weight,
@@ -1418,6 +1423,7 @@ mod tests {
             HALVING_PERIOD,
             0,
             &active_wips,
+            None,
         );
         let block = Block::new(block_header, KeyedSignature::default(), txns);
 
@@ -1487,7 +1493,7 @@ mod tests {
         unspent_outputs_pool.insert(output1_pointer, output1, 0);
         assert!(unspent_outputs_pool.contains_key(&output1_pointer));
 
-        let dr_pool = DataRequestPool::default();
+        let mut dr_pool = DataRequestPool::default();
 
         // Fields required to mine a block
         let block_beacon = CheckpointBeacon::default();
@@ -1503,7 +1509,7 @@ mod tests {
         // Build block with
 
         let (block_header, txns) = build_block(
-            (&mut transaction_pool, &unspent_outputs_pool, &dr_pool),
+            (&mut transaction_pool, &unspent_outputs_pool, &mut dr_pool),
             max_vt_weight,
             max_dr_weight,
             max_st_weight,
@@ -1521,6 +1527,7 @@ mod tests {
             HALVING_PERIOD,
             0,
             &active_wips,
+            None,
         );
         let block = Block::new(block_header, KeyedSignature::default(), txns);
 
@@ -1604,7 +1611,7 @@ mod tests {
         unspent_outputs_pool.insert(output1_pointer, output1, 0);
         assert!(unspent_outputs_pool.contains_key(&output1_pointer));
 
-        let dr_pool = DataRequestPool::default();
+        let mut dr_pool = DataRequestPool::default();
 
         // Fields required to mine a block
         let block_beacon = CheckpointBeacon::default();
@@ -1620,7 +1627,7 @@ mod tests {
         // Build block with
 
         let (block_header, txns) = build_block(
-            (&mut transaction_pool, &unspent_outputs_pool, &dr_pool),
+            (&mut transaction_pool, &unspent_outputs_pool, &mut dr_pool),
             max_vt_weight,
             max_dr_weight,
             max_st_weight,
@@ -1638,6 +1645,7 @@ mod tests {
             HALVING_PERIOD,
             0,
             &active_wips,
+            None,
         );
         let block = Block::new(block_header, KeyedSignature::default(), txns);
 
@@ -1704,7 +1712,7 @@ mod tests {
         unspent_outputs_pool.insert(output1_pointer, output1, 0);
         assert!(unspent_outputs_pool.contains_key(&output1_pointer));
 
-        let dr_pool = DataRequestPool::default();
+        let mut dr_pool = DataRequestPool::default();
 
         // Fields required to mine a block
         let block_beacon = CheckpointBeacon::default();
@@ -1720,7 +1728,7 @@ mod tests {
         // Build block with
 
         let (block_header, txns) = build_block(
-            (&mut transaction_pool, &unspent_outputs_pool, &dr_pool),
+            (&mut transaction_pool, &unspent_outputs_pool, &mut dr_pool),
             max_vt_weight,
             max_dr_weight,
             max_st_weight,
@@ -1738,6 +1746,7 @@ mod tests {
             HALVING_PERIOD,
             0,
             &active_wips,
+            None,
         );
         let block = Block::new(block_header, KeyedSignature::default(), txns);
 

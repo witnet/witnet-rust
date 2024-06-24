@@ -29,7 +29,7 @@ mod validations {
         // The probability of being eligible is `factor / total_active_reputation`
         let factor = u64::from(num_witnesses) * my_reputation;
 
-        let max = u64::max_value();
+        let max = u64::MAX;
         // Check for overflow: when the probability is more than 100%, cap it to 100%
         let target = if factor >= total_active_reputation {
             max

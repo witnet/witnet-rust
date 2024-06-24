@@ -560,7 +560,7 @@ fn reppoe_overflow_v1() {
     let id2 = PublicKeyHash::from_bytes(&[2; 20]).unwrap();
     rep_engine.ars_mut().push_activity(vec![id0]);
     rep_engine.ars_mut().push_activity(vec![id1]);
-    add_rep(&mut rep_engine, 10, id0, u32::max_value() - 2);
+    add_rep(&mut rep_engine, 10, id0, u32::MAX - 2);
 
     // Test big values that result in < 100%
     // Active identity with 100% of the reputation
@@ -601,7 +601,7 @@ fn reppoe_overflow_v2() {
     let id2 = PublicKeyHash::from_bytes(&[2; 20]).unwrap();
     rep_engine.ars_mut().push_activity(vec![id0]);
     rep_engine.ars_mut().push_activity(vec![id1]);
-    add_rep(&mut rep_engine, 10, id0, u32::max_value() - 2);
+    add_rep(&mut rep_engine, 10, id0, u32::MAX - 2);
 
     // Test big values that result in < 100%
     // Active identity with 100% of the reputation
@@ -642,7 +642,7 @@ fn reppoe_overflow_v3() {
     let id2 = PublicKeyHash::from_bytes(&[2; 20]).unwrap();
     rep_engine.ars_mut().push_activity(vec![id0]);
     rep_engine.ars_mut().push_activity(vec![id1]);
-    add_rep(&mut rep_engine, 10, id0, u32::max_value() - 2);
+    add_rep(&mut rep_engine, 10, id0, u32::MAX - 2);
 
     // Test big values that result in < 100%
     // Active identity with 100% of the reputation
@@ -682,7 +682,7 @@ fn reppoe_much_rep_trapezoid_v1() {
     let id2 = PublicKeyHash::from_bytes(&[2; 20]).unwrap();
     rep_engine.ars_mut().push_activity(vec![id0]);
     rep_engine.ars_mut().push_activity(vec![id1]);
-    add_rep(&mut rep_engine, 10, id0, u32::max_value() - 4);
+    add_rep(&mut rep_engine, 10, id0, u32::MAX - 4);
     add_rep(&mut rep_engine, 10, id1, 1);
 
     // Test big values that result in < 100%
@@ -723,7 +723,7 @@ fn reppoe_much_rep_trapezoid_v2() {
     let id2 = PublicKeyHash::from_bytes(&[2; 20]).unwrap();
     rep_engine.ars_mut().push_activity(vec![id0]);
     rep_engine.ars_mut().push_activity(vec![id1]);
-    add_rep(&mut rep_engine, 10, id0, u32::max_value() - 4);
+    add_rep(&mut rep_engine, 10, id0, u32::MAX - 4);
     add_rep(&mut rep_engine, 10, id1, 1);
 
     // Test big values that result in < 100%
@@ -766,7 +766,7 @@ fn reppoe_much_rep_trapezoid_v3() {
     let id2 = PublicKeyHash::from_bytes(&[2; 20]).unwrap();
     rep_engine.ars_mut().push_activity(vec![id0]);
     rep_engine.ars_mut().push_activity(vec![id1]);
-    add_rep(&mut rep_engine, 10, id0, u32::max_value() - 4);
+    add_rep(&mut rep_engine, 10, id0, u32::MAX - 4);
     add_rep(&mut rep_engine, 10, id1, 1);
 
     // Test big values that result in < 100%

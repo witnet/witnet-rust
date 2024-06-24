@@ -17,7 +17,7 @@ pub fn standard(input: &RadonArray) -> Result<RadonTypes, RadError> {
     let value_len = value.len();
 
     match value.first() {
-        None => Ok(RadonTypes::from(RadonFloat::from(std::f64::NAN))),
+        None => Ok(RadonTypes::from(RadonFloat::from(f64::NAN))),
         Some(RadonTypes::Float(_)) => {
             let mean_value = mean(input, MeanReturnPolicy::ReturnFloat)?;
             let mean_float = if let RadonTypes::Float(f) = mean_value {
@@ -235,7 +235,7 @@ mod tests {
     fn test_operate_deviation_standard_empty() {
         let input = RadonArray::from(vec![]);
         let output = standard(&input).unwrap();
-        assert_eq!(output, RadonTypes::from(RadonFloat::from(std::f64::NAN)));
+        assert_eq!(output, RadonTypes::from(RadonFloat::from(f64::NAN)));
     }
 
     #[test]

@@ -10,7 +10,7 @@ pub fn calculate_randpoe_threshold(
     epochs_with_minimum_difficulty: u32,
     active_wips: &ActiveWips,
 ) -> (Hash, f64) {
-    let max = u64::max_value();
+    let max = u64::MAX;
     let minimum_difficulty = std::cmp::max(1, minimum_difficulty);
     let target = if block_epoch <= epochs_with_minimum_difficulty {
         max / u64::from(minimum_difficulty)
@@ -42,7 +42,7 @@ pub fn calculate_reppoe_threshold(
     // never be eligible for a data request
     let my_eligibility = u64::from(rep_eng.get_eligibility(pkh)) + 1;
 
-    let max = u64::max_value();
+    let max = u64::MAX;
     // Compute target eligibility and hard-cap it if required
     let target = if active_wips.wip0016() {
         let factor = u64::from(num_witnesses);

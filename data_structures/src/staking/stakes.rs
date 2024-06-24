@@ -334,7 +334,7 @@ where
     pub fn query_stakes<TIQSK>(
         &mut self,
         query: TIQSK,
-    ) -> StakesResult<Vec<Stake<Address, Coins, Epoch, Power>>, Address, Coins, Epoch>
+    ) -> StakesVecResult<Address, Coins, Epoch, Power>
     where
         TIQSK: TryInto<QueryStakesKey<Address>>,
     {
@@ -344,6 +344,18 @@ where
             Ok(QueryStakesKey::Withdrawer(withdrawer)) => self.query_by_withdrawer(withdrawer),
             Err(_) => Err(StakesError::EmptyQuery),
         }
+    }
+
+    /// Query the total amount of stake based on different keys.
+    pub fn query_total_stake<TIQSK>(
+        &mut self,
+        query: TIQSK,
+    ) -> StakesResult<Coins, Address, Coins, Epoch>
+    where
+        TIQSK: TryInto<QueryStakesKey<Address>>,
+    {
+        self.query_stakes(query)
+            .map(|v| v.iter().fold(Coins::zero(), |a, b| a + b.coins))
     }
 
     /// Return the total number of validators.
@@ -356,7 +368,7 @@ where
     fn query_by_key(
         &self,
         key: StakeKey<Address>,
-    ) -> StakesResult<Stake<Address, Coins, Epoch, Power>, Address, Coins, Epoch> {
+    ) -> StakesEntryResult<Address, Coins, Epoch, Power> {
         Ok(self
             .by_key
             .get(&key)
@@ -371,7 +383,7 @@ where
     fn query_by_validator(
         &self,
         validator: Address,
-    ) -> StakesResult<Vec<Stake<Address, Coins, Epoch, Power>>, Address, Coins, Epoch> {
+    ) -> StakesVecResult<Address, Coins, Epoch, Power> {
         let validator = self
             .by_validator
             .get(&validator)
@@ -388,7 +400,7 @@ where
     fn query_by_withdrawer(
         &self,
         withdrawer: Address,
-    ) -> StakesResult<Vec<Stake<Address, Coins, Epoch, Power>>, Address, Coins, Epoch> {
+    ) -> StakesVecResult<Address, Coins, Epoch, Power> {
         let withdrawer = self
             .by_withdrawer
             .get(&withdrawer)
@@ -455,7 +467,7 @@ where
 pub fn process_unstake_transaction<Epoch, Power>(
     stakes: &mut Stakes<PublicKeyHash, Wit, Epoch, Power>,
     transaction: &UnstakeTransaction,
-) -> StakingResult<(), PublicKeyHash, Wit, Epoch>
+) -> StakesResult<(), PublicKeyHash, Wit, Epoch>
 where
     Epoch: Copy
         + Default
@@ -466,7 +478,7 @@ where
         + Display
         + Send
         + Sync,
-    Power: Add<Output = Power> + Copy + Default + Div<Output = Power> + Ord + Debug,
+    Power: Add<Output = Power> + Copy + Default + Div<Output = Power> + Ord + Debug + Sum,
     Wit: Mul<Epoch, Output = Power>,
     u64: From<Wit> + From<Power>,
 {
@@ -538,7 +550,7 @@ where
         + Send
         + Sync
         + Display,
-    Power: Add<Output = Power> + Copy + Default + Div<Output = Power> + Ord + Debug,
+    Power: Add<Output = Power> + Copy + Default + Div<Output = Power> + Ord + Debug + Sum,
     Wit: Mul<Epoch, Output = Power>,
     u64: From<Wit> + From<Power>,
 {

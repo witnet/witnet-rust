@@ -1071,7 +1071,7 @@ impl ChainManager {
                         let reveals = self
                             .chain_state
                             .data_request_pool
-                            .update_data_request_stages(validator_count);
+                            .update_data_request_stages(Some(validator_count));
 
                         for reveal in reveals {
                             // Send AddTransaction message to self
@@ -1097,7 +1097,7 @@ impl ChainManager {
                         let reveals = self
                             .chain_state
                             .data_request_pool
-                            .update_data_request_stages(validator_count);
+                            .update_data_request_stages(Some(validator_count));
 
                         for reveal in reveals {
                             // Send AddTransaction message to self
@@ -1123,7 +1123,7 @@ impl ChainManager {
                         let reveals = self
                             .chain_state
                             .data_request_pool
-                            .update_data_request_stages(validator_count);
+                            .update_data_request_stages(Some(validator_count));
 
                         show_info_dr(&self.chain_state.data_request_pool, &block);
 
@@ -2070,7 +2070,7 @@ impl ChainManager {
                 &consensus_constants,
                 &active_wips,
                 None,
-                validator_count,
+                Some(validator_count),
             );
             async {
                 // Short-circuit if validation failed
@@ -2880,7 +2880,7 @@ pub fn process_validations(
         consensus_constants,
         active_wips,
         transaction_visitor,
-        validator_count,
+        Some(validator_count),
     )?;
 
     if !resynchronizing {
@@ -3568,7 +3568,7 @@ mod tests {
         dr_pool.process_commit(&co_tx, &Hash::default()).unwrap();
         dr_pool.process_commit(&co_tx2, &Hash::default()).unwrap();
         dr_pool.process_commit(&co_tx3, &Hash::default()).unwrap();
-        dr_pool.update_data_request_stages();
+        dr_pool.update_data_request_stages(None);
         dr_pool.process_reveal(&re_tx1, &Hash::default()).unwrap();
         dr_pool.process_reveal(&re_tx2, &Hash::default()).unwrap();
 

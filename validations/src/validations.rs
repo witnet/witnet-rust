@@ -957,8 +957,10 @@ pub fn validate_tally_transaction<'a>(
     dr_pool: &DataRequestPool,
     collateral_minimum: u64,
     active_wips: &ActiveWips,
-    validator_count: usize,
+    validator_count: Option<usize>,
 ) -> Result<(Vec<&'a ValueTransferOutput>, u64), failure::Error> {
+    let validator_count =
+        validator_count.unwrap_or(witnet_data_structures::DEFAULT_VALIDATOR_COUNT_FOR_TESTS);
     let too_many_witnesses;
     if let Some(dr_state) = dr_pool.data_request_state(&ta_tx.dr_pointer) {
         too_many_witnesses =
@@ -1642,7 +1644,7 @@ pub fn validate_block_transactions(
     consensus_constants: &ConsensusConstants,
     active_wips: &ActiveWips,
     mut visitor: Option<&mut dyn Visitor<Visitable = (Transaction, u64, u32)>>,
-    validator_count: usize,
+    validator_count: Option<usize>,
 ) -> Result<Diff, failure::Error> {
     let epoch = block.block_header.beacon.checkpoint;
     let is_genesis = block.is_genesis(&consensus_constants.genesis_hash);
@@ -1652,7 +1654,7 @@ pub fn validate_block_transactions(
     // When validating genesis block, keep track of total value created
     // The value created in the genesis block cannot be greater than 2^64 - the total block reward,
     // So the total amount is always representable by a u64
-    let max_total_value_genesis = u64::max_value()
+    let max_total_value_genesis = u64::MAX
         - total_block_reward(
             consensus_constants.initial_block_reward,
             consensus_constants.halving_period,

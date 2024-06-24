@@ -37,6 +37,7 @@ pub struct Params {
     pub witnessing: WitnessingConfig<witnet_net::Uri>,
 }
 
+#[allow(dead_code)]
 #[derive(Clone)]
 pub struct NodeParams {
     /// Reference to the JSON-RPC client actor.

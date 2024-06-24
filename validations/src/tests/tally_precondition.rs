@@ -26,7 +26,7 @@ fn test_tally_precondition_clause_3_ints_vs_1_float() {
         rad_rep_float,
     ];
     let tally_precondition_clause_result =
-        evaluate_tally_precondition_clause(v, 0.70, 4, &current_active_wips()).unwrap();
+        evaluate_tally_precondition_clause(v, 0.70, 4, &current_active_wips(), false).unwrap();
 
     if let TallyPreconditionClauseResult::MajorityOfValues {
         values,
@@ -53,7 +53,7 @@ fn test_tally_precondition_clause_full_consensus() {
 
     let v = vec![rad_rep_int.clone(), rad_rep_int];
     let tally_precondition_clause_result =
-        evaluate_tally_precondition_clause(v, 0.99, 2, &current_active_wips()).unwrap();
+        evaluate_tally_precondition_clause(v, 0.99, 2, &current_active_wips(), false).unwrap();
 
     if let TallyPreconditionClauseResult::MajorityOfValues {
         values,
@@ -80,7 +80,7 @@ fn test_tally_precondition_clause_exact_consensus() {
 
     let v = vec![rad_rep_int.clone(), rad_rep_int];
     let tally_precondition_clause_result =
-        evaluate_tally_precondition_clause(v, 1., 2, &current_active_wips()).unwrap();
+        evaluate_tally_precondition_clause(v, 1., 2, &current_active_wips(), false).unwrap();
 
     if let TallyPreconditionClauseResult::MajorityOfValues {
         values,
@@ -114,7 +114,7 @@ fn test_tally_precondition_clause_3_ints_vs_1_error() {
         rad_rep_int,
     ];
     let tally_precondition_clause_result =
-        evaluate_tally_precondition_clause(v, 0.70, 4, &current_active_wips()).unwrap();
+        evaluate_tally_precondition_clause(v, 0.70, 4, &current_active_wips(), false).unwrap();
 
     if let TallyPreconditionClauseResult::MajorityOfValues {
         values,
@@ -151,7 +151,7 @@ fn test_tally_precondition_clause_majority_of_errors() {
         rad_rep_int,
     ];
     let tally_precondition_clause_result =
-        evaluate_tally_precondition_clause(v, 0.70, 4, &current_active_wips()).unwrap();
+        evaluate_tally_precondition_clause(v, 0.70, 4, &current_active_wips(), false).unwrap();
 
     if let TallyPreconditionClauseResult::MajorityOfErrors { errors_mode } =
         tally_precondition_clause_result
@@ -179,8 +179,8 @@ fn test_tally_precondition_clause_mode_tie() {
         rad_rep_float,
         rad_rep_int,
     ];
-    let out =
-        evaluate_tally_precondition_clause(v.clone(), 0.49, 4, &current_active_wips()).unwrap_err();
+    let out = evaluate_tally_precondition_clause(v.clone(), 0.49, 4, &current_active_wips(), false)
+        .unwrap_err();
 
     assert_eq!(
         out,
@@ -218,7 +218,7 @@ fn test_tally_precondition_clause_3_errors_vs_2_ints_and_2_floats() {
         rad_rep_int,
     ];
     let tally_precondition_clause_result =
-        evaluate_tally_precondition_clause(v, 0.40, 7, &current_active_wips()).unwrap();
+        evaluate_tally_precondition_clause(v, 0.40, 7, &current_active_wips(), false).unwrap();
 
     if let TallyPreconditionClauseResult::MajorityOfErrors { errors_mode } =
         tally_precondition_clause_result
@@ -235,7 +235,8 @@ fn test_tally_precondition_clause_3_errors_vs_2_ints_and_2_floats() {
 #[test]
 fn test_tally_precondition_clause_no_commits() {
     let v = vec![];
-    let out = evaluate_tally_precondition_clause(v, 0.51, 0, &current_active_wips()).unwrap_err();
+    let out =
+        evaluate_tally_precondition_clause(v, 0.51, 0, &current_active_wips(), false).unwrap_err();
 
     assert_eq!(out, RadError::InsufficientCommits);
 }
@@ -243,7 +244,8 @@ fn test_tally_precondition_clause_no_commits() {
 #[test]
 fn test_tally_precondition_clause_no_reveals() {
     let v = vec![];
-    let out = evaluate_tally_precondition_clause(v, 0.51, 1, &current_active_wips()).unwrap_err();
+    let out =
+        evaluate_tally_precondition_clause(v, 0.51, 1, &current_active_wips(), false).unwrap_err();
 
     assert_eq!(out, RadError::NoReveals);
 }
@@ -263,7 +265,7 @@ fn test_tally_precondition_clause_all_errors() {
         rad_rep_err,
     ];
     let tally_precondition_clause_result =
-        evaluate_tally_precondition_clause(v, 0.51, 4, &current_active_wips()).unwrap();
+        evaluate_tally_precondition_clause(v, 0.51, 4, &current_active_wips(), false).unwrap();
 
     if let TallyPreconditionClauseResult::MajorityOfErrors { errors_mode } =
         tally_precondition_clause_result
@@ -291,7 +293,8 @@ fn test_tally_precondition_clause_insufficient_consensus() {
         rad_rep_float,
         rad_rep_int,
     ];
-    let out = evaluate_tally_precondition_clause(v, 0.51, 4, &current_active_wips()).unwrap_err();
+    let out =
+        evaluate_tally_precondition_clause(v, 0.51, 4, &current_active_wips(), false).unwrap_err();
 
     assert_eq!(
         out,
@@ -318,7 +321,8 @@ fn test_tally_precondition_clause_errors_insufficient_consensus() {
     );
 
     let v = vec![rad_rep_err1, rad_rep_err2];
-    let out = evaluate_tally_precondition_clause(v, 0.51, 2, &current_active_wips()).unwrap_err();
+    let out =
+        evaluate_tally_precondition_clause(v, 0.51, 2, &current_active_wips(), false).unwrap_err();
 
     assert_eq!(
         out,
@@ -345,8 +349,8 @@ fn test_tally_precondition_clause_errors_mode_tie() {
     );
 
     let v = vec![rad_rep_err1, rad_rep_err2];
-    let out =
-        evaluate_tally_precondition_clause(v.clone(), 0.49, 2, &current_active_wips()).unwrap_err();
+    let out = evaluate_tally_precondition_clause(v.clone(), 0.49, 2, &current_active_wips(), false)
+        .unwrap_err();
 
     assert_eq!(
         out,
