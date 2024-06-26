@@ -1,7 +1,11 @@
+use std::{
+    cmp::Ordering,
+    collections::{BTreeMap, HashMap},
+};
+
 use failure::{Error, Fail};
 use protobuf::Message as _;
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, HashMap};
 use strum_macros::{Display, EnumString};
 
 use crate::chain::Epoch;
@@ -58,6 +62,10 @@ impl VersionsMap {
     }
 }
 
+/// An enumeration of different protocol versions.
+///
+/// IMPORTANT NOTE: when adding new versions here in the future, make sure to also add them in
+///  `impl PartialOrd for ProtocolVersion`.
 #[derive(
     Clone, Copy, Debug, Default, Deserialize, Display, EnumString, Eq, Hash, PartialEq, Serialize,
 )]
@@ -75,6 +83,31 @@ pub enum ProtocolVersion {
 impl ProtocolVersion {
     pub fn guess() -> Self {
         get_protocol_version(None)
+    }
+}
+
+impl PartialOrd for ProtocolVersion {
+    /// Implement comparisons for protocol versions so that expressions like `< V2_0` can be used.
+    ///
+    /// IMPORTANT NOTE: all future versions need to be added here.
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        use ProtocolVersion::*;
+
+        Some(match (self, other) {
+            // Control equality first
+            (x, y) if x == y => Ordering::Equal,
+            // V1_7 is the lowest version
+            (V1_7, _) => Ordering::Less,
+            // V2_0 is the highest version
+            (V2_0, _) => Ordering::Greater,
+            // Versions that are not the lowest or the highest need explicit comparisons
+            (V1_8, V1_7) => Ordering::Greater,
+            (V1_8, V2_0) => Ordering::Less,
+            // the compiler doesn't know, but this is actually unreachable if you think about it
+            _ => {
+                unreachable!()
+            }
+        })
     }
 }
 
