@@ -958,13 +958,14 @@ pub fn validate_tally_transaction<'a>(
     collateral_minimum: u64,
     active_wips: &ActiveWips,
     validator_count: Option<usize>,
+    epoch: Option<Epoch>,
 ) -> Result<(Vec<&'a ValueTransferOutput>, u64), failure::Error> {
     let validator_count =
         validator_count.unwrap_or(witnet_data_structures::DEFAULT_VALIDATOR_COUNT_FOR_TESTS);
     let too_many_witnesses;
     if let Some(dr_state) = dr_pool.data_request_state(&ta_tx.dr_pointer) {
         too_many_witnesses =
-            data_request_has_too_many_witnesses(&dr_state.data_request, validator_count);
+            data_request_has_too_many_witnesses(&dr_state.data_request, validator_count, epoch);
     } else {
         return Err(TransactionError::DataRequestNotFound {
             hash: ta_tx.dr_pointer,
@@ -1812,6 +1813,7 @@ pub fn validate_block_transactions(
             consensus_constants.collateral_minimum,
             active_wips,
             validator_count,
+            Some(epoch),
         )?;
 
         if !active_wips.wips_0009_0011_0012() && transaction.tally == tally_bytes_on_encode_error()
