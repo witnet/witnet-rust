@@ -1071,7 +1071,7 @@ impl ChainManager {
                         let reveals = self
                             .chain_state
                             .data_request_pool
-                            .update_data_request_stages(Some(validator_count));
+                            .update_data_request_stages(Some(validator_count), Some(current_epoch));
 
                         for reveal in reveals {
                             // Send AddTransaction message to self
@@ -1097,7 +1097,7 @@ impl ChainManager {
                         let reveals = self
                             .chain_state
                             .data_request_pool
-                            .update_data_request_stages(Some(validator_count));
+                            .update_data_request_stages(Some(validator_count), Some(current_epoch));
 
                         for reveal in reveals {
                             // Send AddTransaction message to self
@@ -1123,7 +1123,7 @@ impl ChainManager {
                         let reveals = self
                             .chain_state
                             .data_request_pool
-                            .update_data_request_stages(Some(validator_count));
+                            .update_data_request_stages(Some(validator_count), Some(current_epoch));
 
                         show_info_dr(&self.chain_state.data_request_pool, &block);
 

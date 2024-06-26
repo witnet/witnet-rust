@@ -5,12 +5,14 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
+use crate::proto::versioning::ProtocolVersion;
 use crate::{
     chain::{
         tapi::ActiveWips, DataRequestInfo, DataRequestOutput, DataRequestStage, DataRequestState,
         Epoch, Hash, Hashable, PublicKeyHash, ValueTransferOutput,
     },
     error::{DataRequestError, TransactionError},
+    get_protocol_version,
     radon_report::{RadonReport, Stage, TypeLike},
     transaction::{CommitTransaction, DRTransaction, RevealTransaction, TallyTransaction},
 };
@@ -245,6 +247,7 @@ impl DataRequestPool {
     pub fn update_data_request_stages(
         &mut self,
         validator_count: Option<usize>,
+        epoch: Option<Epoch>,
     ) -> Vec<RevealTransaction> {
         let validator_count = validator_count.unwrap_or(crate::DEFAULT_VALIDATOR_COUNT_FOR_TESTS);
         let waiting_for_reveal = &mut self.waiting_for_reveal;
@@ -256,8 +259,11 @@ impl DataRequestPool {
             .filter_map(|(dr_pointer, dr_state)| {
                 // We can notify the user that a data request from "my_claims" is available
                 // for reveal.
-                let too_many_witnesses =
-                    data_request_has_too_many_witnesses(&dr_state.data_request, validator_count);
+                let too_many_witnesses = data_request_has_too_many_witnesses(
+                    &dr_state.data_request,
+                    validator_count,
+                    epoch,
+                );
                 dr_state.update_stage(extra_rounds, too_many_witnesses);
                 match dr_state.stage {
                     DataRequestStage::REVEAL => {
@@ -544,8 +550,13 @@ pub fn calculate_reward_collateral_ratio(
 pub fn data_request_has_too_many_witnesses(
     dr_output: &DataRequestOutput,
     validator_count: usize,
+    epoch: Option<Epoch>,
 ) -> bool {
-    usize::from(dr_output.witnesses) > validator_count / 4
+    if get_protocol_version(epoch) < ProtocolVersion::V2_0 {
+        false
+    } else {
+        usize::from(dr_output.witnesses) > validator_count / 4
+    }
 }
 
 /// Saturating version of `u64::div_ceil`.

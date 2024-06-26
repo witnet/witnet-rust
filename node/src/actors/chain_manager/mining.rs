@@ -984,7 +984,11 @@ pub fn build_block(
             );
 
             // Number of data request witnesses should be at most the number of validators divided by four
-            if data_request_has_too_many_witnesses(&dr_tx.body.dr_output, validator_count) {
+            if data_request_has_too_many_witnesses(
+                &dr_tx.body.dr_output,
+                validator_count,
+                Some(epoch),
+            ) {
                 log::debug!("Data request {} has too many witnesses", dr_tx.hash());
 
                 // Temporarily insert the data request into the dr_pool
