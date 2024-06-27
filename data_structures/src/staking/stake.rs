@@ -73,19 +73,20 @@ where
         }
 
         let coins_before = self.coins;
-        let epoch_before = self.epochs.get(Capability::Mining);
-
-        let product_before = coins_before * epoch_before;
-        let product_added = coins * epoch;
-
         let coins_after = coins_before + coins;
-        #[allow(clippy::cast_possible_truncation)]
-        let epoch_after = Epoch::from(
-            (u64::from(product_before + product_added) / u64::from(coins_after)) as u32,
-        );
-
         self.coins = coins_after;
-        self.epochs.update_all(epoch_after);
+
+        for capability in ALL_CAPABILITIES {
+            let epoch_before = self.epochs.get(capability);
+            let product_before = coins_before * epoch_before;
+            let product_added = coins * epoch;
+
+            #[allow(clippy::cast_possible_truncation)]
+            let epoch_after = Epoch::from(
+                (u64::from(product_before + product_added) / u64::from(coins_after)) as u32,
+            );
+            self.epochs.update(capability, epoch_after);
+        }
 
         Ok(coins_after)
     }

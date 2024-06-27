@@ -9,6 +9,8 @@ pub enum Capability {
     Witnessing = 1,
 }
 
+pub const ALL_CAPABILITIES: [Capability; 2] = [Capability::Mining, Capability::Witnessing];
+
 #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct CapabilityMap<T>
 where

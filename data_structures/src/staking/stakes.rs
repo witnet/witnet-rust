@@ -6,6 +6,7 @@ use std::{
 };
 
 use itertools::Itertools;
+use num_traits::Saturating;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -62,7 +63,7 @@ where
 ///
 /// This structure holds indexes of stake entries. Because the entries themselves are reference
 /// counted and write-locked, we can have as many indexes here as we need at a negligible cost.
-#[derive(Clone, Debug, Deserialize, Default, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Stakes<Address, Coins, Epoch, Power>
 where
     Address: Default + Ord,
@@ -70,7 +71,7 @@ where
     Epoch: Default,
 {
     /// A listing of all the stake entries, indexed by their stake key.
-    by_key: BTreeMap<StakeKey<Address>, SyncStake<Address, Coins, Epoch, Power>>,
+    pub(crate) by_key: BTreeMap<StakeKey<Address>, SyncStake<Address, Coins, Epoch, Power>>,
     /// A listing of all the stake entries, indexed by validator.
     by_validator: BTreeMap<Address, Vec<SyncStake<Address, Coins, Epoch, Power>>>,
     /// A listing of all the stake entries, indexed by withdrawer.
@@ -85,13 +86,12 @@ where
     ///  the minimum through TAPI or whatever. Maybe what we can do is set a skip directive for the Serialize macro so
     ///  it never gets persisted and rather always read from constants, or hide the field and the related method
     ///  behind a #[test] thing.
-    #[serde(skip)]
     minimum_stakeable: Option<Coins>,
 }
 
 impl<Address, Coins, Epoch, Power> Stakes<Address, Coins, Epoch, Power>
 where
-    Address: Default + Send + Sync + Display,
+    Address: Clone + Debug + Default + Ord + Send + Sync + Display,
     Coins: Copy
         + Default
         + Ord
@@ -107,10 +107,9 @@ where
         + Sync
         + Display
         + Sum,
-    Address: Clone + Ord + 'static + Debug,
     Epoch: Copy
         + Default
-        + num_traits::Saturating
+        + Saturating
         + Sub<Output = Epoch>
         + From<u32>
         + Debug
@@ -120,7 +119,7 @@ where
     Power: Copy + Default + Ord + Add<Output = Power> + Div<Output = Power> + Sum,
     u64: From<Coins> + From<Power>,
 {
-    /// Register a certain amount of additional stake for a certain address and epoch.
+    /// Register a certain amount of additional stake for a certain address, capability and epoch.
     pub fn add_stake<ISK>(
         &mut self,
         key: ISK,
@@ -142,31 +141,15 @@ where
             .write()?
             .add_stake(coins, epoch, self.minimum_stakeable)?;
 
-        // Update the position of the staker in the `by_coins` index
-        // If this staker was not indexed by coins, this will index it now
-        let coins_and_addresses = CoinsAndAddresses {
-            coins,
-            addresses: key,
-        };
-        self.by_coins.remove(&coins_and_addresses);
-        self.by_coins
-            .insert(coins_and_addresses.clone(), stake.clone());
-
+        // Update all indexes if needed
+        index_coins(&mut self.by_coins, key.clone(), stake.clone());
         if !stake_found {
-            let validator_key = coins_and_addresses.clone().addresses.validator;
-            if let Some(validator) = self.by_validator.get_mut(&validator_key) {
-                validator.push(stake.clone());
-            } else {
-                self.by_validator.insert(validator_key, vec![stake.clone()]);
-            }
-
-            let withdrawer_key = coins_and_addresses.addresses.withdrawer;
-            if let Some(withdrawer) = self.by_withdrawer.get_mut(&withdrawer_key) {
-                withdrawer.push(stake.clone());
-            } else {
-                self.by_withdrawer
-                    .insert(withdrawer_key, vec![stake.clone()]);
-            }
+            index_addresses(
+                &mut self.by_validator,
+                &mut self.by_withdrawer,
+                key,
+                stake.clone(),
+            );
         }
 
         Ok(stake.value.read()?.clone())
@@ -330,6 +313,33 @@ where
         }
     }
 
+    pub fn with_entries(
+        entries: BTreeMap<StakeKey<Address>, SyncStake<Address, Coins, Epoch, Power>>,
+    ) -> Self {
+        let mut stakes = Stakes::default();
+        stakes.by_key = entries;
+        stakes.reindex();
+
+        stakes
+    }
+
+    /// Rebuild all indexes based on the entries found in `by_key`.
+    pub fn reindex(&mut self) {
+        self.by_validator.clear();
+        self.by_withdrawer.clear();
+        self.by_coins.clear();
+
+        for (key, stake) in &self.by_key {
+            index_coins(&mut self.by_coins, key.clone(), stake.clone());
+            index_addresses(
+                &mut self.by_validator,
+                &mut self.by_withdrawer,
+                key.clone(),
+                stake.clone(),
+            );
+        }
+    }
+
     /// Query stakes based on different keys.
     pub fn query_stakes<TIQSK>(
         &mut self,
@@ -413,6 +423,59 @@ where
     }
 }
 
+/// Update the position of the staker in a `by_coins` index.
+/// If this stake entry was not indexed by coins, this will add it to the index.
+///
+/// This function was made static instead of adding it to `impl Stakes` because of limitations
+pub fn index_coins<Address, Coins, Epoch, Power>(
+    by_coins: &mut BTreeMap<
+        CoinsAndAddresses<Coins, Address>,
+        SyncStake<Address, Coins, Epoch, Power>,
+    >,
+    key: StakeKey<Address>,
+    stake: SyncStake<Address, Coins, Epoch, Power>,
+) where
+    Address: Clone + Default + Ord,
+    Coins: Copy + Default + Ord,
+    Epoch: Clone + Default,
+    Power: Clone + Default,
+{
+    let coins_and_addresses = CoinsAndAddresses {
+        coins: stake.value.read().unwrap().coins,
+        addresses: key.clone(),
+    };
+
+    by_coins.remove(&coins_and_addresses);
+    by_coins.insert(coins_and_addresses.clone(), stake.clone());
+}
+
+/// Upsert a stake entry into those indexes that allow querying by validator or withdrawer.
+pub fn index_addresses<Address, Coins, Epoch, Power>(
+    by_validator: &mut BTreeMap<Address, Vec<SyncStake<Address, Coins, Epoch, Power>>>,
+    by_withdrawer: &mut BTreeMap<Address, Vec<SyncStake<Address, Coins, Epoch, Power>>>,
+    key: StakeKey<Address>,
+    stake: SyncStake<Address, Coins, Epoch, Power>,
+) where
+    Address: Clone + Default + Ord,
+    Coins: Clone + Default + Ord,
+    Epoch: Clone + Default,
+    Power: Clone + Default,
+{
+    let validator_key = key.validator;
+    if let Some(validator) = by_validator.get_mut(&validator_key) {
+        validator.push(stake.clone());
+    } else {
+        by_validator.insert(validator_key, vec![stake.clone()]);
+    }
+
+    let withdrawer_key = key.withdrawer;
+    if let Some(withdrawer) = by_withdrawer.get_mut(&withdrawer_key) {
+        withdrawer.push(stake);
+    } else {
+        by_withdrawer.insert(withdrawer_key, vec![stake]);
+    }
+}
+
 /// Adds stake, based on the data from a stake transaction.
 ///
 /// This function was made static instead of adding it to `impl Stakes` because it is not generic over `Address` and
@@ -426,7 +489,7 @@ where
     Epoch: Copy
         + Default
         + Sub<Output = Epoch>
-        + num_traits::Saturating
+        + Saturating
         + From<u32>
         + Debug
         + Display
@@ -472,7 +535,7 @@ where
     Epoch: Copy
         + Default
         + Sub<Output = Epoch>
-        + num_traits::Saturating
+        + Saturating
         + From<u32>
         + Debug
         + Display
@@ -516,7 +579,7 @@ where
     Epoch: Copy
         + Default
         + Sub<Output = Epoch>
-        + num_traits::Saturating
+        + Saturating
         + From<u32>
         + Debug
         + Send
@@ -544,7 +607,7 @@ where
     Epoch: Copy
         + Default
         + Sub<Output = Epoch>
-        + num_traits::Saturating
+        + Saturating
         + From<u32>
         + Debug
         + Send
@@ -893,5 +956,32 @@ mod tests {
                 withdrawer: bob.into()
             })
         );
+    }
+
+    #[test]
+    fn test_serde() {
+        use bincode;
+
+        let mut stakes = Stakes::<String, u64, u64, u64>::with_minimum(5);
+        let alice = String::from("Alice");
+        let bob = String::from("Bob");
+
+        let alice_bob = (alice.clone(), bob.clone());
+        stakes.add_stake(alice_bob, 123, 456).ok();
+
+        let serialized = bincode::serialize(&stakes).unwrap().clone();
+        let mut deserialized: Stakes<String, u64, u64, u64> =
+            bincode::deserialize(serialized.as_slice()).unwrap();
+
+        deserialized
+            .reset_age(alice.clone(), Capability::Mining, 789)
+            .ok();
+        deserialized.query_by_validator(alice).unwrap();
+
+        let epoch = deserialized.query_by_withdrawer(bob.clone()).unwrap()[0]
+            .epochs
+            .mining;
+
+        assert_eq!(epoch, 789);
     }
 }
