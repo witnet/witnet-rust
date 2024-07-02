@@ -3568,7 +3568,7 @@ mod tests {
         dr_pool.process_commit(&co_tx, &Hash::default()).unwrap();
         dr_pool.process_commit(&co_tx2, &Hash::default()).unwrap();
         dr_pool.process_commit(&co_tx3, &Hash::default()).unwrap();
-        dr_pool.update_data_request_stages(None);
+        dr_pool.update_data_request_stages(None, None);
         dr_pool.process_reveal(&re_tx1, &Hash::default()).unwrap();
         dr_pool.process_reveal(&re_tx2, &Hash::default()).unwrap();
 

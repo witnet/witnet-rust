@@ -1,9 +1,11 @@
+use std::fmt::{Debug, Display};
 use std::{marker::PhantomData, ops::*};
 
 use serde::{Deserialize, Serialize};
 
+use crate::wit::{PrecisionLoss, WIT_DECIMAL_PLACES};
+
 use super::prelude::*;
-use std::fmt::{Debug, Display};
 
 /// A data structure that keeps track of a staker's staked coins and the epochs for different
 /// capabilities.
@@ -36,7 +38,8 @@ where
         + Debug
         + Display
         + Send
-        + Sync,
+        + Sync
+        + PrecisionLoss,
     Epoch: Copy
         + Default
         + num_traits::Saturating
@@ -106,7 +109,8 @@ where
     /// Derives the power of an identity in the network on a certain epoch from an entry. Most
     /// normally, the epoch is the current epoch.
     pub fn power(&self, capability: Capability, current_epoch: Epoch) -> Power {
-        self.coins * (current_epoch.saturating_sub(self.epochs.get(capability)))
+        self.coins.lose_precision(WIT_DECIMAL_PLACES)
+            * (current_epoch.saturating_sub(self.epochs.get(capability)))
     }
 
     /// Remove a certain amount of staked coins.
