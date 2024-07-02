@@ -151,6 +151,22 @@ impl Sum for Wit {
     }
 }
 
+pub trait PrecisionLoss: Copy {
+    fn lose_precision(self, digits: u8) -> Self;
+}
+
+impl PrecisionLoss for u64 {
+    fn lose_precision(self, digits: u8) -> u64 {
+        self / 10_u64.pow(digits as u32)
+    }
+}
+
+impl PrecisionLoss for Wit {
+    fn lose_precision(self, digits: u8) -> Wit {
+        Wit(self.0.lose_precision(digits))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -3,7 +3,8 @@ use std::{
     iter::Sum,
     ops::{Add, Div, Mul, Sub},
 };
-use witnet_data_structures::staking::prelude::*;
+
+use witnet_data_structures::{staking::prelude::*, wit::PrecisionLoss};
 
 const MINING_REPLICATION_FACTOR: usize = 4;
 const WITNESSING_MAX_ROUNDS: usize = 4;
@@ -109,6 +110,7 @@ where
         + Sub<Output = Coins>
         + Mul
         + Mul<Epoch, Output = Power>
+        + PrecisionLoss
         + Sync
         + Send
         + Sum

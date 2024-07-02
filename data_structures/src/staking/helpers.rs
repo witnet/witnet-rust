@@ -16,7 +16,9 @@ use serde::{
     Deserialize, Deserializer, Serialize, Serializer,
 };
 
-use crate::{chain::PublicKeyHash, proto::ProtobufConvert, staking::prelude::*};
+use crate::{
+    chain::PublicKeyHash, proto::ProtobufConvert, staking::prelude::*, wit::PrecisionLoss,
+};
 
 /// Just a type alias for consistency of using the same data type to represent power.
 pub type Power = u64;
@@ -227,6 +229,7 @@ where
         + Mul<Output = Coins>
         + Mul<Epoch, Output = Power>
         + Ord
+        + PrecisionLoss
         + Send
         + Sub<Output = Coins>
         + Sum
@@ -274,6 +277,7 @@ where
         + Mul<Output = Coins>
         + Mul<Epoch, Output = Power>
         + Ord
+        + PrecisionLoss
         + Send
         + Sub<Output = Coins>
         + Sum

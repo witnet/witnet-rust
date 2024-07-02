@@ -13,7 +13,7 @@ use crate::{
     chain::PublicKeyHash,
     get_environment,
     transaction::{StakeTransaction, UnstakeTransaction},
-    wit::Wit,
+    wit::{PrecisionLoss, Wit},
 };
 
 use super::prelude::*;
@@ -106,7 +106,8 @@ where
         + Send
         + Sync
         + Display
-        + Sum,
+        + Sum
+        + PrecisionLoss,
     Epoch: Copy
         + Default
         + Saturating
@@ -313,11 +314,17 @@ where
         }
     }
 
+    /// Creates an instance of `Stakes` that is initialized with a existing set of stake entries.
+    ///
+    /// This is specially convenient after loading stakes from storage, as this function rebuilds
+    /// all the indexes at once to preserve write locks and reference counts.
     pub fn with_entries(
         entries: BTreeMap<StakeKey<Address>, SyncStake<Address, Coins, Epoch, Power>>,
     ) -> Self {
-        let mut stakes = Stakes::default();
-        stakes.by_key = entries;
+        let mut stakes = Stakes {
+            by_key: entries,
+            ..Default::default()
+        };
         stakes.reindex();
 
         stakes
