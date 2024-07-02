@@ -81,12 +81,14 @@ where
 
         for capability in ALL_CAPABILITIES {
             let epoch_before = self.epochs.get(capability);
-            let product_before = coins_before * epoch_before;
-            let product_added = coins * epoch;
+            let product_before = coins_before.lose_precision(WIT_DECIMAL_PLACES) * epoch_before;
+            let product_added = coins.lose_precision(WIT_DECIMAL_PLACES) * epoch;
 
             #[allow(clippy::cast_possible_truncation)]
             let epoch_after = Epoch::from(
-                (u64::from(product_before + product_added) / u64::from(coins_after)) as u32,
+                (u64::from(product_before + product_added)
+                    / u64::from(coins_after.lose_precision(WIT_DECIMAL_PLACES)))
+                    as u32,
             );
             self.epochs.update(capability, epoch_after);
         }
