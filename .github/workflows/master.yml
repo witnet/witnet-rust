@@ -14,7 +14,7 @@ jobs:
   aarch64:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: ./.github/actions/build-helper
         name: Building Docker Image
         with:
@@ -23,7 +23,7 @@ jobs:
   armv7:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: ./.github/actions/build-helper
         name: Building Docker Image
         with:
@@ -32,7 +32,7 @@ jobs:
   x86_64:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: ./.github/actions/build-helper
         name: Building Docker Image
         with:
@@ -59,7 +59,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # Checkout Repo
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       # Download Images & Build Binary
       - uses: ./.github/actions/build-linux
@@ -68,7 +68,7 @@ jobs:
           target: aarch64-unknown-linux-gnu
 
       # Upload Build Releases
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: aarch64-release
           path: |
@@ -80,7 +80,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # Checkout Repo
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       # Download Images & Build Binary
       - uses: ./.github/actions/build-linux
@@ -89,7 +89,7 @@ jobs:
           target: armv7-unknown-linux-gnueabihf
 
       # Upload Build Releases
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: armv7-release
           path: |
@@ -101,7 +101,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # Checkout Repo
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       # Download Images & Build Binary
       - uses: ./.github/actions/build-linux
@@ -110,7 +110,7 @@ jobs:
           target: x86_64-unknown-linux-gnu
 
       # Upload Build Releases
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: x86_64-release
           path: |
@@ -123,7 +123,7 @@ jobs:
     runs-on: macos-latest
     steps:
       # Checkout Repo
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       # Install Protobuf
       - name: Install Protobuf
@@ -134,7 +134,7 @@ jobs:
         run: MACOSX_DEPLOYMENT_TARGET=10.14 OPENSSL_STATIC=1 OPENSSL_DIR="/usr/local/opt/openssl" cargo build --release -p witnet -p witnet_toolkit
 
       # Upload Build Releases
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: macos-release
           path: |
@@ -147,7 +147,7 @@ jobs:
     runs-on: windows-latest
     steps:
       # Checkout Repo
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       # Install Protobuf
       - name: Install Protobuf
@@ -175,7 +175,7 @@ jobs:
         run: LDD.exe target\release\witnet.exe | Select-String -Pattern "ssl"
 
       # Upload Build Releases
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: windows-release
           path: |
@@ -194,7 +194,7 @@ jobs:
     environment: tags
     steps:
       # Checkout Repo
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       # Download Releases
       - uses: ./.github/actions/download-releases
@@ -203,7 +203,7 @@ jobs:
       # Import GPG Key
       - name: Import GPG key
         id: import_gpg
-        uses: crazy-max/ghaction-import-gpg@v5
+        uses: crazy-max/ghaction-import-gpg@v6
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.GPG_PASSPHRASE  }}
@@ -223,7 +223,7 @@ jobs:
           gpg --output SHA256SUMS.asc --default-key info@witnet.foundation --detach-sig --clearsign SHA256SUMS && rm SHA256SUMS
 
       # Artifact Final Release Files
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: final-release
           path: release/
@@ -235,10 +235,10 @@ jobs:
       contents: write
     steps:
       # Checkout Repo
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       # Download Release Files
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: final-release
           path: release/
@@ -262,10 +262,10 @@ jobs:
     environment: tags
     steps:
       # Checkout Repo
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Login to Docker Container Registry
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}

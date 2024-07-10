@@ -11,7 +11,7 @@ runs:
   steps:
       # Download Helper Image built in the previous jobs
       - name: Downloading helper Image
-        uses: ishworkh/docker-image-artifact-download@v1
+        uses: ishworkh/container-image-artifact-upload@v1.1.1
         with:
           image: "witnet-rust/${{ inputs.target }}:latest"
 

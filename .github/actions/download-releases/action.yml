@@ -17,7 +17,7 @@ runs:
 
     # Download & Hash Releases
     # Macos
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: macos-release
         path: all-releases/macos/
@@ -29,7 +29,7 @@ runs:
         mv all-releases/macos/witnet_toolkit release/witnet_toolkit-x86_64-apple-darwin
 
     # Windows
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: windows-release
         path: all-releases/windows/
@@ -41,7 +41,7 @@ runs:
         mv all-releases/windows/witnet_toolkit.exe release/witnet_toolkit-x86_64-pc-windows-msvc.exe
 
     # x86_64
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: x86_64-release
         path: all-releases/x86_64/
@@ -53,7 +53,7 @@ runs:
         mv all-releases/x86_64/witnet_toolkit release/witnet_toolkit-x86_64-unknown-linux-gnu
 
     # armv7
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: armv7-release
         path: all-releases/armv7/
@@ -65,7 +65,7 @@ runs:
         mv all-releases/armv7/witnet_toolkit release/witnet_toolkit-armv7-unknown-linux-gnueabihf
 
     # aarch64
-    - uses: actions/download-artifact@v3
+    - uses: actions/download-artifact@v4
       with:
         name: aarch64-release
         path: all-releases/aarch64/
