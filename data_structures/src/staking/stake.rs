@@ -82,14 +82,13 @@ where
         &mut self,
         coins: Coins,
         epoch: Epoch,
-        minimum_stakeable: Option<Coins>,
+        minimum_stakeable: Coins,
     ) -> StakesResult<Coins, Address, Coins, Epoch> {
         // Make sure that the amount to be staked is equal or greater than the minimum
-        let minimum = minimum_stakeable.unwrap_or(Coins::from(MINIMUM_STAKEABLE_AMOUNT_WITS));
-        if coins < minimum {
+        if coins < minimum_stakeable {
             Err(StakesError::AmountIsBelowMinimum {
                 amount: coins,
-                minimum,
+                minimum: minimum_stakeable,
             })?;
         }
 
@@ -140,17 +139,15 @@ where
     pub fn remove_stake(
         &mut self,
         coins: Coins,
-        minimum_stakeable: Option<Coins>,
+        minimum_stakeable: Coins,
     ) -> StakesResult<Coins, Address, Coins, Epoch> {
         let coins_after = self.coins.sub(coins);
 
         if coins_after > Coins::zero() {
-            let minimum = minimum_stakeable.unwrap_or(Coins::from(MINIMUM_STAKEABLE_AMOUNT_WITS));
-
-            if coins_after < minimum {
+            if coins_after < minimum_stakeable {
                 Err(StakesError::AmountIsBelowMinimum {
                     amount: coins_after,
-                    minimum,
+                    minimum: minimum_stakeable,
                 })?;
             }
         }

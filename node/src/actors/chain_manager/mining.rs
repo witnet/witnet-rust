@@ -16,19 +16,14 @@ use actix::{
 use ansi_term::Color::{White, Yellow};
 use futures::future::{try_join_all, FutureExt};
 
-use witnet_config::defaults::{
-    PSEUDO_CONSENSUS_CONSTANTS_POS_MAX_STAKE_BLOCK_WEIGHT,
-    PSEUDO_CONSENSUS_CONSTANTS_POS_MAX_STAKE_NANOWITS,
-    PSEUDO_CONSENSUS_CONSTANTS_POS_MIN_STAKE_NANOWITS,
-    PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE,
-};
+use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE;
 use witnet_crypto::hash;
 use witnet_data_structures::{
     chain::{
         tapi::{after_second_hard_fork, ActiveWips},
         Block, BlockHeader, BlockMerkleRoots, BlockTransactions, Bn256PublicKey, CheckpointBeacon,
-        CheckpointVRF, DataRequestOutput, EpochConstants, Hash, Hashable, Input, PublicKeyHash,
-        RADTally, TransactionsPool, ValueTransferOutput,
+        CheckpointVRF, ConsensusConstantsWit2, DataRequestOutput, EpochConstants, Hash, Hashable,
+        Input, PublicKeyHash, RADTally, TransactionsPool, ValueTransferOutput,
     },
     data_request::{
         calculate_witness_reward, calculate_witness_reward_before_second_hard_fork, create_tally,
@@ -83,8 +78,6 @@ use crate::{
     signature_mngr,
 };
 
-const MAX_STAKE_NANOWITS: u64 = PSEUDO_CONSENSUS_CONSTANTS_POS_MAX_STAKE_NANOWITS;
-
 impl ChainManager {
     /// Try to mine a block
     pub fn try_mine_block(&mut self, ctx: &mut Context<Self>) -> Result<(), ChainManagerError> {
@@ -112,8 +105,6 @@ impl ChainManager {
 
         let max_vt_weight = chain_info.consensus_constants.max_vt_weight;
         let max_dr_weight = chain_info.consensus_constants.max_dr_weight;
-        let max_st_weight = PSEUDO_CONSENSUS_CONSTANTS_POS_MAX_STAKE_BLOCK_WEIGHT;
-        let max_ut_weight = PSEUDO_CONSENSUS_CONSTANTS_POS_MAX_STAKE_BLOCK_WEIGHT;
         let mining_bf = chain_info.consensus_constants.mining_backup_factor;
         let collateral_minimum = chain_info.consensus_constants.collateral_minimum;
         let minimum_difficulty = chain_info.consensus_constants.minimum_difficulty;
@@ -130,10 +121,13 @@ impl ChainManager {
         vrf_input.checkpoint = current_epoch;
 
         let target_hash = if protocol_version == V2_0 {
+            let replication_factor = self
+                .consensus_constants_wit2
+                .get_replication_factor(current_epoch);
             let eligibility = self
                 .chain_state
                 .stakes
-                .mining_eligibility(own_pkh, current_epoch)
+                .mining_eligibility(own_pkh, current_epoch, replication_factor)
                 .map_err(ChainManagerError::Staking)?;
 
             match eligibility {
@@ -226,8 +220,6 @@ impl ChainManager {
                     ),
                     max_vt_weight,
                     max_dr_weight,
-                    max_st_weight,
-                    max_ut_weight,
                     beacon,
                     eligibility_claim,
                     &tally_transactions,
@@ -245,6 +237,7 @@ impl ChainManager {
                     &active_wips,
                     Some(validator_count),
                     &act.chain_state.stakes,
+                    &act.consensus_constants_wit2,
                 );
 
                 // Sign the block hash
@@ -314,7 +307,10 @@ impl ChainManager {
         let timestamp = u64::try_from(get_timestamp()).unwrap();
         let consensus_constants = self.consensus_constants();
         let minimum_reppoe_difficulty = consensus_constants.minimum_difficulty;
-        let minimum_stake = Wit::from(PSEUDO_CONSENSUS_CONSTANTS_POS_MIN_STAKE_NANOWITS);
+        let minimum_stake = Wit::from(
+            self.consensus_constants_wit2
+                .get_validator_min_stake_nanowits(current_epoch),
+        );
         // Retrieve all stake entries in which we are the validator
         let stake_entries = self
             .chain_state
@@ -361,7 +357,8 @@ impl ChainManager {
                 .data_request_state(&dr_pointer)
                 .map(|dr_state| (dr_pointer, dr_state.clone()))
         }) {
-            let (collateral_age, checkpoint_period) = match &self.chain_state.chain_info {
+            let (collateral_age, checkpoint_period, max_rounds) = match &self.chain_state.chain_info
+            {
                 Some(x) => (
                     x.consensus_constants.collateral_age,
                     // Unwraps should be safe if we have a chain_info object
@@ -369,6 +366,7 @@ impl ChainManager {
                         .unwrap()
                         .get_epoch_period(current_epoch)
                         .unwrap(),
+                    x.consensus_constants.extra_rounds + 1,
                 ),
                 None => {
                     log::error!("ChainInfo is None");
@@ -397,7 +395,13 @@ impl ChainManager {
                 let (eligibility, target_hash, probability) = self
                     .chain_state
                     .stakes
-                    .witnessing_eligibility(own_pkh, current_epoch, num_witnesses, round)
+                    .witnessing_eligibility(
+                        own_pkh,
+                        current_epoch,
+                        num_witnesses,
+                        round,
+                        max_rounds,
+                    )
                     .map_err(ChainManagerError::Staking)?;
 
                 match eligibility {
@@ -911,8 +915,6 @@ pub fn build_block(
     ),
     max_vt_weight: u32,
     max_dr_weight: u32,
-    max_st_weight: u32,
-    max_ut_weight: u32,
     beacon: CheckpointBeacon,
     proof: BlockEligibilityClaim,
     tally_transactions: &[TallyTransaction],
@@ -930,6 +932,7 @@ pub fn build_block(
     active_wips: &ActiveWips,
     validator_count: Option<usize>,
     stakes: &StakesTracker,
+    consensus_constants_wit2: &ConsensusConstantsWit2,
 ) -> (BlockHeader, BlockTransactions) {
     let validator_count = validator_count.unwrap_or(DEFAULT_VALIDATOR_COUNT_FOR_TESTS);
     let (transactions_pool, unspent_outputs_pool, dr_pool) = pools_ref;
@@ -1151,6 +1154,7 @@ pub fn build_block(
     let protocol_version = ProtocolVersion::from_epoch(epoch);
 
     if protocol_version > V1_7 {
+        let max_st_weight = consensus_constants_wit2.get_maximum_stake_block_weight(epoch);
         let mut overstake_transactions = Vec::<Hash>::new();
         let mut included_validators = HashSet::<PublicKeyHash>::new();
         for st_tx in transactions_pool.st_iter() {
@@ -1164,13 +1168,14 @@ pub fn build_block(
             }
 
             // If a set of staking transactions is sent simultaneously to the transactions pool using a staking amount smaller
-            // than MAX_STAKE_NANOWITS they can all be accepted since they do not introduce overstaking yet. However, accepting
-            // all of them in subsequent blocks could violate the MAX_STAKE_NANOWITS rule. Thus we still need to check that we
-            // do not include all these staking transactions in a block so we do not produce an invalid block.
+            // than 'max_stake' they can all be accepted since they do not introduce overstaking yet. However, accepting all of
+            // them in subsequent blocks could violate the 'max_stake' rule. Thus we still need to check that we do not include
+            // all these staking transactions in a block so we do not produce an invalid block.
             let stakes_key = QueryStakesKey::Key(StakeKey {
                 validator: st_tx.body.output.key.validator,
                 withdrawer: st_tx.body.output.key.withdrawer,
             });
+            let max_stake = consensus_constants_wit2.get_validator_max_stake_nanowits(epoch);
             match stakes.query_stakes(stakes_key) {
                 Ok(stake_entry) => {
                     // TODO: modify this to enable delegated staking with multiple withdrawer addresses on a single validator
@@ -1179,15 +1184,15 @@ pub fn build_block(
                         .map(|stake| stake.value.coins)
                         .unwrap()
                         .into();
-                    if st_tx.body.output.value + staked_amount > MAX_STAKE_NANOWITS {
+                    if st_tx.body.output.value + staked_amount > max_stake {
                         overstake_transactions.push(st_tx.hash());
                         continue;
                     }
                 }
                 Err(_) => {
                     // This should never happen since a staking transaction to a non-existing (validator, withdrawer) pair
-                    // with a value higher than MAX_STAKE_NANOWITS should not have been accepted in the transactions pool.
-                    if st_tx.body.output.value > MAX_STAKE_NANOWITS {
+                    // with a value higher than 'max_stake' should not have been accepted in the transactions pool.
+                    if st_tx.body.output.value > max_stake {
                         overstake_transactions.push(st_tx.hash());
                         continue;
                     }
@@ -1238,6 +1243,7 @@ pub fn build_block(
 
     if protocol_version > V1_8 {
         let mut included_validators = HashSet::<PublicKeyHash>::new();
+        let max_ut_weight = consensus_constants_wit2.get_maximum_unstake_block_weight(epoch);
         for ut_tx in transactions_pool.ut_iter() {
             let validator_pkh = ut_tx.body.operator;
             if included_validators.contains(&validator_pkh) {
@@ -1384,8 +1390,6 @@ mod tests {
         // Set `max_vt_weight` and `max_dr_weight` to zero (no transaction should be included)
         let max_vt_weight = 0;
         let max_dr_weight = 0;
-        let max_st_weight = 0;
-        let max_ut_weight = 0;
 
         // Fields required to mine a block
         let block_beacon = CheckpointBeacon::default();
@@ -1399,8 +1403,6 @@ mod tests {
             (&mut transaction_pool, &unspent_outputs_pool, &mut dr_pool),
             max_vt_weight,
             max_dr_weight,
-            max_st_weight,
-            max_ut_weight,
             block_beacon,
             block_proof,
             &[],
@@ -1418,6 +1420,7 @@ mod tests {
             &active_wips,
             None,
             &StakesTracker::default(),
+            &ConsensusConstantsWit2::default(),
         );
         let block = Block::new(block_header, KeyedSignature::default(), txns);
 
@@ -1452,8 +1455,6 @@ mod tests {
         // Set `max_vt_weight` and `max_dr_weight` to zero (no transaction should be included)
         let max_vt_weight = 0;
         let max_dr_weight = 0;
-        let max_st_weight = 0;
-        let max_ut_weight = 0;
 
         // Fields required to mine a block
         let block_beacon = CheckpointBeacon::default();
@@ -1483,8 +1484,6 @@ mod tests {
             (&mut transaction_pool, &unspent_outputs_pool, &mut dr_pool),
             max_vt_weight,
             max_dr_weight,
-            max_st_weight,
-            max_ut_weight,
             block_beacon,
             block_proof,
             &[],
@@ -1502,6 +1501,7 @@ mod tests {
             &active_wips,
             None,
             &StakesTracker::default(),
+            &ConsensusConstantsWit2::default(),
         );
 
         // Create a KeyedSignature
@@ -1580,8 +1580,6 @@ mod tests {
         // Set `max_vt_weight` to fit only `transaction_1` weight
         let max_vt_weight = vt_tx1.weight();
         let max_dr_weight = 0;
-        let max_st_weight = 0;
-        let max_ut_weight = 0;
 
         // Insert transactions into `transactions_pool`
         let mut transaction_pool = TransactionsPool::default();
@@ -1618,8 +1616,6 @@ mod tests {
             (&mut transaction_pool, &unspent_outputs_pool, &mut dr_pool),
             max_vt_weight,
             max_dr_weight,
-            max_st_weight,
-            max_ut_weight,
             block_beacon,
             block_proof,
             &[],
@@ -1637,6 +1633,7 @@ mod tests {
             &active_wips,
             None,
             &StakesTracker::default(),
+            &ConsensusConstantsWit2::default(),
         );
         let block = Block::new(block_header, KeyedSignature::default(), txns);
 
@@ -1688,8 +1685,6 @@ mod tests {
         // Set `max_vt_weight` to fit only 1 transaction weight
         let max_vt_weight = vt_tx2.weight();
         let max_dr_weight = 0;
-        let max_st_weight = 0;
-        let max_ut_weight = 0;
 
         // Insert transactions into `transactions_pool`
         let mut transaction_pool = TransactionsPool::default();
@@ -1726,8 +1721,6 @@ mod tests {
             (&mut transaction_pool, &unspent_outputs_pool, &mut dr_pool),
             max_vt_weight,
             max_dr_weight,
-            max_st_weight,
-            max_ut_weight,
             block_beacon,
             block_proof,
             &[],
@@ -1745,6 +1738,7 @@ mod tests {
             &active_wips,
             None,
             &StakesTracker::default(),
+            &ConsensusConstantsWit2::default(),
         );
         let block = Block::new(block_header, KeyedSignature::default(), txns);
 
@@ -1810,8 +1804,6 @@ mod tests {
         // Set `max_vt_weight` to fit only `transaction_1` weight
         let max_vt_weight = 0;
         let max_dr_weight = dr_tx1.weight();
-        let max_st_weight = 0;
-        let max_ut_weight = 0;
 
         // Insert transactions into `transactions_pool`
         let mut transaction_pool = TransactionsPool::default();
@@ -1848,8 +1840,6 @@ mod tests {
             (&mut transaction_pool, &unspent_outputs_pool, &mut dr_pool),
             max_vt_weight,
             max_dr_weight,
-            max_st_weight,
-            max_ut_weight,
             block_beacon,
             block_proof,
             &[],
@@ -1867,6 +1857,7 @@ mod tests {
             &active_wips,
             None,
             &StakesTracker::default(),
+            &ConsensusConstantsWit2::default(),
         );
         let block = Block::new(block_header, KeyedSignature::default(), txns);
 
@@ -1915,8 +1906,6 @@ mod tests {
         // Set `max_vt_weight` to fit only `transaction_1` weight
         let max_vt_weight = 0;
         let max_dr_weight = dr_tx2.weight();
-        let max_st_weight = 0;
-        let max_ut_weight = 0;
 
         // Insert transactions into `transactions_pool`
         let mut transaction_pool = TransactionsPool::default();
@@ -1953,8 +1942,6 @@ mod tests {
             (&mut transaction_pool, &unspent_outputs_pool, &mut dr_pool),
             max_vt_weight,
             max_dr_weight,
-            max_st_weight,
-            max_ut_weight,
             block_beacon,
             block_proof,
             &[],
@@ -1972,6 +1959,7 @@ mod tests {
             &active_wips,
             None,
             &StakesTracker::default(),
+            &ConsensusConstantsWit2::default(),
         );
         let block = Block::new(block_header, KeyedSignature::default(), txns);
 

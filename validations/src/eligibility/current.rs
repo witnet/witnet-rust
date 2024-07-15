@@ -9,9 +9,6 @@ use serde::Serialize;
 use witnet_crypto::secp256k1::serde;
 use witnet_data_structures::{chain::Hash, staking::prelude::*, wit::PrecisionLoss};
 
-const MINING_REPLICATION_FACTOR: usize = 4;
-const WITNESSING_MAX_ROUNDS: u32 = 4;
-
 /// Different reasons for ineligibility of a validator, stake entry or eligibility proof.
 #[derive(Copy, Debug, Clone, PartialEq)]
 pub enum IneligibilityReason {
@@ -53,17 +50,21 @@ where
         &self,
         validator: ISK,
         epoch: Epoch,
+        rf: u16,
     ) -> StakesResult<Eligible, Address, Coins, Epoch>
     where
         ISK: Into<Address>;
 
     /// Tells whether a VRF proof meets the requirements to become eligible for mining. Because this function returns a
     /// simple `bool`, it is best-effort: both lack of eligibility and any error cases are mapped to `false`.
-    fn mining_eligibility_bool<ISK>(&self, validator: ISK, epoch: Epoch) -> bool
+    fn mining_eligibility_bool<ISK>(&self, validator: ISK, epoch: Epoch, rf: u16) -> bool
     where
         ISK: Into<Address>,
     {
-        matches!(self.mining_eligibility(validator, epoch), Ok(Eligible::Yes))
+        matches!(
+            self.mining_eligibility(validator, epoch, rf),
+            Ok(Eligible::Yes)
+        )
     }
 
     /// Tells whether a VRF proof meets the requirements to become eligible for witnessing. Unless an error occurs,
@@ -75,6 +76,7 @@ where
         epoch: Epoch,
         witnesses: u16,
         round: u16,
+        max_rounds: u16,
     ) -> StakesResult<(Eligible, Hash, f64), Address, Coins, Epoch>
     where
         ISK: Into<Address>;
@@ -87,11 +89,12 @@ where
         epoch: Epoch,
         witnesses: u16,
         round: u16,
+        max_rounds: u16,
     ) -> bool
     where
         ISK: Into<Address>,
     {
-        match self.witnessing_eligibility(validator, epoch, witnesses, round) {
+        match self.witnessing_eligibility(validator, epoch, witnesses, round, max_rounds) {
             Ok((eligible, _, _)) => matches!(eligible, Eligible::Yes),
             Err(_) => false,
         }
@@ -164,6 +167,7 @@ where
         &self,
         validator: ISK,
         epoch: Epoch,
+        replication_factor: u16,
     ) -> StakesResult<Eligible, Address, Coins, Epoch>
     where
         ISK: Into<Address>,
@@ -191,7 +195,9 @@ where
         //  the stakers"
         // TODO: verify if defaulting to 0 makes sense
         let mut rank = self.rank(Capability::Mining, epoch);
-        let (_, threshold) = rank.nth(MINING_REPLICATION_FACTOR - 1).unwrap_or_default();
+        let (_, threshold) = rank
+            .nth((replication_factor - 1).into())
+            .unwrap_or_default();
         if power < threshold {
             return Ok(IneligibilityReason::InsufficientPower.into());
         }
@@ -206,6 +212,7 @@ where
         epoch: Epoch,
         witnesses: u16,
         round: u16,
+        max_rounds: u16,
     ) -> StakesResult<(Eligible, Hash, f64), Address, Coins, Epoch>
     where
         ISK: Into<Address>,
@@ -236,8 +243,8 @@ where
         let (_, max_power) = rank.next().unwrap_or_default();
 
         // Requirement no. 2 from the WIP:
-        //  "the mining power of the block proposer is in the `rf / stakers`th quantile among the witnessing powers of all
-        //  the stakers"
+        //  "the witnessing power of the block proposer is in the `rf / stakers`th quantile among the witnessing powers
+        //  of all the stakers"
         let rf = 2usize.pow(u32::from(round)) * witnesses as usize;
         let (_, threshold_power) = rank.nth(rf - 2).unwrap_or_default();
         if power <= threshold_power {
@@ -251,13 +258,13 @@ where
         // Requirement no. 3 from the WIP:
         //  "the big-endian value of the VRF output is less than
         //  `max_rounds * own_power / (round * threshold_power + max_power * (max_rounds - round))`"
-        let dividend = Power::from(u64::from(WITNESSING_MAX_ROUNDS))
+        let dividend = Power::from(u64::from(max_rounds))
             * Power::from((u64::BITS - u64::from(power).leading_zeros()).into());
         let divisor = u32::from(round)
             .saturating_mul(u64::BITS - u64::from(threshold_power).leading_zeros())
             .saturating_add(
                 (u64::BITS - u64::from(max_power).leading_zeros())
-                    .saturating_mul(WITNESSING_MAX_ROUNDS - u32::from(round)),
+                    .saturating_mul((max_rounds - round).into()),
             );
         let (target_hash, probability) = if divisor == 0 {
             (Hash::with_first_u32(u32::MAX), 1_f64)
@@ -284,108 +291,122 @@ where
 mod tests {
     use super::*;
 
+    const MIN_STAKE_NANOWITS: u64 = 10_000_000_000;
+
     #[test]
     fn test_mining_eligibility_no_stakers() {
-        let stakes = <Stakes<0, String, _, _, u64, u64>>::with_minimum(100u64);
+        let stakes = StakesTester::default();
         let isk = "validator";
 
         assert_eq!(
-            stakes.mining_eligibility(isk, 0),
+            stakes.mining_eligibility(isk, 0, 4),
             Ok(Eligible::No(IneligibilityReason::NotStaking))
         );
-        assert!(!stakes.mining_eligibility_bool(isk, 0));
+        assert!(!stakes.mining_eligibility_bool(isk, 0, 4));
 
         assert_eq!(
-            stakes.mining_eligibility(isk, 100),
+            stakes.mining_eligibility(isk, 100, 4),
             Ok(Eligible::No(IneligibilityReason::NotStaking))
         );
-        assert!(!stakes.mining_eligibility_bool(isk, 100));
+        assert!(!stakes.mining_eligibility_bool(isk, 100, 4));
     }
 
     #[test]
     fn test_mining_eligibility_absolute_power() {
-        let mut stakes = <Stakes<0, String, _, _, u64, u64>>::with_minimum(100u64);
+        let mut stakes = StakesTester::default();
         let isk = "validator";
 
-        stakes.add_stake(isk, 10_000_000_000, 0).unwrap();
+        stakes
+            .add_stake(isk, 10_000_000_000, 0, MIN_STAKE_NANOWITS)
+            .unwrap();
 
         assert_eq!(
-            stakes.mining_eligibility(isk, 0),
+            stakes.mining_eligibility(isk, 0, 4),
             Ok(Eligible::No(IneligibilityReason::InsufficientPower))
         );
-        assert!(!stakes.mining_eligibility_bool(isk, 0));
+        assert!(!stakes.mining_eligibility_bool(isk, 0, 4));
 
-        assert_eq!(stakes.mining_eligibility(isk, 100), Ok(Eligible::Yes));
-        assert!(stakes.mining_eligibility_bool(isk, 100));
+        assert_eq!(stakes.mining_eligibility(isk, 100, 4), Ok(Eligible::Yes));
+        assert!(stakes.mining_eligibility_bool(isk, 100, 4));
     }
 
     #[test]
     fn test_witnessing_eligibility_no_stakers() {
-        let stakes = <Stakes<0, String, _, _, u64, u64>>::with_minimum(100u64);
+        let stakes = StakesTester::default();
         let isk = "validator";
 
-        let eligibility = stakes.witnessing_eligibility(isk, 0, 10, 0);
+        let eligibility = stakes.witnessing_eligibility(isk, 0, 10, 0, 4);
         assert!(matches!(
             eligibility,
             Ok((Eligible::No(IneligibilityReason::NotStaking), _, _))
         ));
-        assert!(!stakes.witnessing_eligibility_bool(isk, 0, 10, 0));
+        assert!(!stakes.witnessing_eligibility_bool(isk, 0, 10, 0, 4));
 
-        let eligibility = stakes.witnessing_eligibility(isk, 100, 10, 0);
+        let eligibility = stakes.witnessing_eligibility(isk, 100, 10, 0, 4);
         assert!(matches!(
             eligibility,
             Ok((Eligible::No(IneligibilityReason::NotStaking), _, _))
         ));
-        assert!(!stakes.witnessing_eligibility_bool(isk, 100, 10, 0));
+        assert!(!stakes.witnessing_eligibility_bool(isk, 100, 10, 0, 4));
     }
 
     #[test]
     fn test_witnessing_eligibility_absolute_power() {
-        let mut stakes = <Stakes<0, String, _, _, u64, u64>>::with_minimum(100u64);
+        let mut stakes = StakesTester::default();
         let isk = "validator";
 
-        stakes.add_stake(isk, 10_000_000_000, 0).unwrap();
+        stakes
+            .add_stake(isk, 10_000_000_000, 0, MIN_STAKE_NANOWITS)
+            .unwrap();
 
-        let eligibility = stakes.witnessing_eligibility(isk, 0, 10, 0);
+        let eligibility = stakes.witnessing_eligibility(isk, 0, 10, 0, 4);
         assert!(matches!(
             eligibility,
             Ok((Eligible::No(IneligibilityReason::InsufficientPower), _, _))
         ));
-        assert!(!stakes.witnessing_eligibility_bool(isk, 0, 10, 0));
+        assert!(!stakes.witnessing_eligibility_bool(isk, 0, 10, 0, 4));
 
-        let eligibility = stakes.witnessing_eligibility(isk, 100, 10, 0);
+        let eligibility = stakes.witnessing_eligibility(isk, 100, 10, 0, 4);
         assert!(matches!(eligibility, Ok((Eligible::Yes, _, _))));
-        assert!(stakes.witnessing_eligibility_bool(isk, 100, 10, 0));
+        assert!(stakes.witnessing_eligibility_bool(isk, 100, 10, 0, 4));
     }
 
     #[test]
     fn test_witnessing_eligibility_target_hash() {
-        let mut stakes = <Stakes<0, String, _, _, u64, u64>>::with_minimum(100u64);
+        let mut stakes = StakesTester::default();
         let isk_1 = "validator_1";
         let isk_2 = "validator_2";
         let isk_3 = "validator_3";
         let isk_4 = "validator_4";
 
-        stakes.add_stake(isk_1, 10_000_000_000, 0).unwrap();
-        stakes.add_stake(isk_2, 20_000_000_000, 0).unwrap();
-        stakes.add_stake(isk_3, 30_000_000_000, 0).unwrap();
-        stakes.add_stake(isk_4, 40_000_000_000, 0).unwrap();
+        stakes
+            .add_stake(isk_1, 10_000_000_000, 0, MIN_STAKE_NANOWITS)
+            .unwrap();
+        stakes
+            .add_stake(isk_2, 20_000_000_000, 0, MIN_STAKE_NANOWITS)
+            .unwrap();
+        stakes
+            .add_stake(isk_3, 30_000_000_000, 0, MIN_STAKE_NANOWITS)
+            .unwrap();
+        stakes
+            .add_stake(isk_4, 40_000_000_000, 0, MIN_STAKE_NANOWITS)
+            .unwrap();
 
-        let eligibility = stakes.witnessing_eligibility(isk_1, 0, 2, 0);
+        let eligibility = stakes.witnessing_eligibility(isk_1, 0, 2, 0, 4);
         // TODO: verify target hash
         assert!(matches!(
             eligibility,
             Ok((Eligible::No(IneligibilityReason::InsufficientPower), _, _))
         ));
-        assert!(!stakes.witnessing_eligibility_bool(isk_1, 0, 10, 0));
+        assert!(!stakes.witnessing_eligibility_bool(isk_1, 0, 10, 0, 4));
 
-        let eligibility = stakes.witnessing_eligibility(isk_1, 100, 2, 0);
+        let eligibility = stakes.witnessing_eligibility(isk_1, 100, 2, 0, 4);
         // TODO: verify target hash
         assert!(matches!(
             eligibility,
             Ok((Eligible::No(IneligibilityReason::InsufficientPower), _, _))
         ));
-        assert!(!stakes.witnessing_eligibility_bool(isk_1, 0, 10, 0));
-        assert!(stakes.witnessing_eligibility_bool(isk_1, 100, 10, 0));
+        assert!(!stakes.witnessing_eligibility_bool(isk_1, 0, 10, 0, 4));
+        assert!(stakes.witnessing_eligibility_bool(isk_1, 100, 10, 0, 4));
     }
 }

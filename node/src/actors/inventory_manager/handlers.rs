@@ -389,8 +389,8 @@ mod tests {
     use witnet_config::config::{Config, StorageBackend};
     use witnet_data_structures::{
         chain::{
-            tapi::ActiveWips, CheckpointBeacon, EpochConstants, Input, KeyedSignature,
-            OutputPointer, PublicKeyHash, TransactionsPool, ValueTransferOutput,
+            tapi::ActiveWips, CheckpointBeacon, ConsensusConstantsWit2, EpochConstants, Input,
+            KeyedSignature, OutputPointer, PublicKeyHash, TransactionsPool, ValueTransferOutput,
         },
         data_request::DataRequestPool,
         staking::prelude::StakesTracker,
@@ -406,6 +406,7 @@ mod tests {
 
     use super::*;
 
+    const CHECKPOINT_ZERO_TIMESTAMP: i64 = 1_602_666_000;
     const INITIAL_BLOCK_REWARD: u64 = 250 * 1_000_000_000;
     const HALVING_PERIOD: u32 = 3_500_000;
 
@@ -448,7 +449,6 @@ mod tests {
         // Set `max_vt_weight` to fit only `transaction_1` weight
         let max_vt_weight = vt_tx1.weight();
         let max_dr_weight = 0;
-        let max_st_weight = 0;
 
         // Insert transactions into `transactions_pool`
         let mut transaction_pool = TransactionsPool::default();
@@ -482,7 +482,6 @@ mod tests {
             (&mut transaction_pool, &unspent_outputs_pool, &mut dr_pool),
             max_vt_weight,
             max_dr_weight,
-            max_st_weight,
             block_beacon,
             block_proof,
             &[],
@@ -494,11 +493,13 @@ mod tests {
             None,
             0,
             INITIAL_BLOCK_REWARD,
+            CHECKPOINT_ZERO_TIMESTAMP,
             HALVING_PERIOD,
             0,
             &active_wips,
             None,
             &StakesTracker::default(),
+            &ConsensusConstantsWit2::default(),
         );
 
         Block::new(block_header, KeyedSignature::default(), txns)

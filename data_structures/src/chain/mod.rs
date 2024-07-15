@@ -38,7 +38,8 @@ use crate::{
         DataRequestError, EpochCalculationError, OutputPointerParseError, Secp256k1ConversionError,
         TransactionError,
     },
-    get_environment,
+    get_environment, get_protocol_version, get_protocol_version_activation_epoch,
+    get_protocol_version_period,
     proto::{
         versioning::{ProtocolVersion, Versioned, VersionedHashable},
         ProtobufConvert,
@@ -258,6 +259,104 @@ impl ConsensusConstants {
     pub fn get_magic(&self) -> u16 {
         let magic = calculate_sha256(&self.to_pb_bytes().unwrap());
         u16::from(magic.0[0]) << 8 | (u16::from(magic.0[1]))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, ProtobufConvert, Default)]
+#[protobuf_convert(pb = "crate::proto::schema::witnet::ConsensusConstantsWit2")]
+pub struct ConsensusConstantsWit2 {
+    /// Timestamp at checkpoint 0 (the start of epoch 0)
+    pub checkpoint_zero_timestamp: i64,
+
+    /// Seconds between the start of an epoch and the start of the next one
+    pub checkpoints_period: u16,
+}
+
+impl ConsensusConstantsWit2 {
+    /// Timestamp when wit/2 activates
+    pub fn get_checkpoint_zero_timestamp_wit2(self) -> i64 {
+        self.checkpoint_zero_timestamp
+            + i64::from(self.checkpoints_period)
+                * i64::from(get_protocol_version_activation_epoch(ProtocolVersion::V2_0))
+    }
+
+    /// Seconds between the start of an epoch and the start of the next one in wit/2
+    pub fn get_checkpoints_period_wit2(self) -> u16 {
+        get_protocol_version_period(ProtocolVersion::V2_0)
+    }
+
+    /// Minimum amount of nanoWits which need to be staked before wit/2 activation
+    pub fn get_wit2_minimum_total_stake_nanowits(self) -> u64 {
+        300_000_000_000_000_000
+    }
+
+    /// Number of epochs before wit/2 activates after enough Wit have been staked
+    pub fn get_wit2_activation_delay_epochs(self) -> u32 {
+        26_880
+    }
+
+    /// Replication factor for data request solving
+    pub fn get_replication_factor(self, epoch: Epoch) -> u16 {
+        if get_protocol_version(Some(epoch)) >= ProtocolVersion::V2_0 {
+            4
+        } else {
+            0
+        }
+    }
+
+    /// Maximum weight units that a block can devote to `StakeTransaction`s.
+    pub fn get_maximum_stake_block_weight(self, epoch: Epoch) -> u32 {
+        if get_protocol_version(Some(epoch)) > ProtocolVersion::V1_7 {
+            10_000_000
+        } else {
+            0
+        }
+    }
+
+    /// Maximum weight units that a block can devote to `UnstakeTransaction`s.
+    pub fn get_maximum_unstake_block_weight(self, epoch: Epoch) -> u32 {
+        if get_protocol_version(Some(epoch)) >= ProtocolVersion::V2_0 {
+            5_000
+        } else {
+            0
+        }
+    }
+
+    /// Unstake transactions are only spendable after below specified time lock expires
+    pub fn get_unstaking_delay_seconds(self, epoch: Epoch) -> u64 {
+        if get_protocol_version(Some(epoch)) >= ProtocolVersion::V2_0 {
+            1_209_600
+        } else {
+            0
+        }
+    }
+
+    /// Minimum amount of nanoWits that a `StakeTransaction` can add, and minimum amount that can be
+    /// left in stake by an `UnstakeTransaction`.
+    pub fn get_validator_min_stake_nanowits(self, epoch: Epoch) -> u64 {
+        if get_protocol_version(Some(epoch)) > ProtocolVersion::V1_7 {
+            10_000_000_000_000
+        } else {
+            0
+        }
+    }
+
+    /// Maximum amount of nanoWits that a `StakeTransaction` can add (and can be staked on a single validator).
+    pub fn get_validator_max_stake_nanowits(self, epoch: Epoch) -> u64 {
+        if get_protocol_version(Some(epoch)) > ProtocolVersion::V2_0 {
+            10_000_000_000_000_000
+        } else {
+            0
+        }
+    }
+
+    /// Validator reward for a proposed and accepted block
+    pub fn get_validator_block_reward(self, epoch: Epoch) -> u64 {
+        if get_protocol_version(Some(epoch)) >= ProtocolVersion::V2_0 {
+            50_000_000_000
+        } else {
+            0
+        }
     }
 }
 

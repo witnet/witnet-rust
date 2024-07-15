@@ -9,11 +9,7 @@ use std::{
 use actix::{prelude::*, ActorFutureExt, WrapFuture};
 use futures::future::Either;
 
-use witnet_config::defaults::{
-    PSEUDO_CONSENSUS_CONSTANTS_POS_MAX_STAKE_BLOCK_WEIGHT,
-    PSEUDO_CONSENSUS_CONSTANTS_POS_UNSTAKING_DELAY_SECONDS,
-    PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE,
-};
+use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE;
 use witnet_data_structures::{
     capabilities::Capability,
     chain::{
@@ -74,8 +70,6 @@ pub const SYNCED_BANNER: &str = r"
 ║ to learn how to monitor the progress of your node  ║
 ║ (balance, reputation, proposed blocks, etc.)       ║
 ╚════════════════════════════════════════════════════╝";
-
-const MINING_REPLICATION_FACTOR: usize = 4;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR MESSAGE HANDLERS
@@ -188,9 +182,13 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                             );
                             if ProtocolVersion::from_epoch(previous_epoch) == ProtocolVersion::V2_0
                             {
+                                let replication_factor = self
+                                    .consensus_constants_wit2
+                                    .get_replication_factor(previous_epoch);
                                 let rank_subset: Vec<_> = stakes
                                     .rank(Capability::Mining, previous_epoch)
-                                    .take(MINING_REPLICATION_FACTOR)
+                                    .take(replication_factor.into())
+                                    .map(|sk| sk)
                                     .collect();
                                 for (i, (stake_key, _)) in rank_subset.into_iter().enumerate() {
                                     log::warn!(
@@ -1346,6 +1344,10 @@ impl Handler<BuildStake> for ChainManager {
             ));
         }
         let timestamp = u64::try_from(get_timestamp()).unwrap();
+        let current_epoch = self.current_epoch.unwrap();
+        let maximum_stake_block_weight = self
+            .consensus_constants_wit2
+            .get_maximum_stake_block_weight(current_epoch);
         match transaction_factory::build_st(
             msg.stake_output,
             msg.fee,
@@ -1355,7 +1357,7 @@ impl Handler<BuildStake> for ChainManager {
             timestamp,
             self.tx_pending_timeout,
             &msg.utxo_strategy,
-            PSEUDO_CONSENSUS_CONSTANTS_POS_MAX_STAKE_BLOCK_WEIGHT,
+            maximum_stake_block_weight,
             msg.dry_run,
         ) {
             Err(e) => {
@@ -1419,8 +1421,12 @@ impl Handler<BuildUnstake> for ChainManager {
                 Box::pin(actix::fut::err(e.into()))
             }
             Ok(nonce) => {
+                let current_epoch = self.current_epoch.unwrap();
+                let unstaking_delay = self
+                    .consensus_constants_wit2
+                    .get_unstaking_delay_seconds(current_epoch);
                 let withdrawal = ValueTransferOutput {
-                    time_lock: PSEUDO_CONSENSUS_CONSTANTS_POS_UNSTAKING_DELAY_SECONDS,
+                    time_lock: unstaking_delay,
                     pkh: self.own_pkh.unwrap(),
                     value: msg.value,
                 };

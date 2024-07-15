@@ -8,9 +8,6 @@ use std::{
 use itertools::Itertools;
 
 use witnet_config::defaults::{
-    PSEUDO_CONSENSUS_CONSTANTS_POS_MAX_STAKE_NANOWITS,
-    PSEUDO_CONSENSUS_CONSTANTS_POS_MIN_STAKE_NANOWITS,
-    PSEUDO_CONSENSUS_CONSTANTS_POS_UNSTAKING_DELAY_SECONDS,
     PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO,
     PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE,
 };
@@ -23,10 +20,10 @@ use witnet_crypto::{
 use witnet_data_structures::{
     chain::{
         tapi::ActiveWips, Block, BlockMerkleRoots, CheckpointBeacon, CheckpointVRF,
-        ConsensusConstants, DataRequestOutput, DataRequestStage, DataRequestState, Epoch,
-        EpochConstants, Hash, Hashable, Input, KeyedSignature, OutputPointer, PublicKeyHash,
-        RADRequest, RADTally, RADType, Reputation, ReputationEngine, SignaturesToVerify,
-        StakeOutput, ValueTransferOutput,
+        ConsensusConstants, ConsensusConstantsWit2, DataRequestOutput, DataRequestStage,
+        DataRequestState, Epoch, EpochConstants, Hash, Hashable, Input, KeyedSignature,
+        OutputPointer, PublicKeyHash, RADRequest, RADTally, RADType, Reputation, ReputationEngine,
+        SignaturesToVerify, StakeOutput, ValueTransferOutput,
     },
     data_request::{
         calculate_reward_collateral_ratio, calculate_tally_change, calculate_witness_reward,
@@ -66,13 +63,6 @@ use crate::eligibility::{
     },
     legacy::*,
 };
-
-// TODO: move to a configuration
-const MAX_STAKE_BLOCK_WEIGHT: u32 = 10_000_000;
-const MAX_STAKE_NANOWITS: u64 = PSEUDO_CONSENSUS_CONSTANTS_POS_MAX_STAKE_NANOWITS;
-const MIN_STAKE_NANOWITS: u64 = PSEUDO_CONSENSUS_CONSTANTS_POS_MIN_STAKE_NANOWITS;
-const MAX_UNSTAKE_BLOCK_WEIGHT: u32 = 5_000;
-const UNSTAKING_DELAY_SECONDS: u64 = PSEUDO_CONSENSUS_CONSTANTS_POS_UNSTAKING_DELAY_SECONDS;
 
 /// Returns the fee of a value transfer transaction.
 ///
@@ -180,6 +170,7 @@ pub fn validate_commit_collateral(
     superblock_period: u16,
     protocol_version: ProtocolVersion,
     stakes: &StakesTracker,
+    min_stake: u64,
 ) -> Result<(), failure::Error> {
     let block_number_limit = block_number.saturating_sub(collateral_age);
     let commit_pkh = co_tx.body.proof.proof.pkh();
@@ -197,7 +188,7 @@ pub fn validate_commit_collateral(
             .map(|stake| stake.value.coins)
             .unwrap()
             .into();
-        if validator_balance < MIN_STAKE_NANOWITS + required_collateral {
+        if validator_balance < min_stake + required_collateral {
             return Err(TransactionError::CollateralBelowMinimumStake {
                 collateral: required_collateral,
                 validator: commit_pkh,
@@ -695,6 +686,8 @@ pub fn validate_commit_transaction(
     superblock_period: u16,
     protocol_version: ProtocolVersion,
     stakes: &StakesTracker,
+    max_rounds: u16,
+    min_stake: u64,
 ) -> Result<(Hash, u16, u64), failure::Error> {
     // Get DataRequest information
     let dr_pointer = co_tx.body.dr_pointer;
@@ -716,6 +709,7 @@ pub fn validate_commit_transaction(
             epoch,
             dr_state.data_request.witnesses,
             dr_state.info.current_commit_round,
+            max_rounds,
         ) {
             Ok((eligibility, target_hash, _)) => {
                 if matches!(eligibility, Eligible::No(_)) {
@@ -771,6 +765,7 @@ pub fn validate_commit_transaction(
         superblock_period,
         protocol_version,
         stakes,
+        min_stake,
     )?;
 
     // commit time_lock was disabled in the first hard fork
@@ -1329,15 +1324,17 @@ pub fn validate_stake_transaction<'a>(
     epoch_constants: EpochConstants,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
     stakes: &StakesTracker,
+    min_stake_nanowits: u64,
+    max_stake_nanowits: u64,
 ) -> Result<ValidatedStakeTransaction<'a>, failure::Error> {
     if get_protocol_version(Some(epoch)) == ProtocolVersion::V1_7 {
         return Err(TransactionError::NoStakeTransactionsAllowed.into());
     }
 
     // Check that the amount of coins to stake is equal or greater than the minimum allowed
-    if st_tx.body.output.value < MIN_STAKE_NANOWITS {
+    if st_tx.body.output.value < min_stake_nanowits {
         Err(TransactionError::StakeBelowMinimum {
-            min_stake: MIN_STAKE_NANOWITS,
+            min_stake: min_stake_nanowits,
             stake: st_tx.body.output.value,
         })?;
     }
@@ -1370,18 +1367,18 @@ pub fn validate_stake_transaction<'a>(
                 .map(|stake| stake.value.coins)
                 .unwrap()
                 .into();
-            if staked_amount + st_tx.body.output.value > MAX_STAKE_NANOWITS {
+            if staked_amount + st_tx.body.output.value > max_stake_nanowits {
                 Err(TransactionError::StakeAboveMaximum {
-                    max_stake: MAX_STAKE_NANOWITS,
+                    max_stake: max_stake_nanowits,
                     stake: staked_amount + st_tx.body.output.value,
                 })?;
             }
         }
         Err(_) => {
             // Check that the amount of coins to stake is equal or smaller than the maximum allowed
-            if st_tx.body.output.value > MAX_STAKE_NANOWITS {
+            if st_tx.body.output.value > max_stake_nanowits {
                 Err(TransactionError::StakeAboveMaximum {
-                    max_stake: MAX_STAKE_NANOWITS,
+                    max_stake: max_stake_nanowits,
                     stake: st_tx.body.output.value,
                 })?;
             }
@@ -1419,6 +1416,8 @@ pub fn validate_unstake_transaction<'a>(
     ut_tx: &'a UnstakeTransaction,
     epoch: Epoch,
     stakes: &StakesTracker,
+    min_stake_nanowits: u64,
+    unstake_delay: u64,
 ) -> Result<(u64, u32, Vec<&'a ValueTransferOutput>), failure::Error> {
     if get_protocol_version(Some(epoch)) <= ProtocolVersion::V1_8 {
         return Err(TransactionError::NoUnstakeTransactionsAllowed.into());
@@ -1478,17 +1477,17 @@ pub fn validate_unstake_transaction<'a>(
     // 1) Unstake the full balance (checked by the first condition)
     // 2) Unstake an amount such that the leftover staked amount is greater than the min allowed
     if staked_amount - amount_to_unstake > 0
-        && staked_amount - amount_to_unstake < MIN_STAKE_NANOWITS
+        && staked_amount - amount_to_unstake < min_stake_nanowits
     {
         return Err(TransactionError::StakeBelowMinimum {
-            min_stake: MIN_STAKE_NANOWITS,
+            min_stake: min_stake_nanowits,
             stake: staked_amount,
         }
         .into());
     }
 
     // Validate unstake timestamp
-    validate_unstake_timelock(ut_tx)?;
+    validate_unstake_timelock(ut_tx, unstake_delay)?;
 
     // validate unstake_signature
     validate_unstake_signature(ut_tx, validator)?;
@@ -1500,11 +1499,14 @@ pub fn validate_unstake_transaction<'a>(
 }
 
 /// Validate unstake timelock
-pub fn validate_unstake_timelock(ut_tx: &UnstakeTransaction) -> Result<(), failure::Error> {
-    if ut_tx.body.withdrawal.time_lock < UNSTAKING_DELAY_SECONDS {
+pub fn validate_unstake_timelock(
+    ut_tx: &UnstakeTransaction,
+    unstake_delay: u64,
+) -> Result<(), failure::Error> {
+    if ut_tx.body.withdrawal.time_lock < unstake_delay {
         return Err(TransactionError::InvalidUnstakeTimelock {
             time_lock: ut_tx.body.withdrawal.time_lock,
-            unstaking_delay_seconds: UNSTAKING_DELAY_SECONDS,
+            unstaking_delay_seconds: unstake_delay,
         }
         .into());
     }
@@ -1864,6 +1866,7 @@ pub fn validate_block_transactions(
     epoch_constants: EpochConstants,
     block_number: u32,
     consensus_constants: &ConsensusConstants,
+    consensus_constants_wit2: &ConsensusConstantsWit2,
     active_wips: &ActiveWips,
     mut visitor: Option<&mut dyn Visitor<Visitable = (Transaction, u64, u32)>>,
     stakes: &StakesTracker,
@@ -1971,6 +1974,7 @@ pub fn validate_block_transactions(
     } else {
         consensus_constants.collateral_age
     };
+    let min_stake = consensus_constants_wit2.get_validator_min_stake_nanowits(epoch);
     for transaction in &block.txns.commit_txns {
         let (dr_pointer, dr_witnesses, fee) = validate_commit_transaction(
             transaction,
@@ -1989,6 +1993,8 @@ pub fn validate_block_transactions(
             consensus_constants.superblock_period,
             protocol_version,
             stakes,
+            consensus_constants.extra_rounds + 1,
+            min_stake,
         )?;
 
         // Validation for only one commit for pkh/data request in a block
@@ -2238,6 +2244,8 @@ pub fn validate_block_transactions(
             .into());
         }
 
+        let min_stake = consensus_constants_wit2.get_validator_min_stake_nanowits(epoch);
+        let max_stake = consensus_constants_wit2.get_validator_max_stake_nanowits(epoch);
         for transaction in &block.txns.stake_txns {
             let (inputs, _output, fee, weight, change) = validate_stake_transaction(
                 transaction,
@@ -2246,16 +2254,20 @@ pub fn validate_block_transactions(
                 epoch_constants,
                 signatures_to_verify,
                 stakes,
+                min_stake,
+                max_stake,
             )?;
 
             total_fee += fee;
 
             // Update st weight
             let acc_weight = st_weight.saturating_add(weight);
-            if acc_weight > MAX_STAKE_BLOCK_WEIGHT {
+            let max_stake_block_weight =
+                consensus_constants_wit2.get_maximum_stake_block_weight(epoch);
+            if acc_weight > max_stake_block_weight {
                 return Err(BlockError::TotalStakeWeightLimitExceeded {
                     weight: acc_weight,
-                    max_weight: MAX_STAKE_BLOCK_WEIGHT,
+                    max_weight: max_stake_block_weight,
                 }
                 .into());
             }
@@ -2293,16 +2305,21 @@ pub fn validate_block_transactions(
         let mut ut_weight: u32 = 0;
 
         for transaction in &block.txns.unstake_txns {
-            let (fee, weight, outputs) = validate_unstake_transaction(transaction, epoch, stakes)?;
+            let min_stake = consensus_constants_wit2.get_validator_min_stake_nanowits(epoch);
+            let unstake_delay = consensus_constants_wit2.get_unstaking_delay_seconds(epoch);
+            let (fee, weight, outputs) =
+                validate_unstake_transaction(transaction, epoch, stakes, min_stake, unstake_delay)?;
 
             total_fee += fee;
 
             // Update ut weight
             let acc_weight = ut_weight.saturating_add(weight);
-            if acc_weight > MAX_UNSTAKE_BLOCK_WEIGHT {
+            let max_unstake_block_weight =
+                consensus_constants_wit2.get_maximum_unstake_block_weight(epoch);
+            if acc_weight > max_unstake_block_weight {
                 return Err(BlockError::TotalUnstakeWeightLimitExceeded {
                     weight: acc_weight,
-                    max_weight: MAX_UNSTAKE_BLOCK_WEIGHT,
+                    max_weight: max_unstake_block_weight,
                 }
                 .into());
             }
@@ -2385,6 +2402,7 @@ pub fn validate_block(
     active_wips: &ActiveWips,
     stakes: &StakesTracker,
     protocol_version: ProtocolVersion,
+    replication_factor: u16,
 ) -> Result<(), failure::Error> {
     let block_epoch = block.block_header.beacon.checkpoint;
     let hash_prev_block = block.block_header.beacon.hash_prev_block;
@@ -2414,7 +2432,7 @@ pub fn validate_block(
     } else {
         let target_hash = if protocol_version == ProtocolVersion::V2_0 {
             let validator = block.block_sig.public_key.pkh();
-            let eligibility = stakes.mining_eligibility(validator, block_epoch);
+            let eligibility = stakes.mining_eligibility(validator, block_epoch, replication_factor);
             if eligibility == Ok(Eligible::No(InsufficientPower))
                 || eligibility == Ok(Eligible::No(NotStaking))
             {
@@ -2503,8 +2521,13 @@ pub fn validate_new_transaction(
     superblock_period: u16,
     stakes: &StakesTracker,
     protocol_version: ProtocolVersion,
+    max_rounds: u16,
+    consensus_constants_wit2: &ConsensusConstantsWit2,
 ) -> Result<u64, failure::Error> {
     let utxo_diff = UtxoDiff::new(unspent_outputs_pool, block_number);
+    let min_stake = consensus_constants_wit2.get_validator_min_stake_nanowits(current_epoch);
+    let max_stake = consensus_constants_wit2.get_validator_max_stake_nanowits(current_epoch);
+    let unstake_delay = consensus_constants_wit2.get_unstaking_delay_seconds(current_epoch);
 
     match transaction {
         Transaction::ValueTransfer(tx) => validate_vt_transaction(
@@ -2548,6 +2571,8 @@ pub fn validate_new_transaction(
             superblock_period,
             protocol_version,
             stakes,
+            max_rounds,
+            min_stake,
         )
         .map(|(_, _, fee)| fee),
         Transaction::Reveal(tx) => {
@@ -2560,10 +2585,13 @@ pub fn validate_new_transaction(
             epoch_constants,
             signatures_to_verify,
             stakes,
+            min_stake,
+            max_stake,
         )
         .map(|(_, _, fee, _, _)| fee),
         Transaction::Unstake(tx) => {
-            validate_unstake_transaction(tx, current_epoch, stakes).map(|(fee, _, _)| fee)
+            validate_unstake_transaction(tx, current_epoch, stakes, min_stake, unstake_delay)
+                .map(|(fee, _, _)| fee)
         }
         _ => Err(TransactionError::NotValidTransaction.into()),
     }

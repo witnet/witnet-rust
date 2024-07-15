@@ -88,12 +88,6 @@ where
         CoinsAndAddresses<Coins, Address>,
         SyncStakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>,
     >,
-    /// The amount of coins that can be staked or can be left staked after unstaking.
-    /// TODO: reconsider whether this should be here, taking into account that it hinders the possibility of adjusting
-    ///  the minimum through TAPI or whatever. Maybe what we can do is set a skip directive for the Serialize macro so
-    ///  it never gets persisted and rather always read from constants, or hide the field and the related method
-    ///  behind a #[test] thing.
-    minimum_stakeable: Option<Coins>,
 }
 
 impl<const UNIT: u8, Address, Coins, Epoch, Nonce, Power>
@@ -150,6 +144,7 @@ where
         key: ISK,
         coins: Coins,
         epoch: Epoch,
+        minimum_stakeable: Coins,
     ) -> StakesResult<Stake<UNIT, Address, Coins, Epoch, Nonce, Power>, Address, Coins, Epoch>
     where
         ISK: Into<StakeKey<Address>>,
@@ -175,7 +170,7 @@ where
         stake
             .value
             .write()?
-            .add_stake(coins, epoch, self.minimum_stakeable)?;
+            .add_stake(coins, epoch, minimum_stakeable)?;
 
         // Update all indexes if needed (only when the stake entry didn't exist before)
         index_coins(&mut self.by_coins, key.clone(), stake.clone());
@@ -293,6 +288,7 @@ where
         &mut self,
         key: ISK,
         coins: Coins,
+        minimum_stakeable: Coins,
     ) -> StakesResult<Coins, Address, Coins, Epoch>
     where
         ISK: Into<StakeKey<Address>>,
@@ -307,7 +303,7 @@ where
                 let initial_coins = stake.coins;
 
                 // Reduce the amount of stake
-                let final_coins = stake.remove_stake(coins, self.minimum_stakeable)?;
+                let final_coins = stake.remove_stake(coins, minimum_stakeable)?;
 
                 (initial_coins, final_coins)
             };
@@ -381,7 +377,7 @@ where
             .value
             .write()
             .unwrap()
-            .add_stake(coins, current_epoch, Some(0.into()));
+            .add_stake(coins, current_epoch, 0.into());
 
         Ok(())
     }
@@ -391,6 +387,7 @@ where
         &mut self,
         validator: ISK,
         coins: Coins,
+        minimum_stakeable: Coins,
     ) -> StakesResult<(), Address, Coins, Epoch>
     where
         ISK: Into<Address>,
@@ -407,17 +404,9 @@ where
             .value
             .write()
             .unwrap()
-            .remove_stake(coins, self.minimum_stakeable);
+            .remove_stake(coins, minimum_stakeable);
 
         Ok(())
-    }
-
-    /// Creates an instance of `Stakes` with a custom minimum stakeable amount.
-    pub fn with_minimum(minimum: Coins) -> Self {
-        Stakes {
-            minimum_stakeable: Some(minimum),
-            ..Default::default()
-        }
     }
 
     /// Creates an instance of `Stakes` that is initialized with a existing set of stake entries.
@@ -643,6 +632,7 @@ pub fn process_stake_transaction<const UNIT: u8, Epoch, Nonce, Power>(
     stakes: &mut Stakes<UNIT, PublicKeyHash, Wit, Epoch, Nonce, Power>,
     transaction: &StakeTransaction,
     epoch: Epoch,
+    minimum_stakeable: u64,
 ) -> StakesResult<(), PublicKeyHash, Wit, Epoch>
 where
     Epoch: Copy
@@ -689,7 +679,7 @@ where
         key.validator.bech32(environment)
     );
 
-    stakes.add_stake(key, coins, epoch)?;
+    stakes.add_stake(key, coins, epoch, minimum_stakeable.into())?;
 
     log::debug!("Current state of the stakes tracker: {:#?}", stakes);
 
@@ -703,6 +693,7 @@ where
 pub fn process_unstake_transaction<const UNIT: u8, Epoch, Nonce, Power>(
     stakes: &mut Stakes<UNIT, PublicKeyHash, Wit, Epoch, Nonce, Power>,
     transaction: &UnstakeTransaction,
+    minimum_stakeable: u64,
 ) -> StakesResult<(), PublicKeyHash, Wit, Epoch>
 where
     Epoch: Copy
@@ -746,7 +737,7 @@ where
         coins.wits_and_nanowits().0,
     );
 
-    stakes.remove_stake(key, coins)?;
+    stakes.remove_stake(key, coins, minimum_stakeable.into())?;
 
     log::debug!("Current state of the stakes tracker: {:#?}", stakes);
 
@@ -761,6 +752,7 @@ pub fn process_stake_transactions<'a, const UNIT: u8, Epoch, Nonce, Power>(
     stakes: &mut Stakes<UNIT, PublicKeyHash, Wit, Epoch, Nonce, Power>,
     transactions: impl Iterator<Item = &'a StakeTransaction>,
     epoch: Epoch,
+    minimum_stakeable: u64,
 ) -> Result<(), StakesError<PublicKeyHash, Wit, Epoch>>
 where
     Epoch: Copy
@@ -791,7 +783,7 @@ where
     u64: From<Wit> + From<Power>,
 {
     for transaction in transactions {
-        process_stake_transaction(stakes, transaction, epoch)?;
+        process_stake_transaction(stakes, transaction, epoch, minimum_stakeable)?;
     }
 
     Ok(())
@@ -803,6 +795,7 @@ where
 pub fn process_unstake_transactions<'a, const UNIT: u8, Epoch, Nonce, Power>(
     stakes: &mut Stakes<UNIT, PublicKeyHash, Wit, Epoch, Nonce, Power>,
     transactions: impl Iterator<Item = &'a UnstakeTransaction>,
+    minimum_stakeable: u64,
 ) -> Result<(), StakesError<PublicKeyHash, Wit, Epoch>>
 where
     Epoch: Copy
@@ -833,7 +826,7 @@ where
     u64: From<Wit> + From<Power>,
 {
     for transaction in transactions {
-        process_unstake_transaction(stakes, transaction)?;
+        process_unstake_transaction(stakes, transaction, minimum_stakeable)?;
     }
 
     Ok(())
@@ -842,6 +835,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const MIN_STAKE_NANOWITS: u64 = 1;
 
     #[test]
     fn test_stakes_initialization() {
@@ -852,7 +847,7 @@ mod tests {
 
     #[test]
     fn test_add_stake() {
-        let mut stakes = StakesTester::with_minimum(5);
+        let mut stakes = StakesTester::default();
         let alice = "Alice";
         let bob = "Bob";
         let charlie = "Charlie";
@@ -877,7 +872,9 @@ mod tests {
 
         // Let's make Alice stake 100 Wit at epoch 100
         assert_eq!(
-            stakes.add_stake(alice_charlie, 100, 100).unwrap(),
+            stakes
+                .add_stake(alice_charlie, 100, 100, MIN_STAKE_NANOWITS)
+                .unwrap(),
             Stake::from_parts(
                 100,
                 CapabilityMap {
@@ -899,7 +896,9 @@ mod tests {
 
         // Let's make Alice stake 50 Wits at epoch 150 this time
         assert_eq!(
-            stakes.add_stake(alice_charlie, 50, 300).unwrap(),
+            stakes
+                .add_stake(alice_charlie, 50, 300, MIN_STAKE_NANOWITS)
+                .unwrap(),
             Stake::from_parts(
                 150,
                 CapabilityMap {
@@ -928,7 +927,9 @@ mod tests {
 
         // Now let's make Bob stake 500 Wits at epoch 1000 this time
         assert_eq!(
-            stakes.add_stake(bob_david, 500, 1_000).unwrap(),
+            stakes
+                .add_stake(bob_david, 500, 1_000, MIN_STAKE_NANOWITS)
+                .unwrap(),
             Stake::from_parts(
                 500,
                 CapabilityMap {
@@ -974,7 +975,7 @@ mod tests {
     #[test]
     fn test_coin_age_resets() {
         // First, lets create a setup with a few stakers
-        let mut stakes = StakesTester::with_minimum(5);
+        let mut stakes = StakesTester::default();
         let alice = "Alice";
         let bob = "Bob";
         let charlie = "Charlie";
@@ -985,9 +986,15 @@ mod tests {
         let bob_david = (bob, david);
         let charlie_erin = (charlie, erin);
 
-        stakes.add_stake(alice_charlie, 10, 0).unwrap();
-        stakes.add_stake(bob_david, 20, 20).unwrap();
-        stakes.add_stake(charlie_erin, 30, 30).unwrap();
+        stakes
+            .add_stake(alice_charlie, 10, 0, MIN_STAKE_NANOWITS)
+            .unwrap();
+        stakes
+            .add_stake(bob_david, 20, 20, MIN_STAKE_NANOWITS)
+            .unwrap();
+        stakes
+            .add_stake(charlie_erin, 30, 30, MIN_STAKE_NANOWITS)
+            .unwrap();
 
         // Let's really start our test at epoch 100
         assert_eq!(
@@ -1112,7 +1119,7 @@ mod tests {
     #[test]
     fn test_rank_proportional_reset() {
         // First, lets create a setup with a few stakers
-        let mut stakes = StakesTester::with_minimum(5);
+        let mut stakes = StakesTester::default();
         let alice = "Alice";
         let bob = "Bob";
         let charlie = "Charlie";
@@ -1125,11 +1132,21 @@ mod tests {
         let david_erin = (david, erin);
         let erin_alice = (erin, alice);
 
-        stakes.add_stake(alice_bob, 10, 0).unwrap();
-        stakes.add_stake(bob_charlie, 20, 10).unwrap();
-        stakes.add_stake(charlie_david, 30, 20).unwrap();
-        stakes.add_stake(david_erin, 40, 30).unwrap();
-        stakes.add_stake(erin_alice, 50, 40).unwrap();
+        stakes
+            .add_stake(alice_bob, 10, 0, MIN_STAKE_NANOWITS)
+            .unwrap();
+        stakes
+            .add_stake(bob_charlie, 20, 10, MIN_STAKE_NANOWITS)
+            .unwrap();
+        stakes
+            .add_stake(charlie_david, 30, 20, MIN_STAKE_NANOWITS)
+            .unwrap();
+        stakes
+            .add_stake(david_erin, 40, 30, MIN_STAKE_NANOWITS)
+            .unwrap();
+        stakes
+            .add_stake(erin_alice, 50, 40, MIN_STAKE_NANOWITS)
+            .unwrap();
 
         // Power of validators at epoch 90:
         //      alice_bob:      10 * (90 - 0) = 900
@@ -1165,7 +1182,7 @@ mod tests {
     #[test]
     fn test_query_stakes() {
         // First, lets create a setup with a few stakers
-        let mut stakes = StakesTester::with_minimum(5);
+        let mut stakes = StakesTester::default();
         let alice = "Alice";
         let bob = "Bob";
         let charlie = "Charlie";
@@ -1176,9 +1193,15 @@ mod tests {
         let bob_david = (bob, david);
         let charlie_erin = (charlie, erin);
 
-        stakes.add_stake(alice_charlie, 10, 0).unwrap();
-        stakes.add_stake(bob_david, 20, 30).unwrap();
-        stakes.add_stake(charlie_erin, 40, 50).unwrap();
+        stakes
+            .add_stake(alice_charlie, 10, 0, MIN_STAKE_NANOWITS)
+            .unwrap();
+        stakes
+            .add_stake(bob_david, 20, 30, MIN_STAKE_NANOWITS)
+            .unwrap();
+        stakes
+            .add_stake(charlie_erin, 40, 50, MIN_STAKE_NANOWITS)
+            .unwrap();
 
         let result = stakes.query_stakes(QueryStakesKey::Key(bob_david.into()));
         assert_eq!(
@@ -1249,12 +1272,14 @@ mod tests {
     fn test_serde() {
         use bincode;
 
-        let mut stakes = StakesTester::with_minimum(5);
+        let mut stakes = StakesTester::default();
         let alice = String::from("Alice");
         let bob = String::from("Bob");
 
         let alice_bob = (alice.clone(), bob.clone());
-        stakes.add_stake(alice_bob, 123, 456).ok();
+        stakes
+            .add_stake(alice_bob, 123, 456, MIN_STAKE_NANOWITS)
+            .ok();
 
         let serialized = bincode::serialize(&stakes).unwrap().clone();
         let mut deserialized: StakesTester = bincode::deserialize(serialized.as_slice()).unwrap();
@@ -1275,7 +1300,7 @@ mod tests {
     #[test]
     fn test_validator_withdrawer_pair() {
         // First, lets create a setup with a few stakers
-        let mut stakes = StakesTester::with_minimum(5);
+        let mut stakes = StakesTester::default();
         let alice = "Alice";
         let bob = "Bob";
         let charlie = "Charlie";
@@ -1285,7 +1310,9 @@ mod tests {
         assert_eq!(stakes.check_validator_withdrawer(alice, charlie), Ok(()));
 
         // Use the validator with a (validator, withdrawer) pair
-        stakes.add_stake((alice, bob), 10, 0).unwrap();
+        stakes
+            .add_stake((alice, bob), 10, 0, MIN_STAKE_NANOWITS)
+            .unwrap();
 
         // The validator is used, we can still stake as long as the correct withdrawer is used
         assert_eq!(stakes.check_validator_withdrawer(alice, bob), Ok(()));
@@ -1303,7 +1330,7 @@ mod tests {
     #[test]
     fn test_stakes_nonce() {
         // First, lets create a setup with a few stakers
-        let mut stakes = StakesTester::with_minimum(5);
+        let mut stakes = StakesTester::default();
         let alice = "Alice";
         let bob = "Bob";
         let charlie = "Charlie";
@@ -1312,16 +1339,24 @@ mod tests {
         let alice_charlie = (alice, charlie);
         let bob_david = (bob, david);
 
-        stakes.add_stake(alice_charlie, 10, 0).unwrap();
-        stakes.add_stake(bob_david, 20, 10).unwrap();
+        stakes
+            .add_stake(alice_charlie, 10, 0, MIN_STAKE_NANOWITS)
+            .unwrap();
+        stakes
+            .add_stake(bob_david, 20, 10, MIN_STAKE_NANOWITS)
+            .unwrap();
         assert_eq!(stakes.query_nonce(alice_charlie), Ok(1));
         assert_eq!(stakes.query_nonce(bob_david), Ok(1));
 
-        stakes.remove_stake(bob_david, 10).unwrap();
+        stakes
+            .remove_stake(bob_david, 10, MIN_STAKE_NANOWITS)
+            .unwrap();
         assert_eq!(stakes.query_nonce(alice_charlie), Ok(1));
         assert_eq!(stakes.query_nonce(bob_david), Ok(2));
 
-        stakes.add_stake(bob_david, 40, 30).unwrap();
+        stakes
+            .add_stake(bob_david, 40, 30, MIN_STAKE_NANOWITS)
+            .unwrap();
         assert_eq!(stakes.query_nonce(alice_charlie), Ok(1));
         assert_eq!(stakes.query_nonce(bob_david), Ok(3));
     }
