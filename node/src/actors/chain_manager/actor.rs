@@ -18,7 +18,6 @@ use witnet_data_structures::{
     types::LastBeacon,
     utxo_pool::{OldUnspentOutputsPool, OwnUnspentOutputsPool, UtxoWriteBatch},
     vrf::VrfCtx,
-    wit::Wit,
 };
 use witnet_util::timestamp::pretty_print;
 
@@ -108,6 +107,9 @@ impl ChainManager {
             })
             .and_then(|config, act, _ctx| {
                 let consensus_constants = config.consensus_constants.clone();
+
+                act.consensus_constants_wit2.checkpoint_zero_timestamp = consensus_constants.checkpoint_zero_timestamp;
+                act.consensus_constants_wit2.checkpoints_period = consensus_constants.checkpoints_period;
 
                 if config.mining.data_request_timeout == Duration::new(0, 0) {
                     act.data_request_timeout = None;
@@ -229,7 +231,7 @@ impl ChainManager {
 
                         // Initialize configurable data structures
                         let reputation_engine = ReputationEngine::new(consensus_constants.activity_period as usize);
-                        let stakes = Stakes::with_minimum(Wit::from_wits(MINIMUM_STAKEABLE_AMOUNT_WITS));
+                        let stakes = Stakes::default();
 
                         let chain_info = ChainInfo {
                             environment,

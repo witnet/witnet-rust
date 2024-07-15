@@ -51,7 +51,6 @@ use rand::Rng;
 use witnet_config::{
     config::Tapi,
     defaults::{
-        PSEUDO_CONSENSUS_CONSTANTS_POS_MIN_TOTAL_STAKE_NANOWITS,
         PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO,
         PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE,
     },
@@ -64,10 +63,11 @@ use witnet_data_structures::{
         reputation_issuance,
         tapi::{after_second_hard_fork, current_active_wips, in_emergency_period, ActiveWips},
         Alpha, AltKeys, Block, BlockHeader, Bn256PublicKey, ChainImport, ChainInfo, ChainState,
-        CheckpointBeacon, CheckpointVRF, ConsensusConstants, DataRequestInfo, DataRequestOutput,
-        DataRequestStage, Epoch, EpochConstants, Hash, Hashable, InventoryEntry, InventoryItem,
-        NodeStats, PublicKeyHash, Reputation, ReputationEngine, SignaturesToVerify, StateMachine,
-        SuperBlock, SuperBlockVote, TransactionsPool,
+        CheckpointBeacon, CheckpointVRF, ConsensusConstants, ConsensusConstantsWit2,
+        DataRequestInfo, DataRequestOutput, DataRequestStage, Epoch, EpochConstants, Hash,
+        Hashable, InventoryEntry, InventoryItem, NodeStats, PublicKeyHash, Reputation,
+        ReputationEngine, SignaturesToVerify, StateMachine, SuperBlock, SuperBlockVote,
+        TransactionsPool,
     },
     data_request::DataRequestPool,
     get_environment, get_protocol_version, get_protocol_version_activation_epoch,
@@ -121,8 +121,6 @@ mod actor;
 mod handlers;
 /// Block and data request mining
 pub mod mining;
-
-const POS_MIN_TOTAL_STAKE_NANOWITS: u64 = PSEUDO_CONSENSUS_CONSTANTS_POS_MIN_TOTAL_STAKE_NANOWITS;
 
 /// Maximum blocks number to be sent during synchronization process
 pub const MAX_BLOCKS_SYNC: usize = 500;
@@ -268,6 +266,8 @@ pub struct ChainManager {
     import: Force<ChainImport<ImportError>>,
     /// Signals that a chain snapshot export is due.
     export: Force<PathBuf>,
+    /// Consensus constants for wit/2
+    consensus_constants_wit2: ConsensusConstantsWit2,
 }
 
 impl ChainManager {
@@ -718,6 +718,7 @@ impl ChainManager {
                 vrf_ctx,
                 block_number,
                 &chain_info.consensus_constants,
+                &self.consensus_constants_wit2,
                 resynchronizing,
                 &active_wips,
                 Some(&mut transaction_visitor),
@@ -885,6 +886,7 @@ impl ChainManager {
                     self.vrf_ctx.as_mut().expect("No initialized VRF context"),
                     block_number,
                     &chain_info.consensus_constants,
+                    &self.consensus_constants_wit2,
                     false,
                     &active_wips,
                     Some(&mut transaction_visitor),
@@ -1033,14 +1035,22 @@ impl ChainManager {
                     && get_protocol_version_activation_epoch(ProtocolVersion::V2_0) == Epoch::MAX
                 {
                     if block_epoch % u32::from(superblock_period) == 0 {
-                        if stakes.total_staked() >= Wit::from(POS_MIN_TOTAL_STAKE_NANOWITS) {
+                        let min_total_stake = self
+                            .consensus_constants_wit2
+                            .get_wit2_minimum_total_stake_nanowits();
+                        let activation_delay = self
+                            .consensus_constants_wit2
+                            .get_wit2_activation_delay_epochs();
+                        if stakes.total_staked() >= Wit::from(min_total_stake) {
                             register_protocol_version(
                                 ProtocolVersion::V2_0,
-                                block_epoch + 26880,
+                                block_epoch + activation_delay,
                                 20,
                             );
                             if let Some(epoch_constants) = &mut self.epoch_constants {
-                                match epoch_constants.set_values_for_wit2(20, block_epoch + 26880) {
+                                match epoch_constants
+                                    .set_values_for_wit2(20, block_epoch + activation_delay)
+                                {
                                     Ok(_) => (),
                                     Err(_) => panic!("Could not set wit/2 checkpoint variables"),
                                 };
@@ -1055,6 +1065,10 @@ impl ChainManager {
                 if ProtocolVersion::from_epoch(block_epoch) == ProtocolVersion::V2_0 {
                     let _ = stakes.reset_age(miner_pkh, Capability::Mining, current_epoch, 1);
 
+                    let minimum_stakeable = self
+                        .consensus_constants_wit2
+                        .get_validator_min_stake_nanowits(block_epoch);
+
                     let mut total_commit_reward = 0;
                     for co_tx in &block.txns.commit_txns {
                         let commit_pkh = co_tx.body.proof.proof.pkh();
@@ -1068,8 +1082,11 @@ impl ChainManager {
                             .get_dr_output(&co_tx.body.dr_pointer)
                         {
                             // Subtract collateral from staked balance
-                            let _ = stakes
-                                .reserve_collateral(commit_pkh, Wit::from(dr_output.collateral));
+                            let _ = stakes.reserve_collateral(
+                                commit_pkh,
+                                Wit::from(dr_output.collateral),
+                                Wit::from(minimum_stakeable),
+                            );
 
                             dr_output.commit_and_reveal_fee
                         } else {
@@ -1218,10 +1235,13 @@ impl ChainManager {
                         transaction_fees += ut_tx.body.fee;
                     }
 
+                    let block_reward = self
+                        .consensus_constants_wit2
+                        .get_validator_block_reward(block_epoch);
                     let _ = stakes.add_reward(
                         miner_pkh,
-                        Wit::from(50_000_000_000) + Wit::from(transaction_fees),
-                        current_epoch,
+                        Wit::from(block_reward) + Wit::from(transaction_fees),
+                        block_epoch,
                     );
                 }
 
@@ -1254,17 +1274,31 @@ impl ChainManager {
                     if stake_txns_count > 0 {
                         log::debug!("Processing {stake_txns_count} stake transactions");
 
+                        let minimum_stakeable = self
+                            .consensus_constants_wit2
+                            .get_validator_min_stake_nanowits(current_epoch);
+
                         let _ = process_stake_transactions(
                             stakes,
                             block.txns.stake_txns.iter(),
                             block_epoch,
+                            minimum_stakeable,
                         );
                     }
 
                     let unstake_txns_count = block.txns.unstake_txns.len();
                     if unstake_txns_count > 0 {
-                        let _ =
-                            process_unstake_transactions(stakes, block.txns.unstake_txns.iter());
+                        log::debug!("Processing {unstake_txns_count} stake transactions");
+
+                        let minimum_stakeable = self
+                            .consensus_constants_wit2
+                            .get_validator_min_stake_nanowits(current_epoch);
+
+                        let _ = process_unstake_transactions(
+                            stakes,
+                            block.txns.unstake_txns.iter(),
+                            minimum_stakeable,
+                        );
                     }
                 }
 
@@ -1721,6 +1755,7 @@ impl ChainManager {
             };
             let required_reward_collateral_ratio =
                 PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
+            let max_rounds = chain_info.consensus_constants.extra_rounds + 1;
             let fut = future::ready(validate_new_transaction(
                 &msg.transaction,
                 (
@@ -1743,6 +1778,8 @@ impl ChainManager {
                 chain_info.consensus_constants.superblock_period,
                 &self.chain_state.stakes,
                 protocol_version,
+                max_rounds,
+                &self.consensus_constants_wit2,
             ))
             .into_actor(self)
             .and_then(|fee, act, _ctx| {
@@ -2259,6 +2296,9 @@ impl ChainManager {
             block_epoch: block.block_header.beacon.checkpoint,
         };
         let protocol_version = ProtocolVersion::from_epoch(block.block_header.beacon.checkpoint);
+        let replication_factor = self
+            .consensus_constants_wit2
+            .get_replication_factor(block.block_header.beacon.checkpoint);
         let res = validate_block(
             &block,
             current_epoch,
@@ -2270,6 +2310,7 @@ impl ChainManager {
             &active_wips,
             &self.chain_state.stakes,
             protocol_version,
+            replication_factor,
         );
 
         let fut = async {
@@ -2291,6 +2332,7 @@ impl ChainManager {
                 epoch_constants,
                 block_number,
                 &consensus_constants,
+                &act.consensus_constants_wit2,
                 &active_wips,
                 None,
                 &act.chain_state.stakes,
@@ -3029,12 +3071,14 @@ pub fn process_validations(
     vrf_ctx: &mut VrfCtx,
     block_number: u32,
     consensus_constants: &ConsensusConstants,
+    consensus_constants_wit2: &ConsensusConstantsWit2,
     resynchronizing: bool,
     active_wips: &ActiveWips,
     transaction_visitor: Option<&mut dyn Visitor<Visitable = (Transaction, u64, u32)>>,
     stakes: &StakesTracker,
     protocol_version: ProtocolVersion,
 ) -> Result<Diff, failure::Error> {
+    let replication_factor = consensus_constants_wit2.get_replication_factor(current_epoch);
     if !resynchronizing {
         let mut signatures_to_verify = vec![];
         validate_block(
@@ -3048,6 +3092,7 @@ pub fn process_validations(
             active_wips,
             stakes,
             protocol_version,
+            replication_factor,
         )?;
         log::debug!("Verifying {} block signatures", signatures_to_verify.len());
         verify_signatures(signatures_to_verify, vrf_ctx)?;
@@ -3064,6 +3109,7 @@ pub fn process_validations(
         epoch_constants,
         block_number,
         consensus_constants,
+        consensus_constants_wit2,
         active_wips,
         transaction_visitor,
         stakes,

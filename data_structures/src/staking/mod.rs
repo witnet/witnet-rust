@@ -1,7 +1,5 @@
 #![deny(missing_docs)]
 
-/// Constants related to the staking functionality.
-pub mod constants;
 /// Errors related to the staking functionality.
 pub mod errors;
 /// Auxiliary convenience types and data structures.
@@ -16,7 +14,6 @@ pub mod stakes;
 pub mod prelude {
     pub use crate::capabilities::*;
 
-    pub use super::constants::*;
     pub use super::errors::*;
     pub use super::helpers::*;
     pub use super::stake::*;
@@ -27,12 +24,14 @@ pub mod prelude {
 pub mod test {
     use super::prelude::*;
 
+    const MIN_STAKE_NANOWITS: u64 = 1;
+
     #[test]
     fn test_e2e() {
-        let mut stakes = StakesTester::with_minimum(1);
+        let mut stakes = StakesTester::default();
 
         // Alpha stakes 2 @ epoch 0
-        stakes.add_stake("Alpha", 2, 0).unwrap();
+        stakes.add_stake("Alpha", 2, 0, MIN_STAKE_NANOWITS).unwrap();
 
         // Nobody holds any power just yet
         let rank = stakes.rank(Capability::Mining, 0).collect::<Vec<_>>();
@@ -43,7 +42,7 @@ pub mod test {
         assert_eq!(rank, vec![("Alpha".into(), 2)]);
 
         // Beta stakes 5 @ epoch 10
-        stakes.add_stake("Beta", 5, 10).unwrap();
+        stakes.add_stake("Beta", 5, 10, MIN_STAKE_NANOWITS).unwrap();
 
         // Alpha is still leading, but Beta has scheduled its takeover
         let rank = stakes.rank(Capability::Mining, 10).collect::<Vec<_>>();
@@ -56,7 +55,9 @@ pub mod test {
         assert_eq!(rank, vec![("Beta".into(), 35), ("Alpha".into(), 34)]);
 
         // Gamma should never take over, even in a million epochs, because it has only 1 coin
-        stakes.add_stake("Gamma", 1, 30).unwrap();
+        stakes
+            .add_stake("Gamma", 1, 30, MIN_STAKE_NANOWITS)
+            .unwrap();
         let rank = stakes
             .rank(Capability::Mining, 1_000_000)
             .collect::<Vec<_>>();
@@ -70,7 +71,9 @@ pub mod test {
         );
 
         // But Delta is here to change it all
-        stakes.add_stake("Delta", 1_000, 50).unwrap();
+        stakes
+            .add_stake("Delta", 1_000, 50, MIN_STAKE_NANOWITS)
+            .unwrap();
         let rank = stakes.rank(Capability::Mining, 50).collect::<Vec<_>>();
         assert_eq!(
             rank,
@@ -93,7 +96,7 @@ pub mod test {
         );
 
         // If Alpha removes all of its stake, it should immediately disappear
-        stakes.remove_stake("Alpha", 2).unwrap();
+        stakes.remove_stake("Alpha", 2, MIN_STAKE_NANOWITS).unwrap();
         let rank = stakes.rank(Capability::Mining, 51).collect::<Vec<_>>();
         assert_eq!(
             rank,

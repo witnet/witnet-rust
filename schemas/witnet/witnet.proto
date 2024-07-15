@@ -428,6 +428,11 @@ message ConsensusConstants {
     uint32 halving_period = 25;
 }
 
+message ConsensusConstantsWit2 {
+    int64 checkpoint_zero_timestamp = 1;
+    uint32 checkpoints_period = 2;
+}
+
 message VrfProof {
     bytes proof = 1;
     PublicKey public_key = 2;

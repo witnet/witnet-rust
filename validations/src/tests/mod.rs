@@ -6,12 +6,7 @@ use std::{
 
 use itertools::Itertools;
 
-use witnet_config::defaults::{
-    PSEUDO_CONSENSUS_CONSTANTS_POS_MAX_STAKE_NANOWITS,
-    PSEUDO_CONSENSUS_CONSTANTS_POS_MIN_STAKE_NANOWITS,
-    PSEUDO_CONSENSUS_CONSTANTS_POS_UNSTAKING_DELAY_SECONDS,
-    PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO,
-};
+use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
 use witnet_crypto::{
     secp256k1::{PublicKey as Secp256k1_PublicKey, SecretKey as Secp256k1_SecretKey},
     signature::sign,
@@ -58,9 +53,11 @@ mod witnessing;
 static ONE_WIT: u64 = 1_000_000_000;
 const MAX_VT_WEIGHT: u32 = 20_000;
 const MAX_DR_WEIGHT: u32 = 80_000;
-const MAX_STAKE_NANOWITS: u64 = PSEUDO_CONSENSUS_CONSTANTS_POS_MAX_STAKE_NANOWITS;
-const MIN_STAKE_NANOWITS: u64 = PSEUDO_CONSENSUS_CONSTANTS_POS_MIN_STAKE_NANOWITS;
-const UNSTAKING_DELAY_SECONDS: u64 = PSEUDO_CONSENSUS_CONSTANTS_POS_UNSTAKING_DELAY_SECONDS;
+const MAX_STAKE_NANOWITS: u64 = 10_000_000_000_000_000;
+const MIN_STAKE_NANOWITS: u64 = 10_000_000_000_000;
+const UNSTAKING_DELAY_SECONDS: u64 = 1_209_600;
+const MAX_ROUNDS: u16 = 4;
+const REPLICATION_FACTOR: u16 = 3;
 
 const REQUIRED_REWARD_COLLATERAL_RATIO: u64 =
     PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
@@ -3056,6 +3053,8 @@ fn test_empty_commit(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
         superblock_period,
         ProtocolVersion::V1_7,
         &stakes,
+        MAX_ROUNDS,
+        MIN_STAKE_NANOWITS,
     )
     .map(|_| ())
 }
@@ -3116,6 +3115,8 @@ fn test_commit_with_dr_and_utxo_set(
         superblock_period,
         ProtocolVersion::V1_7,
         &stakes,
+        MAX_ROUNDS,
+        MIN_STAKE_NANOWITS,
     )?;
     verify_signatures_test(signatures_to_verify)?;
 
@@ -3210,6 +3211,8 @@ fn test_commit_difficult_proof() {
         superblock_period,
         ProtocolVersion::V1_7,
         &stakes,
+        MAX_ROUNDS,
+        MIN_STAKE_NANOWITS,
     )
     .and_then(|_| verify_signatures_test(signatures_to_verify));
 
@@ -3292,6 +3295,8 @@ fn test_commit_with_collateral(
         superblock_period,
         ProtocolVersion::V1_7,
         &stakes,
+        MAX_ROUNDS,
+        MIN_STAKE_NANOWITS,
     )
     .map(|_| ())
 }
@@ -3543,6 +3548,8 @@ fn commitment_invalid_proof() {
         superblock_period,
         ProtocolVersion::V1_7,
         &stakes,
+        MAX_ROUNDS,
+        MIN_STAKE_NANOWITS,
     )
     .and_then(|_| verify_signatures_test(signatures_to_verify));
 
@@ -3625,6 +3632,8 @@ fn commitment_dr_in_reveal_stage() {
         superblock_period,
         ProtocolVersion::V1_7,
         &stakes,
+        MAX_ROUNDS,
+        MIN_STAKE_NANOWITS,
     );
     assert_eq!(
         x.unwrap_err().downcast::<DataRequestError>().unwrap(),
@@ -4016,6 +4025,8 @@ fn commitment_collateral_zero_is_minimum() {
             superblock_period,
             ProtocolVersion::V1_7,
             &stakes,
+            MAX_ROUNDS,
+            MIN_STAKE_NANOWITS,
         )
         .map(|_| ())
     };
@@ -4115,6 +4126,8 @@ fn commitment_timelock() {
             superblock_period,
             ProtocolVersion::V1_7,
             &stakes,
+            MAX_ROUNDS,
+            MIN_STAKE_NANOWITS,
         )
         .map(|_| ())?;
 
@@ -8854,7 +8867,7 @@ fn setup_stakes_tracker(
     let stake_tx = StakeTransaction::new(stake_tx_body, vec![]);
 
     let mut stakes = StakesTracker::default();
-    let _ = process_stake_transactions(&mut stakes, vec![stake_tx].iter(), 0);
+    let _ = process_stake_transactions(&mut stakes, vec![stake_tx].iter(), 0, 10_000_000_000);
 
     (validator_pkh, withdrawer_pkh, stakes)
 }
@@ -8883,6 +8896,8 @@ fn st_not_allowed() {
         EpochConstants::default(),
         &mut vec![],
         &stakes,
+        MIN_STAKE_NANOWITS,
+        MAX_STAKE_NANOWITS,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -8914,6 +8929,8 @@ fn st_no_inputs() {
         EpochConstants::default(),
         &mut vec![],
         &stakes,
+        MIN_STAKE_NANOWITS,
+        MAX_STAKE_NANOWITS,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -8953,6 +8970,8 @@ fn st_one_input_but_no_signature() {
         EpochConstants::default(),
         &mut signatures_to_verify,
         &stakes,
+        MIN_STAKE_NANOWITS,
+        MAX_STAKE_NANOWITS,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -8993,6 +9012,8 @@ fn st_below_min_stake() {
         EpochConstants::default(),
         &mut signatures_to_verify,
         &stakes,
+        MIN_STAKE_NANOWITS,
+        MAX_STAKE_NANOWITS,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -9035,6 +9056,8 @@ fn st_above_max_stake() {
         EpochConstants::default(),
         &mut signatures_to_verify,
         &stakes,
+        MIN_STAKE_NANOWITS,
+        MAX_STAKE_NANOWITS,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -9060,6 +9083,8 @@ fn st_above_max_stake() {
         EpochConstants::default(),
         &mut signatures_to_verify,
         &stakes,
+        MIN_STAKE_NANOWITS,
+        MAX_STAKE_NANOWITS,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -9085,7 +9110,13 @@ fn unstake_success() {
     // Sign with the validator private key instead of the withdrawer private key
     let signature = sign_tx(PRIV_KEY_1, &unstake_tx_body, None);
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
-    let x = validate_unstake_transaction(&unstake_tx, Epoch::from(20001 as u32), &stakes);
+    let x = validate_unstake_transaction(
+        &unstake_tx,
+        Epoch::from(20001 as u32),
+        &stakes,
+        MIN_STAKE_NANOWITS,
+        UNSTAKING_DELAY_SECONDS,
+    );
     assert!(x.is_ok());
 
     // Setup stakes tracker with a (validator, withdrawer) pair
@@ -9102,7 +9133,13 @@ fn unstake_success() {
     // Sign with the validator private key instead of the withdrawer private key
     let signature = sign_tx(PRIV_KEY_2, &unstake_tx_body, None);
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
-    let x = validate_unstake_transaction(&unstake_tx, Epoch::from(20001 as u32), &stakes);
+    let x = validate_unstake_transaction(
+        &unstake_tx,
+        Epoch::from(20001 as u32),
+        &stakes,
+        MIN_STAKE_NANOWITS,
+        UNSTAKING_DELAY_SECONDS,
+    );
     assert!(x.is_ok());
 
     // Note that we did not process above unstake transaction, so the stakes structure did not change
@@ -9116,7 +9153,13 @@ fn unstake_success() {
     // Sign with the validator private key instead of the withdrawer private key
     let signature = sign_tx(PRIV_KEY_2, &unstake_tx_body, None);
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
-    let x = validate_unstake_transaction(&unstake_tx, Epoch::from(20001 as u32), &stakes);
+    let x = validate_unstake_transaction(
+        &unstake_tx,
+        Epoch::from(20001 as u32),
+        &stakes,
+        MIN_STAKE_NANOWITS,
+        UNSTAKING_DELAY_SECONDS,
+    );
     assert!(x.is_ok());
 }
 
@@ -9132,7 +9175,13 @@ fn unstake_not_allowed() {
     };
     let unstake_tx_body = UnstakeTransactionBody::new(PublicKeyHash::default(), vto, 0, 1);
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, KeyedSignature::default());
-    let x = validate_unstake_transaction(&unstake_tx, Epoch::default(), &stakes);
+    let x = validate_unstake_transaction(
+        &unstake_tx,
+        Epoch::default(),
+        &stakes,
+        MIN_STAKE_NANOWITS,
+        UNSTAKING_DELAY_SECONDS,
+    );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::NoUnstakeTransactionsAllowed {}
@@ -9153,7 +9202,13 @@ fn unstake_more_than_staked() {
     let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 1);
     let signature = sign_tx(PRIV_KEY_2, &unstake_tx_body, None);
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
-    let x = validate_unstake_transaction(&unstake_tx, Epoch::from(20001 as u32), &stakes);
+    let x = validate_unstake_transaction(
+        &unstake_tx,
+        Epoch::from(20001 as u32),
+        &stakes,
+        MIN_STAKE_NANOWITS,
+        UNSTAKING_DELAY_SECONDS,
+    );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::UnstakingMoreThanStaked {
@@ -9171,7 +9226,13 @@ fn unstake_more_than_staked() {
     let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 1, 1);
     let signature = sign_tx(PRIV_KEY_2, &unstake_tx_body, None);
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
-    let x = validate_unstake_transaction(&unstake_tx, Epoch::from(20001 as u32), &stakes);
+    let x = validate_unstake_transaction(
+        &unstake_tx,
+        Epoch::from(20001 as u32),
+        &stakes,
+        MIN_STAKE_NANOWITS,
+        UNSTAKING_DELAY_SECONDS,
+    );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::UnstakingMoreThanStaked {
@@ -9194,7 +9255,13 @@ fn unstake_invalid_nonce() {
     let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 0);
     let signature = sign_tx(PRIV_KEY_2, &unstake_tx_body, None);
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
-    let x = validate_unstake_transaction(&unstake_tx, Epoch::from(20001 as u32), &stakes);
+    let x = validate_unstake_transaction(
+        &unstake_tx,
+        Epoch::from(20001 as u32),
+        &stakes,
+        MIN_STAKE_NANOWITS,
+        UNSTAKING_DELAY_SECONDS,
+    );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::UnstakeInvalidNonce {
@@ -9218,7 +9285,13 @@ fn unstake_wrong_withdrawer() {
     // Sign with the validator private key instead of the withdrawer private key
     let signature = sign_tx(PRIV_KEY_1, &unstake_tx_body, None);
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
-    let x = validate_unstake_transaction(&unstake_tx, Epoch::from(20001 as u32), &stakes);
+    let x = validate_unstake_transaction(
+        &unstake_tx,
+        Epoch::from(20001 as u32),
+        &stakes,
+        MIN_STAKE_NANOWITS,
+        UNSTAKING_DELAY_SECONDS,
+    );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::NoStakeFound {
@@ -9241,7 +9314,13 @@ fn unstake_below_stake_minimum() {
     let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 1);
     let signature = sign_tx(PRIV_KEY_2, &unstake_tx_body, None);
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
-    let x = validate_unstake_transaction(&unstake_tx, Epoch::from(20001 as u32), &stakes);
+    let x = validate_unstake_transaction(
+        &unstake_tx,
+        Epoch::from(20001 as u32),
+        &stakes,
+        MIN_STAKE_NANOWITS,
+        UNSTAKING_DELAY_SECONDS,
+    );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::StakeBelowMinimum {
@@ -9264,7 +9343,13 @@ fn unstake_timelock() {
     let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 1);
     let signature = sign_tx(PRIV_KEY_2, &unstake_tx_body, None);
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
-    let x = validate_unstake_transaction(&unstake_tx, Epoch::from(20001 as u32), &stakes);
+    let x = validate_unstake_transaction(
+        &unstake_tx,
+        Epoch::from(20001 as u32),
+        &stakes,
+        MIN_STAKE_NANOWITS,
+        UNSTAKING_DELAY_SECONDS,
+    );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::InvalidUnstakeTimelock {
@@ -9287,11 +9372,23 @@ fn unstake_signature() {
     let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 1);
     let signature = sign_tx(PRIV_KEY_2, &unstake_tx_body, None);
     let mut unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
-    let x = validate_unstake_transaction(&unstake_tx, Epoch::from(20001 as u32), &stakes);
+    let x = validate_unstake_transaction(
+        &unstake_tx,
+        Epoch::from(20001 as u32),
+        &stakes,
+        MIN_STAKE_NANOWITS,
+        UNSTAKING_DELAY_SECONDS,
+    );
     assert!(x.is_ok());
 
     unstake_tx.body.withdrawal.value = 999;
-    let x = validate_unstake_transaction(&unstake_tx, Epoch::from(20001 as u32), &stakes);
+    let x = validate_unstake_transaction(
+        &unstake_tx,
+        Epoch::from(20001 as u32),
+        &stakes,
+        MIN_STAKE_NANOWITS,
+        UNSTAKING_DELAY_SECONDS,
+    );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::VerifyTransactionSignatureFail {
@@ -9464,6 +9561,7 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
         initial_block_reward: INITIAL_BLOCK_REWARD,
         halving_period: HALVING_PERIOD,
     };
+    let consensus_constants_wit2 = ConsensusConstantsWit2::default();
     // TODO: In this test the active wips depend on the current epoch
     // Ideally this should use all_wips_active() so that when adding new WIPs the existing tests
     // will fail if the logic is accidentally changed.
@@ -9539,6 +9637,7 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
         &active_wips,
         &stakes,
         protocol_version,
+        REPLICATION_FACTOR,
     )?;
     verify_signatures_test(signatures_to_verify)?;
     let mut signatures_to_verify = vec![];
@@ -9553,6 +9652,7 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
         EpochConstants::default(),
         block_number,
         &consensus_constants,
+        &consensus_constants_wit2,
         &active_wips,
         None,
         &stakes,
@@ -9749,6 +9849,7 @@ fn block_difficult_proof() {
         initial_block_reward: INITIAL_BLOCK_REWARD,
         halving_period: HALVING_PERIOD,
     };
+    let consensus_constants_wit2 = ConsensusConstantsWit2::default();
 
     // Insert output to utxo
     let output1 = ValueTransferOutput {
@@ -9820,6 +9921,7 @@ fn block_difficult_proof() {
                 &current_active_wips(),
                 &stakes,
                 protocol_version,
+                REPLICATION_FACTOR,
             )?;
             verify_signatures_test(signatures_to_verify)?;
             let mut signatures_to_verify = vec![];
@@ -9834,6 +9936,7 @@ fn block_difficult_proof() {
                 EpochConstants::default(),
                 block_number,
                 &consensus_constants,
+                &consensus_constants_wit2,
                 &current_active_wips(),
                 None,
                 &stakes,
@@ -10483,6 +10586,7 @@ fn test_blocks_with_limits(
         initial_block_reward: INITIAL_BLOCK_REWARD,
         halving_period: HALVING_PERIOD,
     };
+    let consensus_constants_wit2 = ConsensusConstantsWit2::default();
 
     // Insert output to utxo
     let output1 = ValueTransferOutput {
@@ -10554,6 +10658,7 @@ fn test_blocks_with_limits(
             &current_active_wips(),
             &stakes,
             protocol_version,
+            REPLICATION_FACTOR,
         )?;
         verify_signatures_test(signatures_to_verify)?;
         let mut signatures_to_verify = vec![];
@@ -10569,6 +10674,7 @@ fn test_blocks_with_limits(
             EpochConstants::default(),
             block_number,
             &consensus_constants,
+            &consensus_constants_wit2,
             &current_active_wips(),
             None,
             &stakes,
@@ -11068,6 +11174,7 @@ fn genesis_block_after_not_bootstrap_hash() {
         &current_active_wips(),
         &StakesTracker::default(),
         ProtocolVersion::V1_7,
+        REPLICATION_FACTOR,
     );
     assert_eq!(signatures_to_verify, vec![]);
 
@@ -11137,6 +11244,7 @@ fn genesis_block_value_overflow() {
         initial_block_reward: INITIAL_BLOCK_REWARD,
         halving_period: HALVING_PERIOD,
     };
+    let consensus_constants_wit2 = ConsensusConstantsWit2::default();
     let vrf_input = CheckpointVRF::default();
     let mut signatures_to_verify = vec![];
 
@@ -11152,6 +11260,7 @@ fn genesis_block_value_overflow() {
         &current_active_wips(),
         &stakes,
         protocol_version,
+        REPLICATION_FACTOR,
     )
     .unwrap();
     assert_eq!(signatures_to_verify, vec![]);
@@ -11168,6 +11277,7 @@ fn genesis_block_value_overflow() {
         EpochConstants::default(),
         block_number,
         &consensus_constants,
+        &consensus_constants_wit2,
         &current_active_wips(),
         None,
         &stakes,
@@ -11229,6 +11339,7 @@ fn genesis_block_full_validate() {
         initial_block_reward: INITIAL_BLOCK_REWARD,
         halving_period: HALVING_PERIOD,
     };
+    let consensus_constants_wit2 = ConsensusConstantsWit2::default();
 
     // Validate block
     validate_block(
@@ -11242,6 +11353,7 @@ fn genesis_block_full_validate() {
         &current_active_wips(),
         &stakes,
         protocol_version,
+        REPLICATION_FACTOR,
     )
     .unwrap();
     assert_eq!(signatures_to_verify, vec![]);
@@ -11258,6 +11370,7 @@ fn genesis_block_full_validate() {
         EpochConstants::default(),
         block_number,
         &consensus_constants,
+        &consensus_constants_wit2,
         &current_active_wips(),
         None,
         &stakes,
@@ -11300,6 +11413,7 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
             initial_block_reward: INITIAL_BLOCK_REWARD,
             halving_period: HALVING_PERIOD,
         };
+        let consensus_constants_wit2 = ConsensusConstantsWit2::default();
         let mut dr_pool = DataRequestPool::default();
         let vrf = &mut VrfCtx::secp256k1().unwrap();
         let rep_eng = ReputationEngine::new(100);
@@ -11351,6 +11465,7 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
             EpochConstants::default(),
             block_number,
             &consensus_constants,
+            &consensus_constants_wit2,
             &current_active_wips(),
             None,
             &stakes,
@@ -11488,6 +11603,7 @@ fn validate_commit_transactions_included_in_utxo_diff() {
             initial_block_reward: INITIAL_BLOCK_REWARD,
             halving_period: HALVING_PERIOD,
         };
+        let consensus_constants_wit2 = ConsensusConstantsWit2::default();
 
         let (inputs, outputs) = (vec![vti], vec![change_vto.clone()]);
         cb.collateral = inputs;
@@ -11520,6 +11636,7 @@ fn validate_commit_transactions_included_in_utxo_diff() {
             EpochConstants::default(),
             block_number,
             &consensus_constants,
+            &consensus_constants_wit2,
             &current_active_wips(),
             None,
             &stakes,
@@ -11688,6 +11805,7 @@ fn validate_required_tally_not_found() {
         EpochConstants::default(),
         100,
         &ConsensusConstants::default(),
+        &ConsensusConstantsWit2::default(),
         &current_active_wips(),
         None,
         &stakes,
