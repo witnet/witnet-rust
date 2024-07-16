@@ -2378,20 +2378,16 @@ pub fn compare_block_candidates(
     version: ProtocolVersion,
 ) -> Ordering {
     if version == ProtocolVersion::V2_0 {
-        // Higher power wins
-        if b1_power > b2_power {
-            Ordering::Greater
-        // Lower power loses
-        } else if b1_power < b2_power {
-            Ordering::Less
-        // Equal power, first compare VRF hash and finally the block hash
-        } else {
-            // Bigger vrf hash implies worse block candidate
-            b1_vrf_hash
-                .cmp(&b2_vrf_hash)
-                .reverse()
-                // Bigger block implies worse block candidate
-                .then(b1_hash.cmp(&b2_hash).reverse())
+        match b1_power.cmp(&b2_power) {
+            // Equal power, first compare VRF hash and finally the block hash
+            Ordering::Equal => {
+                b1_vrf_hash
+                    .cmp(&b2_vrf_hash)
+                    .reverse()
+                    // Bigger block implies worse block candidate
+                    .then(b1_hash.cmp(&b2_hash).reverse())
+            }
+            ord=> ord,
         }
     } else {
         let section1 = s.slot(&b1_vrf_hash);

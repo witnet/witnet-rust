@@ -8961,6 +8961,7 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
     let vrf = &mut VrfCtx::secp256k1().unwrap();
     let rep_eng = ReputationEngine::new(100);
     let block_number = 100_000;
+    let stakes = Stakes::<PublicKeyHash, Wit, u32, u64>::default();
 
     let consensus_constants = ConsensusConstants {
         checkpoint_zero_timestamp: 0,
@@ -9063,7 +9064,7 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
         &consensus_constants,
         &active_wips,
         ProtocolVersion::V1_7,
-        &Stakes::<PublicKeyHash, Wit, u32, u64>::default(),
+        &stakes,
     )?;
     verify_signatures_test(signatures_to_verify)?;
     let mut signatures_to_verify = vec![];
@@ -9080,7 +9081,7 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
         &consensus_constants,
         &active_wips,
         None,
-        None,
+        &stakes,
     )?;
     verify_signatures_test(signatures_to_verify)?;
 
@@ -9243,6 +9244,7 @@ fn block_difficult_proof() {
         .push_activity((0..512).map(|x| PublicKeyHash::from_hex(&format!("{:040}", x)).unwrap()));
     let mut utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
+    let stakes = Stakes::<PublicKeyHash, Wit, u32, u64>::default();
 
     let consensus_constants = ConsensusConstants {
         checkpoint_zero_timestamp: 0,
@@ -9341,7 +9343,7 @@ fn block_difficult_proof() {
                 &consensus_constants,
                 &current_active_wips(),
                 ProtocolVersion::V1_7,
-                &Stakes::<PublicKeyHash, Wit, u32, u64>::default(),
+                &stakes,
             )?;
             verify_signatures_test(signatures_to_verify)?;
             let mut signatures_to_verify = vec![];
@@ -9358,7 +9360,7 @@ fn block_difficult_proof() {
                 &consensus_constants,
                 &current_active_wips(),
                 None,
-                None,
+                &stakes,
             )?;
             verify_signatures_test(signatures_to_verify)?;
 
@@ -9953,6 +9955,7 @@ fn test_blocks_with_limits(
     let rep_eng = ReputationEngine::new(100);
     let mut utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
+    let stakes = Stakes::<PublicKeyHash, Wit, u32, u64>::default();
 
     let consensus_constants = ConsensusConstants {
         checkpoint_zero_timestamp: 0,
@@ -10051,7 +10054,7 @@ fn test_blocks_with_limits(
             &consensus_constants,
             &current_active_wips(),
             ProtocolVersion::V1_7,
-            &Stakes::<PublicKeyHash, Wit, u32, u64>::default(),
+            &stakes,
         )?;
         verify_signatures_test(signatures_to_verify)?;
         let mut signatures_to_verify = vec![];
@@ -10069,7 +10072,7 @@ fn test_blocks_with_limits(
             &consensus_constants,
             &current_active_wips(),
             None,
-            None,
+            &stakes,
         )?;
         verify_signatures_test(signatures_to_verify)?;
 
@@ -10597,6 +10600,7 @@ fn genesis_block_value_overflow() {
     let dr_pool = DataRequestPool::default();
     let rep_eng = ReputationEngine::new(100);
     let utxo_set = UnspentOutputsPool::default();
+    let stakes = Stakes::<PublicKeyHash, Wit, u32, u64>::default();
 
     let current_epoch = 0;
     let block_number = 0;
@@ -10646,7 +10650,7 @@ fn genesis_block_value_overflow() {
         &consensus_constants,
         &current_active_wips(),
         ProtocolVersion::V1_7,
-        &Stakes::<PublicKeyHash, Wit, u32, u64>::default(),
+        &stakes,
     )
     .unwrap();
     assert_eq!(signatures_to_verify, vec![]);
@@ -10665,7 +10669,7 @@ fn genesis_block_value_overflow() {
         &consensus_constants,
         &current_active_wips(),
         None,
-        None,
+        &stakes,
     );
     assert_eq!(signatures_to_verify, vec![]);
     assert_eq!(
@@ -10685,6 +10689,7 @@ fn genesis_block_full_validate() {
     let dr_pool = DataRequestPool::default();
     let rep_eng = ReputationEngine::new(100);
     let utxo_set = UnspentOutputsPool::default();
+    let stakes = Stakes::<PublicKeyHash, Wit, u32, u64>::default();
 
     let current_epoch = 0;
     let block_number = 0;
@@ -10733,7 +10738,7 @@ fn genesis_block_full_validate() {
         &consensus_constants,
         &current_active_wips(),
         ProtocolVersion::V1_7,
-        &Stakes::<PublicKeyHash, Wit, u32, u64>::default(),
+        &stakes,
     )
     .unwrap();
     assert_eq!(signatures_to_verify, vec![]);
@@ -10752,7 +10757,7 @@ fn genesis_block_full_validate() {
         &consensus_constants,
         &current_active_wips(),
         None,
-        None,
+        &stakes,
     )
     .unwrap();
     assert_eq!(signatures_to_verify, vec![]);
@@ -10795,6 +10800,7 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
         let vrf = &mut VrfCtx::secp256k1().unwrap();
         let rep_eng = ReputationEngine::new(100);
         let utxo_set = UnspentOutputsPool::default();
+        let stakes = Stakes::<PublicKeyHash, Wit, u32, u64>::default();
 
         let secret_key = SecretKey {
             bytes: Protected::from(PRIV_KEY_1.to_vec()),
@@ -10842,7 +10848,7 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
             &consensus_constants,
             &current_active_wips(),
             None,
-            None,
+            &stakes,
         )
         .unwrap()
     };
@@ -10894,6 +10900,7 @@ fn validate_commit_transactions_included_in_utxo_diff() {
         let mut dr_pool = DataRequestPool::default();
         let vrf = &mut VrfCtx::secp256k1().unwrap();
         let rep_eng = ReputationEngine::new(100);
+        let stakes = Stakes::<PublicKeyHash, Wit, u32, u64>::default();
 
         let dro = DataRequestOutput {
             witness_reward: DEFAULT_WITNESS_REWARD,
@@ -11008,7 +11015,7 @@ fn validate_commit_transactions_included_in_utxo_diff() {
             &consensus_constants,
             &current_active_wips(),
             None,
-            None,
+            &stakes,
         )
         .unwrap()
     };
@@ -11158,6 +11165,7 @@ fn validate_required_tally_not_found() {
 
     let mut dr_pool = DataRequestPool::default();
     dr_pool.data_request_pool.insert(dr_pointer, dr_state);
+    let stakes = Stakes::<PublicKeyHash, Wit, u32, u64>::default();
 
     let b = Block::default();
 
@@ -11173,7 +11181,7 @@ fn validate_required_tally_not_found() {
         &ConsensusConstants::default(),
         &current_active_wips(),
         None,
-        None,
+        &stakes,
     )
     .unwrap_err();
 

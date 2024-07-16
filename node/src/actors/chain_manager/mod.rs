@@ -822,22 +822,16 @@ impl ChainManager {
                             // than the other to avoid the "activeness" comparison
                             is_active
                         };
-                    let power = match self.chain_state.stakes.query_power(
+                    let power = self.chain_state.stakes.query_power(
                         *block_pkh,
                         Capability::Mining,
                         block.block_header.beacon.checkpoint,
-                    ) {
-                        Ok(power) => power,
-                        Err(_) => 0,
-                    };
-                    let best_candidate_power = match self.chain_state.stakes.query_power(
+                    ).unwrap_or(0);
+                    let best_candidate_power = self.chain_state.stakes.query_power(
                         best_pkh,
                         Capability::Mining,
                         best_candidate.block.block_header.beacon.checkpoint,
-                    ) {
-                        Ok(power) => power,
-                        Err(_) => 0,
-                    };
+                    ).unwrap_or(0);
 
                     if compare_block_candidates(
                         hash_block,
@@ -4113,10 +4107,12 @@ mod tests {
                     Reputation(0),
                     vrf_hash_1,
                     false,
+                    Default::default(),
                     block_2.hash(),
                     Reputation(0),
                     vrf_hash_2,
                     false,
+                    Default::default(),
                     &VrfSlots::new(vec![Hash::default()]),
                     ProtocolVersion::V1_7,
                 ),
