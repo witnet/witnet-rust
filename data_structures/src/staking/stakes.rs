@@ -425,7 +425,7 @@ where
         let validator = validator.into();
         let withdrawer = withdrawer.into();
 
-        let valid_staking_pair = if !self.by_validator.contains_key(&validator) {
+        if !self.by_validator.contains_key(&validator) {
             Ok(())
         } else {
             let stake_key = StakeKey::from((validator.clone(), withdrawer));
@@ -434,9 +434,7 @@ where
             } else {
                 Err(StakesError::DifferentWithdrawer { validator })
             }
-        };
-
-        valid_staking_pair
+        }
     }
 
     /// Query stakes by stake key.
@@ -994,7 +992,6 @@ mod tests {
         let rank_subset: Vec<_> = stakes
             .rank(Capability::Mining, 90)
             .take(4)
-            .map(|sk| sk)
             .collect();
         for (i, (stake_key, _)) in rank_subset.into_iter().enumerate() {
             let _ = stakes.reset_age(
