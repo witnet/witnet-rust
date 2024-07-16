@@ -2387,7 +2387,7 @@ pub fn compare_block_candidates(
                     // Bigger block implies worse block candidate
                     .then(b1_hash.cmp(&b2_hash).reverse())
             }
-            ord=> ord,
+            ord => ord,
         }
     } else {
         let section1 = s.slot(&b1_vrf_hash);

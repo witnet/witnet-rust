@@ -19,7 +19,7 @@ fn test_compare_candidate_same_section() {
     // Only one section and all VRFs are valid
     let vrf_sections = VrfSlots::default();
     // Dummy zero power variable for tests before Witnet 2.0
-    let power_zero = Power::from(0 as u64);
+    let power_zero = Power::from(0_u64);
 
     // The candidate with reputation always wins
     for &bh_i in &[bh_1, bh_2] {
@@ -222,7 +222,7 @@ fn test_compare_candidate_different_section() {
     // Candidate 2 is in section 1
     let vrf_2 = vrf_sections.target_hashes()[1];
     // Dummy zero power variable for tests before Witnet 2.0
-    let power_zero = Power::from(0 as u64);
+    let power_zero = Power::from(0_u64);
 
     // The candidate in the lower section always wins
     for &bh_i in &[bh_1, bh_2] {
@@ -284,7 +284,7 @@ fn test_compare_candidate_different_reputation_bigger_than_zero() {
     // Only one section and all VRFs are valid
     let vrf_sections = VrfSlots::default();
     // Dummy zero power variable for tests before Witnet 2.0
-    let power_zero = Power::from(0 as u64);
+    let power_zero = Power::from(0_u64);
 
     // In case of active nodes with reputation, the difference will be the vrf not the reputation
     assert_eq!(
@@ -333,8 +333,8 @@ fn test_compare_candidates_witnet_pos() {
     let vrf_1 = Hash::SHA256([1; 32]);
     let vrf_2 = Hash::SHA256([2; 32]);
     let vrf_sections = VrfSlots::default();
-    let power_1 = Power::from(10 as u64);
-    let power_2 = Power::from(5 as u64);
+    let power_1 = Power::from(10_u64);
+    let power_2 = Power::from(5_u64);
 
     // The first staker proposing the first block wins because his power is higher or vrf and block hash are lower
     for power in &[power_1, power_2] {

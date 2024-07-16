@@ -822,16 +822,24 @@ impl ChainManager {
                             // than the other to avoid the "activeness" comparison
                             is_active
                         };
-                    let power = self.chain_state.stakes.query_power(
-                        *block_pkh,
-                        Capability::Mining,
-                        block.block_header.beacon.checkpoint,
-                    ).unwrap_or(0);
-                    let best_candidate_power = self.chain_state.stakes.query_power(
-                        best_pkh,
-                        Capability::Mining,
-                        best_candidate.block.block_header.beacon.checkpoint,
-                    ).unwrap_or(0);
+                    let power = self
+                        .chain_state
+                        .stakes
+                        .query_power(
+                            *block_pkh,
+                            Capability::Mining,
+                            block.block_header.beacon.checkpoint,
+                        )
+                        .unwrap_or(0);
+                    let best_candidate_power = self
+                        .chain_state
+                        .stakes
+                        .query_power(
+                            best_pkh,
+                            Capability::Mining,
+                            best_candidate.block.block_header.beacon.checkpoint,
+                        )
+                        .unwrap_or(0);
 
                     if compare_block_candidates(
                         hash_block,

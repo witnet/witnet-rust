@@ -1185,6 +1185,8 @@ fn vtt_timelock() {
     let epoch_constants = EpochConstants {
         checkpoint_zero_timestamp: 0,
         checkpoints_period: 1_000,
+        checkpoint_zero_timestamp_v2: 500,
+        checkpoints_period_v2: 1_000,
     };
 
     let test_vtt_epoch = |epoch, time_lock| {
@@ -3950,6 +3952,8 @@ fn commitment_timelock() {
     let epoch_constants = EpochConstants {
         checkpoint_zero_timestamp: 0,
         checkpoints_period: 1_000,
+        checkpoint_zero_timestamp_v2: 500,
+        checkpoints_period_v2: 1_000,
     };
     let test_commit_epoch = |epoch, time_lock| {
         let mut dr_pool = DataRequestPool::default();
@@ -8732,6 +8736,7 @@ fn st_no_inputs() {
     let utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+    let stakes = Default::default();
 
     // Try to create a stake tx with no inputs
     let st_output = StakeOutput {
@@ -8747,6 +8752,7 @@ fn st_no_inputs() {
         Epoch::default(),
         EpochConstants::default(),
         &mut vec![],
+        &stakes,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -8767,6 +8773,7 @@ fn st_one_input_but_no_signature() {
             .parse()
             .unwrap(),
     );
+    let stakes = Default::default();
 
     // No signatures but 1 input
     let stake_output = StakeOutput {
@@ -8782,6 +8789,7 @@ fn st_one_input_but_no_signature() {
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
+        &stakes,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -8803,6 +8811,7 @@ fn st_below_min_stake() {
             .parse()
             .unwrap(),
     );
+    let stakes = Default::default();
 
     // No signatures but 1 input
     let stake_output = StakeOutput {
@@ -8818,6 +8827,7 @@ fn st_below_min_stake() {
         Epoch::default(),
         EpochConstants::default(),
         &mut signatures_to_verify,
+        &stakes,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),

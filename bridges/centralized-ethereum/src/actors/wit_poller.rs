@@ -1,3 +1,15 @@
+use std::{convert::TryFrom, time::Duration};
+
+use actix::prelude::*;
+use serde_json::json;
+
+use witnet_data_structures::{chain::{
+    Block, ConsensusConstants, DataRequestInfo, Epoch, EpochConstants, Hash, Hashable,
+}, get_protocol_version_activation_epoch, get_protocol_version_period, proto::versioning::ProtocolVersion::{V1_7, V2_0}};
+use witnet_net::client::tcp::{jsonrpc, JsonRpcClient};
+use witnet_node::utils::stop_system_if_panicking;
+use witnet_util::timestamp::get_timestamp;
+
 use crate::{
     actors::{
         dr_database::{DrDatabase, DrInfoBridge, DrState, GetAllPendingDrs, SetDrInfoBridge},
@@ -5,15 +17,6 @@ use crate::{
     },
     config::Config,
 };
-use actix::prelude::*;
-use serde_json::json;
-use std::{convert::TryFrom, time::Duration};
-use witnet_data_structures::chain::{
-    Block, ConsensusConstants, DataRequestInfo, Epoch, EpochConstants, Hash, Hashable,
-};
-use witnet_net::client::tcp::{jsonrpc, JsonRpcClient};
-use witnet_node::utils::stop_system_if_panicking;
-use witnet_util::timestamp::get_timestamp;
 
 /// WitPoller actor checks periodically the state of the requests in Witnet to call DrReporter
 /// in case of found a tally
@@ -214,7 +217,7 @@ async fn get_dr_timestamp(
         }
     };
     let block_epoch = block.block_header.beacon.checkpoint;
-    let consensus_constants = match get_consensus_constants(witnet_client.clone()).await {
+    match get_consensus_constants(witnet_client.clone()).await {
         Ok(x) => x,
         Err(()) => {
             log::error!("Failed to get consensus constants from witnet client, will retry later");
@@ -222,8 +225,10 @@ async fn get_dr_timestamp(
         }
     };
     let epoch_constants = EpochConstants {
-        checkpoint_zero_timestamp: consensus_constants.checkpoint_zero_timestamp,
-        checkpoints_period: consensus_constants.checkpoints_period,
+        checkpoint_zero_timestamp: get_protocol_version_activation_epoch(V1_7).into(),
+        checkpoints_period: get_protocol_version_period(V1_7),
+        checkpoint_zero_timestamp_v2: get_protocol_version_activation_epoch(V2_0).into(),
+        checkpoints_period_v2: get_protocol_version_period(V2_0),
     };
     let timestamp = convert_block_epoch_to_timestamp(
         epoch_constants,
@@ -264,6 +269,11 @@ async fn get_consensus_constants(
 
 fn convert_block_epoch_to_timestamp(epoch_constants: EpochConstants, epoch: Epoch) -> u64 {
     // In case of error, return timestamp 0
-    u64::try_from(epoch_constants.epoch_timestamp(epoch).unwrap_or(0))
-        .expect("Epoch timestamp should return a positive value")
+    u64::try_from(
+        epoch_constants
+            .epoch_timestamp(epoch)
+            .unwrap_or((0, false))
+            .0,
+    )
+    .expect("Epoch timestamp should return a positive value")
 }
