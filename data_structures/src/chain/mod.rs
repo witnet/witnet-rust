@@ -4536,6 +4536,10 @@ impl EpochConstants {
     }
 
     /// Calculate the timestamp for a checkpoint (the start of an epoch)
+    ///
+    /// The return type is a tuple where the first item is the UNIX timestamp of corresponding the
+    /// start of the queried protocol epoch, and the second item is a flag that tells if the epoch
+    /// will happen after the 2_x hard fork.
     pub fn epoch_timestamp(&self, epoch: Epoch) -> Result<(i64, bool), EpochCalculationError> {
         let epoch_timestamp = Epoch::from(self.checkpoints_period)
             .checked_mul(epoch)

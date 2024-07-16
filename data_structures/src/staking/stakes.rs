@@ -989,10 +989,7 @@ mod tests {
         //      charlie_david:  30 * (90 - 20) = 2100
         //      david_erin:     40 * (90 - 30) = 2400
         //      erin_alice:     50 * (90 - 40) = 2500
-        let rank_subset: Vec<_> = stakes
-            .rank(Capability::Mining, 90)
-            .take(4)
-            .collect();
+        let rank_subset: Vec<_> = stakes.rank(Capability::Mining, 90).take(4).collect();
         for (i, (stake_key, _)) in rank_subset.into_iter().enumerate() {
             let _ = stakes.reset_age(
                 stake_key.validator,
