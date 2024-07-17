@@ -12,6 +12,9 @@ on:
         required: false
         default: true
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
   Bridge:
     runs-on: ubuntu-latest
@@ -24,6 +27,9 @@ jobs:
         run: |
           sudo apt install -y protobuf-compiler
           protoc --version
+
+      - name: Show Rust toolchain
+        run: rustup show
 
       - name: Build witnet-centralized-ethereum-bridge
         run: |

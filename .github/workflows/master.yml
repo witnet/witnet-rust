@@ -5,6 +5,9 @@ on:
     tags:
       - '*'
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
 #?####################################################################################################?#
 #?                                                                                                    ?#
@@ -129,6 +132,9 @@ jobs:
       - name: Install Protobuf
         run: brew install protobuf
 
+      - name: Show Rust toolchain
+        run: rustup show
+
       # MacOS Build
       - name: Building Macos Binary
         run: MACOSX_DEPLOYMENT_TARGET=10.14 OPENSSL_STATIC=1 OPENSSL_DIR="/usr/local/opt/openssl" cargo build --release -p witnet -p witnet_toolkit
@@ -162,6 +168,7 @@ jobs:
         run: |
           vcpkg.exe install openssl:x64-windows-static
           vcpkg.exe integrate install
+
 
       # Windows Build
       - name: Build Windows
