@@ -16,6 +16,8 @@ use witnet_data_structures::{
         StateMachine, ValueTransferOutput,
     },
     fee::AbsoluteFee,
+    get_protocol_version,
+    proto::versioning::VersionedHashable,
     transaction::Transaction,
 };
 use witnet_futures_utils::TryFutureExt2;
@@ -984,6 +986,7 @@ impl Worker {
         let wallet_data = wallet.public_data()?;
         let last_sync = wallet_data.last_sync;
         let last_confirmed = wallet_data.last_confirmed;
+        let protocol_version = get_protocol_version(Some(block_beacon.checkpoint));
         let (needs_clear_pending, needs_indexing) = if block_beacon.hash_prev_block
             == last_sync.hash_prev_block
             && (block_beacon.checkpoint == 0 || block_beacon.checkpoint > last_sync.checkpoint)
@@ -1008,7 +1011,7 @@ impl Worker {
             // Wallet pending state should be cleared and new block indexed
             (true, true)
         } else if block_beacon.checkpoint == last_confirmed.checkpoint
-            && block.hash() == last_confirmed.hash_prev_block
+            && block.versioned_hash(protocol_version) == last_confirmed.hash_prev_block
         {
             log::debug!(
                 "Tried to process a block #{} that was already confirmed in our chain #{} (cleaning pending state)",
