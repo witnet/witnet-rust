@@ -3,9 +3,11 @@ use std::{convert::TryFrom, time::Duration};
 use actix::prelude::*;
 use serde_json::json;
 
-use witnet_data_structures::{chain::{
-    Block, ConsensusConstants, DataRequestInfo, Epoch, EpochConstants, Hash, Hashable,
-}, get_protocol_version_activation_epoch, get_protocol_version_period, proto::versioning::ProtocolVersion::{V1_7, V2_0}};
+use witnet_data_structures::{
+    chain::{Block, ConsensusConstants, DataRequestInfo, Epoch, EpochConstants, Hash, Hashable},
+    get_protocol_version_activation_epoch, get_protocol_version_period,
+    proto::versioning::ProtocolVersion::{V1_7, V2_0},
+};
 use witnet_net::client::tcp::{jsonrpc, JsonRpcClient};
 use witnet_node::utils::stop_system_if_panicking;
 use witnet_util::timestamp::get_timestamp;

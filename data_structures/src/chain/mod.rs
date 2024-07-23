@@ -426,8 +426,10 @@ pub struct BlockTransactions {
     /// A list of signed tally transactions
     pub tally_txns: Vec<TallyTransaction>,
     /// A list of signed stake transactions
+    #[serde(default)]
     pub stake_txns: Vec<StakeTransaction>,
     /// A list of signed unstake transactions
+    #[serde(default)]
     pub unstake_txns: Vec<UnstakeTransaction>,
 }
 
@@ -735,19 +737,21 @@ pub struct BlockHeader {
 pub struct BlockMerkleRoots {
     /// A 256-bit hash based on the mint transaction committed to this block
     pub mint_hash: Hash,
-    /// A 256-bit hash based on all of the value transfer transactions committed to this block
+    /// A 256-bit hash based on all the value transfer transactions committed to this block
     pub vt_hash_merkle_root: Hash,
-    /// A 256-bit hash based on all of the data request transactions committed to this block
+    /// A 256-bit hash based on all the data request transactions committed to this block
     pub dr_hash_merkle_root: Hash,
-    /// A 256-bit hash based on all of the commit transactions committed to this block
+    /// A 256-bit hash based on all the commit transactions committed to this block
     pub commit_hash_merkle_root: Hash,
-    /// A 256-bit hash based on all of the reveal transactions committed to this block
+    /// A 256-bit hash based on all the reveal transactions committed to this block
     pub reveal_hash_merkle_root: Hash,
-    /// A 256-bit hash based on all of the tally transactions committed to this block
+    /// A 256-bit hash based on all the tally transactions committed to this block
     pub tally_hash_merkle_root: Hash,
-    /// A 256-bit hash based on all of the stake transactions committed to this block
+    /// A 256-bit hash based on all the stake transactions committed to this block
+    #[serde(default)]
     pub stake_hash_merkle_root: Hash,
-    /// A 256-bit hash based on all of the unstake transactions committed to this block
+    /// A 256-bit hash based on all the unstake transactions committed to this block
+    #[serde(default)]
     pub unstake_hash_merkle_root: Hash,
 }
 
