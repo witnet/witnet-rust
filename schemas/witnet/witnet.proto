@@ -434,6 +434,7 @@ message VrfProof {
 message DataRequestVrfMessage {
     CheckpointVRF vrf_input = 1;
     Hash dr_hash = 2;
+    PublicKeyHash withdrawer = 3;
 }
 
 message DataRequestEligibilityClaim {

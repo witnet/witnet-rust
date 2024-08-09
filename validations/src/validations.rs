@@ -2425,13 +2425,19 @@ pub fn verify_signatures(
     vrf: &mut VrfCtx,
 ) -> Result<Vec<Hash>, failure::Error> {
     let mut vrf_hashes = vec![];
-    for x in signatures_to_verify {
+    for (i, x) in signatures_to_verify.into_iter().enumerate() {
         match x {
             SignaturesToVerify::VrfBlock {
                 proof,
                 vrf_input,
                 target_hash,
             } => {
+                log::info!(
+                    "[SIGVER-BLOCK-{}] proof: {:?}, input: {:?}",
+                    i,
+                    proof,
+                    vrf_input
+                );
                 let vrf_hash = proof
                     .verify(vrf, vrf_input)
                     .map_err(|_| BlockError::NotValidPoe)?;
@@ -2450,6 +2456,12 @@ pub fn verify_signatures(
                 dr_hash,
                 target_hash,
             } => {
+                log::info!(
+                    "[SIGVER-DR-{}] proof: {:?}, input: {:?}",
+                    i,
+                    proof,
+                    vrf_input
+                );
                 let vrf_hash = proof
                     .verify(vrf, vrf_input, dr_hash)
                     .map_err(|_| TransactionError::InvalidDataRequestPoe)?;

@@ -26,47 +26,110 @@ pub type Power = u64;
 /// The resulting type for all the fallible functions in this module.
 pub type StakesResult<T, Address, Coins, Epoch> = Result<T, StakesError<Address, Coins, Epoch>>;
 
+/// Pairs a stake key and the stake data it refers.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+pub struct StakeEntry<Address, Coins, Epoch, Power>
+where
+    Address: Clone + Default,
+    Coins: Clone,
+    Epoch: Clone + Default,
+    Power: Clone,
+{
+    /// The key to which this stake entry belongs to.
+    pub key: StakeKey<Address>,
+    /// The stake data itself.
+    pub value: Stake<Address, Coins, Epoch, Power>,
+}
+
 /// The resulting type for functions in this module that return a single stake entry.
-pub type StakesEntryResult<Address, Coins, Epoch, Power> =
-    StakesResult<Stake<Address, Coins, Epoch, Power>, Address, Coins, Epoch>;
+pub type StakeEntryResult<Address, Coins, Epoch, Power> =
+    StakesResult<StakeEntry<Address, Coins, Epoch, Power>, Address, Coins, Epoch>;
 
 /// The resulting type for functions in this module that return a vector of stake entries.
-pub type StakesVecResult<Address, Coins, Epoch, Power> =
-    StakesResult<Vec<Stake<Address, Coins, Epoch, Power>>, Address, Coins, Epoch>;
+pub type StakeEntryVecResult<Address, Coins, Epoch, Power> =
+    StakesResult<Vec<StakeEntry<Address, Coins, Epoch, Power>>, Address, Coins, Epoch>;
 
-/// Newtype for a reference-counted and read-write-locked instance of `Stake`.
+impl<Address, Coins, Epoch, Power> From<StakeEntry<Address, Coins, Epoch, Power>>
+    for Stake<Address, Coins, Epoch, Power>
+where
+    Address: Clone + Default,
+    Coins: Clone,
+    Epoch: Clone + Default,
+    Power: Clone,
+{
+    fn from(entry: StakeEntry<Address, Coins, Epoch, Power>) -> Self {
+        entry.value
+    }
+}
+
+/// A reference-counted and read-write-locked equivalent to `StakeEntry`.
 ///
-/// This newtype is needed for implementing `PartialEq` manually on the locked data, which cannot be done directly
+/// This is needed for implementing `PartialEq` manually on the locked data, which cannot be done directly
 /// because those are externally owned types.
 #[derive(Clone, Debug, Default)]
-pub struct SyncStake<Address, Coins, Epoch, Power>
+pub struct SyncStakeEntry<Address, Coins, Epoch, Power>
 where
-    Address: Default,
-    Epoch: Default,
+    Address: Clone + Default,
+    Coins: Clone,
+    Epoch: Clone + Default,
+    Power: Clone,
 {
-    /// The lock itself.
+    /// A smart lock referring the key to which this stake entry belongs to.
+    pub key: Rc<RwLock<StakeKey<Address>>>,
+    /// A smart lock referring the stake data itself.
     pub value: Rc<RwLock<Stake<Address, Coins, Epoch, Power>>>,
 }
 
-impl<Address, Coins, Epoch, Power> From<Stake<Address, Coins, Epoch, Power>>
-    for SyncStake<Address, Coins, Epoch, Power>
+impl<Address, Coins, Epoch, Power> SyncStakeEntry<Address, Coins, Epoch, Power>
 where
-    Address: Default,
-    Epoch: Default,
+    Address: Clone + Default,
+    Coins: Clone,
+    Epoch: Clone + Default,
+    Power: Clone,
 {
+    /// Locks and reads both the stake key and the stake data referred by the stake entry.
+    pub fn read_entry(&self) -> StakeEntry<Address, Coins, Epoch, Power> {
+        let key = self.read_key();
+        let value = self.read_value();
+
+        StakeEntry { key, value }
+    }
+
+    /// Locks and reads the stake key referred by the stake entry.
     #[inline]
-    fn from(value: Stake<Address, Coins, Epoch, Power>) -> Self {
-        SyncStake {
-            value: Rc::new(RwLock::new(value)),
+    pub fn read_key(&self) -> StakeKey<Address> {
+        self.key.read().unwrap().clone()
+    }
+
+    /// Locks and reads the stake data referred by the stake entry.
+    #[inline]
+    pub fn read_value(&self) -> Stake<Address, Coins, Epoch, Power> {
+        self.value.read().unwrap().clone()
+    }
+}
+
+impl<Address, Coins, Epoch, Power> From<StakeEntry<Address, Coins, Epoch, Power>>
+    for SyncStakeEntry<Address, Coins, Epoch, Power>
+where
+    Address: Clone + Default,
+    Coins: Clone,
+    Epoch: Clone + Default,
+    Power: Clone,
+{
+    fn from(entry: StakeEntry<Address, Coins, Epoch, Power>) -> Self {
+        SyncStakeEntry {
+            key: Rc::new(RwLock::new(entry.key)),
+            value: Rc::new(RwLock::new(entry.value)),
         }
     }
 }
 
-impl<Address, Coins, Epoch, Power> PartialEq for SyncStake<Address, Coins, Epoch, Power>
+impl<Address, Coins, Epoch, Power> PartialEq for SyncStakeEntry<Address, Coins, Epoch, Power>
 where
-    Address: Default,
-    Epoch: Default + PartialEq,
-    Coins: PartialEq,
+    Address: Clone + Default,
+    Epoch: Clone + Default + PartialEq,
+    Coins: Clone + PartialEq,
+    Power: Clone,
 {
     fn eq(&self, other: &Self) -> bool {
         let self_stake = self.value.read().unwrap();
@@ -76,25 +139,31 @@ where
     }
 }
 
-impl<'de, Address, Coins, Epoch, Power> Deserialize<'de> for SyncStake<Address, Coins, Epoch, Power>
+impl<'de, Address, Coins, Epoch, Power> Deserialize<'de>
+    for SyncStakeEntry<Address, Coins, Epoch, Power>
 where
-    Address: Default,
-    Epoch: Default,
-    Stake<Address, Coins, Epoch, Power>: Deserialize<'de>,
+    Address: Clone + Default,
+    Coins: Clone,
+    Epoch: Clone + Default,
+    Power: Clone,
+    StakeEntry<Address, Coins, Epoch, Power>: Deserialize<'de>,
 {
     #[inline]
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        <Stake<Address, Coins, Epoch, Power>>::deserialize(deserializer).map(SyncStake::from)
+        <StakeEntry<Address, Coins, Epoch, Power>>::deserialize(deserializer)
+            .map(SyncStakeEntry::from)
     }
 }
 
-impl<Address, Coins, Epoch, Power> Serialize for SyncStake<Address, Coins, Epoch, Power>
+impl<Address, Coins, Epoch, Power> Serialize for SyncStakeEntry<Address, Coins, Epoch, Power>
 where
-    Address: Default,
-    Epoch: Default,
+    Address: Clone + Default,
+    Coins: Clone,
+    Epoch: Clone + Default,
+    Power: Clone,
     Stake<Address, Coins, Epoch, Power>: Serialize,
 {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -203,11 +272,12 @@ pub enum CensusStrategy {
 
 impl<Address, Coins, Epoch, Power> Serialize for Stakes<Address, Coins, Epoch, Power>
 where
-    Address: Default + Ord,
-    Coins: Ord,
-    Epoch: Default,
+    Address: Clone + Default + Ord,
+    Coins: Clone + Ord,
+    Epoch: Clone + Default,
+    Power: Clone,
     StakeKey<Address>: Serialize,
-    SyncStake<Address, Coins, Epoch, Power>: Serialize,
+    SyncStakeEntry<Address, Coins, Epoch, Power>: Serialize,
 {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -301,7 +371,8 @@ where
         + Sync
         + Add<Output = Epoch>
         + Div<Output = Epoch>,
-    Power: Add<Output = Power> + Copy + Default + Div<Output = Power> + Ord + Sum,
+    Power:
+        Add<Output = Power> + Copy + Default + Deserialize<'de> + Div<Output = Power> + Ord + Sum,
     u64: From<Coins> + From<Power>,
 {
     type Value = Stakes<Address, Coins, Epoch, Power>;
@@ -315,7 +386,7 @@ where
         A: MapAccess<'de>,
     {
         let mut entries =
-            <BTreeMap<StakeKey<Address>, SyncStake<Address, Coins, Epoch, Power>>>::new();
+            <BTreeMap<StakeKey<Address>, SyncStakeEntry<Address, Coins, Epoch, Power>>>::new();
 
         while let Some((key, value)) = map.next_entry()? {
             entries.insert(key, value);
@@ -333,8 +404,10 @@ mod test {
 
     #[test]
     fn test_cloning_assumptions() {
-        let a =
-            SyncStake::<String, u64, u64, u64>::from(Stake::from_parts(123, Default::default()));
+        let a = SyncStakeEntry::<String, u64, u64, u64>::from(StakeEntry {
+            key: Default::default(),
+            value: Stake::from_parts(123, Default::default()),
+        });
         let b = a.clone();
 
         {

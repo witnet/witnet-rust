@@ -106,14 +106,35 @@ impl VrfMessage {
         VrfMessage(vrf_input.to_pb_bytes().unwrap())
     }
 
-    /// Create a VRF message used for data request commitment eligibility
-    pub fn data_request(vrf_input: CheckpointVRF, dr_hash: Hash) -> VrfMessage {
+    /// Create a VRF message used for data request commitment eligibility (V1_X)
+    ///
+    /// This piggybacks on V2_X VRF message building, but drops the latest 24 bytes for backwards
+    /// compatibility with the V1_X protobuf schema.
+    pub fn data_request_v1(vrf_input: CheckpointVRF, dr_hash: Hash) -> VrfMessage {
+        let msg = Self::data_request_v2(vrf_input, dr_hash, None);
+        let VrfMessage(mut bytes) = msg;
+        bytes.drain((bytes.len() - 24)..);
+
+        Self::set_data(bytes)
+    }
+
+    /// Create a VRF message used for data request commitment eligibility (V2_X)
+    pub fn data_request_v2(
+        vrf_input: CheckpointVRF,
+        dr_hash: Hash,
+        withdrawer: Option<PublicKeyHash>,
+    ) -> VrfMessage {
         VrfMessage(
-            DataRequestVrfMessage { vrf_input, dr_hash }
-                .to_pb_bytes()
-                .unwrap(),
+            DataRequestVrfMessage {
+                vrf_input,
+                dr_hash,
+                withdrawer,
+            }
+            .to_pb_bytes()
+            .unwrap(),
         )
     }
+
     /// Create a VRF message
     pub fn set_data(data: Vec<u8>) -> VrfMessage {
         VrfMessage(data)
@@ -164,12 +185,13 @@ impl BlockEligibilityClaim {
     }
 }
 
-/// Structure used to serialize the parameters needed for the `DataRequestEligibilityClaim`
+/// Structure used to serialize the parameters needed for the `DataRequestEligibilityClaim` (V1_X)
 #[derive(Debug, ProtobufConvert)]
 #[protobuf_convert(pb = "witnet::DataRequestVrfMessage")]
 struct DataRequestVrfMessage {
     vrf_input: CheckpointVRF,
     dr_hash: Hash,
+    withdrawer: Option<PublicKeyHash>,
 }
 
 /// Data request eligibility claim
@@ -188,7 +210,7 @@ impl DataRequestEligibilityClaim {
         vrf_input: CheckpointVRF,
         dr_hash: Hash,
     ) -> Result<Self, failure::Error> {
-        let message = VrfMessage::data_request(vrf_input, dr_hash);
+        let message = VrfMessage::data_request_v1(vrf_input, dr_hash);
         Ok(Self {
             proof: VrfProof::create(vrf, secret_key, &message)?.0,
         })
@@ -202,7 +224,7 @@ impl DataRequestEligibilityClaim {
         dr_hash: Hash,
     ) -> Result<Hash, failure::Error> {
         self.proof
-            .verify(vrf, &VrfMessage::data_request(vrf_input, dr_hash))
+            .verify(vrf, &VrfMessage::data_request_v1(vrf_input, dr_hash))
             .map(|v| {
                 let mut sha256 = [0; 32];
                 sha256.copy_from_slice(&v);

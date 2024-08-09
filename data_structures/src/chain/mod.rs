@@ -1233,7 +1233,12 @@ impl Hash {
         }
     }
 
-    /// Creates an instance of Hash where all bytes are set to their max value.
+    // Creates an instance of Hash where all bytes are set to their minimum value (0).
+    pub fn min() -> Self {
+        Self::SHA256([u8::MIN; 32])
+    }
+
+    /// Creates an instance of Hash where all bytes are set to their maximum value (255).
     pub fn max() -> Self {
         Self::SHA256([u8::MAX; 32])
     }

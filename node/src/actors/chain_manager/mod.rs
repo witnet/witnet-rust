@@ -2916,6 +2916,7 @@ pub fn process_validations(
             protocol_version,
             stakes,
         )?;
+        log::debug!("Verifying {} block signatures", signatures_to_verify.len());
         verify_signatures(signatures_to_verify, vrf_ctx)?;
     }
 
@@ -2936,6 +2937,10 @@ pub fn process_validations(
     )?;
 
     if !resynchronizing {
+        log::debug!(
+            "Verifying {} transactions signatures",
+            signatures_to_verify.len()
+        );
         verify_signatures(signatures_to_verify, vrf_ctx)?;
     }
 
