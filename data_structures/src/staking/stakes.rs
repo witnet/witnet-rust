@@ -66,21 +66,23 @@ where
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Stakes<Address, Coins, Epoch, Power>
 where
-    Address: Default + Ord,
-    Coins: Ord,
-    Epoch: Default,
+    Address: Clone + Default + Ord,
+    Coins: Clone + Ord,
+    Epoch: Clone + Default,
+    Power: Clone,
 {
     /// A listing of all the stake entries, indexed by their stake key.
-    pub(crate) by_key: BTreeMap<StakeKey<Address>, SyncStake<Address, Coins, Epoch, Power>>,
+    pub(crate) by_key: BTreeMap<StakeKey<Address>, SyncStakeEntry<Address, Coins, Epoch, Power>>,
     /// A listing of all the stake entries, indexed by validator.
-    by_validator: BTreeMap<Address, Vec<SyncStake<Address, Coins, Epoch, Power>>>,
+    by_validator: BTreeMap<Address, Vec<SyncStakeEntry<Address, Coins, Epoch, Power>>>,
     /// A listing of all the stake entries, indexed by withdrawer.
-    by_withdrawer: BTreeMap<Address, Vec<SyncStake<Address, Coins, Epoch, Power>>>,
+    by_withdrawer: BTreeMap<Address, Vec<SyncStakeEntry<Address, Coins, Epoch, Power>>>,
     /// A listing of all the stake entries, indexed by their coins and address.
     ///
     /// Because this uses a compound key to prevent duplicates, if we want to know which addresses
     /// have staked a particular amount, we just need to run a range lookup on the tree.
-    by_coins: BTreeMap<CoinsAndAddresses<Coins, Address>, SyncStake<Address, Coins, Epoch, Power>>,
+    by_coins:
+        BTreeMap<CoinsAndAddresses<Coins, Address>, SyncStakeEntry<Address, Coins, Epoch, Power>>,
     /// The amount of coins that can be staked or can be left staked after unstaking.
     /// TODO: reconsider whether this should be here, taking into account that it hinders the possibility of adjusting
     ///  the minimum through TAPI or whatever. Maybe what we can do is set a skip directive for the Serialize macro so
@@ -214,7 +216,7 @@ where
 
         Ok(validator
             .iter()
-            .map(|stake| stake.value.read().unwrap().power(capability, epoch))
+            .map(|stake| stake.read_value().power(capability, epoch))
             .collect::<Vec<Power>>()
             .into_iter()
             .sum())
@@ -232,11 +234,10 @@ where
     ) -> impl Iterator<Item = (StakeKey<Address>, Power)> + '_ {
         self.by_coins
             .iter()
-            .flat_map(move |(CoinsAndAddresses { addresses, .. }, stake)| {
-                stake
-                    .value
-                    .read()
-                    .map(move |stake| (addresses.clone(), stake.power(capability, current_epoch)))
+            .map(move |(CoinsAndAddresses { addresses, .. }, stake)| {
+                let power = stake.read_value().power(capability, current_epoch);
+
+                (addresses.clone(), power)
             })
             .sorted_by_key(|(_, power)| *power)
             .rev()
@@ -352,7 +353,7 @@ where
     /// This is specially convenient after loading stakes from storage, as this function rebuilds
     /// all the indexes at once to preserve write locks and reference counts.
     pub fn with_entries(
-        entries: BTreeMap<StakeKey<Address>, SyncStake<Address, Coins, Epoch, Power>>,
+        entries: BTreeMap<StakeKey<Address>, SyncStakeEntry<Address, Coins, Epoch, Power>>,
     ) -> Self {
         let mut stakes = Stakes {
             by_key: entries,
@@ -384,7 +385,7 @@ where
     pub fn query_stakes<TIQSK>(
         &mut self,
         query: TIQSK,
-    ) -> StakesVecResult<Address, Coins, Epoch, Power>
+    ) -> StakeEntryVecResult<Address, Coins, Epoch, Power>
     where
         TIQSK: TryInto<QueryStakesKey<Address>>,
     {
@@ -404,8 +405,11 @@ where
     where
         TIQSK: TryInto<QueryStakesKey<Address>>,
     {
-        self.query_stakes(query)
-            .map(|v| v.iter().fold(Coins::zero(), |a, b| a + b.coins))
+        totalize_stakes(
+            self.query_stakes(query)?
+                .into_iter()
+                .map(|entry| entry.value),
+        )
     }
 
     /// Return the total number of validators.
@@ -442,14 +446,12 @@ where
     fn query_by_key(
         &self,
         key: StakeKey<Address>,
-    ) -> StakesEntryResult<Address, Coins, Epoch, Power> {
+    ) -> StakeEntryResult<Address, Coins, Epoch, Power> {
         Ok(self
             .by_key
             .get(&key)
             .ok_or(StakesError::EntryNotFound { key })?
-            .value
-            .read()?
-            .clone())
+            .read_entry())
     }
 
     /// Query stakes by validator address.
@@ -457,16 +459,13 @@ where
     fn query_by_validator(
         &self,
         validator: Address,
-    ) -> StakesVecResult<Address, Coins, Epoch, Power> {
+    ) -> StakeEntryVecResult<Address, Coins, Epoch, Power> {
         let validator = self
             .by_validator
             .get(&validator)
             .ok_or(StakesError::ValidatorNotFound { validator })?;
 
-        Ok(validator
-            .iter()
-            .map(|stake| stake.value.read().unwrap().clone())
-            .collect())
+        Ok(validator.iter().map(SyncStakeEntry::read_entry).collect())
     }
 
     /// Query stakes by withdrawer address.
@@ -474,16 +473,13 @@ where
     fn query_by_withdrawer(
         &self,
         withdrawer: Address,
-    ) -> StakesVecResult<Address, Coins, Epoch, Power> {
+    ) -> StakeEntryVecResult<Address, Coins, Epoch, Power> {
         let withdrawer = self
             .by_withdrawer
             .get(&withdrawer)
             .ok_or(StakesError::WithdrawerNotFound { withdrawer })?;
 
-        Ok(withdrawer
-            .iter()
-            .map(|stake| stake.value.read().unwrap().clone())
-            .collect())
+        Ok(withdrawer.iter().map(SyncStakeEntry::read_entry).collect())
     }
 }
 
@@ -494,10 +490,10 @@ where
 pub fn index_coins<Address, Coins, Epoch, Power>(
     by_coins: &mut BTreeMap<
         CoinsAndAddresses<Coins, Address>,
-        SyncStake<Address, Coins, Epoch, Power>,
+        SyncStakeEntry<Address, Coins, Epoch, Power>,
     >,
     key: StakeKey<Address>,
-    stake: SyncStake<Address, Coins, Epoch, Power>,
+    stake: SyncStakeEntry<Address, Coins, Epoch, Power>,
 ) where
     Address: Clone + Default + Ord,
     Coins: Copy + Default + Ord,
@@ -515,10 +511,10 @@ pub fn index_coins<Address, Coins, Epoch, Power>(
 
 /// Upsert a stake entry into those indexes that allow querying by validator or withdrawer.
 pub fn index_addresses<Address, Coins, Epoch, Power>(
-    by_validator: &mut BTreeMap<Address, Vec<SyncStake<Address, Coins, Epoch, Power>>>,
-    by_withdrawer: &mut BTreeMap<Address, Vec<SyncStake<Address, Coins, Epoch, Power>>>,
+    by_validator: &mut BTreeMap<Address, Vec<SyncStakeEntry<Address, Coins, Epoch, Power>>>,
+    by_withdrawer: &mut BTreeMap<Address, Vec<SyncStakeEntry<Address, Coins, Epoch, Power>>>,
     key: StakeKey<Address>,
-    stake: SyncStake<Address, Coins, Epoch, Power>,
+    stake: SyncStakeEntry<Address, Coins, Epoch, Power>,
 ) where
     Address: Clone + Default + Ord,
     Coins: Clone + Default + Ord,
@@ -1035,25 +1031,31 @@ mod tests {
         let result = stakes.query_stakes(QueryStakesKey::Key(bob_david.into()));
         assert_eq!(
             result,
-            Ok(vec![Stake::from_parts(
-                20,
-                CapabilityMap {
-                    mining: 30,
-                    witnessing: 30
-                }
-            )])
+            Ok(vec![StakeEntry {
+                key: bob_david.into(),
+                value: Stake::from_parts(
+                    20,
+                    CapabilityMap {
+                        mining: 30,
+                        witnessing: 30
+                    }
+                )
+            }])
         );
 
         let result = stakes.query_by_validator(bob.into());
         assert_eq!(
             result,
-            Ok(vec![Stake::from_parts(
-                20,
-                CapabilityMap {
-                    mining: 30,
-                    witnessing: 30
-                }
-            )])
+            Ok(vec![StakeEntry {
+                key: bob_david.into(),
+                value: Stake::from_parts(
+                    20,
+                    CapabilityMap {
+                        mining: 30,
+                        witnessing: 30
+                    }
+                )
+            }])
         );
 
         let result = stakes.query_by_validator(david.into());
@@ -1067,13 +1069,16 @@ mod tests {
         let result = stakes.query_by_withdrawer(david.into());
         assert_eq!(
             result,
-            Ok(vec![Stake::from_parts(
-                20,
-                CapabilityMap {
-                    mining: 30,
-                    witnessing: 30
-                }
-            )])
+            Ok(vec![StakeEntry {
+                key: bob_david.into(),
+                value: Stake::from_parts(
+                    20,
+                    CapabilityMap {
+                        mining: 30,
+                        witnessing: 30
+                    }
+                )
+            }])
         );
 
         let result = stakes.query_by_withdrawer(bob.into());
@@ -1106,6 +1111,7 @@ mod tests {
         deserialized.query_by_validator(alice).unwrap();
 
         let epoch = deserialized.query_by_withdrawer(bob.clone()).unwrap()[0]
+            .value
             .epochs
             .mining;
 

@@ -18,8 +18,10 @@ use futures::future::{try_join_all, FutureExt};
 
 use witnet_config::defaults::{
     PSEUDO_CONSENSUS_CONSTANTS_POS_MAX_STAKE_BLOCK_WEIGHT,
+    PSEUDO_CONSENSUS_CONSTANTS_POS_MIN_STAKE_NANOWITS,
     PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE,
 };
+
 use witnet_data_structures::{
     chain::{
         tapi::{after_second_hard_fork, ActiveWips},
@@ -33,9 +35,10 @@ use witnet_data_structures::{
     },
     error::TransactionError,
     get_environment, get_protocol_version,
-    proto::versioning::{ProtocolVersion, VersionedHashable},
+    proto::versioning::{ProtocolVersion::*, VersionedHashable},
     radon_error::RadonError,
     radon_report::{RadonReport, ReportContext, TypeLike},
+    staking::{stake::totalize_stakes, stakes::QueryStakesKey},
     transaction::{
         CommitTransaction, CommitTransactionBody, DRTransactionBody, MintTransaction,
         RevealTransaction, RevealTransactionBody, StakeTransactionBody, TallyTransaction,
@@ -116,7 +119,7 @@ impl ChainManager {
         beacon.checkpoint = current_epoch;
         vrf_input.checkpoint = current_epoch;
 
-        let target_hash = if get_protocol_version(self.current_epoch) == ProtocolVersion::V2_0 {
+        let target_hash = if get_protocol_version(self.current_epoch) == V2_0 {
             let eligibility = self
                 .chain_state
                 .stakes
@@ -275,6 +278,9 @@ impl ChainManager {
 
     /// Try to mine a data_request
     // TODO: refactor this procedure into multiple functions that can be tested separately.
+    // TODO: double check if this is correct or not, because the need for
+    //  using the `unused_assignments` directive smells bad.
+    #[allow(unused_assignments)]
     pub fn try_mine_data_request(&mut self, ctx: &mut Context<Self>) {
         let vrf_input = self
             .chain_state
@@ -295,6 +301,17 @@ impl ChainManager {
         let timestamp = u64::try_from(get_timestamp()).unwrap();
         let consensus_constants = self.consensus_constants();
         let minimum_reppoe_difficulty = consensus_constants.minimum_difficulty;
+        let minimum_stake = Wit::from(PSEUDO_CONSENSUS_CONSTANTS_POS_MIN_STAKE_NANOWITS);
+        // Retrieve all stake entries in which we are the validator
+        let stake_entries = self
+            .chain_state
+            .stakes
+            .query_stakes(QueryStakesKey::Validator(own_pkh))
+            .unwrap_or_default();
+        // Retrieve the withdrawer address of the first stake entry in which we are the validator
+        let first_withdrawer_address = stake_entries.first().map(|stake| stake.key.withdrawer);
+        let protocol_version = get_protocol_version(self.current_epoch);
+        let mut available_stake = totalize_stakes(stake_entries).unwrap_or_default();
 
         // Data Request mining
         let dr_pointers = self
@@ -362,13 +379,18 @@ impl ChainManager {
             } else {
                 collateral_age
             };
-            let (target_hash, probability) = calculate_reppoe_threshold(
-                rep_eng,
-                &own_pkh,
-                num_witnesses + num_backup_witnesses,
-                minimum_reppoe_difficulty,
-                &active_wips,
-            );
+            let (target_hash, probability) = if protocol_version >= V2_0 {
+                // Using a target hash of zero for V2_X essentially disables preliminary VRF checks
+                (Hash::min(), 0f64)
+            } else {
+                calculate_reppoe_threshold(
+                    rep_eng,
+                    &own_pkh,
+                    num_witnesses + num_backup_witnesses,
+                    minimum_reppoe_difficulty,
+                    &active_wips,
+                )
+            };
 
             // Grab a reference to `current_retrieval_count`
             let cloned_retrieval_count = Arc::clone(&current_retrieval_count);
@@ -388,26 +410,44 @@ impl ChainManager {
                 dr_state.data_request.collateral
             });
 
-            // Check if we have enough collateralizable unspent outputs before starting
-            // retrieval
             let block_number_limit = self
                 .chain_state
                 .block_number()
                 .saturating_sub(collateral_age);
-            if !check_commit_collateral(
-                collateral_amount,
-                &self.chain_state.own_utxos,
-                own_pkh,
-                &self.chain_state.unspent_outputs_pool,
-                timestamp,
-                // The block number must be lower than this limit
-                block_number_limit,
-            ) {
-                log::debug!("Mining data request: Insufficient collateral, the data request need {} mature wits", collateral_amount);
-                continue;
+            if protocol_version >= V2_0 {
+                // In 2_x protocol, check if we have enough stake before attempting retrieval
+                if collateral_amount > available_stake - minimum_stake {
+                    log::debug!("Mining data request: Insufficient stake, the data request needs {} Wit but we have {} left", collateral_amount, available_stake);
+                    continue;
+                }
+            } else {
+                // In 1_x protocol, check if we have enough collateralizable unspent outputs before
+                // attempting retrieval
+                if !check_commit_collateral(
+                    collateral_amount,
+                    &self.chain_state.own_utxos,
+                    own_pkh,
+                    &self.chain_state.unspent_outputs_pool,
+                    timestamp,
+                    // The block number must be lower than this limit
+                    block_number_limit,
+                ) {
+                    log::debug!("Mining data request: Insufficient collateral, the data request needs {} mature wits", collateral_amount);
+                    continue;
+                }
             }
 
-            signature_mngr::vrf_prove(VrfMessage::data_request(dr_vrf_input, dr_pointer))
+            // This is the message that will be covered by the VRF.
+            // In V2_X, the message includes the withdrawer address in order to eventually
+            // distinguish eligibility for stake entries belonging to multiple withdrawers but
+            // operated by a single validator acting as a delegatee.
+            let vrf_message = if protocol_version >= V2_0 {
+                VrfMessage::data_request_v1(dr_vrf_input, dr_pointer)
+            } else {
+                VrfMessage::data_request_v2(dr_vrf_input, dr_pointer, first_withdrawer_address)
+            };
+
+            signature_mngr::vrf_prove(vrf_message)
                 .map(move |res|
                     res.map_err(move |e| {
                         log::error!(
@@ -417,31 +457,37 @@ impl ChainManager {
                         )
                     })
                         .map(move |(vrf_proof, vrf_proof_hash)| {
-                            // invalid: vrf_hash > target_hash
-                            let proof_invalid = vrf_proof_hash > target_hash;
+                            // This is where eligibility is verified for several protocol versions
+                            if protocol_version >= V2_0 {
+                                // FIXME run v2.x eligibility here
+                                Ok(vrf_proof)
+                            }  else {
+                                // invalid: vrf_hash > target_hash
+                                let proof_invalid = vrf_proof_hash > target_hash;
 
-                            log::debug!(
+                                log::debug!(
                                 "{} witnesses and {} backup witnesses",
                                 num_witnesses,
                                 num_backup_witnesses
                             );
-                            log::debug!(
+                                log::debug!(
                                 "Probability to be eligible for this data request: {:.6}%",
                                 probability * 100.0
                             );
-                            log::trace!("[DR] Target hash: {}", target_hash);
-                            log::trace!("[DR] Our proof:   {}", vrf_proof_hash);
-                            if proof_invalid {
-                                log::debug!("No eligibility for data request {}", dr_pointer);
-                                Err(())
-                            } else {
-                                log::info!(
+                                log::trace!("[DR] Target hash: {}", target_hash);
+                                log::trace!("[DR] Our proof:   {}", vrf_proof_hash);
+                                if proof_invalid {
+                                    log::debug!("No eligibility for data request {}", dr_pointer);
+                                    Err(())
+                                } else {
+                                    log::info!(
                                     "{} Discovered eligibility for mining a data request {} for epoch #{}",
                                     Yellow.bold().paint("[Mining]"),
                                     Yellow.bold().paint(dr_pointer.to_string()),
                                     Yellow.bold().paint(current_epoch.to_string())
                                 );
-                                Ok(vrf_proof)
+                                    Ok(vrf_proof)
+                                }
                             }
                         })
                 )
@@ -453,6 +499,10 @@ impl ChainManager {
                     let mut start_retrieval_count = cloned_retrieval_count.load(atomic::Ordering::Relaxed);
                     let mut final_retrieval_count = start_retrieval_count.saturating_add(added_retrieval_count);
 
+                    // Keep track of how many times we are eligible for witnessing, regardless of
+                    //  being able to satisfy stake or collateral requirements.
+                    // The actual number of completed witnessing acts is tracked separately and
+                    //  updated later on.
                     act.chain_state.node_stats.dr_eligibility_count += 1;
 
                     if final_retrieval_count > maximum_retrieval_count {
@@ -505,40 +555,60 @@ impl ChainManager {
                         }
                     }
                 })
+                // V1_X:
                 // Collect outputs to be used as input for collateralized commitment,
-                // as well as outputs for change.
+                //  as well as outputs for change.
+                // V2_X:
+                // Check that we have enough stake.
                 .and_then(move |vrf_proof, act, _| {
-                    match build_commit_collateral(
-                        collateral_amount,
-                        &mut act.chain_state.own_utxos,
-                        own_pkh,
-                        &act.chain_state.unspent_outputs_pool,
-                        timestamp,
-                        // The timeout included when using collateral is only one epoch to ensure
-                        // that if your commit has not been accepted you can use your utxo in
-                        // the next epoch or at least in two epochs
-                        u64::from(checkpoint_period),
-                        // The block number must be lower than this limit
-                        block_number_limit,
-                    ) {
-                        Ok(collateral) => actix::fut::ok((vrf_proof, collateral)),
-                        Err(TransactionError::NoMoney {
-                                available_balance, transaction_value, ..
-                            }) => {
-                            let required_collateral = transaction_value;
-                            log::warn!("Not enough mature UTXOs for collateral for data request {}: Available balance: {}, Required collateral: {}",
+                    if protocol_version >= V2_0 {
+                        let after_balance = available_stake - collateral_amount;
+                        if after_balance > minimum_stake {
+                            // `available_stake` is mutated here so the next cycle of this iterator
+                            //  takes into account can acknowledge depletion of the available stake.
+                            available_stake = after_balance;
+                            actix::fut::ok((vrf_proof, Default::default()))
+                        } else {
+                            log::warn!("Not enough available stake for witnessing data request {}: Available balance: {}, Required stake: {}",
                                 Yellow.bold().paint(dr_pointer.to_string()),
-                                available_balance,
-                                required_collateral,
+                                available_stake,
+                                collateral_amount,
                             );
-                            // Decrease the retrieval limit hoping that some other, cheaper,
-                            // data request can be resolved instead
-                            cloned_retrieval_count2.fetch_sub(added_retrieval_count, atomic::Ordering::Relaxed);
                             actix::fut::err(())
                         }
-                        Err(e) => {
-                            log::error!("Unexpected error when trying to select UTXOs to be used for collateral in data request {}: {}", dr_pointer, e);
-                            actix::fut::err(())
+                    } else {
+                        match build_commit_collateral(
+                            collateral_amount,
+                            &mut act.chain_state.own_utxos,
+                            own_pkh,
+                            &act.chain_state.unspent_outputs_pool,
+                            timestamp,
+                            // The timeout included when using collateral is only one epoch to ensure
+                            // that if your commit has not been accepted you can use your utxo in
+                            // the next epoch or at least in two epochs
+                            u64::from(checkpoint_period),
+                            // The block number must be lower than this limit
+                            block_number_limit,
+                        ) {
+                            Ok(collateral) => actix::fut::ok((vrf_proof, collateral)),
+                            Err(TransactionError::NoMoney {
+                                    available_balance, transaction_value, ..
+                                }) => {
+                                let required_collateral = transaction_value;
+                                log::warn!("Not enough mature UTXOs for collateral for data request {}: Available balance: {}, Required collateral: {}",
+                                    Yellow.bold().paint(dr_pointer.to_string()),
+                                    available_balance,
+                                    required_collateral,
+                                );
+                                // Decrease the retrieval limit hoping that some other, cheaper,
+                                // data request can be resolved instead
+                                cloned_retrieval_count2.fetch_sub(added_retrieval_count, atomic::Ordering::Relaxed);
+                                actix::fut::err(())
+                            }
+                            Err(e) => {
+                                log::error!("Unexpected error when trying to select UTXOs to be used for collateral in data request {}: {}", dr_pointer, e);
+                                actix::fut::err(())
+                            }
                         }
                     }
                 })
@@ -1044,7 +1114,7 @@ pub fn build_block(
 
     let protocol_version = get_protocol_version(Some(epoch));
 
-    if protocol_version != ProtocolVersion::V1_7 {
+    if protocol_version > V1_7 {
         let mut included_validators = HashSet::<PublicKeyHash>::new();
         for st_tx in transactions_pool.st_iter() {
             let validator_pkh = st_tx.body.output.authorization.public_key.pkh();
@@ -1093,7 +1163,7 @@ pub fn build_block(
     }
 
     // Include Mint Transaction by miner
-    let mint = if protocol_version == ProtocolVersion::V2_0 {
+    let mint = if protocol_version == V2_0 {
         let mut mint = MintTransaction::default();
         mint.epoch = epoch;
 
@@ -1116,7 +1186,7 @@ pub fn build_block(
     let reveal_hash_merkle_root = merkle_tree_root(&reveal_txns);
     let tally_hash_merkle_root = merkle_tree_root(&tally_txns);
 
-    let stake_hash_merkle_root = if protocol_version == ProtocolVersion::V1_7 {
+    let stake_hash_merkle_root = if protocol_version == V1_7 {
         log::debug!("Legacy protocol: the default stake hash merkle root will be used");
         Hash::default()
     } else {
@@ -1124,7 +1194,7 @@ pub fn build_block(
         merkle_tree_root(&stake_txns)
     };
 
-    let unstake_hash_merkle_root = if protocol_version == ProtocolVersion::V1_7 {
+    let unstake_hash_merkle_root = if protocol_version == V1_7 {
         Hash::default()
     } else {
         merkle_tree_root(&unstake_txns)

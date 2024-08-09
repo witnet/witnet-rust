@@ -12,8 +12,10 @@ use super::prelude::*;
 #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct Stake<Address, Coins, Epoch, Power>
 where
-    Address: Default,
-    Epoch: Default,
+    Address: Clone + Default,
+    Coins: Clone,
+    Epoch: Clone + Default,
+    Power: Clone,
 {
     /// An amount of staked coins.
     pub coins: Coins,
@@ -26,8 +28,9 @@ where
 
 impl<Address, Coins, Epoch, Power> Stake<Address, Coins, Epoch, Power>
 where
-    Address: Default + Debug + Display + Sync + Send,
+    Address: Clone + Default + Debug + Display + Sync + Send,
     Coins: Copy
+        + Clone
         + From<u64>
         + PartialOrd
         + num_traits::Zero
@@ -41,6 +44,7 @@ where
         + Sync
         + PrecisionLoss,
     Epoch: Copy
+        + Clone
         + Default
         + num_traits::Saturating
         + Sub<Output = Epoch>
@@ -49,7 +53,7 @@ where
         + Display
         + Sync
         + Send,
-    Power: Add<Output = Power> + Div<Output = Power>,
+    Power: Add<Output = Power> + Clone + Div<Output = Power>,
     u64: From<Coins> + From<Power>,
 {
     /// Increase the amount of coins staked by a certain staker.
@@ -143,4 +147,21 @@ where
     pub fn reset_age(&mut self, capability: Capability, current_epoch: Epoch) {
         self.epochs.update(capability, current_epoch);
     }
+}
+
+/// Adds up the total amount of staked in multiple stake entries provided as a vector.
+pub fn totalize_stakes<Address, Coins, Epoch, I, Power, S>(
+    stakes: I,
+) -> StakesResult<Coins, Address, Coins, Epoch>
+where
+    Address: Clone + Debug + Default + Display + Send + Sync,
+    Coins: Clone + Debug + Display + num_traits::Zero + Send + Sync,
+    Epoch: Clone + Debug + Default + Display + Send + Sync,
+    I: IntoIterator<Item = S>,
+    Power: Clone,
+    S: Into<Stake<Address, Coins, Epoch, Power>>,
+{
+    Ok(stakes
+        .into_iter()
+        .fold(Coins::zero(), |a: Coins, b| a + b.into().coins))
 }
