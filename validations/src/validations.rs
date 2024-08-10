@@ -174,6 +174,7 @@ pub fn validate_commit_collateral(
     block_number: u32,
     collateral_age: u32,
     superblock_period: u16,
+    protocol_version: ProtocolVersion,
 ) -> Result<(), failure::Error> {
     let block_number_limit = block_number.saturating_sub(collateral_age);
     let commit_pkh = co_tx.body.proof.proof.pkh();
@@ -281,11 +282,23 @@ pub fn validate_commit_collateral(
         .into())
     } else if in_value - out_value != required_collateral {
         let found_collateral = in_value - out_value;
-        Err(TransactionError::IncorrectCollateral {
-            expected: required_collateral,
-            found: found_collateral,
+        if protocol_version != ProtocolVersion::V2_0 {
+            Err(TransactionError::IncorrectCollateral {
+                expected: required_collateral,
+                found: found_collateral,
+            }
+            .into())
+        } else {
+            if found_collateral == 0 {
+                Ok(())
+            } else {
+                Err(TransactionError::IncorrectCollateral {
+                    expected: 0,
+                    found: found_collateral,
+                }
+                .into())
+            }
         }
-        .into())
     } else {
         Ok(())
     }
@@ -654,6 +667,7 @@ pub fn validate_commit_transaction(
     minimum_reppoe_difficulty: u32,
     active_wips: &ActiveWips,
     superblock_period: u16,
+    protocol_version: ProtocolVersion,
 ) -> Result<(Hash, u16, u64), failure::Error> {
     // Get DataRequest information
     let dr_pointer = co_tx.body.dr_pointer;
@@ -703,6 +717,7 @@ pub fn validate_commit_transaction(
         block_number,
         collateral_age,
         superblock_period,
+        protocol_version,
     )?;
 
     // commit time_lock was disabled in the first hard fork
@@ -1681,6 +1696,8 @@ pub fn validate_block_transactions(
         );
     let mut genesis_value_available = max_total_value_genesis;
 
+    let protocol_version = get_protocol_version(Some(epoch));
+
     // TODO: replace for loop with a try_fold
     // Validate value transfer transactions in a block
     let mut vt_mt = ProgressiveMerkleTree::sha256();
@@ -1763,6 +1780,7 @@ pub fn validate_block_transactions(
             consensus_constants.minimum_difficulty,
             active_wips,
             consensus_constants.superblock_period,
+            protocol_version,
         )?;
 
         // Validation for only one commit for pkh/data request in a block
@@ -1940,7 +1958,6 @@ pub fn validate_block_transactions(
     }
     let dr_hash_merkle_root = dr_mt.root();
 
-    let protocol_version = get_protocol_version(Some(epoch));
     let (st_root, ut_root) = if protocol_version != ProtocolVersion::V1_7 {
         // validate stake transactions in a block
         let mut st_mt = ProgressiveMerkleTree::sha256();
@@ -2220,6 +2237,7 @@ pub fn validate_new_transaction(
     stakes: &Stakes<PublicKeyHash, Wit, u32, u64>,
 ) -> Result<u64, failure::Error> {
     let utxo_diff = UtxoDiff::new(unspent_outputs_pool, block_number);
+    let protocol_version = get_protocol_version(Some(current_epoch));
 
     match transaction {
         Transaction::ValueTransfer(tx) => validate_vt_transaction(
@@ -2259,6 +2277,7 @@ pub fn validate_new_transaction(
             minimum_reppoe_difficulty,
             active_wips,
             superblock_period,
+            protocol_version
         )
         .map(|(_, _, fee)| fee),
         Transaction::Reveal(tx) => {
