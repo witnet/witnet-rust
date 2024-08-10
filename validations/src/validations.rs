@@ -2451,7 +2451,7 @@ pub fn verify_signatures(
                 vrf_input,
                 target_hash,
             } => {
-                log::info!(
+                log::debug!(
                     "[SIGVER-BLOCK-{}] proof: {:?}, input: {:?}",
                     i,
                     proof,
@@ -2475,7 +2475,7 @@ pub fn verify_signatures(
                 dr_hash,
                 target_hash,
             } => {
-                log::info!(
+                log::debug!(
                     "[SIGVER-DR-{}] proof: {:?}, input: {:?}",
                     i,
                     proof,
