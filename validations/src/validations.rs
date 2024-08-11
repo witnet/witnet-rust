@@ -668,6 +668,7 @@ pub fn validate_commit_transaction(
     active_wips: &ActiveWips,
     superblock_period: u16,
     protocol_version: ProtocolVersion,
+    stakes: &Stakes<PublicKeyHash, Wit, u32, u64>,
 ) -> Result<(Hash, u16, u64), failure::Error> {
     // Get DataRequest information
     let dr_pointer = co_tx.body.dr_pointer;
@@ -680,9 +681,28 @@ pub fn validate_commit_transaction(
 
     let dr_output = &dr_state.data_request;
 
+    let proof_pkh = co_tx.body.proof.proof.pkh();
+
+    // Check if the commit transaction is from an eligible validator
+    if protocol_version >= ProtocolVersion::V2_0 {
+        let eligibility = stakes.witnessing_eligibility(
+            proof_pkh,
+            epoch,
+            dr_state.data_request.witnesses,
+            dr_state.info.current_commit_round,
+        );
+        if eligibility == Ok(Eligible::No(InsufficientPower))
+            || eligibility == Ok(Eligible::No(NotStaking))
+        {
+            return Err(TransactionError::ValidatorNotEligible {
+                validator: proof_pkh,
+            }
+            .into());
+        }
+    }
+
     // Commitment's output is only for change propose, so it only has to be one output and the
     // address has to be the same than the address which creates the commitment
-    let proof_pkh = co_tx.body.proof.proof.pkh();
     if co_tx.body.outputs.len() > 1 {
         return Err(TransactionError::SeveralCommitOutputs.into());
     }
@@ -1787,6 +1807,7 @@ pub fn validate_block_transactions(
             active_wips,
             consensus_constants.superblock_period,
             protocol_version,
+            stakes,
         )?;
 
         // Validation for only one commit for pkh/data request in a block
@@ -2307,7 +2328,8 @@ pub fn validate_new_transaction(
             minimum_reppoe_difficulty,
             active_wips,
             superblock_period,
-            protocol_version
+            protocol_version,
+            stakes,
         )
         .map(|(_, _, fee)| fee),
         Transaction::Reveal(tx) => {
