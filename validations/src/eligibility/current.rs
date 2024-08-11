@@ -69,8 +69,8 @@ where
         &self,
         validator: ISK,
         epoch: Epoch,
-        witnesses: u8,
-        round: u8,
+        witnesses: u16,
+        round: u16,
     ) -> StakesResult<Eligible, Address, Coins, Epoch>
     where
         ISK: Into<Address>;
@@ -81,8 +81,8 @@ where
         &self,
         validator: ISK,
         epoch: Epoch,
-        witnesses: u8,
-        round: u8,
+        witnesses: u16,
+        round: u16,
     ) -> bool
     where
         ISK: Into<Address>,
@@ -178,8 +178,8 @@ where
         &self,
         key: ISK,
         epoch: Epoch,
-        witnesses: u8,
-        round: u8,
+        witnesses: u16,
+        round: u16,
     ) -> StakesResult<Eligible, Address, Coins, Epoch>
     where
         ISK: Into<Address>,

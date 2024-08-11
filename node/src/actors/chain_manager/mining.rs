@@ -281,22 +281,23 @@ impl ChainManager {
     // TODO: double check if this is correct or not, because the need for
     //  using the `unused_assignments` directive smells bad.
     #[allow(unused_assignments)]
-    pub fn try_mine_data_request(&mut self, ctx: &mut Context<Self>) {
+    pub fn try_mine_data_request(
+        &mut self,
+        ctx: &mut Context<Self>,
+    ) -> Result<(), ChainManagerError> {
+        if !self.mining_enabled {
+            return Err(ChainManagerError::MiningIsDisabled);
+        }
+
         let vrf_input = self
             .chain_state
             .chain_info
             .as_ref()
             .map(|x| x.highest_vrf_output);
 
-        if self.current_epoch.is_none() || self.own_pkh.is_none() || vrf_input.is_none() {
-            log::warn!("Cannot mine a data request because current epoch or own pkh is unknown");
-
-            return;
-        }
-
-        let vrf_input = vrf_input.unwrap();
-        let own_pkh = self.own_pkh.unwrap();
-        let current_epoch = self.current_epoch.unwrap();
+        let vrf_input = vrf_input.ok_or(ChainManagerError::ChainNotReady)?;
+        let own_pkh = self.own_pkh.ok_or(ChainManagerError::ChainNotReady)?;
+        let current_epoch = self.current_epoch.ok_or(ChainManagerError::ChainNotReady)?;
         let data_request_timeout = self.data_request_timeout;
         let timestamp = u64::try_from(get_timestamp()).unwrap();
         let consensus_constants = self.consensus_constants();
@@ -359,11 +360,12 @@ impl ChainManager {
                 ),
                 None => {
                     log::error!("ChainInfo is None");
-                    return;
+                    return Err(ChainManagerError::ChainNotReady);
                 }
             };
 
             let num_witnesses = dr_state.data_request.witnesses;
+            let round = dr_state.info.current_commit_round;
             let num_backup_witnesses = dr_state.backup_witnesses();
             // The vrf_input used to create and verify data requests must be set to the current epoch
             let dr_vrf_input = CheckpointVRF {
@@ -380,6 +382,21 @@ impl ChainManager {
                 collateral_age
             };
             let (target_hash, probability) = if protocol_version >= V2_0 {
+                let eligibility = self
+                    .chain_state
+                    .stakes
+                    .witnessing_eligibility(own_pkh, current_epoch, num_witnesses, round)
+                    .map_err(ChainManagerError::Staking)?;
+
+                match eligibility {
+                    Eligible::Yes => {
+                        log::info!("Hurray! Found eligibility for solving a data request!");
+                    }
+                    Eligible::No(_) => {
+                        log::info!("No eligibility for solving a data request.");
+                        return Ok(());
+                    }
+                }
                 // Using a target hash of zero for V2_X essentially disables preliminary VRF checks
                 (Hash::min(), 0f64)
             } else {
@@ -459,7 +476,6 @@ impl ChainManager {
                         .map(move |(vrf_proof, vrf_proof_hash)| {
                             // This is where eligibility is verified for several protocol versions
                             if protocol_version >= V2_0 {
-                                // FIXME run v2.x eligibility here
                                 Ok(vrf_proof)
                             }  else {
                                 // invalid: vrf_hash > target_hash
@@ -727,6 +743,8 @@ impl ChainManager {
                 .map(|_res: Result<(), ()>, _act, _ctx| ())
                 .spawn(ctx);
         }
+
+        Ok(())
     }
 
     #[allow(clippy::needless_collect)]
