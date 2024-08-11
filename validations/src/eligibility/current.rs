@@ -222,8 +222,6 @@ where
         let divisor = max_power * Power::from((rf - WITNESSING_MAX_ROUNDS) as u64)
             - Power::from(rf as u64) * threshold_power;
         let threshold = dividend / divisor;
-        println!("{}", u64::from(power));
-        println!("{}", u64::from(threshold));
         if power <= threshold {
             return Ok(IneligibilityReason::InsufficientPower.into());
         }
