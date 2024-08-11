@@ -50,6 +50,11 @@ pub enum TransactionError {
     #[fail(display = "Commit transaction has a invalid Proof of Eligibility")]
     InvalidDataRequestPoe,
     #[fail(
+        display = "Validator {} is not eligible to commit to a data request",
+        validator
+    )]
+    ValidatorNotEligible { validator: PublicKeyHash },
+    #[fail(
         display = "The data request eligibility claim VRF proof hash is greater than the target hash: {} > {}",
         vrf_hash, target_hash
     )]
@@ -475,7 +480,7 @@ pub enum BlockError {
         count, block_hash
     )]
     MissingExpectedTallies { count: usize, block_hash: Hash },
-    /// Missing expected tallies
+    /// Validator is not eligible to propose a block
     #[fail(display = "Validator {} is not eligible to propose a block", validator)]
     ValidatorNotEligible { validator: PublicKeyHash },
 }
