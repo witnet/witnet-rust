@@ -1027,6 +1027,12 @@ impl ChainManager {
                 if get_protocol_version(Some(block_epoch)) == ProtocolVersion::V2_0 {
                     let _ = stakes.reset_age(miner_pkh, Capability::Mining, current_epoch, 1);
 
+                    for co_tx in &block.txns.commit_txns {
+                        let commit_pkh = co_tx.body.proof.proof.pkh();
+                        let _ =
+                            stakes.reset_age(commit_pkh, Capability::Witnessing, current_epoch, 1);
+                    }
+
                     let epoch_constants = self.epoch_constants.unwrap();
                     let utxo_diff =
                         UtxoDiff::new(&self.chain_state.unspent_outputs_pool, block_epoch);
