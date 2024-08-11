@@ -1675,7 +1675,7 @@ pub fn update_utxo_diff<'a, IterInputs, IterOutputs>(
 #[allow(clippy::too_many_arguments)]
 pub fn validate_block_transactions(
     utxo_set: &UnspentOutputsPool,
-    dr_pool: &DataRequestPool,
+    dr_pool: &mut DataRequestPool,
     block: &Block,
     vrf_input: CheckpointVRF,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
@@ -1844,6 +1844,30 @@ pub fn validate_block_transactions(
         re_mt.push(Sha256(sha));
     }
     let re_hash_merkle_root = re_mt.root();
+
+    for transaction in &block.txns.data_request_txns {
+        let dr_tx_hash = transaction.hash();
+        if !dr_pool.data_request_pool.contains_key(&dr_tx_hash)
+            && data_request_has_too_many_witnesses(
+                &transaction.body.dr_output,
+                stakes.validator_count(),
+                Some(epoch),
+            )
+        {
+            log::debug!(
+                "Temporarily adding data request {} to data request pool for validation purposes",
+                transaction.hash()
+            );
+            if let Err(e) = dr_pool.process_data_request(transaction, epoch, &block.hash()) {
+                log::error!("Error adding data request to the data request pool: {}", e);
+            }
+            if let Some(dr_state) = dr_pool.data_request_state_mutable(&dr_tx_hash) {
+                dr_state.update_stage(0, true);
+            } else {
+                log::error!("Could not find data request state");
+            }
+        }
+    }
 
     // Validate tally transactions in a block
     let mut ta_mt = ProgressiveMerkleTree::sha256();

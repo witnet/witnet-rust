@@ -710,7 +710,7 @@ impl ChainManager {
                 rep_engine,
                 epoch_constants,
                 &self.chain_state.unspent_outputs_pool,
-                &self.chain_state.data_request_pool,
+                &mut self.chain_state.data_request_pool,
                 vrf_ctx,
                 block_number,
                 &chain_info.consensus_constants,
@@ -866,6 +866,7 @@ impl ChainManager {
                 // in this block candidate.
                 let mut transaction_visitor = PriorityVisitor::default();
 
+                let block_number = self.chain_state.block_number();
                 match process_validations(
                     &block,
                     current_epoch,
@@ -874,11 +875,11 @@ impl ChainManager {
                     rep_engine,
                     self.epoch_constants.unwrap(),
                     &self.chain_state.unspent_outputs_pool,
-                    &self.chain_state.data_request_pool,
+                    &mut self.chain_state.data_request_pool,
                     // The unwrap is safe because if there is no VRF context,
                     // the actor should have stopped execution
                     self.vrf_ctx.as_mut().expect("No initialized VRF context"),
-                    self.chain_state.block_number(),
+                    block_number,
                     &chain_info.consensus_constants,
                     false,
                     &active_wips,
@@ -2113,7 +2114,7 @@ impl ChainManager {
             let mut signatures_to_verify = vec![];
             let res = validate_block_transactions(
                 &act.chain_state.unspent_outputs_pool,
-                &act.chain_state.data_request_pool,
+                &mut act.chain_state.data_request_pool,
                 &block,
                 vrf_input,
                 &mut signatures_to_verify,
@@ -2892,7 +2893,7 @@ pub fn process_validations(
     rep_eng: &ReputationEngine,
     epoch_constants: EpochConstants,
     utxo_set: &UnspentOutputsPool,
-    dr_pool: &DataRequestPool,
+    dr_pool: &mut DataRequestPool,
     vrf_ctx: &mut VrfCtx,
     block_number: u32,
     consensus_constants: &ConsensusConstants,
