@@ -749,13 +749,19 @@ pub fn validate_commit_transaction(
     let pkh = proof_pkh;
     let backup_witnesses = dr_state.backup_witnesses();
     let num_witnesses = dr_output.witnesses + backup_witnesses;
-    let (target_hash, _) = calculate_reppoe_threshold(
-        rep_eng,
-        &pkh,
-        num_witnesses,
-        minimum_reppoe_difficulty,
-        active_wips,
-    );
+    let target_hash = if protocol_version < ProtocolVersion::V2_0 {
+        let (target_hash, _) = calculate_reppoe_threshold(
+            rep_eng,
+            &pkh,
+            num_witnesses,
+            minimum_reppoe_difficulty,
+            active_wips,
+        );
+
+        target_hash
+    } else {
+        Hash::max()
+    };
     add_dr_vrf_signature_to_verify(
         signatures_to_verify,
         &co_tx.body.proof,
