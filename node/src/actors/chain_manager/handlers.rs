@@ -233,7 +233,19 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                             // Data request mining MUST finish BEFORE the block has been mined!!!!
                             // The transactions must be included into this block, both the transactions from
                             // our node and the transactions from other nodes
-                            self.try_mine_data_request(ctx);
+                            if let Err(e) = self.try_mine_data_request(ctx) {
+                                match e {
+                                    // Lack of eligibility is logged as debug
+                                    e @ ChainManagerError::NotEligible => {
+                                        log::debug!("{}", e);
+                                    }
+                                    // Any other errors are logged as warning (considering that this is a best-effort
+                                    // method)
+                                    e => {
+                                        log::warn!("{}", e);
+                                    }
+                                }
+                            }
                         }
 
                         // Clear candidates
