@@ -37,6 +37,12 @@ pub struct Config {
     /// Address of the WitnetRequestsBoard contract
     pub eth_witnet_oracle: H160,
 
+    /// Let the dog out?
+    pub watch_dog_enabled: bool,
+    /// Watch dog polling rate
+    #[serde(default = "default_watch_dog_polling_rate_ms")]
+    pub watch_dog_polling_rate_ms: u64,
+
     /// Minimum collateral required on data requests read from the WitnetOracle contract
     pub witnet_dr_min_collateral_nanowits: u64,
     /// Maximium data request transaction fee assumed by the bridge
@@ -53,6 +59,8 @@ pub struct Config {
     pub witnet_jsonrpc_socket: SocketAddr,
     /// Running in the witnet testnet?
     pub witnet_testnet: bool,
+    /// Bridge UTXO min value threshold
+    pub witnet_utxo_min_value_threshold: u64,
 
     /// Storage
     #[serde(deserialize_with = "nested_toml_if_using_envy")]
@@ -67,6 +75,10 @@ fn one() -> usize {
 
 fn default_max_batch_size() -> u16 {
     256
+}
+
+fn default_watch_dog_polling_rate_ms() -> u64 {
+    900_000
 }
 
 /// Gas limits for some methods. If missing, let the client estimate
