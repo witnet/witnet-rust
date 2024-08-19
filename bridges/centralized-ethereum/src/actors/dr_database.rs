@@ -179,6 +179,13 @@ impl Message for SetDrState {
     type Result = Result<(), ()>;
 }
 
+/// Count number of data requests in given state
+pub struct CountDrsPerState;
+
+impl Message for CountDrsPerState {
+    type Result = Result<(u64, u64, u64, u64), ()>;
+}
+
 impl Handler<SetDrInfoBridge> for DrDatabase {
     type Result = ();
 
@@ -271,6 +278,28 @@ impl Handler<SetDrState> for DrDatabase {
         ctx.spawn(self.persist().into_actor(self));
 
         Ok(())
+    }
+}
+
+impl Handler<CountDrsPerState> for DrDatabase {
+    type Result = Result<(u64, u64, u64, u64), ()>;
+
+    fn handle(&mut self, _msg: CountDrsPerState, _ctx: &mut Self::Context) -> Self::Result {
+        let mut drs_new = u64::default();
+        let mut drs_pending = u64::default();
+        let mut drs_finished = u64::default();
+        let mut drs_dismissed = u64::default();
+
+        self.dr.iter().for_each(|(_dr_id, dr_info)| {
+            match dr_info.dr_state {
+                DrState::New => drs_new += 1,
+                DrState::Pending => drs_pending += 1,
+                DrState::Finished => drs_finished += 1,
+                DrState::Dismissed => drs_dismissed += 1,
+            };
+        });
+
+        Ok((drs_new, drs_pending, drs_finished, drs_dismissed))
     }
 }
 
