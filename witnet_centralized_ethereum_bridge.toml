@@ -25,18 +25,23 @@ eth_txs_timeout_ms = 900000
 # Address of the WitnetRequestsBoard deployed contract
 eth_witnet_oracle = "0x77703aE126B971c9946d562F41Dd47071dA00777"
 
+# Let the dog out?
+watch_dog_enabled = true 
+
+# Polling period for checking and tracing global status
+watch_dog_polling_rate_ms = 5_000
 
 # Minimum collateral required on data requests read from the WitnetOracle contract
-witnet_dr_min_collateral_nanowits = 20000000000
+witnet_dr_min_collateral_nanowits = 20_000_000_000
 
 # Maximium data request transaction fee assumed by the bridge
-witnet_dr_max_fee_nanowits = 100000
+witnet_dr_max_fee_nanowits = 100_000
 
 # Maximum data request result size (in bytes) will accept to report
 witnet_dr_max_result_size = 64
 
 # Maximum data request value that the bridge will accept to relay
-witnet_dr_max_value_nanowits = 100000000000
+witnet_dr_max_value_nanowits = 100_000_000_000
 
 # Polling period for checking resolution of data requests in the Witnet blockchain
 witnet_dr_txs_polling_rate_ms = 45000
@@ -50,6 +55,8 @@ witnet_jsonrpc_socket = "127.0.0.1:21338"
 # Running in the witnet testnet?
 witnet_testnet = false
 
+# Bridge UTXO min value threshold
+witnet_utxo_min_value_threshold = 2_000_000_000
 
 [eth_gas_limits]
 # Gas limits for some methods.
@@ -59,3 +66,4 @@ witnet_testnet = false
 [storage]
 # Path of the folder where RocksDB storage files will be written to.
 db_path = ".witnet_bridge/storage"
+
