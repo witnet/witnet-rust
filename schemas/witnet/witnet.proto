@@ -121,6 +121,7 @@ message DataRequestOutput {
             HttpGet = 1;
             Rng = 2;
             HttpPost = 3;
+            HttpHead = 4;
         }
         message RADFilter {
             uint32 op = 1;
@@ -133,7 +134,7 @@ message DataRequestOutput {
             bytes script = 3;
             // Body of HTTP-POST request
             bytes body = 4;
-            // Extra headers for HTTP-GET and HTTP-POST requests
+            // Extra headers for HTTP-GET, HTTP-HEAD and HTTP-POST requests
             repeated StringPair headers = 5;
         }
         message RADAggregate {

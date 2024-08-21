@@ -1645,11 +1645,17 @@ pub enum RADType {
     /// HTTP POST request
     #[serde(rename = "HTTP-POST")]
     HttpPost,
+    /// HTTP HEAD request
+    #[serde(rename = "HTTP-HEAD")]
+    HttpHead,
 }
 
 impl RADType {
     pub fn is_http(&self) -> bool {
-        matches!(self, RADType::HttpGet | RADType::HttpPost)
+        matches!(
+            self,
+            RADType::HttpGet | RADType::HttpPost | RADType::HttpHead
+        )
     }
 }
 
@@ -1701,7 +1707,7 @@ pub struct RADRetrieve {
     pub script: Vec<u8>,
     /// Body of a HTTP-POST request
     pub body: Vec<u8>,
-    /// Extra headers of a HTTP-GET or HTTP-POST request
+    /// Extra headers of a HTTP-GET, HTTP-POST or HTTP-HEAD request
     pub headers: Vec<(String, String)>,
 }
 
@@ -1809,6 +1815,9 @@ impl RADRetrieve {
                     &[Field::Kind, Field::Url, Field::Script],
                     &[Field::Body, Field::Headers],
                 )
+            }
+            RADType::HttpHead => {
+                check(&[Field::Kind, Field::Url, Field::Script], &[Field::Headers])
             }
         }
     }
