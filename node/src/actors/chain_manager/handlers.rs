@@ -9,14 +9,18 @@ use std::{
 use actix::{prelude::*, ActorFutureExt, WrapFuture};
 use futures::future::Either;
 
-use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE;
+use witnet_config::defaults::{
+    PSEUDO_CONSENSUS_CONSTANTS_POS_MAX_STAKE_BLOCK_WEIGHT,
+    PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE,
+};
 use witnet_data_structures::{
     chain::{
         tapi::ActiveWips, Block, ChainState, CheckpointBeacon, DataRequestInfo, Epoch, Hash,
         Hashable, NodeStats, PublicKeyHash, SuperBlockVote, SupplyInfo,
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
-    transaction::{DRTransaction, Transaction, VTTransaction},
+    staking::errors::StakesError,
+    transaction::{DRTransaction, StakeTransaction, Transaction, VTTransaction},
     transaction_factory::{self, NodeBalance},
     types::LastBeacon,
     utxo_pool::{get_utxo_info, UtxoInfo},
@@ -29,13 +33,14 @@ use crate::{
         chain_manager::{handlers::BlockBatches::*, BlockCandidate},
         messages::{
             AddBlocks, AddCandidates, AddCommitReveal, AddSuperBlock, AddSuperBlockVote,
-            AddTransaction, Broadcast, BuildDrt, BuildVtt, EpochNotification, EstimatePriority,
-            GetBalance, GetBalanceTarget, GetBlocksEpochRange, GetDataRequestInfo,
-            GetHighestCheckpointBeacon, GetMemoryTransaction, GetMempool, GetMempoolResult,
-            GetNodeStats, GetReputation, GetReputationResult, GetSignalingInfo, GetState,
-            GetSuperBlockVotes, GetSupplyInfo, GetUtxoInfo, IsConfirmedBlock, PeersBeacons,
-            ReputationStats, Rewind, SendLastBeacon, SessionUnitResult, SetLastBeacon,
-            SetPeersLimits, SignalingInfo, SnapshotExport, SnapshotImport, TryMineBlock,
+            AddTransaction, Broadcast, BuildDrt, BuildStake, BuildVtt, EpochNotification,
+            EstimatePriority, GetBalance, GetBalanceTarget, GetBlocksEpochRange,
+            GetDataRequestInfo, GetHighestCheckpointBeacon, GetMemoryTransaction, GetMempool,
+            GetMempoolResult, GetNodeStats, GetReputation, GetReputationResult, GetSignalingInfo,
+            GetState, GetSuperBlockVotes, GetSupplyInfo, GetUtxoInfo, IsConfirmedBlock,
+            PeersBeacons, QueryStake, ReputationStats, Rewind, SendLastBeacon, SessionUnitResult,
+            SetLastBeacon, SetPeersLimits, SignalingInfo, SnapshotExport, SnapshotImport,
+            TryMineBlock,
         },
         sessions_manager::SessionsManager,
     },
@@ -967,11 +972,17 @@ impl Handler<PeersBeacons> for ChainManager {
                         },
                         _,
                     )) => {
-                        self.sync_target = Some(SyncTarget {
+                        let target = SyncTarget {
                             block: consensus_beacon,
                             superblock: superblock_consensus,
-                        });
-                        log::debug!("Sync target {:?}", self.sync_target);
+                        };
+                        self.sync_target = Some(target);
+                        log::info!(
+                            "Synchronization target has been set ({}: {})",
+                            target.block.checkpoint,
+                            target.block.hash_prev_block
+                        );
+                        log::debug!("{:#?}", target);
 
                         let our_beacon = self.get_chain_beacon();
                         log::debug!(
@@ -997,13 +1008,18 @@ impl Handler<PeersBeacons> for ChainManager {
                         {
                             // Fork case
                             log::warn!(
-                                "[CONSENSUS]: We are on {:?} but the network is on {:?}",
+                                "[CONSENSUS]: The local chain is apparently forked.\n\
+                                We are on {:?} but the network is on {:?}.\n\
+                                The node will automatically try to recover from this forked situation by restoring the chain state from the storage.",
                                 our_beacon,
                                 consensus_beacon
                             );
 
                             self.initialize_from_storage(ctx);
-                            log::info!("Restored chain state from storage");
+                            log::info!(
+                                "The chain state has been restored from storage.\n\
+                            Now the node will try to resynchronize."
+                            );
 
                             StateMachine::WaitingConsensus
                         } else {
@@ -1274,6 +1290,81 @@ impl Handler<BuildVtt> for ChainManager {
                 Box::pin(fut)
             }
         }
+    }
+}
+
+impl Handler<BuildStake> for ChainManager {
+    type Result = ResponseActFuture<Self, <BuildStake as Message>::Result>;
+
+    fn handle(&mut self, msg: BuildStake, _ctx: &mut Self::Context) -> Self::Result {
+        if !msg.dry_run && self.sm_state != StateMachine::Synced {
+            return Box::pin(actix::fut::err(
+                ChainManagerError::NotSynced {
+                    current_state: self.sm_state,
+                }
+                .into(),
+            ));
+        }
+        let timestamp = u64::try_from(get_timestamp()).unwrap();
+        match transaction_factory::build_st(
+            msg.stake_output,
+            msg.fee,
+            &mut self.chain_state.own_utxos,
+            self.own_pkh.unwrap(),
+            &self.chain_state.unspent_outputs_pool,
+            timestamp,
+            self.tx_pending_timeout,
+            &msg.utxo_strategy,
+            PSEUDO_CONSENSUS_CONSTANTS_POS_MAX_STAKE_BLOCK_WEIGHT,
+            msg.dry_run,
+        ) {
+            Err(e) => {
+                log::error!("Error when building stake transaction: {}", e);
+                Box::pin(actix::fut::err(e.into()))
+            }
+            Ok(st) => {
+                let fut = signature_mngr::sign_transaction(&st, st.inputs.len())
+                    .into_actor(self)
+                    .then(move |s, act, _ctx| match s {
+                        Ok(signatures) => {
+                            let st = StakeTransaction::new(st, signatures);
+
+                            if msg.dry_run {
+                                Either::Right(actix::fut::result(Ok(st)))
+                            } else {
+                                let transaction = Transaction::Stake(st.clone());
+                                Either::Left(
+                                    act.add_transaction(
+                                        AddTransaction {
+                                            transaction,
+                                            broadcast_flag: true,
+                                        },
+                                        get_timestamp(),
+                                    )
+                                    .map_ok(move |_, _, _| st),
+                                )
+                            }
+                        }
+                        Err(e) => {
+                            log::error!("Failed to sign stake transaction: {}", e);
+                            Either::Right(actix::fut::result(Err(e)))
+                        }
+                    });
+
+                Box::pin(fut)
+            }
+        }
+    }
+}
+
+impl Handler<QueryStake> for ChainManager {
+    type Result = <QueryStake as Message>::Result;
+
+    fn handle(&mut self, msg: QueryStake, _ctx: &mut Self::Context) -> Self::Result {
+        // build address from public key hash
+        let stakes = self.chain_state.stakes.query_stakes(msg.key);
+
+        stakes.map_err(StakesError::from).map_err(Into::into)
     }
 }
 
@@ -1648,7 +1739,19 @@ impl Handler<TryMineBlock> for ChainManager {
     type Result = ();
 
     fn handle(&mut self, _msg: TryMineBlock, ctx: &mut Self::Context) -> Self::Result {
-        self.try_mine_block(ctx);
+        if let Err(e) = self.try_mine_block(ctx) {
+            match e {
+                // Lack of eligibility is logged as debug
+                e @ ChainManagerError::NotEligible => {
+                    log::debug!("{}", e);
+                }
+                // Any other errors are logged as warning (considering that this is a best-effort
+                // method)
+                e => {
+                    log::warn!("{}", e);
+                }
+            }
+        }
     }
 }
 

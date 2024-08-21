@@ -300,6 +300,7 @@ impl Worker {
         wallet_id: &str,
         password: &[u8],
     ) -> Result<types::UnlockedSessionWallet> {
+        log::debug!("Unlocking wallet with ID {wallet_id}");
         let (salt, iv) = self
             .wallets
             .wallet_salt_and_iv(wallet_id)
@@ -308,7 +309,9 @@ impl Worker {
                 | repository::Error::WalletNotFound => Error::WalletNotFound,
                 err => Error::Repository(err),
             })?;
+        log::debug!("Found salt and IV for wallet with ID {wallet_id}. Deriving key now.");
         let key = crypto::key_from_password(password, &salt, self.params.db_hash_iterations);
+        log::debug!("Derived key for wallet with ID {wallet_id}. Generating session now.");
         let session_id: types::SessionId = From::from(crypto::gen_session_id(
             &mut self.rng,
             &self.params.id_hash_function,
@@ -320,6 +323,7 @@ impl Worker {
         let wallet_db = db::EncryptedDb::new(self.db.clone(), prefix, key, iv);
 
         // Check if password-derived key is able to read the special stored value
+        log::debug!("Wallet {wallet_id} now has a session with ID {session_id}");
         wallet_db
             .get(&constants::ENCRYPTION_CHECK_KEY)
             .map_err(|err| match err {
@@ -327,13 +331,16 @@ impl Worker {
                 err => Error::Db(err),
             })?;
 
+        log::debug!("Encryption key for wallet {wallet_id} seems to be valid. Decrypting wallet object now.");
         let wallet = Arc::new(repository::Wallet::unlock(
             wallet_id,
             session_id.clone(),
             wallet_db,
             self.params.clone(),
         )?);
+        log::debug!("Extracting public data for wallet {wallet_id}.");
         let data = wallet.public_data()?;
+        log::debug!("Wallet data: {:?}", data);
 
         Ok(types::UnlockedSessionWallet {
             wallet,

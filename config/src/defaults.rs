@@ -2,13 +2,18 @@
 //!
 //! This module contains per-environment default values for the Witnet
 //! protocol params.
-use std::collections::HashSet;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::path::PathBuf;
-use std::time::Duration;
+use std::{
+    collections::{HashMap, HashSet},
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    path::PathBuf,
+    time::Duration,
+};
 
 use witnet_crypto::hash::HashFunction;
-use witnet_data_structures::chain::Hash;
+use witnet_data_structures::{
+    chain::{Epoch, Hash},
+    proto::versioning::ProtocolVersion,
+};
 use witnet_protected::ProtectedString;
 
 // When changing the defaults, remember to update the documentation!
@@ -475,6 +480,10 @@ pub trait Defaults {
     fn mempool_max_reinserted_transactions(&self) -> u32 {
         100
     }
+
+    fn protocol_versions(&self) -> HashMap<ProtocolVersion, Epoch> {
+        [(ProtocolVersion::V1_7, 0)].into_iter().collect()
+    }
 }
 
 /// Allow setting a reward to collateral percentage for a data request to be included in a block
@@ -485,6 +494,13 @@ pub const PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO: u64 = 125;
 /// Modified value of callateral_age after WIP0027 (1 week)
 // TODO: modify the value directly in ConsensusConstants
 pub const PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE: u32 = 13440;
+
+/// Maximum weight units that a block can devote to `StakeTransaction`s.
+pub const PSEUDO_CONSENSUS_CONSTANTS_POS_MAX_STAKE_BLOCK_WEIGHT: u32 = 10_000_000;
+
+/// Minimum amount of nanoWits that a `StakeTransaction` can add, and minimum amount that can be
+/// left in stake by an `UnstakeTransaction`.
+pub const PSEUDO_CONSENSUS_CONSTANTS_POS_MIN_STAKE_NANOWITS: u64 = 10_000_000_000_000;
 
 /// Struct that will implement all the development defaults
 pub struct Development;

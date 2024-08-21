@@ -10,7 +10,7 @@ use structopt::StructOpt;
 use witnet_config::config::Config;
 use witnet_data_structures::{chain::Epoch, fee::Fee};
 use witnet_node as node;
-use witnet_node::actors::messages::GetBalanceTarget;
+use witnet_node::actors::messages::{GetBalanceTarget, MagicEither};
 
 use super::json_rpc_client as rpc;
 
@@ -269,6 +269,34 @@ pub fn exec_cmd(
         Command::Rewind { node, epoch } => rpc::rewind(node.unwrap_or(default_jsonrpc), epoch),
         Command::SignalingInfo { node } => rpc::signaling_info(node.unwrap_or(default_jsonrpc)),
         Command::Priority { node, json } => rpc::priority(node.unwrap_or(default_jsonrpc), json),
+        Command::Stake {
+            node,
+            value,
+            authorization,
+            validator,
+            withdrawer,
+            fee,
+            require_confirmation,
+            dry_run,
+        } => rpc::send_st(
+            node.unwrap_or(default_jsonrpc),
+            value,
+            MagicEither::Left(authorization),
+            MagicEither::Left(validator),
+            MagicEither::Left(withdrawer),
+            fee.map(Fee::absolute_from_nanowits),
+            None,
+            require_confirmation,
+            dry_run,
+        ),
+        Command::AuthorizeStake { node, withdrawer } => {
+            rpc::authorize_st(node.unwrap_or(default_jsonrpc), withdrawer)
+        }
+        Command::QueryStakes {
+            node,
+            validator,
+            withdrawer,
+        } => rpc::query_stakes(node.unwrap_or(default_jsonrpc), validator, withdrawer),
     }
 }
 
@@ -729,6 +757,52 @@ pub enum Command {
         node: Option<SocketAddr>,
         #[structopt(long = "json", help = "Show output in JSON format")]
         json: bool,
+    },
+    #[structopt(name = "stake", about = "Create a stake transaction")]
+    Stake {
+        /// Socket address of the Witnet node to query
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
+        /// Value
+        #[structopt(long = "value")]
+        value: u64,
+        /// Stake authorization code (the withdrawer address, signed by the validator node)
+        #[structopt(long = "authorization")]
+        authorization: String,
+        /// Validator
+        #[structopt(long = "validator")]
+        validator: String,
+        /// Withdrawer
+        #[structopt(long = "withdrawer")]
+        withdrawer: String,
+        /// Fee
+        #[structopt(long = "fee")]
+        fee: Option<u64>,
+        /// If unset or set to true, the command is interactive and prompts for user confirmation.
+        /// If set to false, skip confirmation and complete the command without user confirmation.
+        #[structopt(long = "require_confirmation")]
+        require_confirmation: Option<bool>,
+        /// Print the request that would be sent to the node and exit without doing anything
+        #[structopt(long = "dry-run")]
+        dry_run: bool,
+    },
+    #[structopt(name = "authorizeStake", about = "Create an stake authorization")]
+    AuthorizeStake {
+        /// Socket address of the Witnet node to query
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
+        /// Withdrawer address
+        #[structopt(long = "withdrawer")]
+        withdrawer: Option<String>,
+    },
+    QueryStakes {
+        /// Socket address of the Witnet node to query
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
+        #[structopt(short = "v", long = "validator")]
+        validator: Option<String>,
+        #[structopt(short = "w", long = "withdrawer")]
+        withdrawer: Option<String>,
     },
 }
 

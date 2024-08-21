@@ -447,6 +447,7 @@ mod tests {
         // Set `max_vt_weight` to fit only `transaction_1` weight
         let max_vt_weight = vt_tx1.weight();
         let max_dr_weight = 0;
+        let max_st_weight = 0;
 
         // Insert transactions into `transactions_pool`
         let mut transaction_pool = TransactionsPool::default();
@@ -480,6 +481,7 @@ mod tests {
             (&mut transaction_pool, &unspent_outputs_pool, &dr_pool),
             max_vt_weight,
             max_dr_weight,
+            max_st_weight,
             block_beacon,
             block_proof,
             &[],

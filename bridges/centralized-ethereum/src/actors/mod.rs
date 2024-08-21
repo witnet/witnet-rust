@@ -12,3 +12,6 @@ pub mod eth_poller;
 
 /// wit_poller actor module
 pub mod wit_poller;
+
+/// watch_dog actor module
+pub mod watch_dog;

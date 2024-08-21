@@ -517,6 +517,7 @@ pub fn calculate_reward_collateral_ratio(
     witness_reward: u64,
 ) -> u64 {
     let dr_collateral = if collateral == 0 {
+        // if collateral is equal to 0 means that is equal to collateral_minimum value
         collateral_minimum
     } else {
         collateral
@@ -742,7 +743,7 @@ mod tests {
             ..DataRequestInfo::default()
         };
         let dr_transaction = DRTransaction::new(
-            DRTransactionBody::new(vec![Input::default()], vec![], DataRequestOutput::default()),
+            DRTransactionBody::new(vec![Input::default()], DataRequestOutput::default(), vec![]),
             vec![KeyedSignature::default()],
         );
         let dr_pointer = dr_transaction.hash();
@@ -777,7 +778,7 @@ mod tests {
             ..DataRequestOutput::default()
         };
         let dr_transaction = DRTransaction::new(
-            DRTransactionBody::new(vec![Input::default()], vec![], dr_output),
+            DRTransactionBody::new(vec![Input::default()], dr_output, vec![]),
             vec![KeyedSignature::default()],
         );
         let dr_pointer = dr_transaction.hash();
@@ -812,7 +813,7 @@ mod tests {
             ..DataRequestOutput::default()
         };
         let dr_transaction = DRTransaction::new(
-            DRTransactionBody::new(vec![Input::default()], vec![], dr_output),
+            DRTransactionBody::new(vec![Input::default()], dr_output, vec![]),
             vec![KeyedSignature::default()],
         );
         let dr_pointer = dr_transaction.hash();

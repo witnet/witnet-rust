@@ -1,6 +1,6 @@
 [package]
 name = "witnet-centralized-ethereum-bridge"
-version = "1.7.1"
+version = "2.0.0"
 authors = ["Witnet Foundation <info@witnet.foundation>"]
 edition = "2018"
 
@@ -25,3 +25,4 @@ witnet_net = { path = "../../net" }
 witnet_node = { path = "../../node" }
 witnet_util = { path = "../../util" }
 witnet_validations = { path = "../../validations" }
+web3-unit-converter = "0.1.1"

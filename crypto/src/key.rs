@@ -149,6 +149,9 @@ pub enum KeyDerivationError {
     /// Invalid seed length
     #[fail(display = "The length of the seed is invalid, must be between 128/512 bits")]
     InvalidSeedLength,
+    /// A secret key is greater than the curve order
+    #[fail(display = "The secret key is greater than the curve order")]
+    SecretLargerThanCurveOrder,
     /// Secp256k1 internal error
     #[fail(display = "Error in secp256k1 crate")]
     Secp256k1Error(secp256k1::Error),
@@ -300,8 +303,11 @@ impl ExtendedSK {
 
         let (chain_code, mut secret_key) = get_chain_code_and_secret(&index_bytes, hmac512)?;
 
-        secret_key
-            .add_assign(&self.secret_key[..])
+        let scalar = secp256k1::Scalar::from_be_bytes(self.secret_key.secret_bytes())
+            .map_err(|_| KeyDerivationError::SecretLargerThanCurveOrder)?;
+
+        secret_key = secret_key
+            .add_tweak(&scalar)
             .map_err(KeyDerivationError::Secp256k1Error)?;
 
         Ok(ExtendedSK {

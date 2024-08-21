@@ -103,11 +103,11 @@ We need to modify the configuration file that the bridge will use to establish c
 
 There are some key fields that need to be edited here to make the bridge connect properly to your Ethereum/Witnet nodes. These are:
 
-- *witnet_jsonrpc_addr*: make sure this address is identical to the jsonRPC address of your Witnet node.
-- *eth_client_url*: make sure this field points to address where your ethereum client is running.
-- *wrb_contract_addr*: this field should contain the address of the WitnetRequestsBoard contract you wish your node to connect to.
+- *witnet_jsonrpc_socket*: make sure this address is identical to the jsonRPC address of your Witnet node.
+- *eth_jsonrpc_url*: make sure this field points to address where your ethereum client is running.
+- *eth_witnet_oracle*: this field should contain the address of the WitnetRequestsBoard contract you wish your node to connect to.
 - *block_relay_contract_add*: this field should contain the address of the BlockRelay contract you wish your node to connect to.
-- *eth_account*: this is the account you are using in your ethereum client. 
+- *eth_from*: this is the account you are using in your ethereum client. 
     - **NOTE**: In the case of using ganache-cli, this needs to be the first account, since currently the only account that can relay Witnet blocks to Ethereum is the one that
     deployed the BlockRelay contract, which by default is the first account.
 

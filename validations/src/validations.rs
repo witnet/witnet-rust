@@ -6,11 +6,14 @@ use std::{
 };
 
 use itertools::Itertools;
+
 use witnet_config::defaults::{
+    PSEUDO_CONSENSUS_CONSTANTS_POS_MIN_STAKE_NANOWITS,
     PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO,
     PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE,
 };
 use witnet_crypto::{
+    hash,
     hash::{calculate_sha256, Sha256},
     merkle::{merkle_tree_root as crypto_merkle_tree_root, ProgressiveMerkleTree},
     signature::{verify, PublicKey, Signature},
@@ -21,23 +24,26 @@ use witnet_data_structures::{
         ConsensusConstants, DataRequestOutput, DataRequestStage, DataRequestState, Epoch,
         EpochConstants, Hash, Hashable, Input, KeyedSignature, OutputPointer, PublicKeyHash,
         RADRequest, RADTally, RADType, Reputation, ReputationEngine, SignaturesToVerify,
-        ValueTransferOutput,
+        StakeOutput, ValueTransferOutput,
     },
     data_request::{
         calculate_reward_collateral_ratio, calculate_tally_change, calculate_witness_reward,
         calculate_witness_reward_before_second_hard_fork, create_tally, DataRequestPool,
     },
     error::{BlockError, DataRequestError, TransactionError},
+    get_protocol_version,
+    proto::versioning::{ProtocolVersion, VersionedHashable},
     radon_report::{RadonReport, ReportContext},
+    staking::{prelude::StakeKey, stakes::Stakes},
     transaction::{
-        CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, TallyTransaction,
-        Transaction, VTTransaction,
+        CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, StakeTransaction,
+        TallyTransaction, Transaction, UnstakeTransaction, VTTransaction,
     },
     transaction_factory::{transaction_inputs_sum, transaction_outputs_sum},
     types::visitor::Visitor,
     utxo_pool::{Diff, UnspentOutputsPool, UtxoDiff},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfCtx},
-    wit::NANOWITS_PER_WIT,
+    wit::{Wit, NANOWITS_PER_WIT},
 };
 use witnet_rad::{
     conditions::{
@@ -49,6 +55,20 @@ use witnet_rad::{
     script::{create_radon_script_from_filters_and_reducer, unpack_radon_script},
     types::{serial_iter_decode, RadonTypes},
 };
+
+use crate::eligibility::{
+    current::{
+        Eligibility, Eligible,
+        IneligibilityReason::{InsufficientPower, NotStaking},
+    },
+    legacy::*,
+};
+
+// TODO: move to a configuration
+const MAX_STAKE_BLOCK_WEIGHT: u32 = 10_000_000;
+const MIN_STAKE_NANOWITS: u64 = PSEUDO_CONSENSUS_CONSTANTS_POS_MIN_STAKE_NANOWITS;
+const MAX_UNSTAKE_BLOCK_WEIGHT: u32 = 5_000;
+const UNSTAKING_DELAY_SECONDS: u32 = 1_209_600;
 
 /// Returns the fee of a value transfer transaction.
 ///
@@ -88,6 +108,43 @@ pub fn dr_transaction_fee(
     let out_value = transaction_outputs_sum(&dr_tx.body.outputs)?
         .checked_add(dr_tx.body.dr_output.checked_total_value()?)
         .ok_or(TransactionError::OutputValueOverflow)?;
+
+    if out_value > in_value {
+        Err(TransactionError::NegativeFee.into())
+    } else {
+        Ok(in_value - out_value)
+    }
+}
+
+/// Returns the fee of a stake transaction.
+///
+/// The fee is the difference between the outputs and the inputs of the transaction.
+pub fn st_transaction_fee(
+    st_tx: &StakeTransaction,
+    utxo_diff: &UtxoDiff<'_>,
+    epoch: Epoch,
+    epoch_constants: EpochConstants,
+) -> Result<u64, failure::Error> {
+    let in_value = transaction_inputs_sum(&st_tx.body.inputs, utxo_diff, epoch, epoch_constants)?;
+    let out_value = st_tx.body.output.value;
+
+    if out_value > in_value {
+        Err(TransactionError::NegativeFee.into())
+    } else {
+        Ok(in_value - out_value)
+    }
+}
+
+/// Returns the fee of a unstake transaction.
+///
+/// The fee is the difference between the output and the inputs
+/// of the transaction. The pool parameter is used to find the
+/// outputs pointed by the inputs and that contain the actual
+/// their value.
+pub fn ut_transaction_fee(ut_tx: &UnstakeTransaction) -> Result<u64, failure::Error> {
+    // TODO: take in_value from stakes tracker
+    let in_value = 0;
+    let out_value = ut_tx.body.value();
 
     if out_value > in_value {
         Err(TransactionError::NegativeFee.into())
@@ -374,8 +431,6 @@ pub fn validate_vt_transaction<'a>(
     }
 
     let fee = vt_transaction_fee(vt_tx, utxo_diff, epoch, epoch_constants)?;
-
-    // FIXME(#514): Implement value transfer transaction validation
 
     Ok((
         vt_tx.body.inputs.iter().collect(),
@@ -1129,6 +1184,133 @@ pub fn validate_tally_transaction<'a>(
     Ok((ta_tx.outputs.iter().collect(), tally_extra_fee))
 }
 
+/// A type alias for the very complex return type of `fn validate_stake_transaction`.
+pub type ValidatedStakeTransaction<'a> = (
+    Vec<&'a Input>,
+    &'a StakeOutput,
+    u64,
+    u32,
+    &'a Option<ValueTransferOutput>,
+);
+
+/// Function to validate a stake transaction.
+pub fn validate_stake_transaction<'a>(
+    st_tx: &'a StakeTransaction,
+    utxo_diff: &UtxoDiff<'_>,
+    epoch: Epoch,
+    epoch_constants: EpochConstants,
+    signatures_to_verify: &mut Vec<SignaturesToVerify>,
+) -> Result<ValidatedStakeTransaction<'a>, failure::Error> {
+    // Check that the amount of coins to stake is equal or greater than the minimum allowed
+    if st_tx.body.output.value < MIN_STAKE_NANOWITS {
+        Err(TransactionError::StakeBelowMinimum {
+            min_stake: MIN_STAKE_NANOWITS,
+            stake: st_tx.body.output.value,
+        })?;
+    }
+
+    validate_transaction_signature(
+        &st_tx.signatures,
+        &st_tx.body.inputs,
+        st_tx.hash(),
+        utxo_diff,
+        signatures_to_verify,
+    )?;
+
+    // A stake transaction must have at least one input
+    if st_tx.body.inputs.is_empty() {
+        Err(TransactionError::NoInputs {
+            tx_hash: st_tx.hash(),
+        })?;
+    }
+
+    let fee = st_transaction_fee(st_tx, utxo_diff, epoch, epoch_constants)?;
+
+    Ok((
+        st_tx.body.inputs.iter().collect(),
+        &st_tx.body.output,
+        fee,
+        st_tx.weight(),
+        &st_tx.body.change,
+    ))
+}
+
+/// Function to validate a unstake transaction
+pub fn validate_unstake_transaction<'a>(
+    ut_tx: &'a UnstakeTransaction,
+    st_tx: &'a StakeTransaction,
+    _utxo_diff: &UtxoDiff<'_>,
+    _epoch: Epoch,
+    _epoch_constants: EpochConstants,
+) -> Result<(u64, u32), failure::Error> {
+    // Check if is unstaking more than the total stake
+    // FIXME: actually query the stakes tracker for staked value
+    let amount_to_unstake = ut_tx.body.withdrawal.value;
+    if amount_to_unstake > st_tx.body.output.value {
+        return Err(TransactionError::UnstakingMoreThanStaked {
+            unstake: MIN_STAKE_NANOWITS,
+            stake: st_tx.body.output.value,
+        }
+        .into());
+    }
+
+    // Check that the stake is greater than the min allowed
+    if amount_to_unstake - st_tx.body.output.value < MIN_STAKE_NANOWITS {
+        return Err(TransactionError::StakeBelowMinimum {
+            min_stake: MIN_STAKE_NANOWITS,
+            stake: st_tx.body.output.value,
+        }
+        .into());
+    }
+
+    // TODO: take the operator from the StakesTracker when implemented
+    let operator = PublicKeyHash::default();
+    // validate unstake_signature
+    validate_unstake_signature(ut_tx, operator)?;
+
+    // Validate unstake timestamp
+    validate_unstake_timelock(ut_tx)?;
+
+    // let fee = ut_tx.body.withdrawal.value;
+    let fee = ut_transaction_fee(ut_tx)?;
+    let weight = st_tx.weight();
+
+    Ok((fee, weight))
+}
+
+/// Validate unstake timelock
+pub fn validate_unstake_timelock(ut_tx: &UnstakeTransaction) -> Result<(), failure::Error> {
+    // TODO: is this correct or should we use calculate it from the staking tx epoch?
+    if ut_tx.body.withdrawal.time_lock >= UNSTAKING_DELAY_SECONDS.into() {
+        return Err(TransactionError::InvalidUnstakeTimelock {
+            time_lock: ut_tx.body.withdrawal.time_lock,
+            unstaking_delay_seconds: UNSTAKING_DELAY_SECONDS,
+        }
+        .into());
+    }
+
+    Ok(())
+}
+
+/// Function to validate a unstake authorization
+pub fn validate_unstake_signature(
+    ut_tx: &UnstakeTransaction,
+    operator: PublicKeyHash,
+) -> Result<(), failure::Error> {
+    let ut_tx_pkh = ut_tx.signature.public_key.hash();
+    // TODO: move to variables and use better names
+    if ut_tx_pkh != ut_tx.body.withdrawal.pkh.hash() || ut_tx_pkh != operator.hash() {
+        return Err(TransactionError::InvalidUnstakeSignature {
+            signature: ut_tx_pkh,
+            withdrawal: ut_tx.body.withdrawal.pkh.hash(),
+            operator: operator.hash(),
+        }
+        .into());
+    }
+
+    Ok(())
+}
+
 /// Function to validate a block signature
 pub fn validate_block_signature(
     block: &Block,
@@ -1149,7 +1331,9 @@ pub fn validate_block_signature(
     let signature = keyed_signature.signature.clone().try_into()?;
     let public_key = keyed_signature.public_key.clone().try_into()?;
 
-    let Hash::SHA256(message) = block.hash();
+    let Hash::SHA256(message) = block.versioned_hash(get_protocol_version(Some(
+        block.block_header.beacon.checkpoint,
+    )));
 
     add_secp_block_signature_to_verify(signatures_to_verify, &public_key, &message, &signature);
 
@@ -1427,9 +1611,8 @@ pub fn validate_block_transactions(
     mut visitor: Option<&mut dyn Visitor<Visitable = (Transaction, u64, u32)>>,
 ) -> Result<Diff, failure::Error> {
     let epoch = block.block_header.beacon.checkpoint;
-    let is_genesis = block.hash() == consensus_constants.genesis_hash;
+    let is_genesis = block.is_genesis(&consensus_constants.genesis_hash);
     let mut utxo_diff = UtxoDiff::new(utxo_set, block_number);
-
     // Init total fee
     let mut total_fee = 0;
     // When validating genesis block, keep track of total value created
@@ -1699,6 +1882,110 @@ pub fn validate_block_transactions(
     }
     let dr_hash_merkle_root = dr_mt.root();
 
+    let protocol_version = get_protocol_version(Some(epoch));
+    let (st_root, ut_root) = if protocol_version != ProtocolVersion::V1_7 {
+        // validate stake transactions in a block
+        let mut st_mt = ProgressiveMerkleTree::sha256();
+        let mut st_weight: u32 = 0;
+
+        // Check if the block contains more than one stake tx from the same operator
+        let duplicate = block
+            .txns
+            .stake_txns
+            .iter()
+            .map(|stake_tx| &stake_tx.body.output.authorization.public_key)
+            .duplicates()
+            .next();
+
+        if let Some(duplicate) = duplicate {
+            return Err(BlockError::RepeatedStakeOperator {
+                pkh: duplicate.pkh(),
+            }
+            .into());
+        }
+
+        for transaction in &block.txns.stake_txns {
+            let (inputs, _output, fee, weight, change) = validate_stake_transaction(
+                transaction,
+                &utxo_diff,
+                epoch,
+                epoch_constants,
+                signatures_to_verify,
+            )?;
+
+            total_fee += fee;
+
+            // Update st weight
+            let acc_weight = st_weight.saturating_add(weight);
+            if acc_weight > MAX_STAKE_BLOCK_WEIGHT {
+                return Err(BlockError::TotalStakeWeightLimitExceeded {
+                    weight: acc_weight,
+                    max_weight: MAX_STAKE_BLOCK_WEIGHT,
+                }
+                .into());
+            }
+            st_weight = acc_weight;
+
+            let outputs = change.iter().collect_vec();
+            update_utxo_diff(&mut utxo_diff, inputs, outputs, transaction.hash());
+
+            // Add new hash to merkle tree
+            st_mt.push(transaction.hash().into());
+
+            // TODO: Move validations to a visitor
+            // // Execute visitor
+            // if let Some(visitor) = &mut visitor {
+            //     let transaction = Transaction::ValueTransfer(transaction.clone());
+            //     visitor.visit(&(transaction, fee, weight));
+            // }
+        }
+
+        let mut ut_mt = ProgressiveMerkleTree::sha256();
+        let mut ut_weight: u32 = 0;
+
+        for transaction in &block.txns.unstake_txns {
+            // TODO: get tx, default to compile
+            let st_tx = StakeTransaction::default();
+            let (fee, weight) = validate_unstake_transaction(
+                transaction,
+                &st_tx,
+                &utxo_diff,
+                epoch,
+                epoch_constants,
+            )?;
+
+            total_fee += fee;
+
+            // Update ut weight
+            let acc_weight = ut_weight.saturating_add(weight);
+            if acc_weight > MAX_UNSTAKE_BLOCK_WEIGHT {
+                return Err(BlockError::TotalUnstakeWeightLimitExceeded {
+                    weight: acc_weight,
+                    max_weight: MAX_UNSTAKE_BLOCK_WEIGHT,
+                }
+                .into());
+            }
+            ut_weight = acc_weight;
+
+            // Add new hash to merkle tree
+            let txn_hash = transaction.hash();
+            let Hash::SHA256(sha) = txn_hash;
+            ut_mt.push(Sha256(sha));
+
+            // TODO: Move validations to a visitor
+            // // Execute visitor
+            // if let Some(visitor) = &mut visitor {
+            //     let transaction = Transaction::ValueTransfer(transaction.clone());
+            //     visitor.visit(&(transaction, fee, weight));
+            // }
+        }
+
+        (st_mt.root(), ut_mt.root())
+    } else {
+        // Nullify stake and unstake merkle roots for the legacy protocol version
+        (hash::EMPTY_SHA256, hash::EMPTY_SHA256)
+    };
+
     if !is_genesis {
         // Validate mint
         validate_mint_transaction(
@@ -1726,9 +2013,16 @@ pub fn validate_block_transactions(
         commit_hash_merkle_root: Hash::from(co_hash_merkle_root),
         reveal_hash_merkle_root: Hash::from(re_hash_merkle_root),
         tally_hash_merkle_root: Hash::from(ta_hash_merkle_root),
+        stake_hash_merkle_root: Hash::from(st_root),
+        unstake_hash_merkle_root: Hash::from(ut_root),
     };
 
     if merkle_roots != block.block_header.merkle_roots {
+        log::debug!(
+            "{:?} vs {:?}",
+            merkle_roots,
+            block.block_header.merkle_roots
+        );
         Err(BlockError::NotValidMerkleTree.into())
     } else {
         Ok(utxo_diff.take_diff())
@@ -1746,6 +2040,8 @@ pub fn validate_block(
     rep_eng: &ReputationEngine,
     consensus_constants: &ConsensusConstants,
     active_wips: &ActiveWips,
+    protocol_version: ProtocolVersion,
+    stakes: &Stakes<PublicKeyHash, Wit, u32, u64>,
 ) -> Result<(), failure::Error> {
     let block_epoch = block.block_header.beacon.checkpoint;
     let hash_prev_block = block.block_header.beacon.hash_prev_block;
@@ -1773,15 +2069,30 @@ pub fn validate_block(
         // with the genesis_block_hash
         validate_genesis_block(block, consensus_constants.genesis_hash).map_err(Into::into)
     } else {
-        let total_identities = u32::try_from(rep_eng.ars().active_identities_number())?;
-        let (target_hash, _) = calculate_randpoe_threshold(
-            total_identities,
-            consensus_constants.mining_backup_factor,
-            block_epoch,
-            consensus_constants.minimum_difficulty,
-            consensus_constants.epochs_with_minimum_difficulty,
-            active_wips,
-        );
+        let target_hash = if protocol_version == ProtocolVersion::V2_0 {
+            let validator = block.block_sig.public_key.pkh();
+            let validator_key = StakeKey::from((validator, validator));
+            let eligibility = stakes.mining_eligibility(validator_key, block_epoch);
+            if eligibility == Ok(Eligible::No(InsufficientPower))
+                || eligibility == Ok(Eligible::No(NotStaking))
+            {
+                return Err(BlockError::ValidatorNotEligible { validator }.into());
+            }
+
+            Hash::max()
+        } else {
+            let total_identities = u32::try_from(rep_eng.ars().active_identities_number())?;
+            let (target_hash, _) = calculate_randpoe_threshold(
+                total_identities,
+                consensus_constants.mining_backup_factor,
+                block_epoch,
+                consensus_constants.minimum_difficulty,
+                consensus_constants.epochs_with_minimum_difficulty,
+                active_wips,
+            );
+
+            target_hash
+        };
 
         add_block_vrf_signature_to_verify(
             signatures_to_verify,
@@ -1894,238 +2205,15 @@ pub fn validate_new_transaction(
         Transaction::Reveal(tx) => {
             validate_reveal_transaction(tx, data_request_pool, signatures_to_verify)
         }
+        Transaction::Stake(tx) => validate_stake_transaction(
+            tx,
+            &utxo_diff,
+            current_epoch,
+            epoch_constants,
+            signatures_to_verify,
+        )
+        .map(|(_, _, fee, _, _)| fee),
         _ => Err(TransactionError::NotValidTransaction.into()),
-    }
-}
-
-/// Calculate the target hash needed to create a valid VRF proof of eligibility used for block
-/// mining.
-pub fn calculate_randpoe_threshold(
-    total_identities: u32,
-    replication_factor: u32,
-    block_epoch: u32,
-    minimum_difficulty: u32,
-    epochs_with_minimum_difficulty: u32,
-    active_wips: &ActiveWips,
-) -> (Hash, f64) {
-    let max = u64::max_value();
-    let minimum_difficulty = std::cmp::max(1, minimum_difficulty);
-    let target = if block_epoch <= epochs_with_minimum_difficulty {
-        max / u64::from(minimum_difficulty)
-    } else if active_wips.wips_0009_0011_0012() {
-        let difficulty = std::cmp::max(total_identities, minimum_difficulty);
-        (max / u64::from(difficulty)).saturating_mul(u64::from(replication_factor))
-    } else {
-        let difficulty = std::cmp::max(1, total_identities);
-        (max / u64::from(difficulty)).saturating_mul(u64::from(replication_factor))
-    };
-    let target = u32::try_from(target >> 32).unwrap();
-
-    let probability = f64::from(target) / f64::from(u32::try_from(max >> 32).unwrap());
-    (Hash::with_first_u32(target), probability)
-}
-
-/// Calculate the target hash needed to create a valid VRF proof of eligibility used for data
-/// request witnessing.
-pub fn calculate_reppoe_threshold(
-    rep_eng: &ReputationEngine,
-    pkh: &PublicKeyHash,
-    num_witnesses: u16,
-    minimum_difficulty: u32,
-    active_wips: &ActiveWips,
-) -> (Hash, f64) {
-    // Set minimum total_active_reputation to 1 to avoid division by zero
-    let total_active_rep = std::cmp::max(rep_eng.total_active_reputation(), 1);
-    // Add 1 to reputation because otherwise a node with 0 reputation would
-    // never be eligible for a data request
-    let my_eligibility = u64::from(rep_eng.get_eligibility(pkh)) + 1;
-
-    let max = u64::max_value();
-    // Compute target eligibility and hard-cap it if required
-    let target = if active_wips.wip0016() {
-        let factor = u64::from(num_witnesses);
-        (max / std::cmp::max(total_active_rep, u64::from(minimum_difficulty)))
-            .saturating_mul(my_eligibility)
-            .saturating_mul(factor)
-    } else if active_wips.third_hard_fork() {
-        let factor = u64::from(rep_eng.threshold_factor(num_witnesses));
-        // Eligibility must never be greater than (max/minimum_difficulty)
-        std::cmp::min(
-            max / u64::from(minimum_difficulty),
-            (max / total_active_rep).saturating_mul(my_eligibility),
-        )
-        .saturating_mul(factor)
-    } else {
-        let factor = u64::from(rep_eng.threshold_factor(num_witnesses));
-        // Check for overflow: when the probability is more than 100%, cap it to 100%
-        (max / total_active_rep)
-            .saturating_mul(my_eligibility)
-            .saturating_mul(factor)
-    };
-    let target = u32::try_from(target >> 32).unwrap();
-
-    let probability = f64::from(target) / f64::from(u32::try_from(max >> 32).unwrap());
-    (Hash::with_first_u32(target), probability)
-}
-
-/// Used to classify VRF hashes into slots.
-///
-/// When trying to mine a block, the node considers itself eligible if the hash of the VRF is lower
-/// than `calculate_randpoe_threshold(total_identities, rf, 1001,0,0)` with `rf = mining_backup_factor`.
-///
-/// However, in order to consolidate a block, the nodes choose the best block that is valid under
-/// `rf = mining_replication_factor`. If there is no valid block within that range, it retries with
-/// increasing values of `rf`. For example, with `mining_backup_factor = 4` and
-/// `mining_replication_factor = 8`, there are 5 different slots:
-/// `rf = 4, rf = 5, rf = 6, rf = 7, rf = 8`. Blocks in later slots can only be better candidates
-/// if the previous slots have zero valid blocks.
-#[derive(Clone, Debug, Default)]
-pub struct VrfSlots {
-    target_hashes: Vec<Hash>,
-}
-
-impl VrfSlots {
-    /// Create new list of slots with the given target hashes.
-    ///
-    /// `target_hashes` must be sorted
-    pub fn new(target_hashes: Vec<Hash>) -> Self {
-        Self { target_hashes }
-    }
-
-    /// Create new list of slots with the given parameters
-    pub fn from_rf(
-        total_identities: u32,
-        replication_factor: u32,
-        backup_factor: u32,
-        block_epoch: u32,
-        minimum_difficulty: u32,
-        epochs_with_minimum_difficulty: u32,
-        active_wips: &ActiveWips,
-    ) -> Self {
-        Self::new(
-            (replication_factor..=backup_factor)
-                .map(|rf| {
-                    calculate_randpoe_threshold(
-                        total_identities,
-                        rf,
-                        block_epoch,
-                        minimum_difficulty,
-                        epochs_with_minimum_difficulty,
-                        active_wips,
-                    )
-                    .0
-                })
-                .collect(),
-        )
-    }
-
-    /// Return the slot number that contains the given hash
-    pub fn slot(&self, hash: &Hash) -> u32 {
-        let num_sections = self.target_hashes.len();
-        u32::try_from(
-            self.target_hashes
-                .iter()
-                // The section is the index of the first section hash that is less
-                // than or equal to the provided hash
-                .position(|th| hash <= th)
-                // If the provided hash is greater than all of the section hashes,
-                // return the number of sections
-                .unwrap_or(num_sections),
-        )
-        .unwrap()
-    }
-
-    /// Return the target hash for each slot
-    pub fn target_hashes(&self) -> &[Hash] {
-        &self.target_hashes
-    }
-}
-
-#[allow(clippy::many_single_char_names)]
-fn internal_calculate_mining_probability(
-    rf: u32,
-    n: f64,
-    k: u32, // k: iterative rf until reach bf
-    m: i32, // M: nodes with reputation greater than me
-    l: i32, // L: nodes with reputation equal than me
-    r: i32, // R: nodes with reputation less than me
-) -> f64 {
-    if k == rf {
-        let rf = f64::from(rf);
-        // Prob to mine is the probability that a node with the same reputation than me mine,
-        // divided by all the nodes with the same reputation:
-        // 1/L * (1 - ((N-RF)/N)^L)
-        let prob_to_mine = (1.0 / f64::from(l)) * (1.0 - ((n - rf) / n).powi(l));
-        // Prob that a node with more reputation than me mine is:
-        // ((N-RF)/N)^M
-        let prob_greater_neg = ((n - rf) / n).powi(m);
-
-        prob_to_mine * prob_greater_neg
-    } else {
-        let k = f64::from(k);
-        // Here we take into account that rf = 1 because is only a new slot
-        let prob_to_mine = (1.0 / f64::from(l)) * (1.0 - ((n - 1.0) / n).powi(l));
-        // The same equation than before
-        let prob_bigger_neg = ((n - k) / n).powi(m);
-        // Prob that a node with less or equal reputation than me mine with a lower slot is:
-        // ((N+1-RF)/N)^(L+R-1)
-        let prob_lower_slot_neg = ((n + 1.0 - k) / n).powi(l + r - 1);
-
-        prob_to_mine * prob_bigger_neg * prob_lower_slot_neg
-    }
-}
-
-/// Calculate the probability that the block candidate proposed by this identity will be the
-/// consolidated block selected by the network.
-pub fn calculate_mining_probability(
-    rep_engine: &ReputationEngine,
-    own_pkh: PublicKeyHash,
-    rf: u32,
-    bf: u32,
-) -> f64 {
-    let n = u32::try_from(rep_engine.ars().active_identities_number()).unwrap();
-
-    // In case of any active node, the probability is maximum
-    if n == 0 {
-        return 1.0;
-    }
-
-    // First we need to know how many nodes have more or equal reputation than us
-    let own_rep = rep_engine.trs().get(&own_pkh);
-    let is_active_node = rep_engine.ars().contains(&own_pkh);
-    let mut greater = 0;
-    let mut equal = 0;
-    let mut less = 0;
-    for &active_id in rep_engine.ars().active_identities() {
-        let rep = rep_engine.trs().get(&active_id);
-        match (rep.0 > 0, own_rep.0 > 0) {
-            (true, false) => greater += 1,
-            (false, true) => less += 1,
-            _ => equal += 1,
-        }
-    }
-    // In case of not being active, the equal value is plus 1.
-    if !is_active_node {
-        equal += 1;
-    }
-
-    if rf > n && greater == 0 {
-        // In case of replication factor exceed the active node number and being the most reputed
-        // we obtain the maximum probability divided in the nodes we share the same reputation
-        1.0 / f64::from(equal)
-    } else if rf > n && greater > 0 {
-        // In case of replication factor exceed the active node number and not being the most reputed
-        // we obtain the minimum probability
-        0.0
-    } else {
-        let mut aux =
-            internal_calculate_mining_probability(rf, f64::from(n), rf, greater, equal, less);
-        let mut k = rf + 1;
-        while k <= bf && k <= n {
-            aux += internal_calculate_mining_probability(rf, f64::from(n), k, greater, equal, less);
-            k += 1;
-        }
-        aux
     }
 }
 
@@ -2166,6 +2254,8 @@ pub fn validate_merkle_tree(block: &Block) -> bool {
         commit_hash_merkle_root: merkle_tree_root(&block.txns.commit_txns),
         reveal_hash_merkle_root: merkle_tree_root(&block.txns.reveal_txns),
         tally_hash_merkle_root: merkle_tree_root(&block.txns.tally_txns),
+        stake_hash_merkle_root: merkle_tree_root(&block.txns.stake_txns),
+        unstake_hash_merkle_root: merkle_tree_root(&block.txns.unstake_txns),
     };
 
     merkle_roots == block.block_header.merkle_roots
@@ -2223,33 +2313,45 @@ pub fn compare_block_candidates(
     b2_vrf_hash: Hash,
     b2_is_active: bool,
     s: &VrfSlots,
+    version: ProtocolVersion,
 ) -> Ordering {
-    let section1 = s.slot(&b1_vrf_hash);
-    let section2 = s.slot(&b2_vrf_hash);
-    // Bigger section implies worse block candidate
-    section1
-        .cmp(&section2)
-        .reverse()
-        // Blocks created with nodes with reputation are better candidates than the others
-        .then({
-            match (b1_rep.0 > 0, b2_rep.0 > 0) {
-                (true, false) => Ordering::Greater,
-                (false, true) => Ordering::Less,
-                _ => Ordering::Equal,
-            }
-        })
-        // Blocks created with active nodes are better candidates than the others
-        .then({
-            match (b1_is_active, b2_is_active) {
-                (true, false) => Ordering::Greater,
-                (false, true) => Ordering::Less,
-                _ => Ordering::Equal,
-            }
-        })
+    let ordering = if version == ProtocolVersion::V2_0 {
         // Bigger vrf hash implies worse block candidate
-        .then(b1_vrf_hash.cmp(&b2_vrf_hash).reverse())
-        // Bigger block implies worse block candidate
-        .then(b1_hash.cmp(&b2_hash).reverse())
+        b1_vrf_hash
+            .cmp(&b2_vrf_hash)
+            .reverse()
+            // Bigger block implies worse block candidate
+            .then(b1_hash.cmp(&b2_hash).reverse())
+    } else {
+        let section1 = s.slot(&b1_vrf_hash);
+        let section2 = s.slot(&b2_vrf_hash);
+        // Bigger section implies worse block candidate
+        section1
+            .cmp(&section2)
+            .reverse()
+            // Blocks created with nodes with reputation are better candidates than the others
+            .then({
+                match (b1_rep.0 > 0, b2_rep.0 > 0) {
+                    (true, false) => Ordering::Greater,
+                    (false, true) => Ordering::Less,
+                    _ => Ordering::Equal,
+                }
+            })
+            // Blocks created with active nodes are better candidates than the others
+            .then({
+                match (b1_is_active, b2_is_active) {
+                    (true, false) => Ordering::Greater,
+                    (false, true) => Ordering::Less,
+                    _ => Ordering::Equal,
+                }
+            })
+            // Bigger vrf hash implies worse block candidate
+            .then(b1_vrf_hash.cmp(&b2_vrf_hash).reverse())
+            // Bigger block implies worse block candidate
+            .then(b1_hash.cmp(&b2_hash).reverse())
+    };
+
+    ordering
 }
 
 /// Blocking process to verify signatures

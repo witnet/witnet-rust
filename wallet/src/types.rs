@@ -22,7 +22,8 @@ use witnet_data_structures::{
     fee::Fee,
     transaction::{
         CommitTransaction, DRTransaction, DRTransactionBody, MintTransaction, RevealTransaction,
-        TallyTransaction, Transaction, VTTransaction, VTTransactionBody,
+        StakeTransaction, TallyTransaction, Transaction, UnstakeTransaction, VTTransaction,
+        VTTransactionBody,
     },
     utxo_pool::UtxoSelectionStrategy,
 };
@@ -121,6 +122,7 @@ pub struct Account {
     pub internal: ExtendedSK,
 }
 
+#[derive(Debug)]
 pub struct WalletData {
     pub id: String,
     pub name: Option<String>,
@@ -322,6 +324,8 @@ pub enum TransactionHelper {
     Reveal(RevealTransaction),
     Tally(TallyTransaction),
     Mint(MintTransaction),
+    Stake(StakeTransaction),
+    Unstake(UnstakeTransaction),
 }
 
 impl From<Transaction> for TransactionHelper {
@@ -337,6 +341,10 @@ impl From<Transaction> for TransactionHelper {
             Transaction::Reveal(revealtransaction) => TransactionHelper::Reveal(revealtransaction),
             Transaction::Tally(tallytransaction) => TransactionHelper::Tally(tallytransaction),
             Transaction::Mint(minttransaction) => TransactionHelper::Mint(minttransaction),
+            Transaction::Stake(staketransaction) => TransactionHelper::Stake(staketransaction),
+            Transaction::Unstake(unstaketransaction) => {
+                TransactionHelper::Unstake(unstaketransaction)
+            }
         }
     }
 }
@@ -354,6 +362,10 @@ impl From<TransactionHelper> for Transaction {
             TransactionHelper::Reveal(revealtransaction) => Transaction::Reveal(revealtransaction),
             TransactionHelper::Tally(tallytransaction) => Transaction::Tally(tallytransaction),
             TransactionHelper::Mint(minttransaction) => Transaction::Mint(minttransaction),
+            TransactionHelper::Stake(staketransaction) => Transaction::Stake(staketransaction),
+            TransactionHelper::Unstake(unstaketransaction) => {
+                Transaction::Unstake(unstaketransaction)
+            }
         }
     }
 }
@@ -413,7 +425,7 @@ impl From<DRTransactionBody> for DRTransactionBodyHelper {
 
 impl From<DRTransactionBodyHelper> for DRTransactionBody {
     fn from(x: DRTransactionBodyHelper) -> Self {
-        DRTransactionBody::new(x.inputs, x.outputs, x.dr_output)
+        DRTransactionBody::new(x.inputs, x.dr_output, x.outputs)
     }
 }
 

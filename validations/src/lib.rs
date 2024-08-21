@@ -7,11 +7,14 @@
 #![deny(unused_mut)]
 #![deny(missing_docs)]
 
-/// Module containing validations
+/// Module containing general purpose validations
 pub mod validations;
 
 /// Module containing validations specific to witnessing
 pub mod witnessing;
+
+/// Module contaning validations specific to eligibility
+pub mod eligibility;
 
 #[cfg(test)]
 mod tests;

@@ -1,5 +1,6 @@
-use super::*;
 use crate::types;
+
+use super::*;
 
 #[derive(Clone)]
 pub struct CryptoEngine {
@@ -28,6 +29,18 @@ impl CryptoEngine {
     {
         let decrypted = cipher::decrypt_aes_cbc(self.key.as_ref(), bytes, &self.iv)?;
         let value = bincode::deserialize(&decrypted)?;
+
+        Ok(value)
+    }
+
+    pub fn decrypt_with<T, F>(&self, bytes: &[u8], with: F) -> Result<T>
+    where
+        T: DeserializeOwned,
+        F: Fn(&[u8]) -> Vec<u8>,
+    {
+        let decrypted = cipher::decrypt_aes_cbc(self.key.as_ref(), bytes, &self.iv)?;
+        let with_bytes = with(&decrypted);
+        let value = bincode::deserialize(&with_bytes)?;
 
         Ok(value)
     }

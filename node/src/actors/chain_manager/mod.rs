@@ -47,6 +47,7 @@ use futures::future::{try_join_all, FutureExt};
 use glob::glob;
 use itertools::Itertools;
 use rand::Rng;
+
 use witnet_config::{
     config::Tapi,
     defaults::{
@@ -68,8 +69,10 @@ use witnet_data_structures::{
         SuperBlock, SuperBlockVote, TransactionsPool,
     },
     data_request::DataRequestPool,
-    get_environment,
+    get_environment, get_protocol_version,
+    proto::versioning::ProtocolVersion,
     radon_report::{RadonReport, ReportContext},
+    staking::prelude::*,
     superblock::{ARSIdentities, AddSuperBlockVote, SuperBlockConsensus},
     transaction::{RevealTransaction, TallyTransaction, Transaction},
     types::{
@@ -78,12 +81,16 @@ use witnet_data_structures::{
     },
     utxo_pool::{Diff, OwnUnspentOutputsPool, UnspentOutputsPool, UtxoWriteBatch},
     vrf::VrfCtx,
+    wit::Wit,
 };
 use witnet_rad::types::RadonTypes;
 use witnet_util::timestamp::seconds_to_human_string;
-use witnet_validations::validations::{
-    compare_block_candidates, validate_block, validate_block_transactions,
-    validate_new_transaction, validate_rad_request, verify_signatures, VrfSlots,
+use witnet_validations::{
+    eligibility::legacy::VrfSlots,
+    validations::{
+        compare_block_candidates, validate_block, validate_block_transactions,
+        validate_new_transaction, validate_rad_request, verify_signatures,
+    },
 };
 
 use crate::{
@@ -124,7 +131,7 @@ pub enum ChainManagerError {
     #[fail(display = "A block does not exist")]
     BlockDoesNotExist,
     /// Optional fields of ChainManager are not properly initialized yet
-    #[fail(display = "ChainManager is not ready yet")]
+    #[fail(display = "ChainManager is not ready yet. This may self-fix in a little while")]
     ChainNotReady,
     /// The node attempted to do an action that is only allowed while `ChainManager`
     /// is in `Synced` state.
@@ -153,6 +160,15 @@ pub enum ChainManagerError {
         /// Tells what the current epoch was
         current_superblock_index: u32,
     },
+    /// Tried to mine block candidates but mining is disabled through configuration.
+    #[fail(display = "Mining is disabled through configuration")]
+    MiningIsDisabled,
+    /// A staking-related error happened.
+    #[fail(display = "A staking-related error happened: {:?}", _0)]
+    Staking(StakesError<PublicKeyHash, witnet_data_structures::wit::Wit, Epoch>),
+    /// The node is not eligible to perform a certain action.
+    #[fail(display = "The node is not eligible to perform this action")]
+    NotEligible,
 }
 
 /// Synchronization target determined by the beacons received from outbound peers
@@ -683,6 +699,7 @@ impl ChainManager {
 
             let mut transaction_visitor = PriorityVisitor::default();
 
+            let protocol_version = get_protocol_version(self.current_epoch);
             let utxo_diff = process_validations(
                 &block,
                 self.current_epoch.unwrap_or_default(),
@@ -698,6 +715,8 @@ impl ChainManager {
                 resynchronizing,
                 &active_wips,
                 Some(&mut transaction_visitor),
+                protocol_version,
+                &self.chain_state.stakes,
             )?;
 
             // Extract the collected priorities from the internal state of the visitor
@@ -725,8 +744,9 @@ impl ChainManager {
                 || block.block_header.beacon.checkpoint == current_epoch + 1)
             {
                 log::debug!(
-                    "Ignoring received block #{} because its beacon is too old",
-                    block.block_header.beacon.checkpoint
+                    "Ignoring received block candidate because its beacon shows an old epoch ({}). The current epoch is {}.",
+                    block.block_header.beacon.checkpoint,
+                    current_epoch,
                 );
 
                 return;
@@ -786,6 +806,8 @@ impl ChainManager {
                         return;
                     }
                 };
+                let protocol_version =
+                    get_protocol_version(Some(block.block_header.beacon.checkpoint));
 
                 if let Some(best_candidate) = &self.best_candidate {
                     let best_hash = best_candidate.block.hash();
@@ -809,6 +831,7 @@ impl ChainManager {
                         best_candidate.vrf_proof,
                         best_candidate_is_active,
                         &target_vrf_slots,
+                        protocol_version,
                     ) != Ordering::Greater
                     {
                         log::debug!("Ignoring new block candidate ({}) because a better one ({}) has been already validated", hash_block, best_hash);
@@ -838,6 +861,8 @@ impl ChainManager {
                     false,
                     &active_wips,
                     Some(&mut transaction_visitor),
+                    protocol_version,
+                    &self.chain_state.stakes,
                 ) {
                     Ok(utxo_diff) => {
                         let priorities = transaction_visitor.take_state();
@@ -900,10 +925,28 @@ impl ChainManager {
             }
         };
 
+        let current_epoch = if let Some(epoch) = self.current_epoch {
+            epoch
+        } else {
+            // If there is no epoch set, it's because the chain is yet to be bootstrapped, or because of a data race
+            match self.chain_state.chain_info.as_ref() {
+                // If the chain is yet to be bootstrapped (the block we are processing is the genesis block), set the epoch to zero
+                Some(chain_info) if chain_info.consensus_constants.genesis_hash == block.hash() => {
+                    0
+                }
+                // In case of data race, shortcut the function
+                _ => {
+                    log::error!("Current epoch not loaded in ChainManager");
+                    return;
+                }
+            }
+        };
+
         match self.chain_state {
             ChainState {
                 chain_info: Some(ref mut chain_info),
                 reputation_engine: Some(ref mut reputation_engine),
+                ref mut stakes,
                 ..
             } => {
                 let block_hash = block.hash();
@@ -968,7 +1011,11 @@ impl ChainManager {
 
                 let miner_pkh = block.block_header.proof.proof.pkh();
 
-                // Do not update reputation when consolidating genesis block
+                // Reset the coin age of the miner for all staked coins
+                let key = StakeKey::from((miner_pkh, miner_pkh));
+                let _ = stakes.reset_age(key, Capability::Mining, current_epoch);
+
+                // Do not update reputation or stakes when consolidating genesis block
                 if block_hash != chain_info.consensus_constants.genesis_hash {
                     update_reputation(
                         reputation_engine,
@@ -980,6 +1027,18 @@ impl ChainManager {
                         block_epoch,
                         self.own_pkh.unwrap_or_default(),
                     );
+
+                    let stake_txns_count = block.txns.stake_txns.len();
+                    if stake_txns_count > 0 {
+                        log::debug!("Processing {stake_txns_count} stake transactions");
+
+                        let _ = process_stake_transactions(
+                            stakes,
+                            block.txns.stake_txns.iter(),
+                            block_epoch,
+                        );
+                    }
+                    //process_unstake_transactions(stakes, block.txns.unstake_txns.iter(), block_epoch);
                 }
 
                 // Update bn256 public keys with block information
@@ -1964,6 +2023,7 @@ impl ChainManager {
             active_wips: self.chain_state.tapi_engine.wip_activation.clone(),
             block_epoch: block.block_header.beacon.checkpoint,
         };
+        let protocol_version = get_protocol_version(Some(block.block_header.beacon.checkpoint));
         let res = validate_block(
             &block,
             current_epoch,
@@ -1973,6 +2033,8 @@ impl ChainManager {
             self.chain_state.reputation_engine.as_ref().unwrap(),
             &consensus_constants,
             &active_wips,
+            protocol_version,
+            &self.chain_state.stakes,
         );
 
         let fut = async {
@@ -2771,6 +2833,8 @@ pub fn process_validations(
     resynchronizing: bool,
     active_wips: &ActiveWips,
     transaction_visitor: Option<&mut dyn Visitor<Visitable = (Transaction, u64, u32)>>,
+    protocol_version: ProtocolVersion,
+    stakes: &Stakes<PublicKeyHash, Wit, u32, u64>,
 ) -> Result<Diff, failure::Error> {
     if !resynchronizing {
         let mut signatures_to_verify = vec![];
@@ -2783,6 +2847,8 @@ pub fn process_validations(
             rep_eng,
             consensus_constants,
             active_wips,
+            protocol_version,
+            stakes,
         )?;
         verify_signatures(signatures_to_verify, vrf_ctx)?;
     }
@@ -2933,6 +2999,10 @@ fn update_pools(
             log::error!("Error processing reveal transaction:\n{}", e);
         }
         transactions_pool.remove_one_reveal(&re_tx.body.dr_pointer, &re_tx.body.pkh, &re_tx.hash());
+    }
+
+    for st_tx in &block.txns.stake_txns {
+        transactions_pool.st_remove(st_tx);
     }
 
     // Update own_utxos

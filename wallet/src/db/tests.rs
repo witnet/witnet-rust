@@ -1,3 +1,4 @@
+use serde::de::DeserializeOwned;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use super::*;
@@ -134,6 +135,26 @@ impl IntoIterator for HashMapWriteBatch {
 
     fn into_iter(self) -> IntoIter {
         self.data.into_iter()
+    }
+}
+
+impl GetWith for HashMapDb {
+    fn get_with_opt<K, V, F>(&self, key: &Key<K, V>, with: F) -> Result<Option<V>>
+    where
+        K: AsRef<[u8]>,
+        V: DeserializeOwned,
+        F: Fn(&[u8]) -> Vec<u8>,
+    {
+        let k = key.as_ref().to_vec();
+        let res = match RefCell::borrow(&self.rc).get(&k) {
+            Some(value) => {
+                let value = with(value);
+                Some(bincode::deserialize(&value)?)
+            }
+            None => None,
+        };
+
+        Ok(res)
     }
 }
 

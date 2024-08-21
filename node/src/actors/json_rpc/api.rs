@@ -23,9 +23,11 @@ use serde::{Deserialize, Serialize};
 use witnet_crypto::key::KeyPath;
 use witnet_data_structures::{
     chain::{
-        tapi::ActiveWips, Block, DataRequestOutput, Epoch, Hash, Hashable, PublicKeyHash, RADType,
-        StateMachine, SyncStatus,
+        tapi::ActiveWips, Block, DataRequestOutput, Epoch, Hash, Hashable, KeyedSignature,
+        PublicKeyHash, RADType, StakeOutput, StateMachine, SyncStatus,
     },
+    get_environment,
+    staking::prelude::*,
     transaction::Transaction,
     vrf::VrfMessage,
 };
@@ -37,13 +39,14 @@ use crate::{
         inventory_manager::{InventoryManager, InventoryManagerError},
         json_rpc::Subscriptions,
         messages::{
-            AddCandidates, AddPeers, AddTransaction, BuildDrt, BuildVtt, ClearPeers, DropAllPeers,
+            AddCandidates, AddPeers, AddTransaction, AuthorizeStake, BuildDrt, BuildStake,
+            BuildStakeParams, BuildStakeResponse, BuildVtt, ClearPeers, DropAllPeers,
             EstimatePriority, GetBalance, GetBalanceTarget, GetBlocksEpochRange,
             GetConsolidatedPeers, GetDataRequestInfo, GetEpoch, GetHighestCheckpointBeacon,
             GetItemBlock, GetItemSuperblock, GetItemTransaction, GetKnownPeers,
             GetMemoryTransaction, GetMempool, GetNodeStats, GetReputation, GetSignalingInfo,
-            GetState, GetSupplyInfo, GetUtxoInfo, InitializePeers, IsConfirmedBlock, Rewind,
-            SnapshotExport, SnapshotImport,
+            GetState, GetSupplyInfo, GetUtxoInfo, InitializePeers, IsConfirmedBlock, QueryStake,
+            QueryStakesParams, Rewind, SnapshotExport, SnapshotImport, StakeAuthorization,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -136,6 +139,9 @@ pub fn attach_regular_methods<H>(
         Box::pin(signaling_info())
     });
     server.add_actix_method(system, "priority", |_params: Params| Box::pin(priority()));
+    server.add_actix_method(system, "queryStakes", |params: Params| {
+        Box::pin(query_stakes(params.parse()))
+    });
 }
 
 /// Attach the sensitive JSON-RPC methods to a multi-transport server.
@@ -264,6 +270,23 @@ pub fn attach_sensitive_methods<H>(
             "chainImport",
             params,
             |params| snapshot_import(params.parse()),
+        ))
+    });
+    server.add_actix_method(system, "stake", move |params| {
+        Box::pin(if_authorized(
+            enable_sensitive_methods,
+            "stake",
+            params,
+            |params| stake(params.parse()),
+        ))
+    });
+
+    server.add_actix_method(system, "authorizeStake", move |params: Params| {
+        Box::pin(if_authorized(
+            enable_sensitive_methods,
+            "authorizeStake",
+            params,
+            |params| authorize_stake(params.parse()),
         ))
     });
 }
@@ -1921,6 +1944,181 @@ pub async fn snapshot_import(params: Result<SnapshotImportParams, Error>) -> Jso
     // Write the response back (the path to the snapshot file)
     serde_json::to_value(response).map_err(internal_error_s)
 }
+/// Build a stake transaction
+pub async fn stake(params: Result<BuildStakeParams, Error>) -> JsonRpcResult {
+    // Short-circuit if parameters are wrong
+    let params = params?;
+
+    let withdrawer = params
+        .withdrawer
+        .clone()
+        .try_do_magic(|hex_str| PublicKeyHash::from_bech32(get_environment(), &hex_str))
+        .map_err(internal_error)?;
+    log::debug!(
+        "[STAKE] Creating stake transaction with withdrawer address: {}",
+        withdrawer
+    );
+
+    // This is the actual message that gets signed as part of the authorization
+    let msg = withdrawer.as_secp256k1_msg();
+
+    let authorization = params
+        .authorization
+        .try_do_magic(|hex_str| KeyedSignature::from_recoverable_hex(&hex_str, &msg))
+        .map_err(internal_error)?;
+    let validator = PublicKeyHash::from_public_key(&authorization.public_key);
+    log::debug!(
+        "[STAKE] A stake authorization was provided, and it was signed by validator {}",
+        validator
+    );
+
+    let key = StakeKey {
+        validator,
+        withdrawer,
+    };
+
+    // Construct a BuildStake message that we can relay to the ChainManager for creation of the Stake transaction
+    let build_stake = BuildStake {
+        dry_run: params.dry_run,
+        fee: params.fee,
+        utxo_strategy: params.utxo_strategy,
+        stake_output: StakeOutput {
+            authorization,
+            key,
+            value: params.value,
+        },
+    };
+
+    ChainManager::from_registry()
+        .send(build_stake)
+        .map(|res| match res {
+            Ok(Ok(transaction)) => {
+                // In the event that this is a dry run, we want to inject some additional information into the
+                // response, so that the user can confirm the facts surrounding the stake transaction before
+                // submitting it
+                if params.dry_run {
+                    let staker = transaction
+                        .signatures
+                        .iter()
+                        .cloned()
+                        .map(|signature| signature.public_key.pkh())
+                        .collect();
+
+                    let bsr = BuildStakeResponse {
+                        transaction,
+                        staker,
+                        validator,
+                        withdrawer,
+                    };
+
+                    serde_json::to_value(bsr).map_err(internal_error)
+                } else {
+                    serde_json::to_value(transaction).map_err(internal_error)
+                }
+            }
+            Ok(Err(e)) => {
+                let err = internal_error_s(e);
+                Err(err)
+            }
+            Err(e) => {
+                let err = internal_error_s(e);
+                Err(err)
+            }
+        })
+        .await
+}
+
+/// Create a stake authorization for the given address.
+///
+/// The output of this method is a required argument to call the Stake method.
+/* test
+{"jsonrpc": "2.0","method": "authorizeStake", "params": {"withdrawer":"wit1lkzl4a365fvrr604pwqzykxugpglkrp5ekj0k0"}, "id": "1"}
+*/
+pub async fn authorize_stake(params: Result<AuthorizeStake, Error>) -> JsonRpcResult {
+    // Short-circuit if parameters are wrong
+    let params = params?;
+
+    // If a withdrawer address is not specified, default to local node address
+    let withdrawer = if let Some(address) = params.withdrawer {
+        PublicKeyHash::from_bech32(get_environment(), &address).map_err(internal_error)?
+    } else {
+        let pk = signature_mngr::public_key().await.unwrap();
+
+        PublicKeyHash::from_public_key(&pk)
+    };
+
+    // This is the actual message that gets signed as part of the authorization
+    let msg = withdrawer.as_secp256k1_msg();
+
+    signature_mngr::sign_data(msg)
+        .map(|res| {
+            res.map_err(internal_error).and_then(|signature| {
+                let authorization = StakeAuthorization {
+                    withdrawer,
+                    signature,
+                };
+
+                serde_json::to_value(authorization).map_err(internal_error)
+            })
+        })
+        .await
+}
+
+/// Param for query_stakes  
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum QueryStakesArgument {
+    /// To query by stake validator
+    Validator(String),
+    /// To query by stake withdrawer
+    Withdrawer(String),
+    /// To query by stake validator and withdrawer
+    Key((String, String)),
+}
+
+/// Query the amount of nanowits staked by an address.
+pub async fn query_stakes(params: Result<Option<QueryStakesArgument>, Error>) -> JsonRpcResult {
+    // Short-circuit if parameters are wrong
+    let params = params?;
+
+    // If a withdrawer address is not specified, default to local node address
+    let key: QueryStakesParams = if let Some(address) = params {
+        match address {
+            QueryStakesArgument::Validator(validator) => QueryStakesParams::Validator(
+                PublicKeyHash::from_bech32(get_environment(), &validator)
+                    .map_err(internal_error)?,
+            ),
+            QueryStakesArgument::Withdrawer(withdrawer) => QueryStakesParams::Withdrawer(
+                PublicKeyHash::from_bech32(get_environment(), &withdrawer)
+                    .map_err(internal_error)?,
+            ),
+            QueryStakesArgument::Key((validator, withdrawer)) => QueryStakesParams::Key((
+                PublicKeyHash::from_bech32(get_environment(), &validator)
+                    .map_err(internal_error)?,
+                PublicKeyHash::from_bech32(get_environment(), &withdrawer)
+                    .map_err(internal_error)?,
+            )),
+        }
+    } else {
+        let pk = signature_mngr::public_key().await.map_err(internal_error)?;
+
+        QueryStakesParams::Validator(PublicKeyHash::from_public_key(&pk))
+    };
+
+    ChainManager::from_registry()
+        .send(QueryStake { key })
+        .map(|res| match res {
+            Ok(Ok(staked_amount)) => serde_json::to_value(staked_amount).map_err(internal_error),
+            Ok(Err(e)) => {
+                let err = internal_error_s(e);
+                Err(err)
+            }
+            Err(e) => {
+                let err = internal_error_s(e);
+                Err(err)
+            }
+        })
+        .await
+}
 
 #[cfg(test)]
 mod mock_actix {
@@ -2124,7 +2322,7 @@ mod tests {
         let block = block_example();
         let inv_elem = InventoryItem::Block(block);
         let s = serde_json::to_string(&inv_elem).unwrap();
-        let expected = r#"{"block":{"block_header":{"signals":0,"beacon":{"checkpoint":0,"hashPrevBlock":"0000000000000000000000000000000000000000000000000000000000000000"},"merkle_roots":{"mint_hash":"0000000000000000000000000000000000000000000000000000000000000000","vt_hash_merkle_root":"0000000000000000000000000000000000000000000000000000000000000000","dr_hash_merkle_root":"0000000000000000000000000000000000000000000000000000000000000000","commit_hash_merkle_root":"0000000000000000000000000000000000000000000000000000000000000000","reveal_hash_merkle_root":"0000000000000000000000000000000000000000000000000000000000000000","tally_hash_merkle_root":"0000000000000000000000000000000000000000000000000000000000000000"},"proof":{"proof":{"proof":[],"public_key":{"compressed":0,"bytes":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}}},"bn256_public_key":null},"block_sig":{"signature":{"Secp256k1":{"der":[]}},"public_key":{"compressed":0,"bytes":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}},"txns":{"mint":{"epoch":0,"outputs":[]},"value_transfer_txns":[],"data_request_txns":[{"body":{"inputs":[{"output_pointer":"0000000000000000000000000000000000000000000000000000000000000000:0"}],"outputs":[{"pkh":"wit1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqwrt3a4","value":0,"time_lock":0}],"dr_output":{"data_request":{"time_lock":0,"retrieve":[{"kind":"HTTP-GET","url":"https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22"},{"kind":"HTTP-GET","url":"https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22"}],"aggregate":{"filters":[],"reducer":0},"tally":{"filters":[],"reducer":0}},"witness_reward":0,"witnesses":0,"commit_and_reveal_fee":0,"min_consensus_percentage":0,"collateral":0}},"signatures":[{"signature":{"Secp256k1":{"der":[]}},"public_key":{"compressed":0,"bytes":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}}]}],"commit_txns":[],"reveal_txns":[],"tally_txns":[]}}}"#;
+        let expected = r#"{"block":{"block_header":{"signals":0,"beacon":{"checkpoint":0,"hashPrevBlock":"0000000000000000000000000000000000000000000000000000000000000000"},"merkle_roots":{"mint_hash":"0000000000000000000000000000000000000000000000000000000000000000","vt_hash_merkle_root":"0000000000000000000000000000000000000000000000000000000000000000","dr_hash_merkle_root":"0000000000000000000000000000000000000000000000000000000000000000","commit_hash_merkle_root":"0000000000000000000000000000000000000000000000000000000000000000","reveal_hash_merkle_root":"0000000000000000000000000000000000000000000000000000000000000000","tally_hash_merkle_root":"0000000000000000000000000000000000000000000000000000000000000000","stake_hash_merkle_root":"0000000000000000000000000000000000000000000000000000000000000000","unstake_hash_merkle_root":"0000000000000000000000000000000000000000000000000000000000000000"},"proof":{"proof":{"proof":[],"public_key":{"compressed":0,"bytes":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}}},"bn256_public_key":null},"block_sig":{"signature":{"Secp256k1":{"der":[]}},"public_key":{"compressed":0,"bytes":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}},"txns":{"mint":{"epoch":0,"outputs":[]},"value_transfer_txns":[],"data_request_txns":[{"body":{"inputs":[{"output_pointer":"0000000000000000000000000000000000000000000000000000000000000000:0"}],"outputs":[{"pkh":"wit1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqwrt3a4","value":0,"time_lock":0}],"dr_output":{"data_request":{"time_lock":0,"retrieve":[{"kind":"HTTP-GET","url":"https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22"},{"kind":"HTTP-GET","url":"https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22"}],"aggregate":{"filters":[],"reducer":0},"tally":{"filters":[],"reducer":0}},"witness_reward":0,"witnesses":0,"commit_and_reveal_fee":0,"min_consensus_percentage":0,"collateral":0}},"signatures":[{"signature":{"Secp256k1":{"der":[]}},"public_key":{"compressed":0,"bytes":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}}]}],"commit_txns":[],"reveal_txns":[],"tally_txns":[],"stake_txns":[],"unstake_txns":[]}}}"#;
         assert_eq!(s, expected, "\n{}\n", s);
     }
 
@@ -2187,7 +2385,7 @@ mod tests {
         let inputs = vec![value_transfer_input];
 
         Transaction::DataRequest(DRTransaction::new(
-            DRTransactionBody::new(inputs, vec![], data_request_output),
+            DRTransactionBody::new(inputs, data_request_output, vec![]),
             keyed_signatures,
         ))
     }
@@ -2226,6 +2424,7 @@ mod tests {
             all_methods_vec,
             vec![
                 "addPeers",
+                "authorizeStake",
                 "chainExport",
                 "chainImport",
                 "clearPeers",
@@ -2256,6 +2455,7 @@ mod tests {
                 "sendValue",
                 "sign",
                 "signalingInfo",
+                "stake",
                 "syncStatus",
                 "tryRequest",
                 "witnet_subscribe",
@@ -2274,6 +2474,7 @@ mod tests {
 
         let expected_sensitive_methods = vec![
             "addPeers",
+            "authorizeStake",
             "clearPeers",
             "createVRF",
             "getPkh",
@@ -2286,6 +2487,7 @@ mod tests {
             "sendValue",
             "sign",
             "tryRequest",
+            "stake",
         ];
 
         for method_name in expected_sensitive_methods {

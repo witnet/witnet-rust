@@ -14,6 +14,8 @@ fn create_path_to_protobuf_schema_env() {
 }
 
 fn main() {
+    println!("cargo:rerun-if-changed=../schemas/witnet/witnet.proto");
+
     create_path_to_protobuf_schema_env();
 
     exonum_build::protobuf_generate(

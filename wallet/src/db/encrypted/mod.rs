@@ -1,9 +1,13 @@
+use serde::de::DeserializeOwned;
 use std::sync::Arc;
 
 use witnet_crypto::cipher;
 
 use super::*;
-use crate::{db::encrypted::write_batch::EncryptedWriteBatch, types};
+use crate::{
+    db::{encrypted::write_batch::EncryptedWriteBatch, GetWith},
+    types,
+};
 
 mod engine;
 mod prefix;
@@ -99,5 +103,27 @@ impl Database for EncryptedDb {
 
     fn batch(&self) -> Self::WriteBatch {
         EncryptedWriteBatch::new(self.prefixer.clone(), self.engine.clone())
+    }
+}
+
+impl GetWith for EncryptedDb {
+    fn get_with_opt<K, V, F>(&self, key: &Key<K, V>, with: F) -> Result<Option<V>>
+    where
+        K: AsRef<[u8]>,
+        V: DeserializeOwned,
+        F: Fn(&[u8]) -> Vec<u8>,
+    {
+        let prefix_key = self.prefixer.prefix(key);
+        let enc_key = self.engine.encrypt(&prefix_key)?;
+        let res = self.as_ref().get(enc_key)?;
+
+        match res {
+            Some(dbvec) => {
+                let value = self.engine.decrypt_with(&dbvec, with)?;
+
+                Ok(Some(value))
+            }
+            None => Ok(None),
+        }
     }
 }

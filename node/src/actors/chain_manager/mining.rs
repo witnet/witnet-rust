@@ -15,7 +15,11 @@ use actix::{
 };
 use ansi_term::Color::{White, Yellow};
 use futures::future::{try_join_all, FutureExt};
-use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE;
+
+use witnet_config::defaults::{
+    PSEUDO_CONSENSUS_CONSTANTS_POS_MAX_STAKE_BLOCK_WEIGHT,
+    PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE,
+};
 use witnet_data_structures::{
     chain::{
         tapi::{after_second_hard_fork, ActiveWips},
@@ -28,12 +32,15 @@ use witnet_data_structures::{
         DataRequestPool,
     },
     error::TransactionError,
-    get_environment,
+    get_environment, get_protocol_version,
+    proto::versioning::{ProtocolVersion, VersionedHashable},
     radon_error::RadonError,
     radon_report::{RadonReport, ReportContext, TypeLike},
+    staking::prelude::*,
     transaction::{
         CommitTransaction, CommitTransactionBody, DRTransactionBody, MintTransaction,
-        RevealTransaction, RevealTransactionBody, TallyTransaction, VTTransactionBody,
+        RevealTransaction, RevealTransactionBody, StakeTransactionBody, TallyTransaction,
+        VTTransactionBody,
     },
     transaction_factory::{build_commit_collateral, check_commit_collateral},
     utxo_pool::{UnspentOutputsPool, UtxoDiff},
@@ -47,15 +54,21 @@ use witnet_rad::{
     types::{serial_iter_decode, RadonTypes},
 };
 use witnet_util::timestamp::get_timestamp;
-use witnet_validations::validations::{
-    block_reward, calculate_liars_and_errors_count_from_tally, calculate_mining_probability,
-    calculate_randpoe_threshold, calculate_reppoe_threshold, dr_transaction_fee, merkle_tree_root,
-    tally_bytes_on_encode_error, update_utxo_diff, vt_transaction_fee,
+use witnet_validations::{
+    eligibility::{
+        current::{Eligibility, Eligible},
+        legacy::*,
+    },
+    validations::{
+        block_reward, calculate_liars_and_errors_count_from_tally, dr_transaction_fee,
+        merkle_tree_root, st_transaction_fee, tally_bytes_on_encode_error, update_utxo_diff,
+        vt_transaction_fee,
+    },
 };
 
 use crate::{
     actors::{
-        chain_manager::{ChainManager, StateMachine},
+        chain_manager::{ChainManager, ChainManagerError, StateMachine},
         messages::{AddCommitReveal, ResolveRA, RunTally},
         rad_manager::RadManager,
     },
@@ -64,136 +77,111 @@ use crate::{
 
 impl ChainManager {
     /// Try to mine a block
-    pub fn try_mine_block(&mut self, ctx: &mut Context<Self>) {
+    pub fn try_mine_block(&mut self, ctx: &mut Context<Self>) -> Result<(), ChainManagerError> {
         if !self.mining_enabled {
-            log::debug!("Mining is disabled in the configuration");
-            return;
+            return Err(ChainManagerError::MiningIsDisabled);
         }
 
         // We only want to mine in Synced state
         if self.sm_state != StateMachine::Synced {
-            log::debug!(
-                "Not mining because node is not in Synced state (current state is {:?})",
-                self.sm_state
-            );
-            return;
+            return Err(ChainManagerError::NotSynced {
+                current_state: self.sm_state,
+            });
         }
 
-        if self.current_epoch.is_none() {
-            log::warn!("Cannot mine a block because current epoch is unknown");
+        let current_epoch = self.current_epoch.ok_or(ChainManagerError::ChainNotReady)?;
+        let own_pkh = self.own_pkh.ok_or(ChainManagerError::ChainNotReady)?;
+        let epoch_constants = self
+            .epoch_constants
+            .ok_or(ChainManagerError::ChainNotReady)?;
+        let chain_info = self
+            .chain_state
+            .chain_info
+            .clone()
+            .ok_or(ChainManagerError::ChainNotReady)?;
 
-            return;
-        }
-        if self.own_pkh.is_none() {
-            log::warn!("PublicKeyHash is not set. All mined wits will be lost!");
-        }
-
-        if self.chain_state.reputation_engine.is_none() {
-            log::warn!("Reputation engine is not set");
-
-            return;
-        }
-        if self.epoch_constants.is_none() {
-            log::warn!("EpochConstants is not set");
-
-            return;
-        }
-        if self.chain_state.chain_info.is_none() {
-            log::warn!("ChainInfo is not set");
-
-            return;
-        }
-        let epoch_constants = self.epoch_constants.unwrap();
-        let rep_engine = self.chain_state.reputation_engine.as_ref().unwrap().clone();
-        let total_identities = u32::try_from(rep_engine.ars().active_identities_number()).unwrap();
-
-        let current_epoch = self.current_epoch.unwrap();
-
-        let chain_info = self.chain_state.chain_info.as_mut().unwrap();
         let max_vt_weight = chain_info.consensus_constants.max_vt_weight;
         let max_dr_weight = chain_info.consensus_constants.max_dr_weight;
+        let max_st_weight = PSEUDO_CONSENSUS_CONSTANTS_POS_MAX_STAKE_BLOCK_WEIGHT;
         let mining_bf = chain_info.consensus_constants.mining_backup_factor;
-        let mining_rf = chain_info.consensus_constants.mining_replication_factor;
         let collateral_minimum = chain_info.consensus_constants.collateral_minimum;
         let minimum_difficulty = chain_info.consensus_constants.minimum_difficulty;
         let initial_block_reward = chain_info.consensus_constants.initial_block_reward;
         let halving_period = chain_info.consensus_constants.halving_period;
-        let epochs_with_minimum_difficulty = chain_info
-            .consensus_constants
-            .epochs_with_minimum_difficulty;
 
         let mut beacon = chain_info.highest_block_checkpoint;
         let mut vrf_input = chain_info.highest_vrf_output;
 
-        if beacon.checkpoint >= current_epoch {
-            // We got a block from the future
-            // Due to block consolidation from epoch N is done in epoch N+1,
-            // and chain beacon is the same that the last block known.
-            // Our chain beacon always come from the past epoch. So, a chain beacon
-            // with the current epoch is the same error if it is come from the future
-            log::error!(
-                "The current highest checkpoint beacon is from the future ({:?} >= {:?})",
-                beacon.checkpoint,
-                current_epoch
-            );
-            return;
+        if get_protocol_version(self.current_epoch) == ProtocolVersion::V2_0 {
+            let key = StakeKey::from((own_pkh, own_pkh));
+            let eligibility = self
+                .chain_state
+                .stakes
+                .mining_eligibility(key, current_epoch)
+                .map_err(ChainManagerError::Staking)?;
+
+            match eligibility {
+                Eligible::Yes => {
+                    log::info!("Hurray! Found eligibility for proposing a block candidate!");
+                }
+                Eligible::No(_) => {
+                    log::debug!("No eligibility for proposing a block candidate.");
+                    return Ok(());
+                }
+            }
         }
+
         // The highest checkpoint beacon should contain the current epoch
         beacon.checkpoint = current_epoch;
         vrf_input.checkpoint = current_epoch;
 
-        let own_pkh = self.own_pkh.unwrap_or_default();
-        let is_ars_member = rep_engine.is_ars_member(&own_pkh);
-        let active_wips = ActiveWips {
-            active_wips: self.chain_state.tapi_engine.wip_activation.clone(),
-            block_epoch: current_epoch,
+        let target_hash = if get_protocol_version(self.current_epoch) == ProtocolVersion::V2_0 {
+            Hash::max()
+        } else {
+            let rep_engine = self.chain_state.reputation_engine.as_ref().unwrap().clone();
+            let total_identities =
+                u32::try_from(rep_engine.ars().active_identities_number()).unwrap();
+            let epochs_with_minimum_difficulty = chain_info
+                .consensus_constants
+                .epochs_with_minimum_difficulty;
+
+            let active_wips = ActiveWips {
+                active_wips: self.chain_state.tapi_engine.wip_activation.clone(),
+                block_epoch: current_epoch,
+            };
+
+            // invalid: vrf_hash > target_hash
+            let (target_hash, _probability) = calculate_randpoe_threshold(
+                total_identities,
+                mining_bf,
+                current_epoch,
+                minimum_difficulty,
+                epochs_with_minimum_difficulty,
+                &active_wips,
+            );
+
+            target_hash
         };
 
-        // Create a VRF proof and if eligible build block
         signature_mngr::vrf_prove(VrfMessage::block_mining(vrf_input))
             .map(move |res| {
                 res.map_err(|e| log::error!("Failed to create block eligibility proof: {}", e))
                     .map(move |(vrf_proof, vrf_proof_hash)| {
-                        // invalid: vrf_hash > target_hash
-                        let (target_hash, probability) = calculate_randpoe_threshold(
-                            total_identities,
-                            mining_bf,
-                            current_epoch,
-                            minimum_difficulty,
-                            epochs_with_minimum_difficulty,
-                            &active_wips,
-                        );
-                        let proof_invalid = vrf_proof_hash > target_hash;
+                        // For legacy protocol versions, check if our proof meets some thresholds
+
+                        if vrf_proof_hash > target_hash {
+                            Err(())?;
+                        }
 
                         log::info!(
-                            "Probability to create a valid mining proof: {:.6}%",
-                            probability * 100_f64
+                            "{} Discovered eligibility for mining a block for epoch #{}",
+                            Yellow.bold().paint("[Mining]"),
+                            Yellow.bold().paint(beacon.checkpoint.to_string())
                         );
-                        log::trace!("Target hash: {}", target_hash);
-                        log::trace!("Our proof:   {}", vrf_proof_hash);
-                        if proof_invalid {
-                            log::debug!("No eligibility for mining a block");
-                            Err(())
-                        } else {
-                            log::info!(
-                                "{} Discovered eligibility for mining a block for epoch #{}",
-                                Yellow.bold().paint("[Mining]"),
-                                Yellow.bold().paint(beacon.checkpoint.to_string())
-                            );
-                            let mining_prob = calculate_mining_probability(
-                                &rep_engine,
-                                own_pkh,
-                                mining_rf,
-                                mining_bf,
-                            );
-                            // Discount the already reached probability
-                            let mining_prob = mining_prob / probability * 100.0;
-                            log::info!(
-                                "Probability that the mined block will be selected: {:.6}%",
-                                mining_prob
-                            );
-                            Ok(vrf_proof)
-                        }
+
+                        // TODO: figure out if mining probability estimates make any sense in the context of PoS
+
+                        Ok::<_, ()>(vrf_proof)
                     })
             })
             .flatten_err()
@@ -206,12 +194,8 @@ impl ChainManager {
             .and_then(move |(vrf_proof, tally_transactions), act, _ctx| {
                 let eligibility_claim = BlockEligibilityClaim { proof: vrf_proof };
 
-                // If pkh is in ARS, no need to send bn256 public key
-                let bn256_public_key = if is_ars_member {
-                    None
-                } else {
-                    act.bn256_public_key.clone()
-                };
+                // TODO: assess if bn256 keys are redundant
+                let bn256_public_key = act.bn256_public_key.clone();
 
                 let tapi_version = act.tapi_signals_mask(current_epoch);
 
@@ -229,6 +213,7 @@ impl ChainManager {
                     ),
                     max_vt_weight,
                     max_dr_weight,
+                    max_st_weight,
                     beacon,
                     eligibility_claim,
                     &tally_transactions,
@@ -246,7 +231,10 @@ impl ChainManager {
                 );
 
                 // Sign the block hash
-                signature_mngr::sign(&block_header)
+                let protocol = get_protocol_version(Some(block_header.beacon.checkpoint));
+                let block_header_data = block_header.versioned_hash(protocol).data();
+
+                signature_mngr::sign_data(block_header_data)
                     .map(|res| {
                         res.map_err(|e| log::error!("Couldn't sign beacon: {}", e))
                             .map(|block_sig| Block::new(block_header, block_sig, txns))
@@ -280,6 +268,8 @@ impl ChainManager {
             })
             .map(|_res: Result<(), ()>, _act, _ctx| ())
             .wait(ctx);
+
+        Ok(())
     }
 
     /// Try to mine a data_request
@@ -808,11 +798,13 @@ impl ChainManager {
 /// Build a new Block using the supplied leadership proof and by filling transactions from the
 /// `transaction_pool`
 /// Returns an unsigned block!
+/// TODO: simplify function signature, e.g. through merging multiple related fields into new data structures.
 #[allow(clippy::too_many_arguments)]
 pub fn build_block(
     pools_ref: (&mut TransactionsPool, &UnspentOutputsPool, &DataRequestPool),
     max_vt_weight: u32,
     max_dr_weight: u32,
+    max_st_weight: u32,
     beacon: CheckpointBeacon,
     proof: BlockEligibilityClaim,
     tally_transactions: &[TallyTransaction],
@@ -836,14 +828,21 @@ pub fn build_block(
     let mut transaction_fees: u64 = 0;
     let mut vt_weight: u32 = 0;
     let mut dr_weight: u32 = 0;
+    let mut st_weight: u32 = 0;
     let mut value_transfer_txns = Vec::new();
     let mut data_request_txns = Vec::new();
     let mut tally_txns = Vec::new();
+    let mut stake_txns = Vec::new();
+    // TODO: handle unstake tx
+    let unstake_txns = Vec::new();
 
+    // Calculate the base weight for different types of transactions, to know when to give up trying to fit more
+    // transactions into a block
     let min_vt_weight =
         VTTransactionBody::new(vec![Input::default()], vec![ValueTransferOutput::default()])
             .weight();
-    // Currently only value transfer transactions weight is taking into account
+    let min_st_weight =
+        StakeTransactionBody::new(vec![Input::default()], Default::default(), None).weight();
 
     for vt_tx in transactions_pool.vt_iter() {
         let transaction_weight = vt_tx.weight();
@@ -858,7 +857,7 @@ pub fn build_block(
             }
         };
 
-        let new_vt_weight = vt_weight.saturating_add(transaction_weight);
+        let new_vt_weight = st_weight.saturating_add(transaction_weight);
         if new_vt_weight <= max_vt_weight {
             update_utxo_diff(
                 &mut utxo_diff,
@@ -949,7 +948,7 @@ pub fn build_block(
         witnesses: 1,
         ..DataRequestOutput::default()
     };
-    let min_dr_weight = DRTransactionBody::new(vec![Input::default()], vec![], dro).weight();
+    let min_dr_weight = DRTransactionBody::new(vec![Input::default()], dro, vec![]).weight();
     for dr_tx in transactions_pool.dr_iter() {
         let transaction_weight = dr_tx.weight();
         let transaction_fee = match dr_transaction_fee(dr_tx, &utxo_diff, epoch, epoch_constants) {
@@ -984,6 +983,51 @@ pub fn build_block(
         }
     }
 
+    let mut included_validators = HashSet::<PublicKeyHash>::new();
+    for st_tx in transactions_pool.st_iter() {
+        let validator_pkh = st_tx.body.output.authorization.public_key.pkh();
+        if included_validators.contains(&validator_pkh) {
+            log::debug!(
+                "Cannot include more than one stake transaction for {} in a single block",
+                validator_pkh
+            );
+            continue;
+        }
+
+        let transaction_weight = st_tx.weight();
+        let transaction_fee = match st_transaction_fee(st_tx, &utxo_diff, epoch, epoch_constants) {
+            Ok(x) => x,
+            Err(e) => {
+                log::warn!(
+                    "Error when calculating transaction fee for transaction: {}",
+                    e
+                );
+                continue;
+            }
+        };
+
+        let new_st_weight = st_weight.saturating_add(transaction_weight);
+        if new_st_weight <= max_st_weight {
+            update_utxo_diff(
+                &mut utxo_diff,
+                st_tx.body.inputs.iter(),
+                st_tx.body.change.iter(),
+                st_tx.hash(),
+            );
+            stake_txns.push(st_tx.clone());
+            transaction_fees = transaction_fees.saturating_add(transaction_fee);
+            st_weight = new_st_weight;
+        }
+
+        // The condition to stop is if the free space in the block for VTTransactions
+        // is less than the minimum stake transaction weight
+        if st_weight > max_st_weight.saturating_sub(min_st_weight) {
+            break;
+        }
+
+        included_validators.insert(validator_pkh);
+    }
+
     // Include Mint Transaction by miner
     let reward = block_reward(epoch, initial_block_reward, halving_period) + transaction_fees;
     let mint = MintTransaction::with_external_address(
@@ -1000,6 +1044,23 @@ pub fn build_block(
     let commit_hash_merkle_root = merkle_tree_root(&commit_txns);
     let reveal_hash_merkle_root = merkle_tree_root(&reveal_txns);
     let tally_hash_merkle_root = merkle_tree_root(&tally_txns);
+
+    let protocol = get_protocol_version(Some(beacon.checkpoint));
+
+    let stake_hash_merkle_root = if protocol == ProtocolVersion::V1_7 {
+        log::debug!("Legacy protocol: the default stake hash merkle root will be used");
+        Hash::default()
+    } else {
+        log::debug!("Pseudo-2.0 protocol: a merkle tree will be built for the stake transactions");
+        merkle_tree_root(&stake_txns)
+    };
+
+    let unstake_hash_merkle_root = if protocol == ProtocolVersion::V1_7 {
+        Hash::default()
+    } else {
+        merkle_tree_root(&unstake_txns)
+    };
+
     let merkle_roots = BlockMerkleRoots {
         mint_hash: mint.hash(),
         vt_hash_merkle_root,
@@ -1007,6 +1068,8 @@ pub fn build_block(
         commit_hash_merkle_root,
         reveal_hash_merkle_root,
         tally_hash_merkle_root,
+        stake_hash_merkle_root,
+        unstake_hash_merkle_root,
     };
 
     let block_header = BlockHeader {
@@ -1024,6 +1087,8 @@ pub fn build_block(
         commit_txns,
         reveal_txns,
         tally_txns,
+        stake_txns,
+        unstake_txns,
     };
 
     (block_header, txns)
@@ -1065,6 +1130,7 @@ mod tests {
         // Set `max_vt_weight` and `max_dr_weight` to zero (no transaction should be included)
         let max_vt_weight = 0;
         let max_dr_weight = 0;
+        let max_st_weight = 0;
 
         // Fields required to mine a block
         let block_beacon = CheckpointBeacon::default();
@@ -1078,6 +1144,7 @@ mod tests {
             (&mut transaction_pool, &unspent_outputs_pool, &dr_pool),
             max_vt_weight,
             max_dr_weight,
+            max_st_weight,
             block_beacon,
             block_proof,
             &[],
@@ -1246,6 +1313,7 @@ mod tests {
         // Set `max_vt_weight` to fit only `transaction_1` weight
         let max_vt_weight = vt_tx1.weight();
         let max_dr_weight = 0;
+        let max_st_weight = 0;
 
         // Insert transactions into `transactions_pool`
         let mut transaction_pool = TransactionsPool::default();
@@ -1282,6 +1350,7 @@ mod tests {
             (&mut transaction_pool, &unspent_outputs_pool, &dr_pool),
             max_vt_weight,
             max_dr_weight,
+            max_st_weight,
             block_beacon,
             block_proof,
             &[],
@@ -1347,6 +1416,7 @@ mod tests {
         // Set `max_vt_weight` to fit only 1 transaction weight
         let max_vt_weight = vt_tx2.weight();
         let max_dr_weight = 0;
+        let max_st_weight = 0;
 
         // Insert transactions into `transactions_pool`
         let mut transaction_pool = TransactionsPool::default();
@@ -1383,6 +1453,7 @@ mod tests {
             (&mut transaction_pool, &unspent_outputs_pool, &dr_pool),
             max_vt_weight,
             max_dr_weight,
+            max_st_weight,
             block_beacon,
             block_proof,
             &[],
@@ -1446,9 +1517,9 @@ mod tests {
         let mut dr3 = dr1.clone();
         dr3.witnesses = 3;
 
-        let dr_body_one_output1 = DRTransactionBody::new(input.clone(), vec![], dr1);
-        let dr_body_one_output2 = DRTransactionBody::new(input.clone(), vec![], dr2);
-        let dr_body_one_output3 = DRTransactionBody::new(input, vec![], dr3);
+        let dr_body_one_output1 = DRTransactionBody::new(input.clone(), dr1, vec![]);
+        let dr_body_one_output2 = DRTransactionBody::new(input.clone(), dr2, vec![]);
+        let dr_body_one_output3 = DRTransactionBody::new(input, dr3, vec![]);
 
         // Build sample transactions
         let dr_tx1 = DRTransaction::new(dr_body_one_output1, vec![]);
@@ -1462,6 +1533,7 @@ mod tests {
         // Set `max_vt_weight` to fit only `transaction_1` weight
         let max_vt_weight = 0;
         let max_dr_weight = dr_tx1.weight();
+        let max_st_weight = 0;
 
         // Insert transactions into `transactions_pool`
         let mut transaction_pool = TransactionsPool::default();
@@ -1498,6 +1570,7 @@ mod tests {
             (&mut transaction_pool, &unspent_outputs_pool, &dr_pool),
             max_vt_weight,
             max_dr_weight,
+            max_st_weight,
             block_beacon,
             block_proof,
             &[],
@@ -1542,9 +1615,9 @@ mod tests {
         let mut dr3 = dr1.clone();
         dr3.commit_and_reveal_fee = 3;
 
-        let dr_body_one_output1 = DRTransactionBody::new(input.clone(), vec![], dr1);
-        let dr_body_one_output2 = DRTransactionBody::new(input.clone(), vec![], dr2);
-        let dr_body_one_output3 = DRTransactionBody::new(input, vec![], dr3);
+        let dr_body_one_output1 = DRTransactionBody::new(input.clone(), dr1, vec![]);
+        let dr_body_one_output2 = DRTransactionBody::new(input.clone(), dr2, vec![]);
+        let dr_body_one_output3 = DRTransactionBody::new(input, dr3, vec![]);
 
         // Build sample transactions
         let dr_tx1 = DRTransaction::new(dr_body_one_output1, vec![]);
@@ -1560,6 +1633,7 @@ mod tests {
         // Set `max_vt_weight` to fit only `transaction_1` weight
         let max_vt_weight = 0;
         let max_dr_weight = dr_tx2.weight();
+        let max_st_weight = 0;
 
         // Insert transactions into `transactions_pool`
         let mut transaction_pool = TransactionsPool::default();
@@ -1596,6 +1670,7 @@ mod tests {
             (&mut transaction_pool, &unspent_outputs_pool, &dr_pool),
             max_vt_weight,
             max_dr_weight,
+            max_st_weight,
             block_beacon,
             block_proof,
             &[],

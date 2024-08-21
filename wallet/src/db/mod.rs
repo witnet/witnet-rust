@@ -71,3 +71,23 @@ pub trait WriteBatch {
         V: serde::Serialize + ?Sized,
         Vref: Borrow<V>;
 }
+
+pub trait GetWith {
+    fn get_with<K, V, F>(&self, key: &Key<K, V>, with: F) -> Result<V>
+    where
+        K: AsRef<[u8]> + Debug,
+        V: serde::de::DeserializeOwned,
+        F: Fn(&[u8]) -> Vec<u8>,
+    {
+        let opt = self.get_with_opt(key, with)?;
+
+        opt.ok_or_else(|| Error::DbKeyNotFound {
+            key: format!("{:?}", key),
+        })
+    }
+    fn get_with_opt<K, V, F>(&self, key: &Key<K, V>, with: F) -> Result<Option<V>>
+    where
+        K: AsRef<[u8]>,
+        V: serde::de::DeserializeOwned,
+        F: Fn(&[u8]) -> Vec<u8>;
+}

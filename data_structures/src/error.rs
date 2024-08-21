@@ -1,7 +1,9 @@
 //! Error type definitions for the data structure module.
 
 use failure::Fail;
+use hex::FromHexError;
 use std::num::ParseIntError;
+use witnet_crypto::secp256k1;
 
 use crate::chain::{
     DataRequestOutput, Epoch, Hash, HashParseError, OutputPointer, PublicKeyHash, RADType,
@@ -288,6 +290,40 @@ pub enum TransactionError {
         max_weight: u32,
         dr_output: Box<DataRequestOutput>,
     },
+    /// Stake amount below minimum
+    #[fail(
+        display = "The amount of coins in stake ({}) is less than the minimum allowed ({})",
+        stake, min_stake
+    )]
+    StakeBelowMinimum { min_stake: u64, stake: u64 },
+    /// Unstaking more than the total staked
+    #[fail(
+        display = "Tried to unstake more coins than the current stake ({} > {})",
+        unstake, stake
+    )]
+    UnstakingMoreThanStaked { stake: u64, unstake: u64 },
+    /// An stake output with zero value does not make sense
+    #[fail(display = "Transaction {} has a zero value stake output", tx_hash)]
+    ZeroValueStakeOutput { tx_hash: Hash },
+    /// Invalid unstake signature
+    #[fail(
+        display = "Invalid unstake signature: ({}), withdrawal ({}), operator ({})",
+        signature, withdrawal, operator
+    )]
+    InvalidUnstakeSignature {
+        signature: Hash,
+        withdrawal: Hash,
+        operator: Hash,
+    },
+    /// Invalid unstake time_lock
+    #[fail(
+        display = "The unstake timelock: ({}) is lower than the minimum unstaking delay ({})",
+        time_lock, unstaking_delay_seconds
+    )]
+    InvalidUnstakeTimelock {
+        time_lock: u64,
+        unstaking_delay_seconds: u32,
+    },
     #[fail(
         display = "The reward-to-collateral ratio for this data request is {}, but must be equal or less than {}",
         reward_collateral_ratio, required_reward_collateral_ratio
@@ -411,12 +447,33 @@ pub enum BlockError {
         weight, max_weight
     )]
     TotalDataRequestWeightLimitExceeded { weight: u32, max_weight: u32 },
+    /// Stake weight limit exceeded by a block candidate
+    #[fail(
+        display = "Total weight of Stake Transactions in a block ({}) exceeds the limit ({})",
+        weight, max_weight
+    )]
+    TotalStakeWeightLimitExceeded { weight: u32, max_weight: u32 },
+    /// Unstake weight limit exceeded
+    #[fail(
+        display = "Total weight of Unstake Transactions in a block ({}) exceeds the limit ({})",
+        weight, max_weight
+    )]
+    TotalUnstakeWeightLimitExceeded { weight: u32, max_weight: u32 },
+    /// Repeated operator Stake
+    #[fail(
+        display = "A single operator is receiving stake more than once in a block: ({}) ",
+        pkh
+    )]
+    RepeatedStakeOperator { pkh: PublicKeyHash },
     /// Missing expected tallies
     #[fail(
         display = "{} expected tally transactions are missing in block candidate {}",
         count, block_hash
     )]
     MissingExpectedTallies { count: usize, block_hash: Hash },
+    /// Missing expected tallies
+    #[fail(display = "Validator {} is not eligible to propose a block", validator)]
+    ValidatorNotEligible { validator: PublicKeyHash },
 }
 
 #[derive(Debug, Fail)]
@@ -432,7 +489,7 @@ pub enum OutputPointerParseError {
 }
 
 /// The error type for operations on a [`Secp256k1Signature`](Secp256k1Signature)
-#[derive(Debug, PartialEq, Eq, Fail)]
+#[derive(Debug, PartialEq, Fail)]
 pub enum Secp256k1ConversionError {
     #[fail(
         display = "Failed to convert `witnet_data_structures::Signature` into `secp256k1::Signature`"
@@ -451,6 +508,15 @@ pub enum Secp256k1ConversionError {
         display = "Failed to convert `witnet_data_structures::SecretKey` into `secp256k1::SecretKey`"
     )]
     FailSecretKeyConversion,
+    #[fail(
+        display = "Cannot decode a `witnet_data_structures::KeyedSignature` from the allegedly hex-encoded string '{}': {}",
+        hex, inner
+    )]
+    HexDecode { hex: String, inner: FromHexError },
+    #[fail(display = "{}", inner)]
+    Secp256k1 { inner: secp256k1::Error },
+    #[fail(display = "{}", inner)]
+    Other { inner: String },
 }
 
 /// The error type for operations on a [`DataRequestPool`](DataRequestPool)

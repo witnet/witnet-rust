@@ -13,10 +13,12 @@ use witnet_data_structures::{
     },
     data_request::DataRequestPool,
     get_environment,
+    staking::prelude::*,
     superblock::SuperBlockState,
     types::LastBeacon,
     utxo_pool::{OldUnspentOutputsPool, OwnUnspentOutputsPool, UtxoWriteBatch},
     vrf::VrfCtx,
+    wit::Wit,
 };
 use witnet_util::timestamp::pretty_print;
 
@@ -223,8 +225,11 @@ impl ChainManager {
                         }
                         // Create a new ChainInfo
                         let bootstrap_hash = consensus_constants.bootstrap_hash;
-                        let reputation_engine = ReputationEngine::new(consensus_constants.activity_period as usize);
                         let hash_prev_block = bootstrap_hash;
+
+                        // Initialize configurable data structures
+                        let reputation_engine = ReputationEngine::new(consensus_constants.activity_period as usize);
+                        let stakes = Stakes::with_minimum(Wit::from_wits(MINIMUM_STAKEABLE_AMOUNT_WITS));
 
                         let chain_info = ChainInfo {
                             environment,
@@ -257,6 +262,7 @@ impl ChainManager {
                             own_utxos: OwnUnspentOutputsPool::new(),
                             data_request_pool: DataRequestPool::new(consensus_constants.extra_rounds),
                             superblock_state,
+                            stakes,
                             ..ChainState::default()
                         }
                     }

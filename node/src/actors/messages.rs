@@ -21,18 +21,21 @@ use witnet_data_structures::{
         priority::PrioritiesEstimate,
         tapi::{ActiveWips, BitVotesCounter},
         Block, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, EpochConstants, Hash,
-        InventoryEntry, InventoryItem, NodeStats, PointerToBlock, PublicKeyHash,
-        PublicKeyHashParseError, RADRequest, RADTally, Reputation, StateMachine, SuperBlock,
-        SuperBlockVote, SupplyInfo, ValueTransferOutput,
+        InventoryEntry, InventoryItem, KeyedSignature, NodeStats, PointerToBlock, PublicKeyHash,
+        PublicKeyHashParseError, RADRequest, RADTally, Reputation, StakeOutput, StateMachine,
+        SuperBlock, SuperBlockVote, SupplyInfo, ValueTransferOutput,
     },
     fee::{deserialize_fee_backwards_compatible, Fee},
     radon_report::RadonReport,
+    staking::{helpers::StakeKey, stakes::QueryStakesKey},
     transaction::{
-        CommitTransaction, DRTransaction, RevealTransaction, Transaction, VTTransaction,
+        CommitTransaction, DRTransaction, RevealTransaction, StakeTransaction, Transaction,
+        VTTransaction,
     },
     transaction_factory::NodeBalance,
     types::LastBeacon,
     utxo_pool::{UtxoInfo, UtxoSelectionStrategy},
+    wit::Wit,
 };
 use witnet_p2p::{
     error::SessionsError,
@@ -218,6 +221,134 @@ pub struct BuildVtt {
 
 impl Message for BuildVtt {
     type Result = Result<VTTransaction, failure::Error>;
+}
+
+/// Builds a `StakeTransaction` from a list of `ValueTransferOutput`s
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct BuildStake {
+    /// One instance of `StakeOutput`
+    pub stake_output: StakeOutput,
+    /// Fee
+    #[serde(default)]
+    pub fee: Fee,
+    /// Strategy to sort the unspent outputs pool
+    #[serde(default)]
+    pub utxo_strategy: UtxoSelectionStrategy,
+    /// Construct the transaction but do not broadcast it
+    #[serde(default)]
+    pub dry_run: bool,
+}
+
+impl Message for BuildStake {
+    type Result = Result<StakeTransaction, failure::Error>;
+}
+
+/// Builds a `StakeTransaction` from a list of `ValueTransferOutput`s
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct BuildStakeParams {
+    /// Authorization signature and public key
+    #[serde(default)]
+    pub authorization: MagicEither<String, KeyedSignature>,
+    /// List of `ValueTransferOutput`s
+    #[serde(default)]
+    pub value: u64,
+    /// Withdrawer
+    #[serde(default)]
+    pub withdrawer: MagicEither<String, PublicKeyHash>,
+    /// Fee
+    #[serde(default)]
+    pub fee: Fee,
+    /// Strategy to sort the unspent outputs pool
+    #[serde(default)]
+    pub utxo_strategy: UtxoSelectionStrategy,
+    /// Construct the transaction but do not broadcast it
+    #[serde(default)]
+    pub dry_run: bool,
+}
+
+/// The response to a `BuildStake` message. It gives important feedback about the addresses that will be involved in a
+/// stake transactions, subject to review and confirmation from the user.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct BuildStakeResponse {
+    /// A stake transaction that has been created as a response to a `BuildStake` message.
+    pub transaction: StakeTransaction,
+    /// The addresses of the staker. These are the addresses used in the stake transaction inputs.
+    pub staker: Vec<PublicKeyHash>,
+    /// The address of the validator. This shall be the address of the node that will operate this stake on behalf of
+    /// the staker.
+    pub validator: PublicKeyHash,
+    /// The address of the withdrawer. This shall be the an address controlled by the staker. When unstaking, the
+    /// staked principal plus any yield will only be spendable by this address.
+    pub withdrawer: PublicKeyHash,
+}
+
+/// Builds an `AuthorizeStake`
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct AuthorizeStake {
+    /// Address that can withdraw the stake
+    #[serde(default)]
+    pub withdrawer: Option<String>,
+}
+
+impl Message for AuthorizeStake {
+    type Result = Result<String, failure::Error>;
+}
+
+/// Builds an `StakeAuthorization`
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct StakeAuthorization {
+    /// Address that can withdraw the stake
+    pub withdrawer: PublicKeyHash,
+    /// A node's signature of a withdrawer's address
+    pub signature: KeyedSignature,
+}
+
+impl Message for StakeAuthorization {
+    type Result = Result<String, failure::Error>;
+}
+
+/// Stake key for quering stakes
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum QueryStakesParams {
+    /// To search by the validator public key hash
+    Validator(PublicKeyHash),
+    /// To search by the withdrawer public key hash
+    Withdrawer(PublicKeyHash),
+    /// To search by validator and withdrawer public key hashes
+    Key((PublicKeyHash, PublicKeyHash)),
+}
+
+impl Default for QueryStakesParams {
+    fn default() -> Self {
+        QueryStakesParams::Validator(PublicKeyHash::default())
+    }
+}
+
+/// Message for querying stakes
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct QueryStake {
+    /// stake key used to search the stake
+    pub key: QueryStakesParams,
+}
+
+impl Message for QueryStake {
+    type Result = Result<Wit, failure::Error>;
+}
+
+impl<Address> From<QueryStakesParams> for QueryStakesKey<Address>
+where
+    Address: Default + Ord + From<PublicKeyHash>,
+{
+    fn from(query: QueryStakesParams) -> Self {
+        match query {
+            QueryStakesParams::Key(key) => QueryStakesKey::Key(StakeKey {
+                validator: key.0.into(),
+                withdrawer: key.1.into(),
+            }),
+            QueryStakesParams::Validator(v) => QueryStakesKey::Validator(v.into()),
+            QueryStakesParams::Withdrawer(w) => QueryStakesKey::Withdrawer(w.into()),
+        }
+    }
 }
 
 /// Builds a `DataRequestTransaction` from a `DataRequestOutput`
@@ -1279,4 +1410,44 @@ pub struct EstimatePriority;
 
 impl Message for EstimatePriority {
     type Result = Result<PrioritiesEstimate, failure::Error>;
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+/// A value that can either be L, R, where an R can always be obtained through the `do_magic` method.
+pub enum MagicEither<L, R> {
+    /// A first variant.
+    Left(L),
+    /// A second variant.
+    Right(R),
+}
+
+impl<L, R> MagicEither<L, R> {
+    /// Obtain an R value, even if this was an instance of L.
+    pub fn do_magic<F>(self, trick: F) -> R
+    where
+        F: Fn(L) -> R,
+    {
+        match self {
+            Self::Left(l) => trick(l),
+            Self::Right(r) => r,
+        }
+    }
+
+    /// Fallible version of `do_magic`.
+    pub fn try_do_magic<F, E>(self, trick: F) -> Result<R, E>
+    where
+        F: Fn(L) -> Result<R, E>,
+    {
+        match self {
+            Self::Left(l) => trick(l),
+            Self::Right(r) => Ok(r),
+        }
+    }
+}
+
+impl<L, R: Default> Default for MagicEither<L, R> {
+    fn default() -> Self {
+        MagicEither::Right(R::default())
+    }
 }

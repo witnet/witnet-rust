@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{BTreeSet, HashMap, HashSet},
     convert::TryFrom,
     fmt,
     fs::File,
@@ -14,7 +14,9 @@ use failure::{bail, Fail};
 use itertools::Itertools;
 use num_format::{Locale, ToFormattedString};
 use prettytable::{row, Table};
+use qrcode::render::unicode;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+
 use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
 use witnet_crypto::{
     hash::calculate_sha256,
@@ -29,8 +31,9 @@ use witnet_data_structures::{
         SupplyInfo, SyncStatus, ValueTransferOutput,
     },
     fee::Fee,
+    get_environment,
     proto::ProtobufConvert,
-    transaction::{DRTransaction, Transaction, VTTransaction},
+    transaction::{DRTransaction, StakeTransaction, Transaction, VTTransaction},
     transaction_factory::NodeBalance,
     types::SequentialId,
     utxo_pool::{UtxoInfo, UtxoSelectionStrategy},
@@ -38,8 +41,13 @@ use witnet_data_structures::{
 };
 use witnet_node::actors::{
     chain_manager::run_dr_locally,
-    json_rpc::api::{AddrType, GetBlockChainParams, GetTransactionOutput, PeersResult},
-    messages::{BuildDrt, BuildVtt, GetBalanceTarget, GetReputationResult, SignalingInfo},
+    json_rpc::api::{
+        AddrType, GetBlockChainParams, GetTransactionOutput, PeersResult, QueryStakesArgument,
+    },
+    messages::{
+        AuthorizeStake, BuildDrt, BuildStakeParams, BuildStakeResponse, BuildVtt, GetBalanceTarget,
+        GetReputationResult, MagicEither, SignalingInfo, StakeAuthorization,
+    },
 };
 use witnet_rad::types::RadonTypes;
 use witnet_util::{files::create_private_file, timestamp::pretty_print};
@@ -855,6 +863,195 @@ pub fn send_dr(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
+pub fn send_st(
+    addr: SocketAddr,
+    value: u64,
+    authorization: MagicEither<String, KeyedSignature>,
+    validator: MagicEither<String, PublicKeyHash>,
+    withdrawer: MagicEither<String, PublicKeyHash>,
+    fee: Option<Fee>,
+    sorted_bigger: Option<bool>,
+    requires_confirmation: Option<bool>,
+    dry_run: bool,
+) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
+    let mut id = SequentialId::initialize(1u8);
+
+    // Prepare for fee estimation if no fee value was specified
+    let (fee, estimate) = unwrap_fee_or_estimate_priority(fee, &mut stream, &mut id)?;
+
+    let utxo_strategy = match sorted_bigger {
+        Some(true) => UtxoSelectionStrategy::BigFirst { from: None },
+        Some(false) => UtxoSelectionStrategy::SmallFirst { from: None },
+        None => UtxoSelectionStrategy::Random { from: None },
+    };
+
+    let mut build_stake_params = BuildStakeParams {
+        authorization,
+        withdrawer,
+        value,
+        fee,
+        utxo_strategy,
+        dry_run,
+    };
+
+    // If no fee was specified, we first need to do a dry run for each of the priority tiers to
+    // find out the actual transaction weight (as different priorities will affect the number
+    // of inputs being used, and thus also the weight).
+    if let Some(PrioritiesEstimate {
+        vtt_stinky,
+        vtt_low,
+        vtt_medium,
+        vtt_high,
+        vtt_opulent,
+        ..
+    }) = estimate
+    {
+        let priorities = vec![
+            (vtt_stinky, "Stinky"),
+            (vtt_low, "Low"),
+            (vtt_medium, "Medium"),
+            (vtt_high, "High"),
+            (vtt_opulent, "Opulent"),
+        ];
+        let mut estimates = vec![];
+        let mut fee;
+
+        // Iterative algorithm for transaction weight discovery. It calculates the fees for this
+        // transaction assuming that it has the minimum weight, and then repeats the estimation
+        // using the actual weight of the latest created transaction, until the weight stabilizes
+        // or after 5 rounds.
+        for (
+            PriorityEstimate {
+                priority,
+                time_to_block,
+            },
+            label,
+        ) in priorities
+        {
+            // The minimum ST size is N*133+M*36+105` where `N` is the number of `inputs`, and `M`
+            // is 0 or 1 depending on whether a `change` output is used
+            let mut weight = 238u32;
+            let mut rounds = 0u8;
+            // Iterative algorithm for weight discovery
+            loop {
+                // Calculate fee for current priority and weight
+                fee = Fee::absolute_from_wit(priority.derive_fee_wit(weight));
+
+                // Create and dry run a Stake transaction using that fee
+                let dry_params = BuildStakeParams {
+                    fee,
+                    dry_run: true,
+                    ..build_stake_params.clone()
+                };
+                let (bsr, ..): (BuildStakeResponse, _) =
+                    issue_method("stake", Some(dry_params), &mut stream, id.next())?;
+                let dry_weight = bsr.transaction.weight();
+
+                // We retry up to 5 times, or until the weight is stable
+                if rounds > 5 || dry_weight == weight {
+                    break;
+                }
+
+                weight = dry_weight;
+                rounds += 1;
+            }
+
+            estimates.push((label, priority, fee, time_to_block));
+        }
+
+        // We are ready to compose the params for the actual transaction.
+        build_stake_params.fee = prompt_user_for_priority_selection(estimates)?;
+    }
+
+    let params = BuildStakeParams {
+        dry_run: true,
+        ..build_stake_params.clone()
+    };
+    let (dry, _): (BuildStakeResponse, _) =
+        issue_method("stake", Some(params), &mut stream, id.next())?;
+
+    let validator_address = validator
+        .try_do_magic(|hex_str| PublicKeyHash::from_bech32(get_environment(), &hex_str))?;
+    if validator_address != dry.validator {
+        bail!(
+            "The specified validator ({}) does not match the validator recovered from the authorization string ({}), please double check all arguments.",
+            validator_address,
+            dry.validator.to_string(),
+        );
+    }
+
+    let confirmation = if requires_confirmation.unwrap_or(true) {
+        // Exactly what it says: shows all the facts about the staking transaction, and expects confirmation through
+        // user input
+        if prompt_user_for_stake_confirmation(&dry)? {
+            Some(dry)
+        } else {
+            None
+        }
+    } else {
+        Some(dry)
+    };
+
+    if let Some(dry) = confirmation {
+        // Finally ask the node to create the transaction with the chosen fee.
+        build_stake_params.dry_run = dry_run;
+        let (st, (request, response)): (StakeTransaction, _) =
+            issue_method("stake", Some(build_stake_params), &mut stream, id.next())?;
+
+        println!("> {}", request);
+        println!("< {}", response);
+
+        let environment = get_environment();
+        let value = Wit::from_nanowits(st.body.output.value).to_string();
+        let staker = dry
+            .staker
+            .iter()
+            .map(|pkh| pkh.bech32(environment))
+            .collect::<HashSet<_>>()
+            .iter()
+            .join(",");
+        let validator = dry.validator.bech32(environment);
+        let withdrawer = dry.withdrawer.bech32(environment);
+
+        println!("Congratulations! {} Wit have been staked by addresses {:?} onto validator {}, using {} as the withdrawal address.", value, staker, validator, withdrawer);
+    } else {
+        println!("The stake facts have not been confirmed. No stake transaction has been created.");
+    }
+
+    Ok(())
+}
+
+pub fn authorize_st(addr: SocketAddr, withdrawer: Option<String>) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
+    let mut id = SequentialId::initialize(1u8);
+
+    let params = AuthorizeStake { withdrawer };
+    let (authorization, (_, _response)): (StakeAuthorization, _) =
+        issue_method("authorizeStake", Some(params), &mut stream, id.next())?;
+
+    let message = authorization.withdrawer.as_secp256k1_msg();
+
+    let auth_bytes = authorization.signature.to_recoverable_bytes(&message)?;
+    let auth_string = hex::encode(auth_bytes);
+
+    let auth_qr = qrcode::QrCode::new(&auth_string)?;
+    let auth_ascii = auth_qr
+        .render::<unicode::Dense1x2>()
+        .quiet_zone(true)
+        .dark_color(unicode::Dense1x2::Light)
+        .light_color(unicode::Dense1x2::Dark)
+        .build();
+
+    println!(
+        "Authorization code:\n{}\nQR code for myWitWallet:\n{}",
+        auth_string, auth_ascii
+    );
+
+    Ok(())
+}
+
 pub fn master_key_export(
     addr: SocketAddr,
     write_to_path: Option<&Path>,
@@ -1642,6 +1839,34 @@ pub fn priority(addr: SocketAddr, json: bool) -> Result<(), failure::Error> {
     Ok(())
 }
 
+pub fn query_stakes(
+    addr: SocketAddr,
+    validator: Option<String>,
+    withdrawer: Option<String>,
+) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
+
+    let params = match (validator, withdrawer) {
+        (Some(validator), Some(withdrawer)) => {
+            Some(QueryStakesArgument::Key((validator, withdrawer)))
+        }
+        (Some(validator), _) => Some(QueryStakesArgument::Validator(validator)),
+        (_, Some(withdrawer)) => Some(QueryStakesArgument::Withdrawer(withdrawer)),
+        (None, None) => None,
+    };
+
+    let response = send_request(
+        &mut stream,
+        &format!(
+            r#"{{"jsonrpc": "2.0","method": "queryStakes", "params": {}, "id": 1}}"#,
+            serde_json::to_string(&params).unwrap()
+        ),
+    )?;
+    log::info!("{}", response);
+
+    Ok(())
+}
+
 #[derive(Serialize, Deserialize)]
 struct SignatureWithData {
     address: String,
@@ -1849,7 +2074,6 @@ where
         id.unwrap_or(1)
     );
     let response = send_request(stream, &request)?;
-
     parse_response::<O>(&response).map(|output| (output, (request, response)))
 }
 
@@ -1898,6 +2122,84 @@ fn prompt_user_for_priority_selection(
     }
 
     Ok(fee)
+}
+
+fn prompt_user_for_stake_confirmation(data: &BuildStakeResponse) -> Result<bool, failure::Error> {
+    let environment = get_environment();
+    let value = Wit::from_nanowits(data.transaction.body.output.value).to_string();
+
+    // Time to print the data
+    println!("╔══════════════════════════════════════════════════════════════════════════════╗");
+    println!("║                  PLEASE CAREFULLY REVIEW THE DATA BELOW                      ║");
+    println!("╟──────────────────────────────────────────────────────────────────────────────╢");
+    println!("║ Failing to review this information diligently may result in stakes that      ║");
+    println!("║ cannot be operated or withdrawn, i.e. loss of funds.                         ║");
+    println!("╠══════════════════════════════════════════════════════════════════════════════╣");
+    println!("║ 1. STAKER ADDRESSES                                                          ║");
+    println!("║    These are the addresses from which the coins to stake will be sourced.    ║");
+    println!("║    None of these addresses will be able to unstake or spend the staked       ║");
+    println!("║    coins, unless one of them is also the withdrawer address below.           ║");
+    println!("║                                                                              ║");
+    for (i, address) in data
+        .staker
+        .iter()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .enumerate()
+    {
+        let address = address.bech32(environment);
+        println!("║    #{:0>2}: {: <69}║", i, address);
+    }
+    println!("╟──────────────────────────────────────────────────────────────────────────────╢");
+    println!("║ 2. VALIDATOR ADDRESS                                                         ║");
+    println!("║    This is the address of the node that will be operating the staked coins.  ║");
+    println!("║    The validator will not be able to unstake or spend the staked coins —     ║");
+    println!("║    that role is reserved for the withdrawer address below.                   ║");
+    println!("║                                                                              ║");
+    println!(
+        "║    Validator address: {: <55}║",
+        data.validator.bech32(environment)
+    );
+    println!("╟──────────────────────────────────────────────────────────────────────────────╢");
+    println!("║ 3. WITHDRAWER ADDRESS                                                        ║");
+    println!("║    This is the only address that will be allowed to unstake and eventually   ║");
+    println!("║    spend the staked coins, and the accumulated rewards if any.               ║");
+    println!("║    This MUST belong to your wallet, otherwise you may be giving away or      ║");
+    println!("║    or burning your coins.                                                    ║");
+    println!("║                                                                              ║");
+    println!(
+        "║    Withdrawer address: {: <54}║",
+        data.withdrawer.bech32(environment)
+    );
+    println!("╟──────────────────────────────────────────────────────────────────────────────╢");
+    println!("║ 4. STAKE AMOUNT                                                              ║");
+    println!("║    This is the number of coins that will be staked. While staked, the coins  ║");
+    println!("║    cannot be transferred or spent. They can only be unstaked and eventually  ║");
+    println!("║    spent by the withdrawer address above.                                    ║");
+    println!("║                                                                              ║");
+    println!("║    Stake amount: {} {: <44}║", value, "Wit coins");
+    println!("╚══════════════════════════════════════════════════════════════════════════════╝");
+
+    // This is where we prompt the user for typing the desired priority tier from the options
+    // printed above. This is done in a loop until a valid option is selected.
+    let mut input = String::new();
+    let stdin = io::stdin();
+    let mut stdin = stdin.lock();
+    loop {
+        print!("Please double-check the information above and confirm if it is correct (y/N): ",);
+        io::stdout().flush()?;
+        input.clear();
+        stdin.read_line(&mut input)?;
+        let selected = input.trim().to_uppercase();
+
+        if ["Y", "YES"].contains(&selected.as_str()) {
+            return Ok(true);
+        } else if ["", "N", "NO"].contains(&selected.as_str()) {
+            break;
+        }
+    }
+
+    Ok(false)
 }
 
 #[cfg(test)]
