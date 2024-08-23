@@ -154,11 +154,18 @@ where
             Err(e) => {
                 // Early exit if the stake key does not exist
                 return match e {
-                    StakesError::ValidatorNotFound { .. } => Ok(IneligibilityReason::NotStaking.into()),
+                    StakesError::ValidatorNotFound { .. } => {
+                        Ok(IneligibilityReason::NotStaking.into())
+                    }
                     e => Err(e),
                 };
             }
         };
+
+        // Validators with power 0 should not be eligible to mine a block
+        if power == Power::from(0) {
+            return Ok(IneligibilityReason::InsufficientPower.into());
+        }
 
         // Requirement no. 2 from the WIP:
         //  "the mining power of the block proposer is in the `rf / stakers`th quantile among the mining powers of all
@@ -196,6 +203,15 @@ where
                 };
             }
         };
+
+        // Validators with power 0 should not be eligible to mine a block
+        if power == Power::from(0) {
+            return Ok((
+                IneligibilityReason::InsufficientPower.into(),
+                Hash::min(),
+                0.0,
+            ));
+        }
 
         let mut rank = self.rank(Capability::Witnessing, epoch);
         let (_, max_power) = rank.next().unwrap_or_default();
@@ -353,7 +369,10 @@ mod tests {
         match stakes.witnessing_eligibility(isk_1, 100, 2, 0) {
             // TODO: verify target hash
             Ok((eligible, _target_hash, _)) => {
-                assert_eq!(eligible, Eligible::No(IneligibilityReason::InsufficientPower));
+                assert_eq!(
+                    eligible,
+                    Eligible::No(IneligibilityReason::InsufficientPower)
+                );
             }
             Err(_) => assert!(false),
         }
