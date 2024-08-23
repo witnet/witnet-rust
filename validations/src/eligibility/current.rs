@@ -160,6 +160,11 @@ where
             }
         };
 
+        // Validators with power 0 should not be eligible to mine a block
+        if power == Power::from(0) {
+            return Ok(IneligibilityReason::InsufficientPower.into());
+        }
+
         // Requirement no. 2 from the WIP:
         //  "the mining power of the block proposer is in the `rf / stakers`th quantile among the mining powers of all
         //  the stakers"
@@ -196,6 +201,11 @@ where
                 };
             }
         };
+
+        // Validators with power 0 should not be eligible to mine a block
+        if power == Power::from(0) {
+            return Ok((IneligibilityReason::InsufficientPower.into(), Hash::min(), 0.0));
+        }
 
         let mut rank = self.rank(Capability::Witnessing, epoch);
         let (_, max_power) = rank.next().unwrap_or_default();
