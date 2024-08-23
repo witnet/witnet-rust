@@ -692,9 +692,7 @@ pub fn validate_commit_transaction(
             dr_state.info.current_commit_round,
         ) {
             Ok((eligibility, target_hash, _)) => {
-                if eligibility == Eligible::No(InsufficientPower)
-                    || eligibility == Eligible::No(NotStaking)
-                {
+                if matches!(eligibility, Eligible::No(_)) {
                     return Err(TransactionError::ValidatorNotEligible {
                         validator: proof_pkh,
                     }
@@ -1876,6 +1874,7 @@ pub fn validate_block_transactions(
     }
     let re_hash_merkle_root = re_mt.root();
 
+    // Make sure that the block does not try to include data requests asking for too many witnesses
     for transaction in &block.txns.data_request_txns {
         let dr_tx_hash = transaction.hash();
         if !dr_pool.data_request_pool.contains_key(&dr_tx_hash)
@@ -2513,12 +2512,6 @@ pub fn verify_signatures(
                 vrf_input,
                 target_hash,
             } => {
-                log::debug!(
-                    "[SIGVER-BLOCK-{}] proof: {:?}, input: {:?}",
-                    i,
-                    proof,
-                    vrf_input
-                );
                 let vrf_hash = proof
                     .verify(vrf, vrf_input)
                     .map_err(|_| BlockError::NotValidPoe)?;
@@ -2537,12 +2530,6 @@ pub fn verify_signatures(
                 dr_hash,
                 target_hash,
             } => {
-                log::debug!(
-                    "[SIGVER-DR-{}] proof: {:?}, input: {:?}",
-                    i,
-                    proof,
-                    vrf_input
-                );
                 let vrf_hash = proof
                     .verify(vrf, vrf_input, dr_hash)
                     .map_err(|_| TransactionError::InvalidDataRequestPoe)?;
