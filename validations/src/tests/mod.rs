@@ -2978,6 +2978,7 @@ fn test_empty_commit(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
     let minimum_reppoe_difficulty = 1;
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
     let superblock_period = 1;
+    let stakes = Stakes::<PublicKeyHash, Wit, u32, u64>::default();
 
     validate_commit_transaction(
         c_tx,
@@ -2994,6 +2995,8 @@ fn test_empty_commit(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
         minimum_reppoe_difficulty,
         &current_active_wips(),
         superblock_period,
+        ProtocolVersion::V1_7,
+        &stakes,
     )
     .map(|_| ())
 }
@@ -3035,6 +3038,8 @@ fn test_commit_with_dr_and_utxo_set(
         .unwrap();
 
     let mut signatures_to_verify = vec![];
+    let stakes = Stakes::<PublicKeyHash, Wit, u32, u64>::default();
+
     validate_commit_transaction(
         c_tx,
         &dr_pool,
@@ -3050,6 +3055,8 @@ fn test_commit_with_dr_and_utxo_set(
         minimum_reppoe_difficulty,
         &current_active_wips(),
         superblock_period,
+        ProtocolVersion::V1_7,
+        &stakes,
     )?;
     verify_signatures_test(signatures_to_verify)?;
 
@@ -3125,6 +3132,8 @@ fn test_commit_difficult_proof() {
 
     let mut signatures_to_verify = vec![];
     let superblock_period = 8;
+    let stakes = Stakes::<PublicKeyHash, Wit, u32, u64>::default();
+
     let x = validate_commit_transaction(
         &c_tx,
         &dr_pool,
@@ -3140,6 +3149,8 @@ fn test_commit_difficult_proof() {
         minimum_reppoe_difficulty,
         &active_wips,
         superblock_period,
+        ProtocolVersion::V1_7,
+        &stakes,
     )
     .and_then(|_| verify_signatures_test(signatures_to_verify));
 
@@ -3203,6 +3214,7 @@ fn test_commit_with_collateral(
     let c_tx = CommitTransaction::new(cb, vec![cs]);
 
     let superblock_period = 1;
+    let stakes = Stakes::<PublicKeyHash, Wit, u32, u64>::default();
 
     validate_commit_transaction(
         &c_tx,
@@ -3219,6 +3231,8 @@ fn test_commit_with_collateral(
         minimum_reppoe_difficulty,
         &current_active_wips(),
         superblock_period,
+        ProtocolVersion::V1_7,
+        &stakes,
     )
     .map(|_| ())
 }
@@ -3451,6 +3465,7 @@ fn commitment_invalid_proof() {
     let mut signatures_to_verify = vec![];
 
     let superblock_period = 1;
+    let stakes = Stakes::<PublicKeyHash, Wit, u32, u64>::default();
 
     let x = validate_commit_transaction(
         &c_tx,
@@ -3467,6 +3482,8 @@ fn commitment_invalid_proof() {
         minimum_reppoe_difficulty,
         &current_active_wips(),
         superblock_period,
+        ProtocolVersion::V1_7,
+        &stakes,
     )
     .and_then(|_| verify_signatures_test(signatures_to_verify));
 
@@ -3530,6 +3547,7 @@ fn commitment_dr_in_reveal_stage() {
     let mut signatures_to_verify = vec![];
 
     let superblock_period = 1;
+    let stakes = Stakes::<PublicKeyHash, Wit, u32, u64>::default();
 
     let x = validate_commit_transaction(
         &c_tx,
@@ -3546,6 +3564,8 @@ fn commitment_dr_in_reveal_stage() {
         minimum_reppoe_difficulty,
         &current_active_wips(),
         superblock_period,
+        ProtocolVersion::V1_7,
+        &stakes,
     );
     assert_eq!(
         x.unwrap_err().downcast::<DataRequestError>().unwrap(),
@@ -3918,6 +3938,7 @@ fn commitment_collateral_zero_is_minimum() {
         let c_tx = CommitTransaction::new(cb, vec![cs]);
 
         let superblock_period = 1;
+        let stakes = Stakes::<PublicKeyHash, Wit, u32, u64>::default();
 
         validate_commit_transaction(
             &c_tx,
@@ -3934,6 +3955,8 @@ fn commitment_collateral_zero_is_minimum() {
             minimum_reppoe_difficulty,
             &current_active_wips(),
             superblock_period,
+            ProtocolVersion::V1_7,
+            &stakes,
         )
         .map(|_| ())
     };
@@ -4014,6 +4037,8 @@ fn commitment_timelock() {
 
         let mut signatures_to_verify = vec![];
         let superblock_period = 1;
+        let stakes = Stakes::<PublicKeyHash, Wit, u32, u64>::default();
+
         validate_commit_transaction(
             &c_tx,
             &dr_pool,
@@ -4029,6 +4054,8 @@ fn commitment_timelock() {
             minimum_reppoe_difficulty,
             &active_wips,
             superblock_period,
+            ProtocolVersion::V1_7,
+            &stakes,
         )
         .map(|_| ())?;
 
@@ -8964,7 +8991,7 @@ fn test_block_with_drpool<F: FnMut(&mut Block) -> bool>(
 
 fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
     mut mut_block: F,
-    dr_pool: DataRequestPool,
+    mut dr_pool: DataRequestPool,
     mut utxo_set: UnspentOutputsPool,
     current_epoch: u32,
 ) -> Result<(), failure::Error> {
@@ -9081,7 +9108,7 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
 
     validate_block_transactions(
         &utxo_set,
-        &dr_pool,
+        &mut dr_pool,
         &b,
         vrf_input,
         &mut signatures_to_verify,
@@ -9244,7 +9271,7 @@ fn block_invalid_poe() {
 
 #[test]
 fn block_difficult_proof() {
-    let dr_pool = DataRequestPool::default();
+    let mut dr_pool = DataRequestPool::default();
     let vrf = &mut VrfCtx::secp256k1().unwrap();
 
     // Create a reputation engine with 512 identities
@@ -9340,7 +9367,7 @@ fn block_difficult_proof() {
     let b = Block::new(block_header, block_sig, txns);
 
     let x = {
-        let x = || -> Result<_, failure::Error> {
+        let mut x = || -> Result<_, failure::Error> {
             let mut signatures_to_verify = vec![];
 
             validate_block(
@@ -9360,7 +9387,7 @@ fn block_difficult_proof() {
 
             validate_block_transactions(
                 &utxo_set,
-                &dr_pool,
+                &mut dr_pool,
                 &b,
                 vrf_input,
                 &mut signatures_to_verify,
@@ -9960,7 +9987,7 @@ fn test_blocks_with_limits(
         unimplemented!();
     }
 
-    let dr_pool = DataRequestPool::default();
+    let mut dr_pool = DataRequestPool::default();
     let vrf = &mut VrfCtx::secp256k1().unwrap();
     let rep_eng = ReputationEngine::new(100);
     let mut utxo_set = UnspentOutputsPool::default();
@@ -10072,7 +10099,7 @@ fn test_blocks_with_limits(
         // Do the expensive validation
         validate_block_transactions(
             &utxo_set,
-            &dr_pool,
+            &mut dr_pool,
             &b,
             vrf_input,
             &mut signatures_to_verify,
@@ -10607,7 +10634,7 @@ fn genesis_block_value_overflow() {
         ],
     );
 
-    let dr_pool = DataRequestPool::default();
+    let mut dr_pool = DataRequestPool::default();
     let rep_eng = ReputationEngine::new(100);
     let utxo_set = UnspentOutputsPool::default();
     let stakes = Stakes::<PublicKeyHash, Wit, u32, u64>::default();
@@ -10669,7 +10696,7 @@ fn genesis_block_value_overflow() {
     // Do the expensive validation
     let x = validate_block_transactions(
         &utxo_set,
-        &dr_pool,
+        &mut dr_pool,
         &b,
         vrf_input,
         &mut signatures_to_verify,
@@ -10696,7 +10723,7 @@ fn genesis_block_full_validate() {
     let b = Block::genesis(bootstrap_hash, vec![]);
     let vrf_input = CheckpointVRF::default();
 
-    let dr_pool = DataRequestPool::default();
+    let mut dr_pool = DataRequestPool::default();
     let rep_eng = ReputationEngine::new(100);
     let utxo_set = UnspentOutputsPool::default();
     let stakes = Stakes::<PublicKeyHash, Wit, u32, u64>::default();
@@ -10757,7 +10784,7 @@ fn genesis_block_full_validate() {
     // Do the expensive validation
     validate_block_transactions(
         &utxo_set,
-        &dr_pool,
+        &mut dr_pool,
         &b,
         vrf_input,
         &mut signatures_to_verify,
@@ -10806,7 +10833,7 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
             initial_block_reward: INITIAL_BLOCK_REWARD,
             halving_period: HALVING_PERIOD,
         };
-        let dr_pool = DataRequestPool::default();
+        let mut dr_pool = DataRequestPool::default();
         let vrf = &mut VrfCtx::secp256k1().unwrap();
         let rep_eng = ReputationEngine::new(100);
         let utxo_set = UnspentOutputsPool::default();
@@ -10848,7 +10875,7 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
 
         validate_block_transactions(
             &utxo_set,
-            &dr_pool,
+            &mut dr_pool,
             &b,
             vrf_input,
             &mut signatures_to_verify,
@@ -11015,7 +11042,7 @@ fn validate_commit_transactions_included_in_utxo_diff() {
 
         validate_block_transactions(
             &utxo_set,
-            &dr_pool,
+            &mut dr_pool,
             &b,
             vrf_input,
             &mut signatures_to_verify,
@@ -11181,7 +11208,7 @@ fn validate_required_tally_not_found() {
 
     let e = validate_block_transactions(
         &UnspentOutputsPool::default(),
-        &dr_pool,
+        &mut dr_pool,
         &b,
         CheckpointVRF::default(),
         &mut vec![],
