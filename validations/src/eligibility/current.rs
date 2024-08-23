@@ -154,7 +154,7 @@ where
             Err(e) => {
                 // Early exit if the stake key does not exist
                 return match e {
-                    StakesError::EntryNotFound { .. } => Ok(IneligibilityReason::NotStaking.into()),
+                    StakesError::ValidatorNotFound { .. } => Ok(IneligibilityReason::NotStaking.into()),
                     e => Err(e),
                 };
             }
@@ -189,7 +189,7 @@ where
             Err(e) => {
                 // Early exit if the stake key does not exist
                 return match e {
-                    StakesError::EntryNotFound { .. } => {
+                    StakesError::ValidatorNotFound { .. } => {
                         Ok((IneligibilityReason::NotStaking.into(), Hash::min(), 0.0))
                     }
                     e => Err(e),
@@ -264,7 +264,7 @@ mod tests {
         let mut stakes = <Stakes<String, _, _, _>>::with_minimum(100u64);
         let isk = "validator";
 
-        stakes.add_stake(isk, 1_000, 0).unwrap();
+        stakes.add_stake(isk, 10_000_000_000, 0).unwrap();
 
         assert_eq!(
             stakes.mining_eligibility(isk, 0),
@@ -303,7 +303,7 @@ mod tests {
         let mut stakes = <Stakes<String, _, _, _>>::with_minimum(100u64);
         let isk = "validator";
 
-        stakes.add_stake(isk, 1_000, 0).unwrap();
+        stakes.add_stake(isk, 10_000_000_000, 0).unwrap();
 
         match stakes.witnessing_eligibility(isk, 0, 10, 0) {
             Ok((eligible, _, _)) => {
