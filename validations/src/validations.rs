@@ -684,22 +684,32 @@ pub fn validate_commit_transaction(
     let proof_pkh = co_tx.body.proof.proof.pkh();
 
     // Check if the commit transaction is from an eligible validator
-    if protocol_version >= ProtocolVersion::V2_0 {
-        let eligibility = stakes.witnessing_eligibility(
+    let target_hash_wit2 = if protocol_version >= ProtocolVersion::V2_0 {
+        let target_hash = match stakes.witnessing_eligibility(
             proof_pkh,
             epoch,
             dr_state.data_request.witnesses,
             dr_state.info.current_commit_round,
-        );
-        if eligibility == Ok(Eligible::No(InsufficientPower))
-            || eligibility == Ok(Eligible::No(NotStaking))
-        {
-            return Err(TransactionError::ValidatorNotEligible {
-                validator: proof_pkh,
+        ) {
+            Ok((eligibility, target_hash, _)) => {
+                if eligibility == Eligible::No(InsufficientPower)
+                    || eligibility == Eligible::No(NotStaking)
+                {
+                    return Err(TransactionError::ValidatorNotEligible {
+                        validator: proof_pkh,
+                    }
+                    .into());
+                }
+
+                target_hash
             }
-            .into());
-        }
-    }
+            Err(e) => return Err(e.into()),
+        };
+
+        target_hash
+    } else {
+        Hash::min()
+    };
 
     // Commitment's output is only for change propose, so it only has to be one output and the
     // address has to be the same than the address which creates the commitment
@@ -780,7 +790,7 @@ pub fn validate_commit_transaction(
 
         target_hash
     } else {
-        Hash::max()
+        target_hash_wit2
     };
     add_dr_vrf_signature_to_verify(
         signatures_to_verify,

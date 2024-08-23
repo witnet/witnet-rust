@@ -382,7 +382,7 @@ impl ChainManager {
                 collateral_age
             };
             let (target_hash, probability) = if protocol_version >= V2_0 {
-                let eligibility = self
+                let (eligibility, target_hash, probability) = self
                     .chain_state
                     .stakes
                     .witnessing_eligibility(own_pkh, current_epoch, num_witnesses, round)
@@ -397,8 +397,8 @@ impl ChainManager {
                         return Ok(());
                     }
                 }
-                // Using a target hash of zero for V2_X essentially disables preliminary VRF checks
-                (Hash::min(), 0f64)
+
+                (target_hash, probability)
             } else {
                 calculate_reppoe_threshold(
                     rep_eng,
@@ -474,36 +474,31 @@ impl ChainManager {
                         )
                     })
                         .map(move |(vrf_proof, vrf_proof_hash)| {
-                            // This is where eligibility is verified for several protocol versions
-                            if protocol_version >= V2_0 {
-                                Ok(vrf_proof)
-                            }  else {
-                                // invalid: vrf_hash > target_hash
-                                let proof_invalid = vrf_proof_hash > target_hash;
+                            // invalid: vrf_hash > target_hash
+                            let proof_invalid = vrf_proof_hash > target_hash;
 
-                                log::debug!(
+                            log::debug!(
                                 "{} witnesses and {} backup witnesses",
                                 num_witnesses,
                                 num_backup_witnesses
                             );
-                                log::debug!(
+                            log::debug!(
                                 "Probability to be eligible for this data request: {:.6}%",
                                 probability * 100.0
                             );
-                                log::trace!("[DR] Target hash: {}", target_hash);
-                                log::trace!("[DR] Our proof:   {}", vrf_proof_hash);
-                                if proof_invalid {
-                                    log::debug!("No eligibility for data request {}", dr_pointer);
-                                    Err(())
-                                } else {
-                                    log::info!(
+                            log::trace!("[DR] Target hash: {}", target_hash);
+                            log::trace!("[DR] Our proof:   {}", vrf_proof_hash);
+                            if proof_invalid {
+                                log::debug!("No eligibility for data request {}", dr_pointer);
+                                Err(())
+                            } else {
+                                log::info!(
                                     "{} Discovered eligibility for mining a data request {} for epoch #{}",
                                     Yellow.bold().paint("[Mining]"),
                                     Yellow.bold().paint(dr_pointer.to_string()),
                                     Yellow.bold().paint(current_epoch.to_string())
                                 );
-                                    Ok(vrf_proof)
-                                }
+                                Ok(vrf_proof)
                             }
                         })
                 )
