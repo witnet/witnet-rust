@@ -7,7 +7,7 @@ use std::{
 use witnet_data_structures::{chain::Hash, staking::prelude::*, wit::PrecisionLoss};
 
 const MINING_REPLICATION_FACTOR: usize = 4;
-const WITNESSING_MAX_ROUNDS: usize = 4;
+const WITNESSING_MAX_ROUNDS: u64 = 4;
 
 /// Different reasons for ineligibility of a validator, stake entry or eligibility proof.
 #[derive(Copy, Debug, Clone, PartialEq)]
@@ -225,25 +225,27 @@ where
 
         // Requirement no. 3 from the WIP:
         //  "the big-endian value of the VRF output is less than
-        //  `max_rounds * own_power / (max_power * (rf - max_rounds) - rf * threshold_power)`"
+        //  `max_rounds * own_power / (round * threshold_power + max_power * (max_rounds - round))`"
         let dividend = Power::from(WITNESSING_MAX_ROUNDS as u64) * power;
-        let divisor = max_power * Power::from((rf - WITNESSING_MAX_ROUNDS) as u64)
-            - Power::from(rf as u64) * threshold_power;
-        let target_hash = if divisor == Power::from(0) {
-            Hash::with_first_u32(u32::MAX)
+        let divisor = (round as u64)
+            .saturating_mul(u64::from(threshold_power))
+            .saturating_add(
+                (u64::from(max_power)).saturating_mul(WITNESSING_MAX_ROUNDS - round as u64),
+            );
+        let (target_hash, probability) = if divisor == 0 {
+            (Hash::with_first_u32(u32::MAX), 1_f64)
         } else {
-            Hash::with_first_u32(
-                (((u64::MAX / divisor).saturating_mul(dividend.into())) >> 32)
+            let hash = Hash::with_first_u32(
+                (((u64::MAX / Power::from(divisor)).saturating_mul(dividend.into())) >> 32)
                     .try_into()
                     .unwrap(),
-            )
+            );
+            let probability = u64::from(dividend) as f64 / divisor as f64;
+
+            (hash, probability)
         };
 
-        Ok((
-            Eligible::Yes,
-            target_hash,
-            (u64::from(dividend) / divisor) as f64,
-        ))
+        Ok((Eligible::Yes, target_hash, probability))
     }
 }
 
