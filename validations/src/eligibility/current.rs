@@ -154,7 +154,9 @@ where
             Err(e) => {
                 // Early exit if the stake key does not exist
                 return match e {
-                    StakesError::ValidatorNotFound { .. } => Ok(IneligibilityReason::NotStaking.into()),
+                    StakesError::ValidatorNotFound { .. } => {
+                        Ok(IneligibilityReason::NotStaking.into())
+                    }
                     e => Err(e),
                 };
             }
@@ -204,7 +206,11 @@ where
 
         // Validators with power 0 should not be eligible to mine a block
         if power == Power::from(0) {
-            return Ok((IneligibilityReason::InsufficientPower.into(), Hash::min(), 0.0));
+            return Ok((
+                IneligibilityReason::InsufficientPower.into(),
+                Hash::min(),
+                0.0,
+            ));
         }
 
         let mut rank = self.rank(Capability::Witnessing, epoch);
@@ -365,7 +371,10 @@ mod tests {
         match stakes.witnessing_eligibility(isk_1, 100, 2, 0) {
             // TODO: verify target hash
             Ok((eligible, _target_hash, _)) => {
-                assert_eq!(eligible, Eligible::No(IneligibilityReason::InsufficientPower));
+                assert_eq!(
+                    eligible,
+                    Eligible::No(IneligibilityReason::InsufficientPower)
+                );
             }
             Err(_) => assert!(false),
         }
