@@ -288,16 +288,14 @@ pub fn validate_commit_collateral(
                 found: found_collateral,
             }
             .into())
+        } else if found_collateral == 0 {
+            Ok(())
         } else {
-            if found_collateral == 0 {
-                Ok(())
-            } else {
-                Err(TransactionError::IncorrectCollateral {
-                    expected: 0,
-                    found: found_collateral,
-                }
-                .into())
+            Err(TransactionError::IncorrectCollateral {
+                expected: 0,
+                found: found_collateral,
             }
+            .into())
         }
     } else {
         Ok(())
@@ -685,7 +683,7 @@ pub fn validate_commit_transaction(
 
     // Check if the commit transaction is from an eligible validator
     let target_hash_wit2 = if protocol_version >= ProtocolVersion::V2_0 {
-        let target_hash = match stakes.witnessing_eligibility(
+        match stakes.witnessing_eligibility(
             proof_pkh,
             epoch,
             dr_state.data_request.witnesses,
@@ -702,9 +700,7 @@ pub fn validate_commit_transaction(
                 target_hash
             }
             Err(e) => return Err(e.into()),
-        };
-
-        target_hash
+        }
     } else {
         Hash::min()
     };
@@ -2505,8 +2501,8 @@ pub fn verify_signatures(
     vrf: &mut VrfCtx,
 ) -> Result<Vec<Hash>, failure::Error> {
     let mut vrf_hashes = vec![];
-    for (i, x) in signatures_to_verify.into_iter().enumerate() {
-        match x {
+    for signature in signatures_to_verify {
+        match signature {
             SignaturesToVerify::VrfBlock {
                 proof,
                 vrf_input,
