@@ -302,20 +302,18 @@ mod tests {
         let stakes = <Stakes<String, _, _, _>>::with_minimum(100u64);
         let isk = "validator";
 
-        match stakes.witnessing_eligibility(isk, 0, 10, 0) {
-            Ok((eligible, _, _)) => {
-                assert_eq!(eligible, Eligible::No(IneligibilityReason::NotStaking));
-            }
-            Err(_) => assert!(false),
-        }
+        let eligibility = stakes.witnessing_eligibility(isk, 0, 10, 0);
+        assert!(matches!(
+            eligibility,
+            Ok((Eligible::No(IneligibilityReason::NotStaking), _, _))
+        ));
         assert!(!stakes.witnessing_eligibility_bool(isk, 0, 10, 0));
 
-        match stakes.witnessing_eligibility(isk, 100, 10, 0) {
-            Ok((eligible, _, _)) => {
-                assert_eq!(eligible, Eligible::No(IneligibilityReason::NotStaking));
-            }
-            Err(_) => assert!(false),
-        }
+        let eligibility = stakes.witnessing_eligibility(isk, 100, 10, 0);
+        assert!(matches!(
+            eligibility,
+            Ok((Eligible::No(IneligibilityReason::NotStaking), _, _))
+        ));
         assert!(!stakes.witnessing_eligibility_bool(isk, 100, 10, 0));
     }
 
@@ -326,23 +324,15 @@ mod tests {
 
         stakes.add_stake(isk, 10_000_000_000, 0).unwrap();
 
-        match stakes.witnessing_eligibility(isk, 0, 10, 0) {
-            Ok((eligible, _, _)) => {
-                assert_eq!(
-                    eligible,
-                    Eligible::No(IneligibilityReason::InsufficientPower)
-                );
-            }
-            Err(_) => assert!(false),
-        }
+        let eligibility = stakes.witnessing_eligibility(isk, 0, 10, 0);
+        assert!(matches!(
+            eligibility,
+            Ok((Eligible::No(IneligibilityReason::InsufficientPower), _, _))
+        ));
         assert!(!stakes.witnessing_eligibility_bool(isk, 0, 10, 0));
 
-        match stakes.witnessing_eligibility(isk, 100, 10, 0) {
-            Ok((eligible, _, _)) => {
-                assert_eq!(eligible, Eligible::Yes);
-            }
-            Err(_) => assert!(false),
-        }
+        let eligibility = stakes.witnessing_eligibility(isk, 100, 10, 0);
+        assert!(matches!(eligibility, Ok((Eligible::Yes, _, _))));
         assert!(stakes.witnessing_eligibility_bool(isk, 100, 10, 0));
     }
 
@@ -359,28 +349,21 @@ mod tests {
         stakes.add_stake(isk_3, 30_000_000_000, 0).unwrap();
         stakes.add_stake(isk_4, 40_000_000_000, 0).unwrap();
 
-        match stakes.witnessing_eligibility(isk_1, 0, 2, 0) {
-            // TODO: verify target hash
-            Ok((eligible, _target_hash, _)) => {
-                assert_eq!(
-                    eligible,
-                    Eligible::No(IneligibilityReason::InsufficientPower)
-                );
-            }
-            Err(_) => assert!(false),
-        }
+        let eligibility = stakes.witnessing_eligibility(isk_1, 0, 2, 0);
+        // TODO: verify target hash
+        assert!(matches!(
+            eligibility,
+            Ok((Eligible::No(IneligibilityReason::InsufficientPower), _, _))
+        ));
         assert!(!stakes.witnessing_eligibility_bool(isk_1, 0, 10, 0));
 
-        match stakes.witnessing_eligibility(isk_1, 100, 2, 0) {
-            // TODO: verify target hash
-            Ok((eligible, _target_hash, _)) => {
-                assert_eq!(
-                    eligible,
-                    Eligible::No(IneligibilityReason::InsufficientPower)
-                );
-            }
-            Err(_) => assert!(false),
-        }
+        let eligibility = stakes.witnessing_eligibility(isk_1, 100, 2, 0);
+        // TODO: verify target hash
+        assert!(matches!(
+            eligibility,
+            Ok((Eligible::No(IneligibilityReason::InsufficientPower), _, _))
+        ));
+        assert!(!stakes.witnessing_eligibility_bool(isk_1, 0, 10, 0));
         assert!(stakes.witnessing_eligibility_bool(isk_1, 100, 10, 0));
     }
 }
