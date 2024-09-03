@@ -850,6 +850,7 @@ impl ChainManager {
                             collateral_minimum,
                             tally_bytes_on_encode_error(),
                             &active_wips_inside_move,
+                            get_protocol_version(Some(block_epoch)),
                         );
 
                         log::info!(
@@ -1110,6 +1111,7 @@ pub fn build_block(
                     collateral_minimum,
                     tally_bytes_on_encode_error(),
                     active_wips,
+                    get_protocol_version(Some(epoch)),
                 ));
             }
 

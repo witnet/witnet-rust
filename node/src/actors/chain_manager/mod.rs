@@ -1029,8 +1029,113 @@ impl ChainManager {
 
                     for co_tx in &block.txns.commit_txns {
                         let commit_pkh = co_tx.body.proof.proof.pkh();
+                        let dr_output = self
+                            .chain_state
+                            .data_request_pool
+                            .get_dr_output(&co_tx.body.dr_pointer)
+                            .unwrap();
+                        let collateral = dr_output.collateral;
+                        let commit_fee = dr_output.commit_and_reveal_fee;
+                        // Reset witnessing power
                         let _ =
                             stakes.reset_age(commit_pkh, Capability::Witnessing, current_epoch, 1);
+                        // Subtract collateral from staked balance
+                        let _ = stakes.reserve_collateral(commit_pkh, Wit::from(collateral));
+                        // Add commit reward
+                        let _ = stakes.add_reward(
+                            commit_pkh,
+                            Wit::from(commit_fee),
+                            block_epoch,
+                        );
+                    }
+
+                    // Add reveal rewards
+                    for re_tx in &block.txns.reveal_txns {
+                        let reveal_pkh = re_tx.body.pkh;
+                        let reveal_fee = self
+                            .chain_state
+                            .data_request_pool
+                            .get_dr_output(&re_tx.body.dr_pointer)
+                            .unwrap()
+                            .commit_and_reveal_fee;
+                        let _ = stakes.add_reward(
+                            reveal_pkh,
+                            Wit::from(reveal_fee),
+                            block_epoch,
+                        );
+                    }
+
+                    for ta_tx in &block.txns.tally_txns {
+                        let dr_output = self
+                            .chain_state
+                            .data_request_pool
+                            .get_dr_output(&ta_tx.dr_pointer)
+                            .unwrap();
+                        let collateral = dr_output.collateral;
+                        let reward = dr_output.witness_reward;
+                        let commits: Vec<_> = self.chain_state.data_request_pool.data_request_pool
+                            [&ta_tx.dr_pointer]
+                            .info
+                            .commits
+                            .keys()
+                            .cloned()
+                            .collect();
+
+                        // Reward honest validators
+                        let honest_pkhs: Vec<PublicKeyHash> = commits
+                            .iter()
+                            .filter(|pkh| !ta_tx.out_of_consensus.contains(pkh))
+                            .cloned()
+                            .collect();
+                        for honest_pkh in honest_pkhs {
+                            log::debug!(
+                                "Rewarding {} for {} wit for data request {}",
+                                honest_pkh,
+                                collateral + reward,
+                                ta_tx.dr_pointer
+                            );
+                            let _ = stakes.add_reward(
+                                honest_pkh,
+                                Wit::from(collateral + reward),
+                                block_epoch,
+                            );
+                        }
+
+                        // Refund errored validators
+                        for error_pkh in &ta_tx.error_committers {
+                            log::debug!(
+                                "Refunding {} for {} wit because it revealed an error for data request {}",
+                                error_pkh,
+                                collateral,
+                                ta_tx.dr_pointer
+                            );
+                            let _ =
+                                stakes.add_reward(*error_pkh, Wit::from(collateral), block_epoch);
+                        }
+
+                        // Slash lieing validators
+                        // Collateral was already reserved, so not returning it results in losing it
+                        // Reset the age for witnessing power to 10 epochs in the future
+                        let liar_pkhs: Vec<PublicKeyHash> = ta_tx
+                            .out_of_consensus
+                            .iter()
+                            .filter(|&pkh| !ta_tx.error_committers.contains(pkh))
+                            .cloned()
+                            .collect();
+                        for liar_pkh in &liar_pkhs {
+                            log::debug!(
+                                "Slashing {} for {} wit because it revealed a lie for data request {}",
+                                liar_pkh,
+                                collateral,
+                                ta_tx.dr_pointer
+                            );
+                            let _ = stakes.reset_age(
+                                *liar_pkh,
+                                Capability::Witnessing,
+                                block_epoch + 10,
+                                1,
+                            );
+                        }
                     }
 
                     let epoch_constants = self.epoch_constants.unwrap();

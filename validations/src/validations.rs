@@ -944,6 +944,7 @@ fn create_expected_tally_transaction(
     collateral_minimum: u64,
     active_wips: &ActiveWips,
     too_many_witnesses: bool,
+    epoch: Option<Epoch>,
 ) -> Result<(TallyTransaction, DataRequestState), failure::Error> {
     // Get DataRequestState
     let dr_pointer = ta_tx.dr_pointer;
@@ -986,6 +987,7 @@ fn create_expected_tally_transaction(
         collateral_minimum,
         tally_bytes_on_encode_error(),
         active_wips,
+        get_protocol_version(epoch),
     );
 
     Ok((ta_tx, dr_state.clone()))
@@ -1039,6 +1041,7 @@ pub fn validate_tally_transaction<'a>(
         collateral_minimum,
         active_wips,
         too_many_witnesses,
+        epoch,
     )?;
 
     let sorted_out_of_consensus = ta_tx.out_of_consensus.iter().cloned().sorted().collect();
@@ -1262,20 +1265,23 @@ pub fn validate_tally_transaction<'a>(
         // In case of no commits, collateral does not affect
         0
     };
-    let expected_dr_value = dr_state.data_request.checked_total_value()?;
-    let found_dr_value = dr_state.info.commits.len() as u64
-        * dr_state.data_request.commit_and_reveal_fee
-        + dr_state.info.reveals.len() as u64 * dr_state.data_request.commit_and_reveal_fee
-        + tally_extra_fee
-        + total_tally_value;
+    // TODO: should we somehow validate that the total data request reward is correctly refunded + added to the staked balance?
+    if get_protocol_version(epoch) < ProtocolVersion::V2_0 {
+        let expected_dr_value = dr_state.data_request.checked_total_value()?;
+        let found_dr_value = dr_state.info.commits.len() as u64
+            * dr_state.data_request.commit_and_reveal_fee
+            + dr_state.info.reveals.len() as u64 * dr_state.data_request.commit_and_reveal_fee
+            + tally_extra_fee
+            + total_tally_value;
 
-    // Validation of the total value of the data request
-    if found_dr_value != expected_dr_value + expected_collateral_value {
-        return Err(TransactionError::InvalidTallyValue {
-            value: found_dr_value,
-            expected_value: expected_dr_value + expected_collateral_value,
+        // Validation of the total value of the data request
+        if found_dr_value != expected_dr_value + expected_collateral_value {
+            return Err(TransactionError::InvalidTallyValue {
+                value: found_dr_value,
+                expected_value: expected_dr_value + expected_collateral_value,
+            }
+            .into());
         }
-        .into());
     }
 
     Ok((ta_tx.outputs.iter().collect(), tally_extra_fee))
