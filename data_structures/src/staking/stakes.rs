@@ -342,11 +342,38 @@ where
             .get_mut(&validator)
             .ok_or(StakesError::ValidatorNotFound { validator })?;
 
+        // TODO: modify this to enable delegated staking with multiple withdrawer addresses on a single validator
         let _ = stakes[0]
             .value
             .write()
             .unwrap()
             .add_stake(coins, current_epoch, Some(0.into()));
+
+        Ok(())
+    }
+
+    /// Add a reward to the validator's balance
+    pub fn reserve_collateral<ISK>(
+        &mut self,
+        validator: ISK,
+        coins: Coins,
+    ) -> StakesResult<(), Address, Coins, Epoch>
+    where
+        ISK: Into<Address>,
+    {
+        let validator = validator.into();
+
+        let stakes = self
+            .by_validator
+            .get_mut(&validator)
+            .ok_or(StakesError::ValidatorNotFound { validator })?;
+
+        // TODO: modify this to enable delegated staking with multiple withdrawer addresses on a single validator
+        let _ = stakes[0]
+            .value
+            .write()
+            .unwrap()
+            .remove_stake(coins, self.minimum_stakeable);
 
         Ok(())
     }

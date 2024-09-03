@@ -3,6 +3,8 @@ use std::{
     convert::TryFrom,
 };
 
+use itertools::izip;
+
 use serde::{Deserialize, Serialize};
 
 use crate::proto::versioning::ProtocolVersion;
@@ -615,6 +617,7 @@ pub fn create_tally<RT, S: ::std::hash::BuildHasher>(
     collateral_minimum: u64,
     tally_bytes_on_encode_error: Vec<u8>,
     active_wips: &ActiveWips,
+    protocol_version: ProtocolVersion,
 ) -> TallyTransaction
 where
     RT: TypeLike,
@@ -669,51 +672,88 @@ where
         } else {
             reveals_count > 0
         };
-        let mut outputs: Vec<ValueTransferOutput> = if any_honest_revealers {
-            revealers
-                .iter()
-                .zip(liars.iter().zip(errors.iter()))
-                .filter_map(|(&revealer, (liar, error))| match (liar, error) {
-                    // If an out-of-consensus commitment was an error report, collateral is refunded
-                    (true, true) => {
-                        let vt_output = ValueTransferOutput {
-                            pkh: revealer,
-                            value: collateral,
-                            time_lock: 0,
-                        };
-                        error_committers.push(revealer);
-                        Some(vt_output)
-                    }
-                    // Case out-of-consensus value commitment
-                    (true, false) => None,
-                    // If the result of the tally is an error report,
-                    // commitments containing error reports are rewarded
-                    (false, true) => {
-                        let vt_output = ValueTransferOutput {
-                            pkh: revealer,
-                            value: reward,
-                            time_lock: 0,
-                        };
-                        out_of_consensus.remove(&revealer);
-                        error_committers.push(revealer);
-                        Some(vt_output)
-                    }
-                    // Case in consensus value
-                    (false, false) => {
-                        let vt_output = ValueTransferOutput {
-                            pkh: revealer,
-                            value: reward,
-                            time_lock: 0,
-                        };
-                        out_of_consensus.remove(&revealer);
-                        Some(vt_output)
-                    }
-                })
-                .collect()
-        } else {
-            // In case of no honests, collateral returns to their owners
+        let mut outputs: Vec<ValueTransferOutput> = if protocol_version < ProtocolVersion::V2_0 {
+            if any_honest_revealers {
+                revealers
+                    .iter()
+                    .zip(liars.iter().zip(errors.iter()))
+                    .filter_map(|(&revealer, (liar, error))| match (liar, error) {
+                        // If an out-of-consensus commitment was an error report, collateral is refunded
+                        (true, true) => {
+                            let vt_output = ValueTransferOutput {
+                                pkh: revealer,
+                                value: collateral,
+                                time_lock: 0,
+                            };
+                            error_committers.push(revealer);
+                            Some(vt_output)
+                        }
+                        // Case out-of-consensus value commitment
+                        (true, false) => None,
+                        // If the result of the tally is an error report,
+                        // commitments containing error reports are rewarded
+                        (false, true) => {
+                            let vt_output = ValueTransferOutput {
+                                pkh: revealer,
+                                value: reward,
+                                time_lock: 0,
+                            };
+                            out_of_consensus.remove(&revealer);
+                            error_committers.push(revealer);
+                            Some(vt_output)
+                        }
+                        // Case in consensus value
+                        (false, false) => {
+                            let vt_output = ValueTransferOutput {
+                                pkh: revealer,
+                                value: reward,
+                                time_lock: 0,
+                            };
+                            out_of_consensus.remove(&revealer);
+                            Some(vt_output)
+                        }
+                    })
+                    .collect()
+            } else {
+                // In case of no honests, collateral returns to their owners
 
-            if is_after_second_hard_fork {
+                if is_after_second_hard_fork {
+                    // After second hard fork, mark all the revealers as errors to avoid penalizing them:
+                    // If honests_count == 0, all revealers are out of consensus errors
+                    for revealer in revealers {
+                        error_committers.push(revealer);
+                    }
+                }
+
+                out_of_consensus
+                    .iter()
+                    .map(|&committer| ValueTransferOutput {
+                        pkh: committer,
+                        value: collateral,
+                        time_lock: 0,
+                    })
+                    .collect()
+            }
+        } else {
+            if any_honest_revealers {
+                for (revealer, liar, error) in izip!(revealers, liars, errors) {
+                    if *liar && *error {
+                        // If an out-of-consensus commitment was an error report, collateral is refunded
+                        error_committers.push(revealer);
+                    } else if *liar && !(*error) {
+                        // Case out-of-consensus value commitment
+                        continue;
+                    } else if !(*liar) && *error {
+                        // If the result of the tally is an error report,
+                        // commitments containing error reports are rewarded
+                        out_of_consensus.remove(&revealer);
+                        error_committers.push(revealer);
+                    } else {
+                        // Case in consensus value
+                        out_of_consensus.remove(&revealer);
+                    }
+                }
+            } else if is_after_second_hard_fork {
                 // After second hard fork, mark all the revealers as errors to avoid penalizing them:
                 // If honests_count == 0, all revealers are out of consensus errors
                 for revealer in revealers {
@@ -721,19 +761,16 @@ where
                 }
             }
 
-            out_of_consensus
-                .iter()
-                .map(|&committer| ValueTransferOutput {
-                    pkh: committer,
-                    value: collateral,
-                    time_lock: 0,
-                })
-                .collect()
+            vec![]
         };
 
         let honests_count = reveals_count - liars_count - errors_count;
-        let tally_change =
-            calculate_tally_change(commits_count, reveals_count, honests_count, dr_output);
+        let tally_change = calculate_tally_change(
+            commits_count,
+            reveals_count,
+            honests_count,
+            dr_output,
+        );
         if tally_change > 0 {
             let vt_output_change = ValueTransferOutput {
                 pkh,
