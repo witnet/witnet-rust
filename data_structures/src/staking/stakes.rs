@@ -421,7 +421,7 @@ where
 
     /// Query stakes based on different keys.
     pub fn query_stakes<TIQSK>(
-        &mut self,
+        &self,
         query: TIQSK,
     ) -> StakeEntryVecResult<UNIT, Address, Coins, Epoch, Power>
     where
