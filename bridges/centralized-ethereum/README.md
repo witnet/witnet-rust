@@ -1,10 +1,10 @@
 # How to run a Witnet-Ethereum bridge node
 
-This tutorial explains how to run a brige node in the **centralized Witnet-Ethereum bridge**.
+This tutorial explains how to run a bridge node in the **centralized Witnet-Ethereum bridge**.
 
 The goal of the bridge nodes is to monitor the WitnetRequestBoard contract looking for data request candidates to be introduced in Witnet and to deliver the result derived by the witnesses.
 
-Before running the bridge node you will need to have the WintetRequestsBoard contract deployed in an Ethereum enviroment. If you already have those contracts deployed, skip the *contract deployment* steps.
+Before running the bridge node you will need to have the WintetRequestsBoard contract deployed in an Ethereum environment. If you already have those contracts deployed, skip the *contract deployment* steps.
 
 Both the WitnetRequestBoard and the BlockRelay contracts have been deployed in Rinkeby and Goerli testnets. The addresses can be found [here](https://github.com/witnet/witnet-requests-js/blob/master/src/ethereum/addresses.js).
 
@@ -48,7 +48,7 @@ In this section it is assumed you have [geth](https://github.com/ethereum/go-eth
 
 This will create an account that you will need to unlock when synchronizing with the appropriate testnet. The key from which this account has been created is stored in your /home/user/.ethereum/keystore path.
 
-It is time to connect to one of the Ethereum testnets. In this case we are going to connect to *goerli*, but you can change the name to connect to a testnet of your choice. It is recommended use a light node.
+It is time to connect to one of the Ethereum testnets. In this case we are going to connect to *goerli*, but you can change the name to connect to a testnet of your choice. It is recommended to use a light node.
 
     ./geth --goerli --rpc --rpcaddr 0.0.0.0 --rpcport 8545 --syncmode light --cache 2048 --rpcapi=eth,web3,net,personal --allow-insecure-unlock --unlock YOUR_ACCOUNT --keystore /home/user/.ethereum/keystore/
 
@@ -80,7 +80,7 @@ If you want to check the addresses at which you deployed the contracts, you just
 which will show you the networks Ids with the corresponding contract addresses.
 
 ## Witnet node
-As menetioned in the beggining of this document, you need a Witnet node the bridge node can connect to.
+As mentioned at the beginning of this document, you need a Witnet node the bridge node can connect to.
 
 Run the node:
 
@@ -156,6 +156,6 @@ proof of inclusion to the WRB contract. This will emit an `InclusionDataRequest`
 event, which indicates to all the bridge nodes that they should start checking
 all the new Witnet blocks for a tally which resolves that data request.
 
-* Once a tally has been included in a block, any bridge node can sent the proof
+* Once a tally has been included in a block, any bridge node can send the proof
 of inclusion. If that proof is valid, the WRB contract will emit a `PostResult`
 event indicating that the data request has been resolved.
