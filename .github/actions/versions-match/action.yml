@@ -11,7 +11,7 @@ runs:
   using: "composite"
   steps:
     # Perform the version matching
-    - Name: Verify Matching Versions
+    - name: Verify Matching Versions
       shell: bash
       run: |
         echo "Checking version of subcrate \"${{ inputs.subcrate }}\""
