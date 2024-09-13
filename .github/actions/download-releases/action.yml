@@ -4,20 +4,20 @@ description: "Download All releases artifacted from the previous jobs & Signs"
 runs:
   using: "composite"
   steps:
-    # Make Directory
-    - shell: bash
+    - name: Create Release Directory
+      shell: bash
       run: mkdir release
 
-    # Download Genesis Block
-    - shell: bash
+    - name: Download Gensis Block
+      shell: bash
       run: |
         curl "https://raw.githubusercontent.com/witnet/genesis_block/master/latest/genesis_block.json" -o genesis_block.json
         cp genesis_block.json release/
         cp witnet.toml release/
 
     # Download & Hash Releases
-    # Macos
-    - uses: actions/download-artifact@v3
+    - name: Download MacOS Build
+      uses: actions/download-artifact@v4
       with:
         name: macos-release
         path: all-releases/macos/
@@ -28,8 +28,8 @@ runs:
         cp witnet.toml ./all-releases/macos/
         mv all-releases/macos/witnet_toolkit release/witnet_toolkit-x86_64-apple-darwin
 
-    # Windows
-    - uses: actions/download-artifact@v3
+    - name: Download Windows Build
+      uses: actions/download-artifact@v4
       with:
         name: windows-release
         path: all-releases/windows/
@@ -40,8 +40,8 @@ runs:
         cp witnet.toml ./all-releases/windows/
         mv all-releases/windows/witnet_toolkit.exe release/witnet_toolkit-x86_64-pc-windows-msvc.exe
 
-    # x86_64
-    - uses: actions/download-artifact@v3
+    - name: Download x86_64 Build
+      uses: actions/download-artifact@v4
       with:
         name: x86_64-release
         path: all-releases/x86_64/
@@ -52,8 +52,8 @@ runs:
         cp witnet.toml ./all-releases/x86_64/
         mv all-releases/x86_64/witnet_toolkit release/witnet_toolkit-x86_64-unknown-linux-gnu
 
-    # armv7
-    - uses: actions/download-artifact@v3
+    - name: Download armv7 Build
+      uses: actions/download-artifact@v4
       with:
         name: armv7-release
         path: all-releases/armv7/
@@ -64,8 +64,8 @@ runs:
         cp witnet.toml ./all-releases/armv7/
         mv all-releases/armv7/witnet_toolkit release/witnet_toolkit-armv7-unknown-linux-gnueabihf
 
-    # aarch64
-    - uses: actions/download-artifact@v3
+    - name: Download aarch64 Build
+      uses: actions/download-artifact@v4
       with:
         name: aarch64-release
         path: all-releases/aarch64/
@@ -76,8 +76,8 @@ runs:
         cp witnet.toml ./all-releases/aarch64/
         mv all-releases/aarch64/witnet_toolkit release/witnet_toolkit-aarch64-unknown-linux-gnu
 
-    # tar Releases
-    - shell: bash
+    - name: Tar Releases
+      shell: bash
       run: |
         tar -czvf release/witnet-${{github.ref_name}}-x86_64-apple-darwin.tar.gz -C all-releases/macos/ .
         tar -czvf release/witnet-${{github.ref_name}}-x86_64-pc-windows-msvc.tar.gz -C all-releases/windows/ .
@@ -85,8 +85,8 @@ runs:
         tar -czvf release/witnet-${{github.ref_name}}-armv7-unknown-linux-gnueabihf.tar.gz -C all-releases/armv7/ .
         tar -czvf release/witnet-${{github.ref_name}}-aarch64-unknown-linux-gnu.tar.gz -C all-releases/aarch64/ .
 
-    # Sign Tars
-    - shell: bash
+    - name: Sign Tars
+      shell: bash
       run: |
         cd release
         sha256sum genesis_block.json >>SHA256SUMS

@@ -14,6 +14,6 @@ runs:
         run: docker build -t witnet-rust/${{ inputs.imagename }}:latest -f ./docker/cross-compilation/${{ inputs.imagename }}/Dockerfile ./docker/cross-compilation/
 
       - name: Upload image
-        uses: ishworkh/docker-image-artifact-upload@v1
+        uses: ishworkh/container-image-artifact-upload@v2.0.0
         with:
           image: "witnet-rust/${{ inputs.imagename }}:latest"
