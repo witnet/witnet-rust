@@ -12,6 +12,9 @@ on:
         required: false
         default: true
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
   Bridge:
     runs-on: ubuntu-latest
