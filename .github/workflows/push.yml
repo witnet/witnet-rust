@@ -1,9 +1,12 @@
-name: Check on every push
+name: Check on every pull_request
 
-on: [push, pull_request]
+on: [pull_request]
+
+env:
+  CARGO_TERM_COLOR: always
 
 jobs:
-  build_ubuntu:
+  Build:
 
     runs-on: ubuntu-latest
 
@@ -24,35 +27,40 @@ jobs:
       LD_LIBRARY_PATH: /usr/local/lib
 
     steps:
-      - uses: actions/checkout@v1
+      - name: Checkout
+        uses: actions/checkout@v4
 
       # Ensure some subcrate versions match that of the main crate
-      - uses: ./.github/actions/versions-match
-        name: Checking version of node
+      - name: Checking version of node
+        uses: ./.github/actions/versions-match
         with:
           subcrate: node
-      - uses: ./.github/actions/versions-match
-        name: Checking version of wallet
+
+      - name: Checking version of wallet
+        uses: ./.github/actions/versions-match  
         with:
           subcrate: wallet
-      - uses: ./.github/actions/versions-match
-        name: Checking version of toolkit
+
+      - name: Checking version of toolkit
+        uses: ./.github/actions/versions-match  
         with:
           subcrate: toolkit
-      - uses: ./.github/actions/versions-match
-        name: Checking version of data_structures
+
+      - name: Checking version of data_structures
+        uses: ./.github/actions/versions-match
         with:
           subcrate: data_structures
-      - uses: ./.github/actions/versions-match
-        name: Checking version of bridges/centralized-ethereum
+
+      - name: Checking version of bridges/centralized-ethereum
+        uses: ./.github/actions/versions-match
         with:
           subcrate: bridges/centralized-ethereum
 
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          default: true
-          components: rustfmt, clippy
+      - name: Show Rust toolchain
+        run: rustup show
+
+      - name: Install Just command runner
+        uses: taiki-e/install-action@just
 
       - name: Formatter
         uses: actions-rs/cargo@v1
@@ -74,16 +82,10 @@ jobs:
           sudo make install-shared
 
       - name: Clippy
-        uses: actions-rs/clippy-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all --all-targets --all-features -- ${{ env.CLIPPY_LINTS }} -A clippy::many-single-char-names
+        run: just clippy
 
       - name: Test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --all --verbose
+        run: cargo test --all --verbose
 
       # This is used to ensure that Cargo.lock is up to date
       - name: Check for unstaged files
