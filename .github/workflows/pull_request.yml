@@ -1,4 +1,4 @@
-name: Validate Pull Request
+name: Validate
 
 on: [pull_request]
 
@@ -63,10 +63,7 @@ jobs:
         uses: taiki-e/install-action@just
 
       - name: Formatter
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+        run: just fmt
 
       - name: Install compilation system dependencies
         run: |
