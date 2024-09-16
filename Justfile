@@ -35,6 +35,7 @@ export CLIPPY_LINTS := '-D warnings
     -D clippy::checked-conversions
     -A clippy::upper-case-acronyms
     -A clippy::uninlined-format-args
+    -A renamed_and_removed_lints
 '
 
 # run clippy

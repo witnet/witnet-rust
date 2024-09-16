@@ -8,6 +8,7 @@ workspace = ".."
 
 [features]
 rocksdb-backend = ["witnet_storage/rocksdb-backend"]
+with-serde = ["rocksdb-backend"]
 
 [dependencies]
 bls-signatures-rs = "0.1.0"
@@ -27,7 +28,7 @@ num_enum = "0.4.2"
 num-traits = "0.2.15"
 ordered-float = "3.0"
 partial_struct = { path = "../partial_struct" }
-protobuf = { version = "2.23.0", features = ["with-serde"] }
+protobuf = { version = "2.28.0", features = ["with-serde"] }
 protobuf-convert = "0.1.1"
 rand = "0.8.5"
 serde = { version = "1.0.104", features = ["derive"] }
