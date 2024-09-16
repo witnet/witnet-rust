@@ -165,7 +165,7 @@ pub trait PrecisionLoss: Copy {
 
 impl PrecisionLoss for u64 {
     fn lose_precision(self, digits: u8) -> u64 {
-        self / 10_u64.pow(digits as u32)
+        self / 10_u64.pow(u32::from(digits))
     }
 }
 
