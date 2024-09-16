@@ -232,24 +232,27 @@ where
         // Requirement no. 3 from the WIP:
         //  "the big-endian value of the VRF output is less than
         //  `max_rounds * own_power / (round * threshold_power + max_power * (max_rounds - round))`"
-        let dividend = Power::from(WITNESSING_MAX_ROUNDS as u64)
+        let dividend = Power::from(u64::from(WITNESSING_MAX_ROUNDS))
             * Power::from((u64::BITS - u64::from(power).leading_zeros()).into());
-        let divisor = (round as u32)
+        let divisor = u32::from(round)
             .saturating_mul(u64::BITS - u64::from(threshold_power).leading_zeros())
             .saturating_add(
                 (u64::BITS - u64::from(max_power).leading_zeros())
-                    .saturating_mul(WITNESSING_MAX_ROUNDS - round as u32),
+                    .saturating_mul(WITNESSING_MAX_ROUNDS - u32::from(round)),
             );
         let (target_hash, probability) = if divisor == 0 {
             (Hash::with_first_u32(u32::MAX), 1_f64)
         } else {
             let hash = Hash::with_first_u32(
-                (((u64::MAX / Power::from(divisor as u64)).saturating_mul(u64::from(dividend)))
+                (((u64::MAX / Power::from(u64::from(divisor)))
+                    .saturating_mul(u64::from(dividend)))
                     >> 32)
                     .try_into()
                     .unwrap(),
             );
-            let probability = u64::from(dividend) as f64 / divisor as f64;
+
+            #[allow(clippy::cast_precision_loss, clippy::cast_lossless)]
+            let probability: f64 = u64::from(dividend) as f64 / divisor as f64;
 
             (hash, probability)
         };
