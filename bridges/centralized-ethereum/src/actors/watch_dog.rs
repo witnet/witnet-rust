@@ -219,7 +219,7 @@ impl WatchDog {
             
             metrics.push_str(&format!("\"runningSecs\": {running_secs}, "));
             metrics.push_str(&format!("\"status\": \"{}\"", status.to_string()));
-            metrics.push_str("}}");
+            metrics.push_str("}");
             log::info!("{metrics}");
             
             (eth_balance, wit_balance)
