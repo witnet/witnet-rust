@@ -111,7 +111,7 @@ impl EthPoller {
                     );
                     last_dr_id = skip_first;
                 }
-                while last_dr_id < next_dr_id {
+                while last_dr_id + 1 < next_dr_id {
                     let init_index = usize::try_from(last_dr_id + 1).unwrap();
                     let last_index = match next_dr_id.cmp(&(last_dr_id + max_batch_size)) {
                         std::cmp::Ordering::Greater => {
