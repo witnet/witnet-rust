@@ -3,6 +3,7 @@ use crate::{
     config::Config,
 };
 use actix::prelude::*;
+use core::fmt;
 use std::{
     sync::Arc,
     time::{Duration, Instant},
@@ -78,18 +79,18 @@ enum WatchDogStatus {
     UpAndRunning,
 }
 
-impl WatchDogStatus {
-    fn to_string(&self) -> String {
+impl fmt::Display for WatchDogStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            WatchDogStatus::EvmDisconnect => "evm-disconnect".to_string(),
-            WatchDogStatus::EvmErrors => format!("evm-errors"),
-            WatchDogStatus::EvmSyncing => "evm-syncing".to_string(),
-            WatchDogStatus::WitAlmostSynced => "wit-almost-synced".to_string(),
-            WatchDogStatus::WitDisconnect => "wit-disconnect".to_string(),
-            WatchDogStatus::WitErrors => format!("wit-errors"),
-            WatchDogStatus::WitSyncing => "wit-syncing".to_string(),
-            WatchDogStatus::WitWaitingConsensus => "wit-waiting-consensus".to_string(),
-            WatchDogStatus::UpAndRunning => "up-and-running".to_string(),
+            WatchDogStatus::EvmDisconnect => write!(f, "evm-disconnect"),
+            WatchDogStatus::EvmErrors => write!(f, "evm-errors"),
+            WatchDogStatus::EvmSyncing => write!(f, "evm-syncing"),
+            WatchDogStatus::WitAlmostSynced => write!(f, "wit-almost-synced"),
+            WatchDogStatus::WitDisconnect => write!(f, "wit-disconnect"),
+            WatchDogStatus::WitErrors => write!(f, "wit-errors"),
+            WatchDogStatus::WitSyncing => write!(f, "wit-syncing"),
+            WatchDogStatus::WitWaitingConsensus => write!(f, "wit-waiting-consensus"),
+            WatchDogStatus::UpAndRunning => write!(f, "up-and-running"),
         }
     }
 }
@@ -240,8 +241,8 @@ impl WatchDog {
             }
 
             metrics.push_str(&format!("\"runningSecs\": {running_secs}, "));
-            metrics.push_str(&format!("\"status\": \"{}\"", status.to_string()));
-            metrics.push_str("}");
+            metrics.push_str(&format!("\"status\": \"{}\"", status));
+            metrics.push('}');
 
             log::info!("{metrics}");
 
@@ -355,10 +356,7 @@ async fn fetch_wit_info(
             };
             match res {
                 Ok(value) => match value.get("total") {
-                    Some(value) => match value.as_f64() {
-                        Some(value) => Some(value / 1000000000.0),
-                        None => None,
-                    },
+                    Some(value) => value.as_f64().map(|value| value / 1000000000.0),
                     None => None,
                 },
                 Err(err) => {
