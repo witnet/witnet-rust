@@ -285,21 +285,19 @@ impl Handler<CountDrsPerState> for DrDatabase {
     type Result = Result<(u64, u64, u64, u64), ()>;
 
     fn handle(&mut self, _msg: CountDrsPerState, _ctx: &mut Self::Context) -> Self::Result {
-        let mut drs_new = u64::default();
-        let mut drs_pending = u64::default();
-        let mut drs_finished = u64::default();
-        let mut drs_dismissed = u64::default();
-
-        self.dr.iter().for_each(|(_dr_id, dr_info)| {
-            match dr_info.dr_state {
-                DrState::New => drs_new += 1,
-                DrState::Pending => drs_pending += 1,
-                DrState::Finished => drs_finished += 1,
-                DrState::Dismissed => drs_dismissed += 1,
-            };
-        });
-
-        Ok((drs_new, drs_pending, drs_finished, drs_dismissed))
+        Ok(self.dr.iter().fold(
+            (0u64, 0u64, 0u64, 0u64),
+            |(mut drs_new, mut drs_pending, mut drs_finished, mut drs_dismissed),
+             (_dr_id, dr_info)| {
+                match dr_info.dr_state {
+                    DrState::New => drs_new += 1,
+                    DrState::Pending => drs_pending += 1,
+                    DrState::Finished => drs_finished += 1,
+                    DrState::Dismissed => drs_dismissed += 1,
+                };
+                (drs_new, drs_pending, drs_finished, drs_dismissed)
+            },
+        ))
     }
 }
 
