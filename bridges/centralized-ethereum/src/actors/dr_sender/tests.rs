@@ -81,6 +81,7 @@ fn deserialize_dr_collateral_one_nanowit() {
 
     let dro_bytes = dro.to_pb_bytes().unwrap();
     let err = deserialize_and_validate_dr_bytes(&dro_bytes, 1, total_value).unwrap_err();
+    let err = deserialize_and_validate_dr_bytes(&dro_bytes, total_value, 1).unwrap_err();
     assert_eq!(err.encode_cbor(), vec![216, 39, 129, 24, 224]);
 }
 
