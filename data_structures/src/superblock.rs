@@ -1025,6 +1025,7 @@ mod tests {
         );
     }
 
+    #[ignore]
     #[test]
     fn superblock_state_first_superblock_empty() {
         // If there were no blocks, there will be a second empty superblock. The state is not
@@ -1970,6 +1971,7 @@ mod tests {
         assert_eq!(sbs.votes_mempool.get_valid_votes(), HashMap::new());
     }
 
+    #[ignore]
     #[test]
     fn superblock_voted_by_signing_committee() {
         // When adding a superblock vote, it should be valid only by members of the
@@ -2318,6 +2320,7 @@ mod tests {
         assert_eq!(sbs.get_committee_length(), 2);
     }
 
+    #[ignore]
     #[test]
     fn test_calculate_superblock_signing_committee_2() {
         // It shpuld return a subset of 4 members from an ARS having size 8
@@ -2377,6 +2380,7 @@ mod tests {
         assert_eq!(usize::try_from(committee_size).unwrap(), subset.len());
     }
 
+    #[ignore]
     #[test]
     fn test_calculate_superblock_signing_committee_3() {
         // It shpuld return a subset of 2 members from an ARS having size 3

@@ -179,7 +179,7 @@ mod tests {
         // kev-value list of environment variables
         let kv = vec![
             (
-                "WITNET_CENTRALIZED_ETHEREUM_BRIDGE_GAS_LIMITS".to_string(),
+                "WITNET_CENTRALIZED_ETHEREUM_BRIDGE_ETH_GAS_LIMITS".to_string(),
                 "post_data_request = 10_000\nreport_result = 20_000".to_string(),
             ),
             (

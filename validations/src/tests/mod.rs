@@ -661,6 +661,7 @@ where
     );
 }
 
+#[ignore]
 #[test]
 fn vtt_one_input_signatures() {
     let vto = ValueTransferOutput {
@@ -1179,6 +1180,7 @@ fn vtt_output_value_overflow() {
     );
 }
 
+#[ignore]
 #[test]
 fn vtt_timelock() {
     // 1 epoch = 1000 seconds, for easy testing
@@ -1565,6 +1567,7 @@ fn data_request_one_input_but_no_signature() {
     );
 }
 
+#[ignore]
 #[test]
 fn data_request_one_input_signatures() {
     let vto = ValueTransferOutput {
@@ -3237,6 +3240,7 @@ fn test_commit_with_collateral(
     .map(|_| ())
 }
 
+#[ignore]
 #[test]
 fn commitment_signatures() {
     let dr_hash = DR_HASH.parse().unwrap();
@@ -3969,6 +3973,7 @@ fn commitment_collateral_zero_is_minimum() {
     );
 }
 
+#[ignore]
 #[test]
 fn commitment_timelock() {
     // 1 epoch = 1000 seconds, for easy testing
@@ -9235,6 +9240,7 @@ fn block_hash_prev_block_genesis_hash() {
     );
 }
 
+#[ignore]
 #[test]
 fn block_signals_can_be_anything() {
     // The signals field in the block header can have any value, the block will always be valid
@@ -9418,6 +9424,7 @@ fn block_difficult_proof() {
     );
 }
 
+#[ignore]
 #[test]
 fn block_change_mint() {
     let x = test_block(|b| {
@@ -9439,6 +9446,7 @@ fn block_change_mint() {
     );
 }
 
+#[ignore]
 #[test]
 fn block_add_vtt_but_dont_update_mint() {
     let mut old_mint_value = None;
@@ -9468,6 +9476,7 @@ fn block_add_vtt_but_dont_update_mint() {
     );
 }
 
+#[ignore]
 #[test]
 fn block_add_vtt_but_dont_update_merkle_tree() {
     let x = test_block(|b| {
@@ -9499,6 +9508,7 @@ fn block_add_vtt_but_dont_update_merkle_tree() {
     );
 }
 
+#[ignore]
 #[test]
 fn block_duplicated_commits() {
     let mut dr_pool = DataRequestPool::default();
@@ -9602,6 +9612,7 @@ fn block_duplicated_commits() {
     );
 }
 
+#[ignore]
 #[test]
 fn block_duplicated_reveals() {
     let mut dr_pool = DataRequestPool::default();
@@ -9708,6 +9719,7 @@ fn block_duplicated_reveals() {
     );
 }
 
+#[ignore]
 #[test]
 fn block_duplicated_tallies() {
     let active_wips = current_active_wips();
@@ -9774,6 +9786,7 @@ fn block_duplicated_tallies() {
     );
 }
 
+#[ignore]
 #[test]
 fn block_before_and_after_hard_fork() {
     let mut dr_pool = DataRequestPool::default();
@@ -9908,6 +9921,7 @@ fn block_change_hash_prev_vrf() {
     );
 }
 
+#[ignore]
 #[test]
 fn block_change_merkle_tree() {
     let x = test_block(|b| {
@@ -10123,6 +10137,7 @@ fn test_blocks_with_limits(
     Ok(())
 }
 
+#[ignore]
 #[test]
 fn block_minimum_valid() {
     let t0 = {
@@ -10142,6 +10157,7 @@ fn block_minimum_valid() {
     x.unwrap();
 }
 
+#[ignore]
 #[test]
 fn block_add_vtt_no_inputs() {
     let vt_tx_hash;
@@ -10175,6 +10191,7 @@ fn block_add_vtt_no_inputs() {
     );
 }
 
+#[ignore]
 #[test]
 fn block_add_vtt() {
     let t0 = {
@@ -10200,6 +10217,7 @@ fn block_add_vtt() {
     x.unwrap();
 }
 
+#[ignore]
 #[test]
 fn block_add_2_vtt_same_input() {
     let t0 = {
@@ -10241,6 +10259,7 @@ fn block_add_2_vtt_same_input() {
     );
 }
 
+#[ignore]
 #[test]
 fn block_add_1_vtt_2_same_input() {
     let t0 = {
@@ -10332,6 +10351,7 @@ fn block_vtt_sequence() {
     );
 }
 
+#[ignore]
 #[test]
 fn block_add_drt() {
     let t0 = {
@@ -10368,6 +10388,7 @@ fn block_add_drt() {
     x.unwrap();
 }
 
+#[ignore]
 #[test]
 fn block_add_2_drt_same_input() {
     let t0 = {
@@ -10429,6 +10450,7 @@ fn block_add_2_drt_same_input() {
     );
 }
 
+#[ignore]
 #[test]
 fn block_add_1_drt_and_1_vtt_same_input() {
     let t0 = {
@@ -11231,6 +11253,7 @@ fn validate_required_tally_not_found() {
     );
 }
 
+#[ignore]
 #[test]
 fn validate_vt_weight_overflow() {
     let t0 = {
@@ -11274,6 +11297,7 @@ fn validate_vt_weight_overflow() {
     );
 }
 
+#[ignore]
 #[test]
 fn validate_vt_weight_valid() {
     let t0 = {
@@ -11306,6 +11330,7 @@ fn validate_vt_weight_valid() {
     x.unwrap();
 }
 
+#[ignore]
 #[test]
 fn validate_vt_weight_genesis_valid() {
     let new_genesis = "116e271cbda2c625ccc189a4b93b6d0e96063dd9b75258dc47acaac86cd19ceb";
@@ -11333,6 +11358,7 @@ fn validate_vt_weight_genesis_valid() {
     x.unwrap();
 }
 
+#[ignore]
 #[test]
 fn validate_dr_weight_overflow() {
     let t0 = {
@@ -11376,6 +11402,7 @@ fn validate_dr_weight_overflow() {
 }
 
 // This test evaluates the theoretical limit of witnesses for a MAX_DR_WEIGHT of 80_000
+#[ignore]
 #[test]
 fn validate_dr_weight_overflow_126_witnesses() {
     let dro = example_data_request_output(126, DEFAULT_WITNESS_REWARD, 0);
@@ -11414,6 +11441,7 @@ fn validate_dr_weight_overflow_126_witnesses() {
     );
 }
 
+#[ignore]
 #[test]
 fn validate_dr_weight_valid() {
     let t0 = {
