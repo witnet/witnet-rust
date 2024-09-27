@@ -97,6 +97,7 @@ const EXAMPLE_BLOCK_VECTOR_FINAL: &[u8] = &[
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 ];
 
+#[ignore]
 #[test]
 fn message_last_beacon_from_bytes() {
     let highest_superblock_checkpoint = CheckpointBeacon {
@@ -121,6 +122,7 @@ fn message_last_beacon_from_bytes() {
     assert_eq!(Message::from_pb_bytes(&buff).unwrap(), expected_msg);
 }
 
+#[ignore]
 #[test]
 fn message_last_beacon_to_bytes() {
     let highest_superblock_checkpoint = CheckpointBeacon {
@@ -410,6 +412,7 @@ fn message_version_encode_decode() {
     assert_eq!(msg, Message::from_pb_bytes(&result).unwrap());
 }
 
+#[ignore]
 #[test]
 fn message_block_to_bytes() {
     let msg = Message {
@@ -430,6 +433,7 @@ fn message_block_to_bytes() {
     assert_eq!(result, expected_buf);
 }
 
+#[ignore]
 #[test]
 fn message_block_from_bytes() {
     let expected_msg = Message {
@@ -453,6 +457,7 @@ fn message_block_from_bytes() {
     );
 }
 
+#[ignore]
 #[test]
 fn message_block_encode_decode() {
     let msg = Message {

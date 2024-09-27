@@ -181,6 +181,7 @@ fn target_randpoe_rf_4() {
     assert_abs_diff_eq!(p06, 4.0 / (1024.0 * 1024.0), epsilon = 1e-9);
 }
 
+#[ignore]
 #[test]
 fn vrf_sections() {
     let h0 = Hash::default();

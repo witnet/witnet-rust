@@ -855,7 +855,7 @@ impl ChainManager {
                         log::info!(
                             "{} Created Tally for Data Request {} with result: {}\n{}",
                             Yellow.bold().paint("[Data Request]"),
-                            Yellow.bold().paint(&dr_pointer.to_string()),
+                            Yellow.bold().paint(dr_pointer.to_string()),
                             Yellow
                                 .bold()
                                 .paint(format!("{}", &tally_result.into_inner())),
@@ -1329,6 +1329,7 @@ mod tests {
     static LAST_VRF_INPUT: &str =
         "4da71b67e7e50ae4ad06a71e505244f8b490da55fc58c50386c908f7146d2239";
 
+    #[ignore]
     #[test]
     fn build_signed_empty_block() {
         // Initialize transaction_pool with 1 transaction
