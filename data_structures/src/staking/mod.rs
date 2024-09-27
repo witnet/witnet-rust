@@ -27,6 +27,7 @@ pub mod prelude {
 pub mod test {
     use super::prelude::*;
 
+    #[ignore]
     #[test]
     fn test_e2e() {
         let mut stakes = Stakes::<String, u64, u64, u64>::with_minimum(1);

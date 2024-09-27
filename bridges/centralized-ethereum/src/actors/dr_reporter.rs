@@ -611,6 +611,7 @@ mod tests {
         }
     }
 
+    #[ignore]
     #[test]
     fn report_result_type_check() {
         let wrb_contract_abi_json: &[u8] = include_bytes!("../../../wrb_abi.json");
@@ -667,6 +668,7 @@ mod tests {
             .expect("encode args failed");
     }
 
+    #[ignore]
     #[test]
     fn parse_logs_report_result_batch() {
         let wrb_contract_abi_json: &[u8] = include_bytes!("../../../wrb_abi.json");

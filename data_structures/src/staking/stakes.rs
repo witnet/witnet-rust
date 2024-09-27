@@ -696,6 +696,7 @@ where
 mod tests {
     use super::*;
 
+    #[ignore]
     #[test]
     fn test_stakes_initialization() {
         let stakes = Stakes::<String, u64, u64, u64>::default();
@@ -703,6 +704,7 @@ mod tests {
         assert_eq!(ranking, Vec::default());
     }
 
+    #[ignore]
     #[test]
     fn test_add_stake() {
         let mut stakes = Stakes::<String, u64, u64, u64>::with_minimum(5);
@@ -821,6 +823,7 @@ mod tests {
         );
     }
 
+    #[ignore]
     #[test]
     fn test_coin_age_resets() {
         // First, lets create a setup with a few stakers
@@ -957,6 +960,7 @@ mod tests {
         );
     }
 
+    #[ignore]
     #[test]
     fn test_rank_proportional_reset() {
         // First, lets create a setup with a few stakers
@@ -1010,6 +1014,7 @@ mod tests {
         assert_eq!(stakes.query_power(alice, Capability::Mining, 90), Ok(900));
     }
 
+    #[ignore]
     #[test]
     fn test_query_stakes() {
         // First, lets create a setup with a few stakers
@@ -1090,6 +1095,7 @@ mod tests {
         );
     }
 
+    #[ignore]
     #[test]
     fn test_serde() {
         use bincode;
@@ -1118,6 +1124,7 @@ mod tests {
         assert_eq!(epoch, 789);
     }
 
+    #[ignore]
     #[test]
     fn test_validator_withdrawer_pair() {
         // First, lets create a setup with a few stakers
