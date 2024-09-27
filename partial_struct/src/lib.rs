@@ -35,7 +35,7 @@
 //! ## Features
 //!
 //! * `Option<T>` inside the original structs are NOT handled. The generated
-//! struct will be wrapped in an extra `Option` like `Option<Option<T>>`
+//!   struct will be wrapped in an extra `Option` like `Option<Option<T>>`
 //! * You can add derives to the generated struct:
 //! ```rust
 //! use partial_struct::PartialStruct;

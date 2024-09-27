@@ -46,8 +46,8 @@ impl Actor for SessionsManager {
                 let checkpoint_zero_timestamp =
                     config.consensus_constants.checkpoint_zero_timestamp;
                 let checkpoint_zero_timestamp_v2 = checkpoint_zero_timestamp
-                    + get_protocol_version_activation_epoch(ProtocolVersion::V2_0) as i64
-                        * checkpoints_period as i64;
+                    + i64::from(get_protocol_version_activation_epoch(ProtocolVersion::V2_0))
+                        * i64::from(checkpoints_period);
                 let checkpoints_period_v2 = get_protocol_version_period(ProtocolVersion::V2_0);
                 let epoch_constants = EpochConstants {
                     checkpoint_zero_timestamp,

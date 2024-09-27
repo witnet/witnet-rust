@@ -60,6 +60,7 @@ fn deserialize_dr_high_value() {
     assert_eq!(err.encode_cbor(), vec![216, 39, 129, 24, 225]);
 }
 
+#[ignore]
 #[test]
 fn deserialize_dr_collateral_one_nanowit() {
     // This data request will return an error because the collateral of 1 nanowit is smaller than

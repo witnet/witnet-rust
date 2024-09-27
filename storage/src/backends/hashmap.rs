@@ -68,10 +68,7 @@ impl<'a, 'b> Iterator for DBIterator<'a, 'b> {
             .data
             .iter()
             .skip(skip)
-            .map(|x| {
-                skip += 1;
-                x
-            })
+            .inspect(|_| skip += 1)
             .filter_map(|(k, v)| {
                 if k.starts_with(self.prefix.as_ref()) {
                     Some((k.clone(), v.clone()))

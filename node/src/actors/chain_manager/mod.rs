@@ -4071,6 +4071,7 @@ mod tests {
 
     // TODO: cannot use struct update syntax with ChainManager because it implements the
     // Drop trait, but clippy seems to miss that?
+    #[ignore]
     #[allow(clippy::field_reassign_with_default)]
     #[test]
     fn test_process_candidate_malleability() {

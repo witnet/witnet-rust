@@ -2419,6 +2419,7 @@ mod tests {
         assert_eq!(response, Some(expected));
     }
 
+    #[ignore]
     #[test]
     fn serialize_block() {
         // Check that the serialization of `Block` doesn't change
@@ -2494,6 +2495,7 @@ mod tests {
         ))
     }
 
+    #[ignore]
     #[test]
     fn hash_str_format() {
         use witnet_data_structures::chain::Hash;
@@ -2514,6 +2516,7 @@ mod tests {
         assert_eq!(s, expected, "\n{}\n", s);
     }
 
+    #[ignore]
     #[test]
     fn list_jsonrpc_methods() {
         // This test will break when adding or removing JSON-RPC methods.

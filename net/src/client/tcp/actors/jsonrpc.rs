@@ -320,10 +320,9 @@ impl Handler<Request> for JsonRpcClient {
                 res.unwrap_or(Err(Error::RequestTimedOut(timeout.as_millis())))
             })
             .map(|res, act, ctx| {
-                res.map(|res| {
+                res.inspect(|_| {
                     // Backoff time is reset to default
-                    act.reset_backoff_time();
-                    res
+                    act.reset_backoff_time()
                 })
                 .map_err(|err| {
                     log::error!("JSONRPC Request error: {:?}", err);

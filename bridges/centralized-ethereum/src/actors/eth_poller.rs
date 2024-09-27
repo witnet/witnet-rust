@@ -94,13 +94,11 @@ impl EthPoller {
                     None,
                 )
                 .await
-                .map_err(|err| {
+                .inspect_err(|err| {
                     log::error!(
                         "Fail to read getNextQueryId from contract: {:?}",
                         err.to_string()
-                    );
-
-                    err
+                    )
                 });
 
             let last_dr_id = dr_database_addr.send(GetLastDrId).await;

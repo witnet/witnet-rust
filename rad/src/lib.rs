@@ -458,11 +458,11 @@ pub async fn run_paranoid_retrieval(
 /// There are 4 cases in which this function will fail with `InconsistentSource`:
 ///
 /// 1. All the transports failed or no transports are configured at all (in theory, this condition
-/// should be unreachable).
+///    should be unreachable).
 /// 2. The retrieval failed on some of the used transports.
 /// 3. The values that we got from different transports cannot be aggregated together.
 /// 4. The result of applying the aggregation on the data coming from the different transports
-/// reached a level of consensus that is lower than the configured paranoid threshold.
+///    reached a level of consensus that is lower than the configured paranoid threshold.
 fn evaluate_paranoid_retrieval(
     data: Vec<Result<RadonReport<RadonTypes>>>,
     aggregate: RADAggregate,
