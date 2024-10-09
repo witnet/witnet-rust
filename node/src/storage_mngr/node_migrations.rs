@@ -1,8 +1,7 @@
 use witnet_data_structures::{
-    chain::{tapi::TapiEngine, ChainState, Epoch, PublicKeyHash},
-    staking::stakes::Stakes,
+    chain::{tapi::TapiEngine, ChainState},
+    staking::stakes::StakesTracker,
     utxo_pool::UtxoWriteBatch,
-    wit::Wit,
 };
 
 use super::*;
@@ -63,7 +62,7 @@ fn migrate_chain_state_v3_to_v4(old_chain_state_bytes: &[u8]) -> Vec<u8> {
     let db_version_bytes = db_version.to_le_bytes();
 
     // Extra fields in ChainState v4:
-    let stakes = Stakes::<PublicKeyHash, Wit, Epoch, u64>::default();
+    let stakes = StakesTracker::default();
     let stakes_bytes = bincode::serialize(&stakes).unwrap();
 
     [

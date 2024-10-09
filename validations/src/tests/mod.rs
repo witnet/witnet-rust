@@ -26,12 +26,11 @@ use witnet_data_structures::{
     proto::versioning::ProtocolVersion,
     radon_error::RadonError,
     radon_report::{RadonReport, ReportContext, TypeLike},
-    staking::prelude::Stakes,
+    staking::stakes::StakesTracker,
     transaction::*,
     transaction_factory::transaction_outputs_sum,
     utxo_pool::{UnspentOutputsPool, UtxoDiff},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfCtx},
-    wit::Wit,
 };
 use witnet_protected::Protected;
 use witnet_rad::{
@@ -635,7 +634,7 @@ where
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::VerifyTransactionSignatureFail {
             hash,
-            // A "secp: signature failed verification" msg would also be correct here
+            // A "signature failed verification" msg would also be correct here
             msg: TransactionError::PublicKeyHashMismatch {
                 expected_pkh: MY_PKH_1.parse().unwrap(),
                 signature_pkh,
@@ -2981,7 +2980,7 @@ fn test_empty_commit(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
     let minimum_reppoe_difficulty = 1;
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
     let superblock_period = 1;
-    let stakes = Stakes::<PublicKeyHash, Wit, u32, u64>::default();
+    let stakes = StakesTracker::default();
 
     validate_commit_transaction(
         c_tx,
@@ -3041,7 +3040,7 @@ fn test_commit_with_dr_and_utxo_set(
         .unwrap();
 
     let mut signatures_to_verify = vec![];
-    let stakes = Stakes::<PublicKeyHash, Wit, u32, u64>::default();
+    let stakes = StakesTracker::default();
 
     validate_commit_transaction(
         c_tx,
@@ -3135,7 +3134,7 @@ fn test_commit_difficult_proof() {
 
     let mut signatures_to_verify = vec![];
     let superblock_period = 8;
-    let stakes = Stakes::<PublicKeyHash, Wit, u32, u64>::default();
+    let stakes = StakesTracker::default();
 
     let x = validate_commit_transaction(
         &c_tx,
@@ -3217,7 +3216,7 @@ fn test_commit_with_collateral(
     let c_tx = CommitTransaction::new(cb, vec![cs]);
 
     let superblock_period = 1;
-    let stakes = Stakes::<PublicKeyHash, Wit, u32, u64>::default();
+    let stakes = StakesTracker::default();
 
     validate_commit_transaction(
         &c_tx,
@@ -3469,7 +3468,7 @@ fn commitment_invalid_proof() {
     let mut signatures_to_verify = vec![];
 
     let superblock_period = 1;
-    let stakes = Stakes::<PublicKeyHash, Wit, u32, u64>::default();
+    let stakes = StakesTracker::default();
 
     let x = validate_commit_transaction(
         &c_tx,
@@ -3551,7 +3550,7 @@ fn commitment_dr_in_reveal_stage() {
     let mut signatures_to_verify = vec![];
 
     let superblock_period = 1;
-    let stakes = Stakes::<PublicKeyHash, Wit, u32, u64>::default();
+    let stakes = StakesTracker::default();
 
     let x = validate_commit_transaction(
         &c_tx,
@@ -3942,7 +3941,7 @@ fn commitment_collateral_zero_is_minimum() {
         let c_tx = CommitTransaction::new(cb, vec![cs]);
 
         let superblock_period = 1;
-        let stakes = Stakes::<PublicKeyHash, Wit, u32, u64>::default();
+        let stakes = StakesTracker::default();
 
         validate_commit_transaction(
             &c_tx,
@@ -4042,7 +4041,7 @@ fn commitment_timelock() {
 
         let mut signatures_to_verify = vec![];
         let superblock_period = 1;
-        let stakes = Stakes::<PublicKeyHash, Wit, u32, u64>::default();
+        let stakes = StakesTracker::default();
 
         validate_commit_transaction(
             &c_tx,
@@ -9003,7 +9002,7 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
     let vrf = &mut VrfCtx::secp256k1().unwrap();
     let rep_eng = ReputationEngine::new(100);
     let block_number = 100_000;
-    let stakes = Stakes::<PublicKeyHash, Wit, u32, u64>::default();
+    let stakes = StakesTracker::default();
 
     let consensus_constants = ConsensusConstants {
         checkpoint_zero_timestamp: 0,
@@ -9287,7 +9286,7 @@ fn block_difficult_proof() {
         .push_activity((0..512).map(|x| PublicKeyHash::from_hex(&format!("{:040}", x)).unwrap()));
     let mut utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
-    let stakes = Stakes::<PublicKeyHash, Wit, u32, u64>::default();
+    let stakes = StakesTracker::default();
 
     let consensus_constants = ConsensusConstants {
         checkpoint_zero_timestamp: 0,
@@ -10006,7 +10005,7 @@ fn test_blocks_with_limits(
     let rep_eng = ReputationEngine::new(100);
     let mut utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
-    let stakes = Stakes::<PublicKeyHash, Wit, u32, u64>::default();
+    let stakes = StakesTracker::default();
 
     let consensus_constants = ConsensusConstants {
         checkpoint_zero_timestamp: 0,
@@ -10626,7 +10625,7 @@ fn genesis_block_after_not_bootstrap_hash() {
         &consensus_constants,
         &current_active_wips(),
         ProtocolVersion::V1_7,
-        &Stakes::<PublicKeyHash, Wit, u32, u64>::default(),
+        &StakesTracker::default(),
     );
     assert_eq!(signatures_to_verify, vec![]);
 
@@ -10659,7 +10658,7 @@ fn genesis_block_value_overflow() {
     let mut dr_pool = DataRequestPool::default();
     let rep_eng = ReputationEngine::new(100);
     let utxo_set = UnspentOutputsPool::default();
-    let stakes = Stakes::<PublicKeyHash, Wit, u32, u64>::default();
+    let stakes = StakesTracker::default();
 
     let current_epoch = 0;
     let block_number = 0;
@@ -10748,7 +10747,7 @@ fn genesis_block_full_validate() {
     let mut dr_pool = DataRequestPool::default();
     let rep_eng = ReputationEngine::new(100);
     let utxo_set = UnspentOutputsPool::default();
-    let stakes = Stakes::<PublicKeyHash, Wit, u32, u64>::default();
+    let stakes = StakesTracker::default();
 
     let current_epoch = 0;
     let block_number = 0;
@@ -10859,7 +10858,7 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
         let vrf = &mut VrfCtx::secp256k1().unwrap();
         let rep_eng = ReputationEngine::new(100);
         let utxo_set = UnspentOutputsPool::default();
-        let stakes = Stakes::<PublicKeyHash, Wit, u32, u64>::default();
+        let stakes = StakesTracker::default();
 
         let secret_key = SecretKey {
             bytes: Protected::from(PRIV_KEY_1.to_vec()),
@@ -10959,7 +10958,7 @@ fn validate_commit_transactions_included_in_utxo_diff() {
         let mut dr_pool = DataRequestPool::default();
         let vrf = &mut VrfCtx::secp256k1().unwrap();
         let rep_eng = ReputationEngine::new(100);
-        let stakes = Stakes::<PublicKeyHash, Wit, u32, u64>::default();
+        let stakes = StakesTracker::default();
 
         let dro = DataRequestOutput {
             witness_reward: DEFAULT_WITNESS_REWARD,
@@ -11224,7 +11223,7 @@ fn validate_required_tally_not_found() {
 
     let mut dr_pool = DataRequestPool::default();
     dr_pool.data_request_pool.insert(dr_pointer, dr_state);
-    let stakes = Stakes::<PublicKeyHash, Wit, u32, u64>::default();
+    let stakes = StakesTracker::default();
 
     let b = Block::default();
 

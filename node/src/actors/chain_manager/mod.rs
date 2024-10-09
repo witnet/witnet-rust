@@ -82,7 +82,7 @@ use witnet_data_structures::{
     },
     utxo_pool::{Diff, OwnUnspentOutputsPool, UnspentOutputsPool, UtxoDiff, UtxoWriteBatch},
     vrf::VrfCtx,
-    wit::Wit,
+    wit::{Wit, WIT_DECIMAL_PLACES},
 };
 use witnet_rad::{error::RadError::TooManyWitnesses, types::RadonTypes};
 use witnet_util::timestamp::seconds_to_human_string;
@@ -2907,7 +2907,7 @@ pub fn process_validations(
     active_wips: &ActiveWips,
     transaction_visitor: Option<&mut dyn Visitor<Visitable = (Transaction, u64, u32)>>,
     protocol_version: ProtocolVersion,
-    stakes: &Stakes<PublicKeyHash, Wit, u32, u64>,
+    stakes: &StakesTracker,
 ) -> Result<Diff, failure::Error> {
     if !resynchronizing {
         let mut signatures_to_verify = vec![];
