@@ -64,7 +64,7 @@ where
 /// This structure holds indexes of stake entries. Because the entries themselves are reference
 /// counted and write-locked, we can have as many indexes here as we need at a negligible cost.
 #[derive(Clone, Debug, Default, PartialEq)]
-pub struct Stakes<Address, Coins, Epoch, Power>
+pub struct Stakes<const UNIT: u8, Address, Coins, Epoch, Power>
 where
     Address: Clone + Default + Ord,
     Coins: Clone + Ord,
@@ -72,17 +72,20 @@ where
     Power: Clone,
 {
     /// A listing of all the stake entries, indexed by their stake key.
-    pub(crate) by_key: BTreeMap<StakeKey<Address>, SyncStakeEntry<Address, Coins, Epoch, Power>>,
+    pub(crate) by_key:
+        BTreeMap<StakeKey<Address>, SyncStakeEntry<UNIT, Address, Coins, Epoch, Power>>,
     /// A listing of all the stake entries, indexed by validator.
-    by_validator: BTreeMap<Address, Vec<SyncStakeEntry<Address, Coins, Epoch, Power>>>,
+    by_validator: BTreeMap<Address, Vec<SyncStakeEntry<UNIT, Address, Coins, Epoch, Power>>>,
     /// A listing of all the stake entries, indexed by withdrawer.
-    by_withdrawer: BTreeMap<Address, Vec<SyncStakeEntry<Address, Coins, Epoch, Power>>>,
+    by_withdrawer: BTreeMap<Address, Vec<SyncStakeEntry<UNIT, Address, Coins, Epoch, Power>>>,
     /// A listing of all the stake entries, indexed by their coins and address.
     ///
     /// Because this uses a compound key to prevent duplicates, if we want to know which addresses
     /// have staked a particular amount, we just need to run a range lookup on the tree.
-    by_coins:
-        BTreeMap<CoinsAndAddresses<Coins, Address>, SyncStakeEntry<Address, Coins, Epoch, Power>>,
+    by_coins: BTreeMap<
+        CoinsAndAddresses<Coins, Address>,
+        SyncStakeEntry<UNIT, Address, Coins, Epoch, Power>,
+    >,
     /// The amount of coins that can be staked or can be left staked after unstaking.
     /// TODO: reconsider whether this should be here, taking into account that it hinders the possibility of adjusting
     ///  the minimum through TAPI or whatever. Maybe what we can do is set a skip directive for the Serialize macro so
@@ -91,7 +94,7 @@ where
     minimum_stakeable: Option<Coins>,
 }
 
-impl<Address, Coins, Epoch, Power> Stakes<Address, Coins, Epoch, Power>
+impl<const UNIT: u8, Address, Coins, Epoch, Power> Stakes<UNIT, Address, Coins, Epoch, Power>
 where
     Address: Clone + Debug + Default + Ord + Send + Sync + Display + 'static,
     Coins: Copy
@@ -132,7 +135,7 @@ where
         key: ISK,
         coins: Coins,
         epoch: Epoch,
-    ) -> StakesResult<Stake<Address, Coins, Epoch, Power>, Address, Coins, Epoch>
+    ) -> StakesResult<Stake<UNIT, Address, Coins, Epoch, Power>, Address, Coins, Epoch>
     where
         ISK: Into<StakeKey<Address>>,
     {
@@ -353,7 +356,7 @@ where
     /// This is specially convenient after loading stakes from storage, as this function rebuilds
     /// all the indexes at once to preserve write locks and reference counts.
     pub fn with_entries(
-        entries: BTreeMap<StakeKey<Address>, SyncStakeEntry<Address, Coins, Epoch, Power>>,
+        entries: BTreeMap<StakeKey<Address>, SyncStakeEntry<UNIT, Address, Coins, Epoch, Power>>,
     ) -> Self {
         let mut stakes = Stakes {
             by_key: entries,
@@ -385,7 +388,7 @@ where
     pub fn query_stakes<TIQSK>(
         &mut self,
         query: TIQSK,
-    ) -> StakeEntryVecResult<Address, Coins, Epoch, Power>
+    ) -> StakeEntryVecResult<UNIT, Address, Coins, Epoch, Power>
     where
         TIQSK: TryInto<QueryStakesKey<Address>>,
     {
@@ -446,7 +449,7 @@ where
     fn query_by_key(
         &self,
         key: StakeKey<Address>,
-    ) -> StakeEntryResult<Address, Coins, Epoch, Power> {
+    ) -> StakeEntryResult<UNIT, Address, Coins, Epoch, Power> {
         Ok(self
             .by_key
             .get(&key)
@@ -459,7 +462,7 @@ where
     fn query_by_validator(
         &self,
         validator: Address,
-    ) -> StakeEntryVecResult<Address, Coins, Epoch, Power> {
+    ) -> StakeEntryVecResult<UNIT, Address, Coins, Epoch, Power> {
         let validator = self
             .by_validator
             .get(&validator)
@@ -473,7 +476,7 @@ where
     fn query_by_withdrawer(
         &self,
         withdrawer: Address,
-    ) -> StakeEntryVecResult<Address, Coins, Epoch, Power> {
+    ) -> StakeEntryVecResult<UNIT, Address, Coins, Epoch, Power> {
         let withdrawer = self
             .by_withdrawer
             .get(&withdrawer)
@@ -487,13 +490,13 @@ where
 /// If this stake entry was not indexed by coins, this will add it to the index.
 ///
 /// This function was made static instead of adding it to `impl Stakes` because of limitations
-pub fn index_coins<Address, Coins, Epoch, Power>(
+pub fn index_coins<const UNIT: u8, Address, Coins, Epoch, Power>(
     by_coins: &mut BTreeMap<
         CoinsAndAddresses<Coins, Address>,
-        SyncStakeEntry<Address, Coins, Epoch, Power>,
+        SyncStakeEntry<UNIT, Address, Coins, Epoch, Power>,
     >,
     key: StakeKey<Address>,
-    stake: SyncStakeEntry<Address, Coins, Epoch, Power>,
+    stake: SyncStakeEntry<UNIT, Address, Coins, Epoch, Power>,
 ) where
     Address: Clone + Default + Ord,
     Coins: Copy + Default + Ord,
@@ -510,11 +513,11 @@ pub fn index_coins<Address, Coins, Epoch, Power>(
 }
 
 /// Upsert a stake entry into those indexes that allow querying by validator or withdrawer.
-pub fn index_addresses<Address, Coins, Epoch, Power>(
-    by_validator: &mut BTreeMap<Address, Vec<SyncStakeEntry<Address, Coins, Epoch, Power>>>,
-    by_withdrawer: &mut BTreeMap<Address, Vec<SyncStakeEntry<Address, Coins, Epoch, Power>>>,
+pub fn index_addresses<const UNIT: u8, Address, Coins, Epoch, Power>(
+    by_validator: &mut BTreeMap<Address, Vec<SyncStakeEntry<UNIT, Address, Coins, Epoch, Power>>>,
+    by_withdrawer: &mut BTreeMap<Address, Vec<SyncStakeEntry<UNIT, Address, Coins, Epoch, Power>>>,
     key: StakeKey<Address>,
-    stake: SyncStakeEntry<Address, Coins, Epoch, Power>,
+    stake: SyncStakeEntry<UNIT, Address, Coins, Epoch, Power>,
 ) where
     Address: Clone + Default + Ord,
     Coins: Clone + Default + Ord,
@@ -540,8 +543,8 @@ pub fn index_addresses<Address, Coins, Epoch, Power>(
 ///
 /// This function was made static instead of adding it to `impl Stakes` because it is not generic over `Address` and
 /// `Coins`.
-pub fn process_stake_transaction<Epoch, Power>(
-    stakes: &mut Stakes<PublicKeyHash, Wit, Epoch, Power>,
+pub fn process_stake_transaction<const UNIT: u8, Epoch, Power>(
+    stakes: &mut Stakes<UNIT, PublicKeyHash, Wit, Epoch, Power>,
     transaction: &StakeTransaction,
     epoch: Epoch,
 ) -> StakesResult<(), PublicKeyHash, Wit, Epoch>
@@ -589,8 +592,8 @@ where
 ///
 /// This function was made static instead of adding it to `impl Stakes` because it is not generic over `Address` and
 /// `Coins`.
-pub fn process_unstake_transaction<Epoch, Power>(
-    stakes: &mut Stakes<PublicKeyHash, Wit, Epoch, Power>,
+pub fn process_unstake_transaction<const UNIT: u8, Epoch, Power>(
+    stakes: &mut Stakes<UNIT, PublicKeyHash, Wit, Epoch, Power>,
     transaction: &UnstakeTransaction,
 ) -> StakesResult<(), PublicKeyHash, Wit, Epoch>
 where
@@ -634,8 +637,8 @@ where
 ///
 /// This function was made static instead of adding it to `impl Stakes` because it is not generic over `Address` and
 /// `Coins`.
-pub fn process_stake_transactions<'a, Epoch, Power>(
-    stakes: &mut Stakes<PublicKeyHash, Wit, Epoch, Power>,
+pub fn process_stake_transactions<'a, const UNIT: u8, Epoch, Power>(
+    stakes: &mut Stakes<UNIT, PublicKeyHash, Wit, Epoch, Power>,
     transactions: impl Iterator<Item = &'a StakeTransaction>,
     epoch: Epoch,
 ) -> Result<(), StakesError<PublicKeyHash, Wit, Epoch>>
@@ -665,8 +668,8 @@ where
 ///
 /// This function was made static instead of adding it to `impl Stakes` because it is not generic over `Address` and
 /// `Coins`.
-pub fn process_unstake_transactions<'a, Epoch, Power>(
-    stakes: &mut Stakes<PublicKeyHash, Wit, Epoch, Power>,
+pub fn process_unstake_transactions<'a, const UNIT: u8, Epoch, Power>(
+    stakes: &mut Stakes<UNIT, PublicKeyHash, Wit, Epoch, Power>,
     transactions: impl Iterator<Item = &'a UnstakeTransaction>,
 ) -> Result<(), StakesError<PublicKeyHash, Wit, Epoch>>
 where
@@ -699,7 +702,7 @@ mod tests {
     #[ignore]
     #[test]
     fn test_stakes_initialization() {
-        let stakes = Stakes::<String, u64, u64, u64>::default();
+        let stakes = Stakes::<0, String, u64, u64, u64>::default();
         let ranking = stakes.rank(Capability::Mining, 0).collect::<Vec<_>>();
         assert_eq!(ranking, Vec::default());
     }
@@ -707,7 +710,7 @@ mod tests {
     #[ignore]
     #[test]
     fn test_add_stake() {
-        let mut stakes = Stakes::<String, u64, u64, u64>::with_minimum(5);
+        let mut stakes = Stakes::<0, String, u64, u64, u64>::with_minimum(5);
         let alice = "Alice";
         let bob = "Bob";
         let charlie = "Charlie";
@@ -827,7 +830,7 @@ mod tests {
     #[test]
     fn test_coin_age_resets() {
         // First, lets create a setup with a few stakers
-        let mut stakes = Stakes::<String, u64, u64, u64>::with_minimum(5);
+        let mut stakes = Stakes::<0, String, u64, u64, u64>::with_minimum(5);
         let alice = "Alice";
         let bob = "Bob";
         let charlie = "Charlie";
@@ -964,7 +967,7 @@ mod tests {
     #[test]
     fn test_rank_proportional_reset() {
         // First, lets create a setup with a few stakers
-        let mut stakes = Stakes::<String, u64, u64, u64>::with_minimum(5);
+        let mut stakes = Stakes::<0, String, u64, u64, u64>::with_minimum(5);
         let alice = "Alice";
         let bob = "Bob";
         let charlie = "Charlie";
@@ -1018,7 +1021,7 @@ mod tests {
     #[test]
     fn test_query_stakes() {
         // First, lets create a setup with a few stakers
-        let mut stakes = Stakes::<String, u64, u64, u64>::with_minimum(5);
+        let mut stakes = Stakes::<0, String, u64, u64, u64>::with_minimum(5);
         let alice = "Alice";
         let bob = "Bob";
         let charlie = "Charlie";
@@ -1100,7 +1103,7 @@ mod tests {
     fn test_serde() {
         use bincode;
 
-        let mut stakes = Stakes::<String, u64, u64, u64>::with_minimum(5);
+        let mut stakes = Stakes::<0, String, u64, u64, u64>::with_minimum(5);
         let alice = String::from("Alice");
         let bob = String::from("Bob");
 
@@ -1108,7 +1111,7 @@ mod tests {
         stakes.add_stake(alice_bob, 123, 456).ok();
 
         let serialized = bincode::serialize(&stakes).unwrap().clone();
-        let mut deserialized: Stakes<String, u64, u64, u64> =
+        let mut deserialized: Stakes<0, String, u64, u64, u64> =
             bincode::deserialize(serialized.as_slice()).unwrap();
 
         deserialized
@@ -1128,7 +1131,7 @@ mod tests {
     #[test]
     fn test_validator_withdrawer_pair() {
         // First, lets create a setup with a few stakers
-        let mut stakes = Stakes::<String, u64, u64, u64>::with_minimum(5);
+        let mut stakes = Stakes::<0, String, u64, u64, u64>::with_minimum(5);
         let alice = "Alice";
         let bob = "Bob";
         let charlie = "Charlie";
