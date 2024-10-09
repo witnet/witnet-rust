@@ -94,8 +94,8 @@ where
     }
 }
 
-impl<Address, Coins, Epoch, Power> Eligibility<Address, Coins, Epoch, Power>
-    for Stakes<Address, Coins, Epoch, Power>
+impl<const UNIT: u8, Address, Coins, Epoch, Power> Eligibility<Address, Coins, Epoch, Power>
+    for Stakes<UNIT, Address, Coins, Epoch, Power>
 where
     Address: Clone + Debug + Default + Display + Ord + Sync + Send + 'static,
     Coins: Copy
@@ -267,7 +267,7 @@ mod tests {
 
     #[test]
     fn test_mining_eligibility_no_stakers() {
-        let stakes = <Stakes<String, _, _, _>>::with_minimum(100u64);
+        let stakes = <Stakes<0, String, _, _, _>>::with_minimum(100u64);
         let isk = "validator";
 
         assert_eq!(
@@ -285,7 +285,7 @@ mod tests {
 
     #[test]
     fn test_mining_eligibility_absolute_power() {
-        let mut stakes = <Stakes<String, _, _, _>>::with_minimum(100u64);
+        let mut stakes = <Stakes<0, String, _, _, _>>::with_minimum(100u64);
         let isk = "validator";
 
         stakes.add_stake(isk, 10_000_000_000, 0).unwrap();
@@ -302,7 +302,7 @@ mod tests {
 
     #[test]
     fn test_witnessing_eligibility_no_stakers() {
-        let stakes = <Stakes<String, _, _, _>>::with_minimum(100u64);
+        let stakes = <Stakes<0, String, _, _, _>>::with_minimum(100u64);
         let isk = "validator";
 
         let eligibility = stakes.witnessing_eligibility(isk, 0, 10, 0);
@@ -322,7 +322,7 @@ mod tests {
 
     #[test]
     fn test_witnessing_eligibility_absolute_power() {
-        let mut stakes = <Stakes<String, _, _, _>>::with_minimum(100u64);
+        let mut stakes = <Stakes<0, String, _, _, _>>::with_minimum(100u64);
         let isk = "validator";
 
         stakes.add_stake(isk, 10_000_000_000, 0).unwrap();
@@ -341,7 +341,7 @@ mod tests {
 
     #[test]
     fn test_witnessing_eligibility_target_hash() {
-        let mut stakes = <Stakes<String, _, _, _>>::with_minimum(100u64);
+        let mut stakes = <Stakes<0, String, _, _, _>>::with_minimum(100u64);
         let isk_1 = "validator_1";
         let isk_2 = "validator_2";
         let isk_3 = "validator_3";

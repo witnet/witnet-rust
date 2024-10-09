@@ -5,7 +5,7 @@ use rand::Rng;
 use witnet_data_structures::staking::prelude::*;
 
 fn populate(b: &mut Bencher) {
-    let mut stakes = Stakes::<0, String, u64, u64, u64>::default();
+    let mut stakes = StakesTester::default();
     let mut i = 1;
 
     b.iter(|| {
@@ -19,7 +19,7 @@ fn populate(b: &mut Bencher) {
 }
 
 fn rank(b: &mut Bencher) {
-    let mut stakes = Stakes::<0, String, u64, u64, u64>::default();
+    let mut stakes = StakesTester::default();
     let mut i = 1;
 
     let stakers = 100_000;
@@ -52,7 +52,7 @@ fn rank(b: &mut Bencher) {
 }
 
 fn query_power(b: &mut Bencher) {
-    let mut stakes = Stakes::<0, String, u64, u64, u64>::default();
+    let mut stakes = StakesTester::default();
     let mut i = 1;
 
     let stakers = 100_000;

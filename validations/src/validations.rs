@@ -35,7 +35,7 @@ use witnet_data_structures::{
     get_protocol_version,
     proto::versioning::{ProtocolVersion, VersionedHashable},
     radon_report::{RadonReport, ReportContext},
-    staking::{prelude::Power, stakes::Stakes},
+    staking::prelude::{Power, StakesTracker},
     transaction::{
         CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, StakeTransaction,
         TallyTransaction, Transaction, UnstakeTransaction, VTTransaction,
@@ -44,7 +44,7 @@ use witnet_data_structures::{
     types::visitor::Visitor,
     utxo_pool::{Diff, UnspentOutputsPool, UtxoDiff},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfCtx},
-    wit::{Wit, NANOWITS_PER_WIT},
+    wit::NANOWITS_PER_WIT,
 };
 use witnet_rad::{
     conditions::{
@@ -666,7 +666,7 @@ pub fn validate_commit_transaction(
     active_wips: &ActiveWips,
     superblock_period: u16,
     protocol_version: ProtocolVersion,
-    stakes: &Stakes<PublicKeyHash, Wit, u32, u64>,
+    stakes: &StakesTracker,
 ) -> Result<(Hash, u16, u64), failure::Error> {
     // Get DataRequest information
     let dr_pointer = co_tx.body.dr_pointer;
@@ -1293,7 +1293,7 @@ pub fn validate_stake_transaction<'a>(
     epoch: Epoch,
     epoch_constants: EpochConstants,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
-    stakes: &Stakes<PublicKeyHash, Wit, u32, u64>,
+    stakes: &StakesTracker,
 ) -> Result<ValidatedStakeTransaction<'a>, failure::Error> {
     // Check that the amount of coins to stake is equal or greater than the minimum allowed
     if st_tx.body.output.value < MIN_STAKE_NANOWITS {
@@ -1709,7 +1709,7 @@ pub fn validate_block_transactions(
     consensus_constants: &ConsensusConstants,
     active_wips: &ActiveWips,
     mut visitor: Option<&mut dyn Visitor<Visitable = (Transaction, u64, u32)>>,
-    stakes: &Stakes<PublicKeyHash, Wit, u32, u64>,
+    stakes: &StakesTracker,
 ) -> Result<Diff, failure::Error> {
     let epoch = block.block_header.beacon.checkpoint;
     let is_genesis = block.is_genesis(&consensus_constants.genesis_hash);
@@ -2173,7 +2173,7 @@ pub fn validate_block(
     consensus_constants: &ConsensusConstants,
     active_wips: &ActiveWips,
     protocol_version: ProtocolVersion,
-    stakes: &Stakes<PublicKeyHash, Wit, u32, u64>,
+    stakes: &StakesTracker,
 ) -> Result<(), failure::Error> {
     let block_epoch = block.block_header.beacon.checkpoint;
     let hash_prev_block = block.block_header.beacon.hash_prev_block;
@@ -2290,7 +2290,7 @@ pub fn validate_new_transaction(
     required_reward_collateral_ratio: u64,
     active_wips: &ActiveWips,
     superblock_period: u16,
-    stakes: &Stakes<PublicKeyHash, Wit, u32, u64>,
+    stakes: &StakesTracker,
 ) -> Result<u64, failure::Error> {
     let utxo_diff = UtxoDiff::new(unspent_outputs_pool, block_number);
     let protocol_version = get_protocol_version(Some(current_epoch));

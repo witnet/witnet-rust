@@ -10,10 +10,10 @@ use num_traits::Saturating;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    chain::PublicKeyHash,
+    chain::{Epoch, PublicKeyHash},
     get_environment,
     transaction::{StakeTransaction, UnstakeTransaction},
-    wit::{PrecisionLoss, Wit},
+    wit::{PrecisionLoss, Wit, WIT_DECIMAL_PLACES},
 };
 
 use super::prelude::*;
@@ -486,6 +486,12 @@ where
     }
 }
 
+/// The default concrete type for tracking stakes in the node software.
+pub type StakesTracker = Stakes<WIT_DECIMAL_PLACES, PublicKeyHash, Wit, Epoch, u64>;
+
+/// The default concrete type for testing stakes in unit tests.
+pub type StakesTester = Stakes<0, String, u64, u64, u64>;
+
 /// Update the position of the staker in a `by_coins` index.
 /// If this stake entry was not indexed by coins, this will add it to the index.
 ///
@@ -702,7 +708,7 @@ mod tests {
     #[ignore]
     #[test]
     fn test_stakes_initialization() {
-        let stakes = Stakes::<0, String, u64, u64, u64>::default();
+        let stakes = StakesTester::default();
         let ranking = stakes.rank(Capability::Mining, 0).collect::<Vec<_>>();
         assert_eq!(ranking, Vec::default());
     }
@@ -710,7 +716,7 @@ mod tests {
     #[ignore]
     #[test]
     fn test_add_stake() {
-        let mut stakes = Stakes::<0, String, u64, u64, u64>::with_minimum(5);
+        let mut stakes = StakesTester::with_minimum(5);
         let alice = "Alice";
         let bob = "Bob";
         let charlie = "Charlie";
@@ -830,7 +836,7 @@ mod tests {
     #[test]
     fn test_coin_age_resets() {
         // First, lets create a setup with a few stakers
-        let mut stakes = Stakes::<0, String, u64, u64, u64>::with_minimum(5);
+        let mut stakes = StakesTester::with_minimum(5);
         let alice = "Alice";
         let bob = "Bob";
         let charlie = "Charlie";
@@ -967,7 +973,7 @@ mod tests {
     #[test]
     fn test_rank_proportional_reset() {
         // First, lets create a setup with a few stakers
-        let mut stakes = Stakes::<0, String, u64, u64, u64>::with_minimum(5);
+        let mut stakes = StakesTester::with_minimum(5);
         let alice = "Alice";
         let bob = "Bob";
         let charlie = "Charlie";
@@ -1021,7 +1027,7 @@ mod tests {
     #[test]
     fn test_query_stakes() {
         // First, lets create a setup with a few stakers
-        let mut stakes = Stakes::<0, String, u64, u64, u64>::with_minimum(5);
+        let mut stakes = StakesTester::with_minimum(5);
         let alice = "Alice";
         let bob = "Bob";
         let charlie = "Charlie";
@@ -1103,7 +1109,7 @@ mod tests {
     fn test_serde() {
         use bincode;
 
-        let mut stakes = Stakes::<0, String, u64, u64, u64>::with_minimum(5);
+        let mut stakes = StakesTester::with_minimum(5);
         let alice = String::from("Alice");
         let bob = String::from("Bob");
 
@@ -1131,7 +1137,7 @@ mod tests {
     #[test]
     fn test_validator_withdrawer_pair() {
         // First, lets create a setup with a few stakers
-        let mut stakes = Stakes::<0, String, u64, u64, u64>::with_minimum(5);
+        let mut stakes = StakesTester::with_minimum(5);
         let alice = "Alice";
         let bob = "Bob";
         let charlie = "Charlie";
