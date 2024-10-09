@@ -27,10 +27,9 @@ pub mod prelude {
 pub mod test {
     use super::prelude::*;
 
-    #[ignore]
     #[test]
     fn test_e2e() {
-        let mut stakes = Stakes::<String, u64, u64, u64>::with_minimum(1);
+        let mut stakes = Stakes::<0, String, u64, u64, u64>::with_minimum(1);
 
         // Alpha stakes 2 @ epoch 0
         stakes.add_stake("Alpha", 2, 0).unwrap();

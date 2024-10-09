@@ -159,6 +159,11 @@ impl Sum for Wit {
     }
 }
 
+/// Trait defining numeric data types that provide methods for changing their decimal dot position.
+///
+/// That is, a precision loss of 3 digits applied on number 10_000 will give 10.
+///
+/// This allows a type to increase its range at the cost of precision.
 pub trait PrecisionLoss: Copy {
     fn lose_precision(self, digits: u8) -> Self;
 }

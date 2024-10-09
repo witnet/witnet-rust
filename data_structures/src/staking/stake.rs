@@ -3,14 +3,14 @@ use std::{marker::PhantomData, ops::*};
 
 use serde::{Deserialize, Serialize};
 
-use crate::wit::{PrecisionLoss, WIT_DECIMAL_PLACES};
+use crate::wit::PrecisionLoss;
 
 use super::prelude::*;
 
 /// A data structure that keeps track of a staker's staked coins and the epochs for different
 /// capabilities.
 #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
-pub struct Stake<Address, Coins, Epoch, Power>
+pub struct Stake<const UNIT: u8, Address, Coins, Epoch, Power>
 where
     Address: Clone + Default,
     Coins: Clone,
@@ -26,7 +26,7 @@ where
     phantom_power: PhantomData<Power>,
 }
 
-impl<Address, Coins, Epoch, Power> Stake<Address, Coins, Epoch, Power>
+impl<const UNIT: u8, Address, Coins, Epoch, Power> Stake<UNIT, Address, Coins, Epoch, Power>
 where
     Address: Clone + Default + Debug + Display + Sync + Send,
     Coins: Copy
@@ -83,16 +83,16 @@ where
         let coins_after = coins_before + coins;
         self.coins = coins_after;
 
+        // When stake is added, all capabilities get their associated epochs moved to the past
         for capability in ALL_CAPABILITIES {
             let epoch_before = self.epochs.get(capability);
-            let product_before = coins_before.lose_precision(WIT_DECIMAL_PLACES) * epoch_before;
-            let product_added = coins.lose_precision(WIT_DECIMAL_PLACES) * epoch;
+            let product_before = coins_before.lose_precision(UNIT) * epoch_before;
+            let product_added = coins.lose_precision(UNIT) * epoch;
 
             #[allow(clippy::cast_possible_truncation)]
             let epoch_after = Epoch::from(
                 (u64::from(product_before + product_added)
-                    / u64::from(coins_after.lose_precision(WIT_DECIMAL_PLACES)))
-                    as u32,
+                    / u64::from(coins_after.lose_precision(UNIT))) as u32,
             );
             self.epochs.update(capability, epoch_after);
         }
@@ -115,7 +115,7 @@ where
     /// Derives the power of an identity in the network on a certain epoch from an entry. Most
     /// normally, the epoch is the current epoch.
     pub fn power(&self, capability: Capability, current_epoch: Epoch) -> Power {
-        self.coins.lose_precision(WIT_DECIMAL_PLACES)
+        self.coins.lose_precision(UNIT)
             * (current_epoch.saturating_sub(self.epochs.get(capability)))
     }
 
@@ -150,7 +150,7 @@ where
 }
 
 /// Adds up the total amount of staked in multiple stake entries provided as a vector.
-pub fn totalize_stakes<Address, Coins, Epoch, I, Power, S>(
+pub fn totalize_stakes<const UNIT: u8, Address, Coins, Epoch, I, Power, S>(
     stakes: I,
 ) -> StakesResult<Coins, Address, Coins, Epoch>
 where
@@ -159,7 +159,7 @@ where
     Epoch: Clone + Debug + Default + Display + Send + Sync,
     I: IntoIterator<Item = S>,
     Power: Clone,
-    S: Into<Stake<Address, Coins, Epoch, Power>>,
+    S: Into<Stake<UNIT, Address, Coins, Epoch, Power>>,
 {
     Ok(stakes
         .into_iter()

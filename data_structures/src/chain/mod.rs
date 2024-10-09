@@ -55,7 +55,7 @@ use crate::{
     },
     utxo_pool::{OldUnspentOutputsPool, OwnUnspentOutputsPool, UnspentOutputsPool},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim},
-    wit::Wit,
+    wit::{Wit, WIT_DECIMAL_PLACES},
 };
 
 /// Keeps track of priority being used by transactions included in recent blocks, and provides
@@ -3839,7 +3839,7 @@ pub struct ChainState {
     pub tapi_engine: TapiEngine,
     /// Tracks stakes for every validator in the network
     #[serde(default)]
-    pub stakes: Stakes<PublicKeyHash, Wit, Epoch, u64>,
+    pub stakes: Stakes<WIT_DECIMAL_PLACES, PublicKeyHash, Wit, Epoch, u64>,
     /// Unspent Outputs Pool
     #[serde(skip)]
     pub unspent_outputs_pool: UnspentOutputsPool,
