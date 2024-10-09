@@ -142,6 +142,7 @@ impl WatchDog {
         let start_wit_balance = self.start_wit_balance;
         let wit_client = self.wit_client.clone();
         let wit_jsonrpc_socket = self.wit_jsonrpc_socket.clone();
+        let mut wit_next_balance = wit_balance;
         let wit_utxo_min_value_threshold = self.wit_utxo_min_value_threshold;
         let eth_jsonrpc_url = self.eth_jsonrpc_url.clone();
         let eth_account = self.eth_account;
@@ -155,6 +156,7 @@ impl WatchDog {
             let dr_database = DrDatabase::from_registry();
             let (drs_new, drs_pending, drs_finished, drs_dismissed) =
                 dr_database.send(CountDrsPerState).await.unwrap().unwrap();
+            let total_queries = drs_new + drs_pending + drs_finished + drs_dismissed;
 
             let mut metrics: String = "{".to_string();
 
@@ -163,16 +165,38 @@ impl WatchDog {
             if drs_history != (0u64, 0u64) {
                 let last_reported = drs_finished - drs_history.0;
                 let last_dismissed = drs_dismissed - drs_history.1;
-
-                metrics.push_str(&format!("\"drsLastReported\": {last_reported}, "));
                 metrics.push_str(&format!("\"drsLastDismissed\": {last_dismissed}, "));
+                
 
                 let total_queries = drs_new + drs_pending + drs_finished + drs_dismissed;
                 metrics.push_str(&format!("\"drsTotalQueries\": {total_queries}, "));
             }
             drs_history = (drs_finished, drs_dismissed);
 
+            let eth_balance = match check_eth_account_balance(&eth_jsonrpc_url, eth_account).await {
+                Ok(eth_balance) => eth_balance,
+                Err(err) => {
+                    if status == WatchDogStatus::UpAndRunning {
+                        status = err;
+                    }
+                    None
+                }
+            };
+
             metrics.push_str(&format!("\"evmAccount\": \"{eth_account}\", "));
+            if eth_balance.is_some() {
+                let eth_balance = eth_balance.unwrap();
+                metrics.push_str(&format!("\"evmBalance\": {:.5}, ", eth_balance));
+                metrics.push_str(&format!("\"evmContract\": \"{eth_contract_address}\", "));
+                if let Some(start_eth_balance) = start_eth_balance {
+                    let eth_hourly_earnings =
+                        ((eth_balance - start_eth_balance) / running_secs as f64) * 3600_f64;
+                    metrics.push_str(&format!(
+                        "\"evmHourlyEarnings\": {:.5}, ",
+                        eth_hourly_earnings
+                    ));
+                }
+            }
 
             if let Some(wit_client) = wit_client {
                 if let Err(err) = check_wit_connection_status(&wit_client).await {
@@ -214,30 +238,8 @@ impl WatchDog {
                         wit_utxos_above_threshold.unwrap()
                     ));
                 }
-            }
-
-            let eth_balance = match check_eth_account_balance(&eth_jsonrpc_url, eth_account).await {
-                Ok(eth_balance) => eth_balance,
-                Err(err) => {
-                    if status == WatchDogStatus::UpAndRunning {
-                        status = err;
-                    }
-                    None
-                }
-            };
-
-            if eth_balance.is_some() {
-                let eth_balance = eth_balance.unwrap();
-                metrics.push_str(&format!("\"evmBalance\": {:.5}, ", eth_balance));
-                metrics.push_str(&format!("\"evmContract\": \"{eth_contract_address}\", "));
-                if let Some(start_eth_balance) = start_eth_balance {
-                    let eth_hourly_earnings =
-                        ((eth_balance - start_eth_balance) / running_secs as f64) * 3600_f64;
-                    metrics.push_str(&format!(
-                        "\"evmHourlyEarnings\": {:.5}, ",
-                        eth_hourly_earnings
-                    ));
-                }
+                
+                wit_next_balance = wit_balance;
             }
 
             metrics.push_str(&format!("\"runningSecs\": {running_secs}, "));
