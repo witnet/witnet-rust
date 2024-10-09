@@ -3239,7 +3239,6 @@ fn test_commit_with_collateral(
     .map(|_| ())
 }
 
-#[ignore]
 #[test]
 fn commitment_signatures() {
     let dr_hash = DR_HASH.parse().unwrap();
@@ -3310,7 +3309,7 @@ fn commitment_signatures() {
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::VerifyTransactionSignatureFail {
             hash,
-            msg: "secp: signature failed verification".to_string(),
+            msg: "signature failed verification".to_string(),
         },
     );
 
