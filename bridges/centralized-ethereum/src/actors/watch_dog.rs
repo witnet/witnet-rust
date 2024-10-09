@@ -37,7 +37,7 @@ pub struct WatchDog {
     /// Wit balance upon last refund
     pub start_wit_balance: Option<f64>,
     /// Past data request cumulative counters:
-    pub drs_history: Option<(u64, u64)>,
+    pub drs_history: Option<(u64, u64, u64)>,
 }
 
 impl Drop for WatchDog {
@@ -122,7 +122,7 @@ impl WatchDog {
         &mut self,
         eth_balance: Option<f64>,
         wit_balance: Option<f64>,
-        drs_history: Option<(u64, u64)>,
+        drs_history: Option<(u64, u64, u64)>,
         ctx: &mut Context<Self>,
         period: Duration,
     ) {
@@ -162,16 +162,24 @@ impl WatchDog {
 
             metrics.push_str(&format!("\"drsCurrentlyPending\": {drs_pending}, "));
 
-            if drs_history != (0u64, 0u64) {
-                let last_reported = drs_finished - drs_history.0;
+            drs_history = if drs_history != (0u64, 0u64, 0u64) {
+                let daily_queries = ((total_queries - drs_history.2) as f64 / running_secs as f64) * 86400_f64;
+                metrics.push_str(&format!("\"drsDailyQueries\": {:.1}, ", daily_queries));
+
                 let last_dismissed = drs_dismissed - drs_history.1;
                 metrics.push_str(&format!("\"drsLastDismissed\": {last_dismissed}, "));
                 
+                let last_reported = drs_finished - drs_history.0;
+                metrics.push_str(&format!("\"drsLastReported\": {last_reported}, "));
 
-                let total_queries = drs_new + drs_pending + drs_finished + drs_dismissed;
-                metrics.push_str(&format!("\"drsTotalQueries\": {total_queries}, "));
-            }
-            drs_history = (drs_finished, drs_dismissed);
+                (drs_finished, drs_dismissed, drs_history.2)
+            
+            } else {
+                // set initial total queries count upon bridge launch,
+                // so average queries per day can be calculated later on:
+                (drs_finished, drs_dismissed, total_queries)
+            };
+            metrics.push_str(&format!("\"drsTotalQueries\": {total_queries}, "));
 
             let eth_balance = match check_eth_account_balance(&eth_jsonrpc_url, eth_account).await {
                 Ok(eth_balance) => eth_balance,
@@ -248,7 +256,7 @@ impl WatchDog {
 
             log::info!("{metrics}");
 
-            (eth_balance, wit_balance, Some(drs_history))
+            (eth_balance, wit_next_balance, Some(drs_history))
         };
 
         ctx.spawn(fut.into_actor(self).then(
