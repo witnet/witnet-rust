@@ -8,7 +8,7 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
-use web3::{contract::Contract, transports::Http, types::H160};
+use web3::{contract::{self, Contract}, transports::Http, types::H160};
 use witnet_net::client::tcp::{jsonrpc, JsonRpcClient};
 use witnet_node::utils::stop_system_if_panicking;
 
@@ -146,7 +146,8 @@ impl WatchDog {
         let wit_utxo_min_value_threshold = self.wit_utxo_min_value_threshold;
         let eth_jsonrpc_url = self.eth_jsonrpc_url.clone();
         let eth_account = self.eth_account;
-        let eth_contract_address = self.eth_contract.clone().unwrap().address();
+        let eth_contract = self.eth_contract.clone().unwrap();
+        let eth_contract_address = eth_contract.address();
         let running_secs = self.start_ts.unwrap().elapsed().as_secs();
         let mut drs_history = self.drs_history.unwrap_or_default();
 
@@ -191,11 +192,66 @@ impl WatchDog {
                 }
             };
 
+            let eth_contract_class: Option<String> = match eth_contract.query(
+                "class",
+                (),
+                None,
+                contract::Options::default(),
+                None,
+            ).await {
+                Ok(version) => Some(version),
+                Err(err) => {
+                    log::error!(
+                        "Fail to read class() from contract at {:?}: {:?}",
+                        eth_contract_address,
+                        err.to_string()
+                    );
+                    if status == WatchDogStatus::UpAndRunning {
+                        status = WatchDogStatus::EvmErrors;
+                    }
+                    None
+                }
+            };
+
+            let eth_contract_version: Option<String> = match eth_contract.query(
+                "version",
+                (),
+                None,
+                contract::Options::default(),
+                None,
+            ).await {
+                Ok(version) => Some(version),
+                Err(web3::contract::Error::InterfaceUnsupported) => None,
+                Err(err) => {
+                    log::error!(
+                        "Fail to read version() from contract at {:?}: {:?}",
+                        eth_contract_address,
+                        err.to_string()
+                    );
+                    if status == WatchDogStatus::UpAndRunning {
+                        status = WatchDogStatus::EvmErrors;
+                    }
+                    None
+                }
+            };
+
             metrics.push_str(&format!("\"evmAccount\": \"{eth_account}\", "));
             if eth_balance.is_some() {
                 let eth_balance = eth_balance.unwrap();
                 metrics.push_str(&format!("\"evmBalance\": {:.5}, ", eth_balance));
                 metrics.push_str(&format!("\"evmContract\": \"{eth_contract_address}\", "));
+                if let Some(eth_contract_class) = eth_contract_class {
+                    if let Some(eth_contract_version) = eth_contract_version {
+                        metrics.push_str(
+                            &format!("\"evmContractVersion\": \"{}:{}\", ", 
+                            eth_contract_class, 
+                            eth_contract_version
+                        ));
+                    } else {
+                        metrics.push_str(
+                            &format!("\"evmContractVersion\": {:?}, ", eth_contract_class));
+                    }
+                }
                 if let Some(start_eth_balance) = start_eth_balance {
                     let eth_hourly_earnings =
                         ((eth_balance - start_eth_balance) / running_secs as f64) * 3600_f64;
@@ -301,6 +357,11 @@ async fn check_eth_account_balance(
         }
     }
 }
+
+// async fn check_eth_contract_version(
+//     eth_jsonrpc_url: &str,
+//     eth_contract_address: H160,
+// ) ->
 
 async fn check_wit_connection_status(
     wit_client: &Addr<JsonRpcClient>,
