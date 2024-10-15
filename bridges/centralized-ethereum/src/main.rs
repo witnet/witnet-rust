@@ -7,7 +7,7 @@ use structopt::StructOpt;
 use witnet_centralized_ethereum_bridge::{
     actors::{
         dr_database::DrDatabase, dr_reporter::DrReporter, dr_sender::DrSender,
-        eth_poller::EthPoller, wit_poller::WitPoller,
+        eth_poller::EthPoller, watch_dog::WatchDog, wit_poller::WitPoller,
     },
     check_ethereum_node_running, check_witnet_node_running, config, create_wrb_contract,
 };
@@ -83,6 +83,7 @@ fn run(callback: fn()) -> Result<(), String> {
         check_ethereum_node_running(&config.eth_jsonrpc_url)
             .await
             .expect("ethereum node not running");
+
         check_witnet_node_running(&config.witnet_jsonrpc_socket.to_string())
             .await
             .expect("witnet node not running");
@@ -94,6 +95,7 @@ fn run(callback: fn()) -> Result<(), String> {
         // Web3 contract using HTTP transport with an Ethereum client
         let (web3, wrb_contract) =
             create_wrb_contract(&config.eth_jsonrpc_url, config.eth_witnet_oracle);
+
         let wrb_contract = Arc::new(wrb_contract);
 
         // Start EthPoller actor
@@ -102,25 +104,32 @@ fn run(callback: fn()) -> Result<(), String> {
         SystemRegistry::set(eth_poller_addr);
 
         // Start DrReporter actor
-        let dr_reporter_addr = DrReporter::from_config(&config, web3, wrb_contract).start();
+        let dr_reporter_addr =
+            DrReporter::from_config(&config, web3.clone(), wrb_contract.clone()).start();
         SystemRegistry::set(dr_reporter_addr);
 
         // Start Json-RPC actor connected to Witnet node
         let node_client = JsonRpcClient::start(&config.witnet_jsonrpc_socket.to_string())
-            .expect("Json-RPC Client actor failed to started");
+            .expect("JSON WIT/RPC node client failed to start");
 
         // Start WitPoller actor
         let wit_poller_addr = WitPoller::from_config(&config, node_client.clone()).start();
         SystemRegistry::set(wit_poller_addr);
 
         // Start DrSender actor
-        let dr_sender_addr = DrSender::from_config(&config, node_client).start();
+        let dr_sender_addr = DrSender::from_config(&config, node_client.clone()).start();
         SystemRegistry::set(dr_sender_addr);
 
         // Initialize Storage Manager
         let mut node_config = NodeConfig::default();
         node_config.storage.db_path = config.storage.db_path.clone();
         storage_mngr::start_from_config(node_config);
+
+        // Start WatchDog actor
+        if config.watch_dog_enabled {
+            let watch_dog_addr = WatchDog::from_config(&config, wrb_contract.clone()).start();
+            SystemRegistry::set(watch_dog_addr);
+        }
     });
 
     // Run system
