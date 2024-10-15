@@ -136,7 +136,7 @@ impl WatchDog {
             }
         }
         if self.drs_history.is_none() && drs_history.is_some() {
-            self.drs_history = drs_history;
+            self.drs_history = drs_history.clone();
         }
         let start_eth_balance = self.start_eth_balance;
         let start_wit_balance = self.start_wit_balance;
@@ -149,7 +149,7 @@ impl WatchDog {
         let eth_contract = self.eth_contract.clone().unwrap();
         let eth_contract_address = eth_contract.address();
         let running_secs = self.start_ts.unwrap().elapsed().as_secs();
-        let mut drs_history = self.drs_history.unwrap_or_default();
+        let mut drs_history = drs_history.unwrap_or_default();
 
         let fut = async move {
             let mut status = WatchDogStatus::UpAndRunning;
@@ -161,7 +161,7 @@ impl WatchDog {
 
             let mut metrics: String = "{".to_string();
 
-            metrics.push_str(&format!("\"drsCurrentlyPending\": {drs_pending}, "));
+            metrics.push_str(&format!("\"drsCurrentlyPending\": {}, ", drs_new + drs_pending));
 
             drs_history = if drs_history != (0u64, 0u64, 0u64) {
                 let daily_queries = ((total_queries - drs_history.2) as f64 / running_secs as f64) * 86400_f64;
@@ -173,11 +173,11 @@ impl WatchDog {
                 let last_reported = drs_finished - drs_history.0;
                 metrics.push_str(&format!("\"drsLastReported\": {last_reported}, "));
 
+                // preserve the number of total queries counted upon bridge launch,
+                // so average queries per day can be averaged:
                 (drs_finished, drs_dismissed, drs_history.2)
             
             } else {
-                // set initial total queries count upon bridge launch,
-                // so average queries per day can be calculated later on:
                 (drs_finished, drs_dismissed, total_queries)
             };
             metrics.push_str(&format!("\"drsTotalQueries\": {total_queries}, "));
