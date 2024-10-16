@@ -515,6 +515,7 @@ pub fn validate_dr_transaction<'a>(
     max_dr_weight: u32,
     required_reward_collateral_ratio: u64,
     active_wips: &ActiveWips,
+    protocol_version: Option<ProtocolVersion>,
 ) -> Result<(Vec<&'a Input>, Vec<&'a ValueTransferOutput>, u64), failure::Error> {
     if dr_tx.weight() > max_dr_weight {
         return Err(TransactionError::DataRequestWeightLimitExceeded {
@@ -524,11 +525,12 @@ pub fn validate_dr_transaction<'a>(
         }
         .into());
     }
+    let protocol_version = protocol_version.unwrap_or_default();
 
     validate_transaction_signature(
         &dr_tx.signatures,
         &dr_tx.body.inputs,
-        dr_tx.hash(),
+        dr_tx.versioned_hash(protocol_version),
         utxo_diff,
         signatures_to_verify,
     )?;
@@ -1771,10 +1773,15 @@ pub fn validate_block_transactions(
         }
         vt_weight = acc_weight;
 
-        update_utxo_diff(&mut utxo_diff, inputs, outputs, transaction.hash());
+        update_utxo_diff(
+            &mut utxo_diff,
+            inputs,
+            outputs,
+            transaction.versioned_hash(protocol_version),
+        );
 
         // Add new hash to merkle tree
-        let txn_hash = transaction.hash();
+        let txn_hash = transaction.versioned_hash(protocol_version);
         let Hash::SHA256(sha) = txn_hash;
         vt_mt.push(Sha256(sha));
 
@@ -1830,10 +1837,15 @@ pub fn validate_block_transactions(
             transaction.body.collateral.iter(),
             transaction.body.outputs.iter(),
         );
-        update_utxo_diff(&mut utxo_diff, inputs, outputs, transaction.hash());
+        update_utxo_diff(
+            &mut utxo_diff,
+            inputs,
+            outputs,
+            transaction.versioned_hash(protocol_version),
+        );
 
         // Add new hash to merkle tree
-        let txn_hash = transaction.hash();
+        let txn_hash = transaction.versioned_hash(protocol_version);
         let Hash::SHA256(sha) = txn_hash;
         co_mt.push(Sha256(sha));
     }
@@ -1866,7 +1878,7 @@ pub fn validate_block_transactions(
         total_fee += fee;
 
         // Add new hash to merkle tree
-        let txn_hash = transaction.hash();
+        let txn_hash = transaction.versioned_hash(protocol_version);
         let Hash::SHA256(sha) = txn_hash;
         re_mt.push(Sha256(sha));
     }
@@ -1874,7 +1886,7 @@ pub fn validate_block_transactions(
 
     // Make sure that the block does not try to include data requests asking for too many witnesses
     for transaction in &block.txns.data_request_txns {
-        let dr_tx_hash = transaction.hash();
+        let dr_tx_hash = transaction.versioned_hash(protocol_version);
         if !dr_pool.data_request_pool.contains_key(&dr_tx_hash)
             && data_request_has_too_many_witnesses(
                 &transaction.body.dr_output,
@@ -1884,9 +1896,13 @@ pub fn validate_block_transactions(
         {
             log::debug!(
                 "Temporarily adding data request {} to data request pool for validation purposes",
-                transaction.hash()
+                transaction.versioned_hash(protocol_version)
             );
-            if let Err(e) = dr_pool.process_data_request(transaction, epoch, &block.hash()) {
+            if let Err(e) = dr_pool.process_data_request(
+                transaction,
+                epoch,
+                &block.versioned_hash(protocol_version),
+            ) {
                 log::error!("Error adding data request to the data request pool: {}", e);
             }
             if let Some(dr_state) = dr_pool.data_request_state_mutable(&dr_tx_hash) {
@@ -1932,10 +1948,15 @@ pub fn validate_block_transactions(
 
         total_fee += fee;
 
-        update_utxo_diff(&mut utxo_diff, vec![], outputs, transaction.hash());
+        update_utxo_diff(
+            &mut utxo_diff,
+            vec![],
+            outputs,
+            transaction.versioned_hash(protocol_version),
+        );
 
         // Add new hash to merkle tree
-        let txn_hash = transaction.hash();
+        let txn_hash = transaction.versioned_hash(protocol_version);
         let Hash::SHA256(sha) = txn_hash;
         ta_mt.push(Sha256(sha));
     }
@@ -1946,7 +1967,7 @@ pub fn validate_block_transactions(
     if !expected_tally_ready_drs.is_empty() {
         return Err(BlockError::MissingExpectedTallies {
             count: expected_tally_ready_drs.len(),
-            block_hash: block.hash(),
+            block_hash: block.versioned_hash(protocol_version),
         }
         .into());
     }
@@ -1986,13 +2007,19 @@ pub fn validate_block_transactions(
             consensus_constants.max_dr_weight,
             required_reward_collateral_ratio,
             active_wips,
+            None,
         )?;
         total_fee += fee;
 
-        update_utxo_diff(&mut utxo_diff, inputs, outputs, transaction.hash());
+        update_utxo_diff(
+            &mut utxo_diff,
+            inputs,
+            outputs,
+            transaction.versioned_hash(protocol_version),
+        );
 
         // Add new hash to merkle tree
-        let txn_hash = transaction.hash();
+        let txn_hash = transaction.versioned_hash(protocol_version);
         let Hash::SHA256(sha) = txn_hash;
         dr_mt.push(Sha256(sha));
 
@@ -2061,10 +2088,15 @@ pub fn validate_block_transactions(
             st_weight = acc_weight;
 
             let outputs = change.iter().collect_vec();
-            update_utxo_diff(&mut utxo_diff, inputs, outputs, transaction.hash());
+            update_utxo_diff(
+                &mut utxo_diff,
+                inputs,
+                outputs,
+                transaction.versioned_hash(protocol_version),
+            );
 
             // Add new hash to merkle tree
-            st_mt.push(transaction.hash().into());
+            st_mt.push(transaction.versioned_hash(protocol_version).into());
 
             // TODO: Move validations to a visitor
             // // Execute visitor
@@ -2102,7 +2134,7 @@ pub fn validate_block_transactions(
             ut_weight = acc_weight;
 
             // Add new hash to merkle tree
-            let txn_hash = transaction.hash();
+            let txn_hash = transaction.versioned_hash(protocol_version);
             let Hash::SHA256(sha) = txn_hash;
             ut_mt.push(Sha256(sha));
 
@@ -2135,13 +2167,13 @@ pub fn validate_block_transactions(
             &mut utxo_diff,
             vec![],
             block.txns.mint.outputs.iter(),
-            block.txns.mint.hash(),
+            block.txns.mint.versioned_hash(protocol_version),
         );
     }
 
     // Validate Merkle Root
     let merkle_roots = BlockMerkleRoots {
-        mint_hash: block.txns.mint.hash(),
+        mint_hash: block.txns.mint.versioned_hash(protocol_version),
         vt_hash_merkle_root: Hash::from(vt_hash_merkle_root),
         dr_hash_merkle_root: Hash::from(dr_hash_merkle_root),
         commit_hash_merkle_root: Hash::from(co_hash_merkle_root),
@@ -2319,6 +2351,7 @@ pub fn validate_new_transaction(
             max_dr_weight,
             required_reward_collateral_ratio,
             active_wips,
+            None,
         )
         .map(|(_, _, fee)| fee),
         Transaction::Commit(tx) => validate_commit_transaction(
