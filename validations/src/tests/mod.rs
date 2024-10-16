@@ -86,8 +86,13 @@ fn verify_signatures_test(
     verify_signatures(signatures_to_verify, vrf).map(|_| ())
 }
 
-fn sign_tx<H: Hashable>(mk: [u8; 32], tx: &H) -> KeyedSignature {
-    let Hash::SHA256(data) = tx.hash();
+fn sign_tx<H: VersionedHashable>(
+    mk: [u8; 32],
+    tx: &H,
+    protocol_version: Option<ProtocolVersion>,
+) -> KeyedSignature {
+    let protocol_version = protocol_version.unwrap_or_default();
+    let Hash::SHA256(data) = tx.versioned_hash(protocol_version);
 
     let secret_key = Secp256k1_SecretKey::from_slice(&mk).expect("32 bytes, within curve order");
     let public_key = Secp256k1_PublicKey::from_secret_key_global(&secret_key);
@@ -111,13 +116,13 @@ static MY_PKH_3: &str = "wit164gu2l8p7suvc7zq5xvc27h63td75g6uspwpn5";
 fn test_sign_tx() {
     let tx = &RevealTransaction::default();
 
-    let ks = sign_tx(PRIV_KEY_1, tx);
+    let ks = sign_tx(PRIV_KEY_1, tx, None);
     assert_eq!(ks.public_key.pkh(), MY_PKH_1.parse().unwrap());
 
-    let ks = sign_tx(PRIV_KEY_2, tx);
+    let ks = sign_tx(PRIV_KEY_2, tx, None);
     assert_eq!(ks.public_key.pkh(), MY_PKH_2.parse().unwrap());
 
-    let ks = sign_tx(PRIV_KEY_3, tx);
+    let ks = sign_tx(PRIV_KEY_3, tx, None);
     assert_eq!(ks.public_key.pkh(), MY_PKH_3.parse().unwrap());
 }
 
@@ -424,6 +429,7 @@ fn vtt_no_inputs_no_outputs() {
         EpochConstants::default(),
         &mut signatures_to_verify,
         MAX_VT_WEIGHT,
+        None,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -457,6 +463,7 @@ fn vtt_no_inputs_zero_output() {
         EpochConstants::default(),
         &mut signatures_to_verify,
         MAX_VT_WEIGHT,
+        None,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -490,6 +497,7 @@ fn vtt_no_inputs() {
         EpochConstants::default(),
         &mut signatures_to_verify,
         MAX_VT_WEIGHT,
+        None,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -515,7 +523,7 @@ fn vtt_no_inputs_but_one_signature() {
     };
 
     let vt_body = VTTransactionBody::new(vec![], vec![vto0]);
-    let vts = sign_tx(PRIV_KEY_1, &vt_body);
+    let vts = sign_tx(PRIV_KEY_1, &vt_body, None);
     let vt_tx = VTTransaction::new(vt_body, vec![vts]);
     let x = validate_vt_transaction(
         &vt_tx,
@@ -524,6 +532,7 @@ fn vtt_no_inputs_but_one_signature() {
         EpochConstants::default(),
         &mut signatures_to_verify,
         MAX_VT_WEIGHT,
+        None,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -563,6 +572,7 @@ fn vtt_one_input_but_no_signature() {
         EpochConstants::default(),
         &mut signatures_to_verify,
         MAX_VT_WEIGHT,
+        None,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -576,10 +586,11 @@ fn vtt_one_input_but_no_signature() {
 fn test_signature_empty_wrong_bad<F, H>(hashable: H, mut f: F)
 where
     F: FnMut(H, KeyedSignature) -> Result<(), failure::Error>,
-    H: Hashable + Clone,
+    H: VersionedHashable + Clone,
 {
-    let ks = sign_tx(PRIV_KEY_1, &hashable);
-    let hash = hashable.hash();
+    let version = ProtocolVersion::default();
+    let ks = sign_tx(PRIV_KEY_1, &hashable, Some(version));
+    let hash = hashable.versioned_hash(version);
 
     // Replace the signature with default (all zeros)
     let ks_default = KeyedSignature::default();
@@ -621,7 +632,7 @@ where
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::VerifyTransactionSignatureFail {
             hash,
-            msg: "secp: signature failed verification".to_string(),
+            msg: "signature failed verification".to_string(),
         },
     );
 
@@ -644,7 +655,7 @@ where
     );
 
     // Sign transaction with a different public key
-    let ks_different_pk = sign_tx(PRIV_KEY_2, &hashable);
+    let ks_different_pk = sign_tx(PRIV_KEY_2, &hashable, None);
     let signature_pkh = ks_different_pk.public_key.pkh();
     let x = f(hashable, ks_different_pk);
     assert_eq!(
@@ -660,7 +671,6 @@ where
     );
 }
 
-#[ignore]
 #[test]
 fn vtt_one_input_signatures() {
     let vto = ValueTransferOutput {
@@ -693,6 +703,7 @@ fn vtt_one_input_signatures() {
             EpochConstants::default(),
             &mut signatures_to_verify,
             MAX_VT_WEIGHT,
+            None,
         )?;
         verify_signatures_test(signatures_to_verify)?;
 
@@ -720,7 +731,7 @@ fn vtt_input_not_in_utxo() {
     };
 
     let vt_body = VTTransactionBody::new(vec![vti], vec![vto0]);
-    let vts = sign_tx(PRIV_KEY_1, &vt_body);
+    let vts = sign_tx(PRIV_KEY_1, &vt_body, None);
     let vt_tx = VTTransaction::new(vt_body, vec![vts]);
     let x = validate_vt_transaction(
         &vt_tx,
@@ -729,6 +740,7 @@ fn vtt_input_not_in_utxo() {
         EpochConstants::default(),
         &mut signatures_to_verify,
         MAX_VT_WEIGHT,
+        None,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -761,7 +773,7 @@ fn vtt_input_not_enough_value() {
     };
 
     let vt_body = VTTransactionBody::new(vec![vti], vec![vto0]);
-    let vts = sign_tx(PRIV_KEY_1, &vt_body);
+    let vts = sign_tx(PRIV_KEY_1, &vt_body, None);
     let vt_tx = VTTransaction::new(vt_body, vec![vts]);
     let x = validate_vt_transaction(
         &vt_tx,
@@ -770,6 +782,7 @@ fn vtt_input_not_enough_value() {
         EpochConstants::default(),
         &mut signatures_to_verify,
         MAX_VT_WEIGHT,
+        None,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -797,7 +810,7 @@ fn vtt_one_input_zero_value_output() {
     };
 
     let vt_body = VTTransactionBody::new(vec![vti], vec![zero_output]);
-    let vts = sign_tx(PRIV_KEY_1, &vt_body);
+    let vts = sign_tx(PRIV_KEY_1, &vt_body, None);
     let vt_tx = VTTransaction::new(vt_body, vec![vts]);
     let x = validate_vt_transaction(
         &vt_tx,
@@ -806,6 +819,7 @@ fn vtt_one_input_zero_value_output() {
         EpochConstants::default(),
         &mut signatures_to_verify,
         MAX_VT_WEIGHT,
+        None,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -841,7 +855,7 @@ fn vtt_one_input_two_outputs_negative_fee() {
     };
 
     let vt_body = VTTransactionBody::new(vec![vti], vec![vto0, vto1]);
-    let vts = sign_tx(PRIV_KEY_1, &vt_body);
+    let vts = sign_tx(PRIV_KEY_1, &vt_body, None);
     let vt_tx = VTTransaction::new(vt_body, vec![vts]);
     let x = validate_vt_transaction(
         &vt_tx,
@@ -850,6 +864,7 @@ fn vtt_one_input_two_outputs_negative_fee() {
         EpochConstants::default(),
         &mut signatures_to_verify,
         MAX_VT_WEIGHT,
+        None,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -882,7 +897,7 @@ fn vtt_one_input_two_outputs() {
     };
 
     let vt_body = VTTransactionBody::new(vec![vti], vec![vto0, vto1]);
-    let vts = sign_tx(PRIV_KEY_1, &vt_body);
+    let vts = sign_tx(PRIV_KEY_1, &vt_body, None);
     let vt_tx = VTTransaction::new(vt_body, vec![vts]);
     let x = validate_vt_transaction(
         &vt_tx,
@@ -891,6 +906,7 @@ fn vtt_one_input_two_outputs() {
         EpochConstants::default(),
         &mut signatures_to_verify,
         MAX_VT_WEIGHT,
+        None,
     )
     .map(|(_, _, fee)| fee);
     assert_eq!(x.unwrap(), 21 - 13 - 7,);
@@ -922,7 +938,7 @@ fn vtt_two_inputs_one_signature() {
     };
 
     let vt_body = VTTransactionBody::new(vec![vti0, vti1], vec![vto0]);
-    let vts = sign_tx(PRIV_KEY_1, &vt_body);
+    let vts = sign_tx(PRIV_KEY_1, &vt_body, None);
     let vt_tx = VTTransaction::new(vt_body, vec![vts]);
     let x = validate_vt_transaction(
         &vt_tx,
@@ -931,6 +947,7 @@ fn vtt_two_inputs_one_signature() {
         EpochConstants::default(),
         &mut signatures_to_verify,
         MAX_VT_WEIGHT,
+        None,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -967,8 +984,8 @@ fn vtt_two_inputs_one_signature_wrong_pkh() {
     };
 
     let vt_body = VTTransactionBody::new(vec![vti0, vti1], vec![vto0]);
-    let vts = sign_tx(PRIV_KEY_1, &vt_body);
-    let vts2 = sign_tx(PRIV_KEY_2, &vt_body);
+    let vts = sign_tx(PRIV_KEY_1, &vt_body, None);
+    let vts2 = sign_tx(PRIV_KEY_2, &vt_body, None);
     let vt_tx = VTTransaction::new(vt_body, vec![vts, vts2]);
     let x = validate_vt_transaction(
         &vt_tx,
@@ -977,6 +994,7 @@ fn vtt_two_inputs_one_signature_wrong_pkh() {
         EpochConstants::default(),
         &mut signatures_to_verify,
         MAX_VT_WEIGHT,
+        None,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1017,7 +1035,7 @@ fn vtt_two_inputs_three_signatures() {
     };
 
     let vt_body = VTTransactionBody::new(vec![vti0, vti1], vec![vto0]);
-    let vts = sign_tx(PRIV_KEY_1, &vt_body);
+    let vts = sign_tx(PRIV_KEY_1, &vt_body, None);
     let vt_tx = VTTransaction::new(vt_body, vec![vts.clone(), vts.clone(), vts]);
     let x = validate_vt_transaction(
         &vt_tx,
@@ -1026,6 +1044,7 @@ fn vtt_two_inputs_three_signatures() {
         EpochConstants::default(),
         &mut signatures_to_verify,
         MAX_VT_WEIGHT,
+        None,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1067,7 +1086,7 @@ fn vtt_two_inputs_two_outputs() {
     };
 
     let vt_body = VTTransactionBody::new(vec![vti0, vti1], vec![vto0, vto1]);
-    let vts = sign_tx(PRIV_KEY_1, &vt_body);
+    let vts = sign_tx(PRIV_KEY_1, &vt_body, None);
     let vt_tx = VTTransaction::new(vt_body, vec![vts.clone(), vts]);
     let x = validate_vt_transaction(
         &vt_tx,
@@ -1076,6 +1095,7 @@ fn vtt_two_inputs_two_outputs() {
         EpochConstants::default(),
         &mut signatures_to_verify,
         MAX_VT_WEIGHT,
+        None,
     )
     .map(|(_, _, fee)| fee);
     assert_eq!(x.unwrap(), 21 + 13 - 10 - 20,);
@@ -1113,7 +1133,7 @@ fn vtt_input_value_overflow() {
     };
 
     let vt_body = VTTransactionBody::new(vec![vti0, vti1], vec![vto0, vto1]);
-    let vts = sign_tx(PRIV_KEY_1, &vt_body);
+    let vts = sign_tx(PRIV_KEY_1, &vt_body, None);
     let vt_tx = VTTransaction::new(vt_body, vec![vts; 2]);
     let x = validate_vt_transaction(
         &vt_tx,
@@ -1122,6 +1142,7 @@ fn vtt_input_value_overflow() {
         EpochConstants::default(),
         &mut signatures_to_verify,
         MAX_VT_WEIGHT,
+        None,
     );
 
     assert_eq!(
@@ -1162,7 +1183,7 @@ fn vtt_output_value_overflow() {
     };
 
     let vt_body = VTTransactionBody::new(vec![vti0, vti1], vec![vto0, vto1]);
-    let vts = sign_tx(PRIV_KEY_1, &vt_body);
+    let vts = sign_tx(PRIV_KEY_1, &vt_body, None);
     let vt_tx = VTTransaction::new(vt_body, vec![vts; 2]);
     let x = validate_vt_transaction(
         &vt_tx,
@@ -1171,6 +1192,7 @@ fn vtt_output_value_overflow() {
         EpochConstants::default(),
         &mut signatures_to_verify,
         MAX_VT_WEIGHT,
+        None,
     );
 
     assert_eq!(
@@ -1179,7 +1201,6 @@ fn vtt_output_value_overflow() {
     );
 }
 
-#[ignore]
 #[test]
 fn vtt_timelock() {
     // 1 epoch = 1000 seconds, for easy testing
@@ -1209,7 +1230,7 @@ fn vtt_timelock() {
         };
 
         let vt_body = VTTransactionBody::new(vec![vti], vec![vto0]);
-        let vts = sign_tx(PRIV_KEY_1, &vt_body);
+        let vts = sign_tx(PRIV_KEY_1, &vt_body, None);
         let vt_tx = VTTransaction::new(vt_body, vec![vts]);
         let mut signatures_to_verify = vec![];
         validate_vt_transaction(
@@ -1219,6 +1240,7 @@ fn vtt_timelock() {
             epoch_constants,
             &mut signatures_to_verify,
             MAX_VT_WEIGHT,
+            None,
         )?;
         verify_signatures_test(signatures_to_verify)
     };
@@ -1262,6 +1284,7 @@ fn vtt_validation_weight_limit_exceeded() {
         EpochConstants::default(),
         &mut signatures_to_verify,
         493 - 1,
+        None,
     );
 
     assert_eq!(
@@ -1294,7 +1317,7 @@ fn vtt_valid() {
     };
 
     let vt_body = VTTransactionBody::new(vec![vti], vec![vto0]);
-    let vts = sign_tx(PRIV_KEY_1, &vt_body);
+    let vts = sign_tx(PRIV_KEY_1, &vt_body, None);
     let vt_tx = VTTransaction::new(vt_body, vec![vts]);
     let x = validate_vt_transaction(
         &vt_tx,
@@ -1303,6 +1326,7 @@ fn vtt_valid() {
         EpochConstants::default(),
         &mut signatures_to_verify,
         MAX_VT_WEIGHT,
+        None,
     )
     .map(|(_, _, fee)| fee);
     // The fee is 1000 - 1000 = 0
@@ -1323,7 +1347,7 @@ fn genesis_vtt_unexpected_input() {
     };
     let outputs = vec![vto0];
     let vt_body = VTTransactionBody::new(inputs, outputs);
-    let vts = sign_tx(PRIV_KEY_1, &vt_body);
+    let vts = sign_tx(PRIV_KEY_1, &vt_body, None);
     let vt_tx = VTTransaction::new(vt_body, vec![vts]);
 
     let x = validate_genesis_vt_transaction(&vt_tx);
@@ -1347,7 +1371,7 @@ fn genesis_vtt_unexpected_signature() {
     };
     let outputs = vec![vto0];
     let vt_body = VTTransactionBody::new(vec![], outputs);
-    let vts = sign_tx(PRIV_KEY_1, &vt_body);
+    let vts = sign_tx(PRIV_KEY_1, &vt_body, None);
     let vt_tx = VTTransaction::new(vt_body, vec![vts]);
 
     let x = validate_genesis_vt_transaction(&vt_tx);
@@ -1498,7 +1522,7 @@ fn data_request_no_inputs_but_one_signature() {
     };
 
     let dr_tx_body = DRTransactionBody::new(vec![], dr_output, vec![]);
-    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
+    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body, None);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
     let x = validate_dr_transaction(
         &dr_transaction,
@@ -1566,7 +1590,6 @@ fn data_request_one_input_but_no_signature() {
     );
 }
 
-#[ignore]
 #[test]
 fn data_request_one_input_signatures() {
     let vto = ValueTransferOutput {
@@ -1635,7 +1658,7 @@ fn data_request_input_double_spend() {
     };
 
     let dr_tx_body = DRTransactionBody::new(vec![vti; 2], dr_output, vec![]);
-    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
+    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body, None);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs; 2]);
     let x = validate_dr_transaction(
         &dr_transaction,
@@ -1675,7 +1698,7 @@ fn data_request_input_not_in_utxo() {
     };
 
     let dr_tx_body = DRTransactionBody::new(vec![vti], dr_output, vec![]);
-    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
+    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body, None);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
     let x = validate_dr_transaction(
         &dr_transaction,
@@ -1720,7 +1743,7 @@ fn data_request_input_not_enough_value() {
     };
 
     let dr_tx_body = DRTransactionBody::new(vec![vti], dr_output, vec![]);
-    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
+    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body, None);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
     let x = validate_dr_transaction(
         &dr_transaction,
@@ -1789,7 +1812,7 @@ fn data_request_output_value_overflow() {
     };
 
     let dr_tx_body = DRTransactionBody::new(vec![vti0, vti1], dr_output, vec![vto0, vto1]);
-    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
+    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body, None);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs; 2]);
     let x = validate_dr_transaction(
         &dr_transaction,
@@ -1825,7 +1848,7 @@ fn test_drtx(dr_output: DataRequestOutput) -> Result<(), failure::Error> {
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
     let vti = Input::new(utxo_set.iter().next().unwrap().0);
     let dr_tx_body = DRTransactionBody::new(vec![vti], dr_output, vec![]);
-    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
+    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body, None);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
     validate_dr_transaction(
@@ -2223,7 +2246,7 @@ fn data_request_http_post_before_wip_activation() {
         let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
         let vti = Input::new(utxo_set.iter().next().unwrap().0);
         let dr_tx_body = DRTransactionBody::new(vec![vti], dr_output, vec![]);
-        let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
+        let drs = sign_tx(PRIV_KEY_1, &dr_tx_body, None);
         let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
         let mut active_wips = all_wips_active();
@@ -2291,7 +2314,7 @@ fn data_request_http_get_with_headers_before_wip_activation() {
         let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
         let vti = Input::new(utxo_set.iter().next().unwrap().0);
         let dr_tx_body = DRTransactionBody::new(vec![vti], dr_output, vec![]);
-        let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
+        let drs = sign_tx(PRIV_KEY_1, &dr_tx_body, None);
         let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
         let mut active_wips = all_wips_active();
@@ -2349,7 +2372,7 @@ fn data_request_parse_xml_before_wip_activation() {
         let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
         let vti = Input::new(utxo_set.iter().next().unwrap().0);
         let dr_tx_body = DRTransactionBody::new(vec![vti], dr_output, vec![]);
-        let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
+        let drs = sign_tx(PRIV_KEY_1, &dr_tx_body, None);
         let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
         let mut active_wips = all_wips_active();
@@ -2403,7 +2426,7 @@ fn data_request_parse_xml_after_wip_activation() {
         let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
         let vti = Input::new(utxo_set.iter().next().unwrap().0);
         let dr_tx_body = DRTransactionBody::new(vec![vti], dr_output, vec![]);
-        let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
+        let drs = sign_tx(PRIV_KEY_1, &dr_tx_body, None);
         let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
         let mut active_wips = all_wips_active();
@@ -2530,7 +2553,7 @@ fn data_request_miner_fee() {
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
     let vti = Input::new(utxo_set.iter().next().unwrap().0);
     let dr_tx_body = DRTransactionBody::new(vec![vti], dr_output, vec![]);
-    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
+    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body, None);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
     let dr_miner_fee = validate_dr_transaction(
@@ -2581,7 +2604,7 @@ fn data_request_miner_fee_with_change() {
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
     let vti = Input::new(utxo_set.iter().next().unwrap().0);
     let dr_tx_body = DRTransactionBody::new(vec![vti], dr_output, vec![change_output]);
-    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
+    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body, None);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
     let dr_miner_fee = validate_dr_transaction(
@@ -2632,7 +2655,7 @@ fn data_request_change_to_different_pkh() {
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
     let vti = Input::new(utxo_set.iter().next().unwrap().0);
     let dr_tx_body = DRTransactionBody::new(vec![vti], dr_output, vec![change_output]);
-    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
+    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body, None);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
     let x = validate_dr_transaction(
@@ -2693,7 +2716,7 @@ fn data_request_two_change_outputs() {
     let vti = Input::new(utxo_set.iter().next().unwrap().0);
     let dr_tx_body =
         DRTransactionBody::new(vec![vti], dr_output, vec![change_output_1, change_output_2]);
-    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
+    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body, None);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
     let x = validate_dr_transaction(
@@ -2746,7 +2769,7 @@ fn data_request_miner_fee_with_too_much_change() {
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
     let vti = Input::new(utxo_set.iter().next().unwrap().0);
     let dr_tx_body = DRTransactionBody::new(vec![vti], dr_output, vec![change_output]);
-    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
+    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body, None);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
     let x = validate_dr_transaction(
@@ -2794,7 +2817,7 @@ fn data_request_zero_value_output() {
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
     let vti = Input::new(utxo_set.iter().next().unwrap().0);
     let dr_tx_body = DRTransactionBody::new(vec![vti], dr_output, vec![change_output]);
-    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
+    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body, None);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
     let x = validate_dr_transaction(
@@ -2841,7 +2864,7 @@ fn data_request_reward_collateral_ratio_wip() {
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
     let vti = Input::new(utxo_set.iter().next().unwrap().0);
     let dr_tx_body = DRTransactionBody::new(vec![vti], dr_output, vec![]);
-    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
+    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body, None);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
     let mut active_wips = current_active_wips();
@@ -2912,7 +2935,7 @@ fn data_request_reward_collateral_ratio_limit() {
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
     let vti = Input::new(utxo_set.iter().next().unwrap().0);
     let dr_tx_body = DRTransactionBody::new(vec![vti], dr_output, vec![]);
-    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
+    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body, None);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
     let mut active_wips = current_active_wips();
@@ -2943,7 +2966,7 @@ fn data_request_reward_collateral_ratio_limit() {
     };
 
     let dr_tx_body = DRTransactionBody::new(vec![vti], dr_output, vec![]);
-    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
+    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body, None);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
     let x = validate_dr_transaction(
@@ -3030,7 +3053,7 @@ fn test_commit_with_dr_and_utxo_set(
         ..DataRequestOutput::default()
     };
     let dr_body = DRTransactionBody::new(vec![], dro, vec![]);
-    let drs = sign_tx(PRIV_KEY_1, &dr_body);
+    let drs = sign_tx(PRIV_KEY_1, &dr_body, None);
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_hash = dr_transaction.hash();
     assert_eq!(dr_hash, DR_HASH.parse().unwrap());
@@ -3095,7 +3118,7 @@ fn test_commit_difficult_proof() {
         ..DataRequestOutput::default()
     };
     let dr_body = DRTransactionBody::new(vec![], dro, vec![]);
-    let drs = sign_tx(PRIV_KEY_1, &dr_body);
+    let drs = sign_tx(PRIV_KEY_1, &dr_body, None);
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_hash = dr_transaction.hash();
     assert_eq!(dr_hash, DR_HASH.parse().unwrap());
@@ -3126,7 +3149,7 @@ fn test_commit_difficult_proof() {
     cb.outputs = vec![];
 
     // Sign commitment
-    let cs = sign_tx(PRIV_KEY_1, &cb);
+    let cs = sign_tx(PRIV_KEY_1, &cb, None);
     let c_tx = CommitTransaction::new(cb, vec![cs]);
 
     // This test is only valid before the third hard fork
@@ -3188,7 +3211,7 @@ fn test_commit_with_collateral(
         ..DataRequestOutput::default()
     };
     let dr_body = DRTransactionBody::new(vec![], dro, vec![]);
-    let drs = sign_tx(PRIV_KEY_1, &dr_body);
+    let drs = sign_tx(PRIV_KEY_1, &dr_body, None);
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_hash = dr_transaction.hash();
     assert_eq!(dr_hash, DR_HASH.parse().unwrap());
@@ -3212,7 +3235,7 @@ fn test_commit_with_collateral(
     cb.outputs = outputs;
 
     // Sign commitment
-    let cs = sign_tx(PRIV_KEY_1, &cb);
+    let cs = sign_tx(PRIV_KEY_1, &cb, None);
     let c_tx = CommitTransaction::new(cb, vec![cs]);
 
     let superblock_period = 1;
@@ -3271,7 +3294,7 @@ fn commitment_signatures() {
 
     let hashable = cb;
 
-    let ks = sign_tx(PRIV_KEY_1, &hashable);
+    let ks = sign_tx(PRIV_KEY_1, &hashable, None);
     let hash = hashable.hash();
 
     // Replace the signature with default (all zeros)
@@ -3327,7 +3350,7 @@ fn commitment_signatures() {
     );
 
     // Sign transaction with a different public key
-    let ks_different_pk = sign_tx(PRIV_KEY_2, &hashable);
+    let ks_different_pk = sign_tx(PRIV_KEY_2, &hashable, None);
     let signature_pkh = ks_different_pk.public_key.pkh();
     let x = f(hashable, ks_different_pk);
     assert_eq!(
@@ -3357,7 +3380,7 @@ fn commitment_no_signature() {
         ..DataRequestOutput::default()
     };
     let dr_body = DRTransactionBody::new(vec![], dro, vec![]);
-    let drs = sign_tx(PRIV_KEY_1, &dr_body);
+    let drs = sign_tx(PRIV_KEY_1, &dr_body, None);
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_hash = dr_transaction.hash();
     assert_eq!(dr_hash, DR_HASH.parse().unwrap());
@@ -3399,7 +3422,7 @@ fn commitment_unknown_dr() {
         .unwrap();
     let mut cb = CommitTransactionBody::default();
     cb.dr_pointer = dr_pointer;
-    let cs = sign_tx(PRIV_KEY_1, &cb);
+    let cs = sign_tx(PRIV_KEY_1, &cb, None);
     let c_tx = CommitTransaction::new(cb, vec![cs]);
 
     let x = test_empty_commit(&c_tx);
@@ -3454,7 +3477,7 @@ fn commitment_invalid_proof() {
         ..DataRequestOutput::default()
     };
     let dr_body = DRTransactionBody::new(vec![], dro, vec![]);
-    let drs = sign_tx(PRIV_KEY_1, &dr_body);
+    let drs = sign_tx(PRIV_KEY_1, &dr_body, None);
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_epoch = 0;
     dr_pool
@@ -3462,7 +3485,7 @@ fn commitment_invalid_proof() {
         .unwrap();
 
     // Sign commitment
-    let cs = sign_tx(PRIV_KEY_1, &cb);
+    let cs = sign_tx(PRIV_KEY_1, &cb, None);
     let c_tx = CommitTransaction::new(cb, vec![cs]);
     let mut signatures_to_verify = vec![];
 
@@ -3527,7 +3550,7 @@ fn commitment_dr_in_reveal_stage() {
         ..DataRequestOutput::default()
     };
     let dr_body = DRTransactionBody::new(vec![], dro, vec![]);
-    let drs = sign_tx(PRIV_KEY_1, &dr_body);
+    let drs = sign_tx(PRIV_KEY_1, &dr_body, None);
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_hash = dr_transaction.hash();
     let dr_epoch = 0;
@@ -3541,7 +3564,7 @@ fn commitment_dr_in_reveal_stage() {
     cb.dr_pointer = dr_hash;
     cb.proof = DataRequestEligibilityClaim::create(vrf, &secret_key, vrf_input, dr_hash).unwrap();
     // Sign commitment
-    let cs = sign_tx(PRIV_KEY_1, &cb);
+    let cs = sign_tx(PRIV_KEY_1, &cb, None);
     let c_tx = CommitTransaction::new(cb, vec![cs]);
 
     dr_pool.process_commit(&c_tx, &block_hash).unwrap();
@@ -3904,7 +3927,7 @@ fn commitment_collateral_zero_is_minimum() {
             ..DataRequestOutput::default()
         };
         let dr_body = DRTransactionBody::new(vec![], dro, vec![]);
-        let drs = sign_tx(PRIV_KEY_1, &dr_body);
+        let drs = sign_tx(PRIV_KEY_1, &dr_body, None);
         let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
         let dr_hash = dr_transaction.hash();
         // dr_hash changed because the collateral is 0
@@ -3936,7 +3959,7 @@ fn commitment_collateral_zero_is_minimum() {
         cb.outputs = outputs;
 
         // Sign commitment
-        let cs = sign_tx(PRIV_KEY_1, &cb);
+        let cs = sign_tx(PRIV_KEY_1, &cb, None);
         let c_tx = CommitTransaction::new(cb, vec![cs]);
 
         let superblock_period = 1;
@@ -3971,7 +3994,6 @@ fn commitment_collateral_zero_is_minimum() {
     );
 }
 
-#[ignore]
 #[test]
 fn commitment_timelock() {
     // 1 epoch = 1000 seconds, for easy testing
@@ -4002,7 +4024,7 @@ fn commitment_timelock() {
             ..DataRequestOutput::default()
         };
         let dr_body = DRTransactionBody::new(vec![], dro, vec![]);
-        let drs = sign_tx(PRIV_KEY_1, &dr_body);
+        let drs = sign_tx(PRIV_KEY_1, &dr_body, None);
         let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
         let dr_hash = dr_transaction.hash();
         let dr_epoch = 0;
@@ -4033,7 +4055,7 @@ fn commitment_timelock() {
         cb.outputs = vec![];
 
         // Sign commitment
-        let cs = sign_tx(PRIV_KEY_1, &cb);
+        let cs = sign_tx(PRIV_KEY_1, &cb, None);
         let c_tx = CommitTransaction::new(cb, vec![cs]);
         // This test checks that the first hard fork is handled correctly
         let active_wips = active_wips_from_mainnet(epoch);
@@ -4105,7 +4127,7 @@ fn dr_pool_with_dr_in_reveal_stage() -> (DataRequestPool, Hash) {
         ..DataRequestOutput::default()
     };
     let dr_body = DRTransactionBody::new(vec![], dro, vec![]);
-    let drs = sign_tx(PRIV_KEY_1, &dr_body);
+    let drs = sign_tx(PRIV_KEY_1, &dr_body, None);
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_pointer = dr_transaction.hash();
 
@@ -4113,7 +4135,7 @@ fn dr_pool_with_dr_in_reveal_stage() -> (DataRequestPool, Hash) {
     let mut cb = CommitTransactionBody::default();
     cb.dr_pointer = dr_pointer;
     // Sign commitment
-    let cs = sign_tx(PRIV_KEY_1, &cb);
+    let cs = sign_tx(PRIV_KEY_1, &cb, None);
     let c_tx = CommitTransaction::new(cb, vec![cs]);
 
     dr_pool
@@ -4144,7 +4166,7 @@ fn reveal_signatures() {
 
     let hashable = rb;
 
-    let ks = sign_tx(PRIV_KEY_1, &hashable);
+    let ks = sign_tx(PRIV_KEY_1, &hashable, None);
     let hash = hashable.hash();
 
     // Replace the signature with default (all zeros)
@@ -4198,7 +4220,7 @@ fn reveal_signatures() {
     );
 
     // Sign transaction with a different public key
-    let ks_different_pk = sign_tx(PRIV_KEY_2, &hashable);
+    let ks_different_pk = sign_tx(PRIV_KEY_2, &hashable, None);
     let signature_pkh = ks_different_pk.public_key.pkh();
     let x = f(hashable, ks_different_pk);
     assert_eq!(
@@ -4224,7 +4246,7 @@ fn reveal_dr_in_commit_stage() {
         ..DataRequestOutput::default()
     };
     let dr_body = DRTransactionBody::new(vec![], dro, vec![]);
-    let drs = sign_tx(PRIV_KEY_1, &dr_body);
+    let drs = sign_tx(PRIV_KEY_1, &dr_body, None);
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_pointer = dr_transaction.hash();
     dr_pool
@@ -4233,7 +4255,7 @@ fn reveal_dr_in_commit_stage() {
 
     let mut rb = RevealTransactionBody::default();
     rb.dr_pointer = dr_pointer;
-    let rs = sign_tx(PRIV_KEY_1, &rb);
+    let rs = sign_tx(PRIV_KEY_1, &rb, None);
     let r_tx = RevealTransaction::new(rb, vec![rs]);
 
     let x = validate_reveal_transaction(&r_tx, &dr_pool, &mut signatures_to_verify);
@@ -4269,7 +4291,7 @@ fn reveal_wrong_signature_public_key() {
     let mut rb = RevealTransactionBody::default();
     rb.dr_pointer = dr_pointer;
     rb.pkh = bad_pkh;
-    let rs = sign_tx(PRIV_KEY_1, &rb);
+    let rs = sign_tx(PRIV_KEY_1, &rb, None);
     let r_tx = RevealTransaction::new(rb, vec![rs]);
 
     let x = validate_reveal_transaction(&r_tx, &dr_pool, &mut signatures_to_verify);
@@ -4291,7 +4313,7 @@ fn reveal_unknown_dr() {
         .unwrap();
     let mut rb = RevealTransactionBody::default();
     rb.dr_pointer = dr_pointer;
-    let rs = sign_tx(PRIV_KEY_1, &rb);
+    let rs = sign_tx(PRIV_KEY_1, &rb, None);
     let r_tx = RevealTransaction::new(rb, vec![rs]);
 
     let x = validate_reveal_transaction(&r_tx, &dr_pool, &mut signatures_to_verify);
@@ -4309,7 +4331,7 @@ fn reveal_no_commitment() {
     let mut rb = RevealTransactionBody::default();
     rb.dr_pointer = dr_pointer;
     rb.pkh = MY_PKH_2.parse().unwrap();
-    let rs = sign_tx(PRIV_KEY_2, &rb);
+    let rs = sign_tx(PRIV_KEY_2, &rb, None);
     let r_tx = RevealTransaction::new(rb, vec![rs]);
 
     let x = validate_reveal_transaction(&r_tx, &dr_pool, &mut signatures_to_verify);
@@ -4327,7 +4349,7 @@ fn reveal_invalid_commitment() {
     let mut rb = RevealTransactionBody::default();
     rb.dr_pointer = dr_pointer;
     rb.pkh = MY_PKH_1.parse().unwrap();
-    let rs = sign_tx(PRIV_KEY_1, &rb);
+    let rs = sign_tx(PRIV_KEY_1, &rb, None);
     let r_tx = RevealTransaction::new(rb, vec![rs]);
 
     let x = validate_reveal_transaction(&r_tx, &dr_pool, &mut signatures_to_verify);
@@ -4366,11 +4388,11 @@ fn reveal_valid_commitment() {
     dr_pool.update_data_request_stages(None, Some(epoch));
 
     // Hack: get public key by signing an empty transaction
-    let public_key = sign_tx(PRIV_KEY_1, &RevealTransactionBody::default()).public_key;
+    let public_key = sign_tx(PRIV_KEY_1, &RevealTransactionBody::default(), None).public_key;
 
     // Create Reveal and Commit
     let reveal_body = RevealTransactionBody::new(dr_pointer, vec![], public_key.pkh());
-    let reveal_signature = sign_tx(PRIV_KEY_1, &reveal_body);
+    let reveal_signature = sign_tx(PRIV_KEY_1, &reveal_body, None);
     let commitment = reveal_signature.signature.hash();
 
     let commit_transaction = CommitTransaction::new(
@@ -4402,7 +4424,7 @@ fn reveal_valid_commitment() {
         vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
         public_key.pkh(),
     );
-    let reveal_signature2 = sign_tx(PRIV_KEY_1, &reveal_body2);
+    let reveal_signature2 = sign_tx(PRIV_KEY_1, &reveal_body2, None);
     let reveal_transaction2 = RevealTransaction::new(reveal_body2, vec![reveal_signature2]);
 
     let error =
@@ -4437,10 +4459,10 @@ fn create_commit_reveal(
     dr_pointer: Hash,
     reveal_value: Vec<u8>,
 ) -> (PublicKey, CommitTransaction, RevealTransaction) {
-    let public_key = sign_tx(mk, &RevealTransactionBody::default()).public_key;
+    let public_key = sign_tx(mk, &RevealTransactionBody::default(), None).public_key;
 
     let reveal_body = RevealTransactionBody::new(dr_pointer, reveal_value, public_key.pkh());
-    let reveal_signature = sign_tx(mk, &reveal_body);
+    let reveal_signature = sign_tx(mk, &reveal_body, None);
     let commitment = reveal_signature.signature.hash();
     let reveal_transaction = RevealTransaction::new(reveal_body, vec![reveal_signature]);
 
@@ -4634,7 +4656,7 @@ fn dr_pool_with_dr_in_tally_all_errors(
 
     // Create Data Requester public key
     let dr_mk = [0xBB; 32];
-    let dr_public_key = sign_tx(dr_mk, &RevealTransactionBody::default()).public_key;
+    let dr_public_key = sign_tx(dr_mk, &RevealTransactionBody::default(), None).public_key;
 
     // Create DRTransaction
     let epoch = 0;
@@ -4747,7 +4769,7 @@ fn dr_pool_with_dr_in_tally_stage_generic(
 
     // Create Data Requester public key
     let dr_mk = [0xBB; 32];
-    let dr_public_key = sign_tx(dr_mk, &RevealTransactionBody::default()).public_key;
+    let dr_public_key = sign_tx(dr_mk, &RevealTransactionBody::default(), None).public_key;
 
     // Create DRTransaction
     let epoch = 0;
@@ -4970,18 +4992,18 @@ fn tally_dr_not_tally_stage() {
         collateral: DEFAULT_COLLATERAL,
     };
     let dr_transaction_body = DRTransactionBody::new(vec![], dr_output.clone(), vec![]);
-    let dr_transaction_signature = sign_tx(PRIV_KEY_2, &dr_transaction_body);
+    let dr_transaction_signature = sign_tx(PRIV_KEY_2, &dr_transaction_body, None);
     let dr_transaction = DRTransaction::new(dr_transaction_body, vec![dr_transaction_signature]);
     let dr_pointer = dr_transaction.hash();
 
     // Hack: get public key by signing an empty transaction
-    let public_key = sign_tx(PRIV_KEY_1, &RevealTransactionBody::default()).public_key;
+    let public_key = sign_tx(PRIV_KEY_1, &RevealTransactionBody::default(), None).public_key;
 
     // Create Reveal and Commit
     // Reveal = integer(0)
     let reveal_value = vec![0x00];
     let reveal_body = RevealTransactionBody::new(dr_pointer, reveal_value, public_key.pkh());
-    let reveal_signature = sign_tx(PRIV_KEY_1, &reveal_body);
+    let reveal_signature = sign_tx(PRIV_KEY_1, &reveal_body, None);
     let commitment = reveal_signature.signature.hash();
 
     let commit_transaction = CommitTransaction::new(
@@ -5299,7 +5321,7 @@ fn generic_tally_test_inner(
 
     // Create Data Requester public key
     let dr_mk = [0xBB; 32];
-    let dr_public_key = sign_tx(dr_mk, &RevealTransactionBody::default()).public_key;
+    let dr_public_key = sign_tx(dr_mk, &RevealTransactionBody::default(), None).public_key;
 
     // Create DRTransaction
     let epoch = 0;
@@ -8896,7 +8918,7 @@ fn block_signatures() {
         Ok(())
     };
 
-    let ks = sign_tx(PRIV_KEY_1, &hashable);
+    let ks = sign_tx(PRIV_KEY_1, &hashable, None);
     let hash = hashable.hash();
 
     // Replace the signature with default (all zeros)
@@ -8949,7 +8971,7 @@ fn block_signatures() {
     );
 
     // Sign transaction with a different public key
-    let ks_different_pk = sign_tx(PRIV_KEY_2, &hashable);
+    let ks_different_pk = sign_tx(PRIV_KEY_2, &hashable, None);
     let signature_pkh = ks_different_pk.public_key.pkh();
     let x = f(hashable, ks_different_pk);
     assert_eq!(
@@ -9002,6 +9024,7 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
     let rep_eng = ReputationEngine::new(100);
     let block_number = 100_000;
     let stakes = StakesTracker::default();
+    let protocol_version = ProtocolVersion::default();
 
     let consensus_constants = ConsensusConstants {
         checkpoint_zero_timestamp: 0,
@@ -9085,13 +9108,13 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
         proof: BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap(),
         ..Default::default()
     };
-    let block_sig = sign_tx(PRIV_KEY_1, &block_header);
+    let block_sig = sign_tx(PRIV_KEY_1, &block_header, None);
     let mut b = Block::new(block_header, block_sig, txns);
 
     // Pass the block to the mutation function used by tests
     if mut_block(&mut b) {
         // If the function returns true, re-sign the block after mutating
-        b.block_sig = sign_tx(PRIV_KEY_1, &b.block_header);
+        b.block_sig = sign_tx(PRIV_KEY_1, &b.block_header, None);
     }
     let mut signatures_to_verify = vec![];
     validate_block(
@@ -9103,8 +9126,8 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
         &rep_eng,
         &consensus_constants,
         &active_wips,
-        ProtocolVersion::V1_7,
         &stakes,
+        protocol_version,
     )?;
     verify_signatures_test(signatures_to_verify)?;
     let mut signatures_to_verify = vec![];
@@ -9122,6 +9145,7 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
         &active_wips,
         None,
         &stakes,
+        protocol_version,
     )?;
     verify_signatures_test(signatures_to_verify)?;
 
@@ -9238,7 +9262,6 @@ fn block_hash_prev_block_genesis_hash() {
     );
 }
 
-#[ignore]
 #[test]
 fn block_signals_can_be_anything() {
     // The signals field in the block header can have any value, the block will always be valid
@@ -9286,6 +9309,7 @@ fn block_difficult_proof() {
     let mut utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
     let stakes = StakesTracker::default();
+    let protocol_version = ProtocolVersion::default();
 
     let consensus_constants = ConsensusConstants {
         checkpoint_zero_timestamp: 0,
@@ -9367,7 +9391,7 @@ fn block_difficult_proof() {
         proof: BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap(),
         ..Default::default()
     };
-    let block_sig = sign_tx(PRIV_KEY_1, &block_header);
+    let block_sig = sign_tx(PRIV_KEY_1, &block_header, None);
     let b = Block::new(block_header, block_sig, txns);
 
     let x = {
@@ -9383,8 +9407,8 @@ fn block_difficult_proof() {
                 &rep_eng,
                 &consensus_constants,
                 &current_active_wips(),
-                ProtocolVersion::V1_7,
                 &stakes,
+                protocol_version,
             )?;
             verify_signatures_test(signatures_to_verify)?;
             let mut signatures_to_verify = vec![];
@@ -9402,6 +9426,7 @@ fn block_difficult_proof() {
                 &current_active_wips(),
                 None,
                 &stakes,
+                protocol_version,
             )?;
             verify_signatures_test(signatures_to_verify)?;
 
@@ -9422,7 +9447,6 @@ fn block_difficult_proof() {
     );
 }
 
-#[ignore]
 #[test]
 fn block_change_mint() {
     let x = test_block(|b| {
@@ -9444,7 +9468,6 @@ fn block_change_mint() {
     );
 }
 
-#[ignore]
 #[test]
 fn block_add_vtt_but_dont_update_mint() {
     let mut old_mint_value = None;
@@ -9456,7 +9479,7 @@ fn block_add_vtt_but_dont_update_mint() {
         };
         let output1_pointer = ONE_WIT_OUTPUT.parse().unwrap();
         let vt_body = VTTransactionBody::new(vec![Input::new(output1_pointer)], vec![vto0]);
-        let vts = sign_tx(PRIV_KEY_1, &vt_body);
+        let vts = sign_tx(PRIV_KEY_1, &vt_body, None);
         let vt_tx = VTTransaction::new(vt_body, vec![vts]);
         b.txns.value_transfer_txns.push(vt_tx);
 
@@ -9474,7 +9497,6 @@ fn block_add_vtt_but_dont_update_mint() {
     );
 }
 
-#[ignore]
 #[test]
 fn block_add_vtt_but_dont_update_merkle_tree() {
     let x = test_block(|b| {
@@ -9485,7 +9507,7 @@ fn block_add_vtt_but_dont_update_merkle_tree() {
         };
         let output1_pointer = ONE_WIT_OUTPUT.parse().unwrap();
         let vt_body = VTTransactionBody::new(vec![Input::new(output1_pointer)], vec![vto0]);
-        let vts = sign_tx(PRIV_KEY_1, &vt_body);
+        let vts = sign_tx(PRIV_KEY_1, &vt_body, None);
         let vt_tx = VTTransaction::new(vt_body, vec![vts]);
         b.txns.value_transfer_txns.push(vt_tx);
 
@@ -9506,7 +9528,6 @@ fn block_add_vtt_but_dont_update_merkle_tree() {
     );
 }
 
-#[ignore]
 #[test]
 fn block_duplicated_commits() {
     let mut dr_pool = DataRequestPool::default();
@@ -9532,7 +9553,7 @@ fn block_duplicated_commits() {
         collateral: DEFAULT_COLLATERAL,
     };
     let dr_body = DRTransactionBody::new(vec![], dro, vec![]);
-    let drs = sign_tx(PRIV_KEY_1, &dr_body);
+    let drs = sign_tx(PRIV_KEY_1, &dr_body, None);
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_hash = dr_transaction.hash();
     let dr_epoch = 0;
@@ -9563,7 +9584,7 @@ fn block_duplicated_commits() {
     cb.outputs = vec![];
 
     // Sign commitment
-    let cs = sign_tx(PRIV_KEY_1, &cb);
+    let cs = sign_tx(PRIV_KEY_1, &cb, None);
     let c_tx = CommitTransaction::new(cb.clone(), vec![cs]);
 
     let mut cb2 = CommitTransactionBody::default();
@@ -9572,7 +9593,7 @@ fn block_duplicated_commits() {
     cb2.commitment = Hash::SHA256([1; 32]);
     cb2.collateral = vec![vti2];
     cb2.outputs = vec![];
-    let cs2 = sign_tx(PRIV_KEY_1, &cb2);
+    let cs2 = sign_tx(PRIV_KEY_1, &cb2, None);
     let c2_tx = CommitTransaction::new(cb2, vec![cs2]);
 
     assert_ne!(c_tx.hash(), c2_tx.hash());
@@ -9610,7 +9631,6 @@ fn block_duplicated_commits() {
     );
 }
 
-#[ignore]
 #[test]
 fn block_duplicated_reveals() {
     let mut dr_pool = DataRequestPool::default();
@@ -9626,7 +9646,7 @@ fn block_duplicated_reveals() {
         collateral: DEFAULT_COLLATERAL,
     };
     let dr_body = DRTransactionBody::new(vec![], dro, vec![]);
-    let drs = sign_tx(PRIV_KEY_1, &dr_body);
+    let drs = sign_tx(PRIV_KEY_1, &dr_body, None);
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_hash = dr_transaction.hash();
     let dr_epoch = 0;
@@ -9635,8 +9655,8 @@ fn block_duplicated_reveals() {
         .unwrap();
 
     // Hack: get public key by signing an empty transaction
-    let public_key = sign_tx(PRIV_KEY_1, &RevealTransactionBody::default()).public_key;
-    let public_key2 = sign_tx(PRIV_KEY_2, &RevealTransactionBody::default()).public_key;
+    let public_key = sign_tx(PRIV_KEY_1, &RevealTransactionBody::default(), None).public_key;
+    let public_key2 = sign_tx(PRIV_KEY_2, &RevealTransactionBody::default(), None).public_key;
 
     let dr_pointer = dr_hash;
 
@@ -9645,7 +9665,7 @@ fn block_duplicated_reveals() {
     let reveal_value = vec![0x00];
     let reveal_body =
         RevealTransactionBody::new(dr_pointer, reveal_value.clone(), public_key.pkh());
-    let reveal_signature = sign_tx(PRIV_KEY_1, &reveal_body);
+    let reveal_signature = sign_tx(PRIV_KEY_1, &reveal_body, None);
     let commitment = reveal_signature.signature.hash();
 
     let commit_transaction = CommitTransaction::new(
@@ -9662,7 +9682,7 @@ fn block_duplicated_reveals() {
     let reveal_transaction = RevealTransaction::new(reveal_body, vec![reveal_signature]);
 
     let reveal_body2 = RevealTransactionBody::new(dr_pointer, reveal_value, public_key2.pkh());
-    let reveal_signature2 = sign_tx(PRIV_KEY_2, &reveal_body2);
+    let reveal_signature2 = sign_tx(PRIV_KEY_2, &reveal_body2, None);
     let commitment2 = reveal_signature2.signature.hash();
 
     let commit_transaction2 = CommitTransaction::new(
@@ -9717,7 +9737,6 @@ fn block_duplicated_reveals() {
     );
 }
 
-#[ignore]
 #[test]
 fn block_duplicated_tallies() {
     let active_wips = current_active_wips();
@@ -9784,7 +9803,6 @@ fn block_duplicated_tallies() {
     );
 }
 
-#[ignore]
 #[test]
 fn block_before_and_after_hard_fork() {
     let mut dr_pool = DataRequestPool::default();
@@ -9797,7 +9815,7 @@ fn block_before_and_after_hard_fork() {
         collateral: DEFAULT_COLLATERAL,
     };
     let dr_body = DRTransactionBody::new(vec![], dro.clone(), vec![]);
-    let drs = sign_tx(PRIV_KEY_1, &dr_body);
+    let drs = sign_tx(PRIV_KEY_1, &dr_body, None);
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_epoch = 0;
     dr_pool
@@ -9812,7 +9830,7 @@ fn block_before_and_after_hard_fork() {
     let utxo_set = build_utxo_set_with_mint(vec![vto], None, vec![]);
     let vti = Input::new(utxo_set.iter().next().unwrap().0);
     let dr_tx_body = DRTransactionBody::new(vec![vti], dro, vec![]);
-    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
+    let drs = sign_tx(PRIV_KEY_1, &dr_tx_body, None);
     let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
     let dr_cost = (DEFAULT_WITNESS_REWARD + 100) * 100;
@@ -9882,7 +9900,7 @@ fn block_change_signature() {
     let x = test_block(|b| {
         old_pkh = Some(b.block_sig.public_key.pkh());
         // Sign with a different key
-        b.block_sig = sign_tx(PRIV_KEY_2, &b.block_header);
+        b.block_sig = sign_tx(PRIV_KEY_2, &b.block_header, None);
         new_pkh = Some(b.block_sig.public_key.pkh());
         assert_ne!(old_pkh, new_pkh);
 
@@ -9919,7 +9937,6 @@ fn block_change_hash_prev_vrf() {
     );
 }
 
-#[ignore]
 #[test]
 fn block_change_merkle_tree() {
     let x = test_block(|b| {
@@ -10005,6 +10022,7 @@ fn test_blocks_with_limits(
     let mut utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
     let stakes = StakesTracker::default();
+    let protocol_version = ProtocolVersion::default();
 
     let consensus_constants = ConsensusConstants {
         checkpoint_zero_timestamp: 0,
@@ -10088,7 +10106,7 @@ fn test_blocks_with_limits(
         let block_sig = KeyedSignature::default();
         let mut b = Block::new(block_header, block_sig, txns);
 
-        b.block_sig = sign_tx(PRIV_KEY_1, &b.block_header);
+        b.block_sig = sign_tx(PRIV_KEY_1, &b.block_header, None);
 
         let mut signatures_to_verify = vec![];
 
@@ -10102,8 +10120,8 @@ fn test_blocks_with_limits(
             &rep_eng,
             &consensus_constants,
             &current_active_wips(),
-            ProtocolVersion::V1_7,
             &stakes,
+            protocol_version,
         )?;
         verify_signatures_test(signatures_to_verify)?;
         let mut signatures_to_verify = vec![];
@@ -10122,6 +10140,7 @@ fn test_blocks_with_limits(
             &current_active_wips(),
             None,
             &stakes,
+            protocol_version,
         )?;
         verify_signatures_test(signatures_to_verify)?;
 
@@ -10135,7 +10154,6 @@ fn test_blocks_with_limits(
     Ok(())
 }
 
-#[ignore]
 #[test]
 fn block_minimum_valid() {
     let t0 = {
@@ -10155,7 +10173,6 @@ fn block_minimum_valid() {
     x.unwrap();
 }
 
-#[ignore]
 #[test]
 fn block_add_vtt_no_inputs() {
     let vt_tx_hash;
@@ -10189,7 +10206,6 @@ fn block_add_vtt_no_inputs() {
     );
 }
 
-#[ignore]
 #[test]
 fn block_add_vtt() {
     let t0 = {
@@ -10200,7 +10216,7 @@ fn block_add_vtt() {
         };
         let output1_pointer = ONE_WIT_OUTPUT.parse().unwrap();
         let vt_body = VTTransactionBody::new(vec![Input::new(output1_pointer)], vec![vto0]);
-        let vts = sign_tx(PRIV_KEY_1, &vt_body);
+        let vts = sign_tx(PRIV_KEY_1, &vt_body, None);
         let vt_tx = VTTransaction::new(vt_body, vec![vts]);
 
         (
@@ -10215,7 +10231,6 @@ fn block_add_vtt() {
     x.unwrap();
 }
 
-#[ignore]
 #[test]
 fn block_add_2_vtt_same_input() {
     let t0 = {
@@ -10226,7 +10241,7 @@ fn block_add_2_vtt_same_input() {
         };
         let output1_pointer = ONE_WIT_OUTPUT.parse().unwrap();
         let vt_body = VTTransactionBody::new(vec![Input::new(output1_pointer)], vec![vto0]);
-        let vts = sign_tx(PRIV_KEY_1, &vt_body);
+        let vts = sign_tx(PRIV_KEY_1, &vt_body, None);
         let vt_tx1 = VTTransaction::new(vt_body, vec![vts]);
 
         let vto0 = ValueTransferOutput {
@@ -10236,7 +10251,7 @@ fn block_add_2_vtt_same_input() {
         };
         let output1_pointer = ONE_WIT_OUTPUT.parse().unwrap();
         let vt_body = VTTransactionBody::new(vec![Input::new(output1_pointer)], vec![vto0]);
-        let vts = sign_tx(PRIV_KEY_1, &vt_body);
+        let vts = sign_tx(PRIV_KEY_1, &vt_body, None);
         let vt_tx2 = VTTransaction::new(vt_body, vec![vts]);
 
         (
@@ -10257,7 +10272,6 @@ fn block_add_2_vtt_same_input() {
     );
 }
 
-#[ignore]
 #[test]
 fn block_add_1_vtt_2_same_input() {
     let t0 = {
@@ -10268,7 +10282,7 @@ fn block_add_1_vtt_2_same_input() {
         };
         let output1_pointer = ONE_WIT_OUTPUT.parse().unwrap();
         let vt_body = VTTransactionBody::new(vec![Input::new(output1_pointer); 2], vec![vto0]);
-        let vts = sign_tx(PRIV_KEY_1, &vt_body);
+        let vts = sign_tx(PRIV_KEY_1, &vt_body, None);
         let vt_tx1 = VTTransaction::new(vt_body, vec![vts; 2]);
 
         (
@@ -10303,7 +10317,7 @@ fn block_vtt_sequence() {
         let output0_pointer = ONE_WIT_OUTPUT.parse().unwrap();
         let vt_body = VTTransactionBody::new(vec![Input::new(output0_pointer)], vec![vto0]);
         t0_hash = vt_body.hash();
-        let vts = sign_tx(PRIV_KEY_1, &vt_body);
+        let vts = sign_tx(PRIV_KEY_1, &vt_body, None);
         let vt_tx = VTTransaction::new(vt_body, vec![vts]);
 
         (
@@ -10326,7 +10340,7 @@ fn block_vtt_sequence() {
             output_index: 0,
         };
         let vt_body = VTTransactionBody::new(vec![Input::new(output1_pointer)], vec![o1]);
-        let vts = sign_tx(PRIV_KEY_1, &vt_body);
+        let vts = sign_tx(PRIV_KEY_1, &vt_body, None);
         let vt_tx = VTTransaction::new(vt_body, vec![vts]);
 
         (
@@ -10349,7 +10363,6 @@ fn block_vtt_sequence() {
     );
 }
 
-#[ignore]
 #[test]
 fn block_add_drt() {
     let t0 = {
@@ -10371,7 +10384,7 @@ fn block_add_drt() {
         let output1_pointer = ONE_WIT_OUTPUT.parse().unwrap();
         let dr_tx_body =
             DRTransactionBody::new(vec![Input::new(output1_pointer)], dr_output, vec![vto0]);
-        let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
+        let drs = sign_tx(PRIV_KEY_1, &dr_tx_body, None);
         let dr_transaction = DRTransaction::new(dr_tx_body, vec![drs]);
 
         (
@@ -10386,7 +10399,6 @@ fn block_add_drt() {
     x.unwrap();
 }
 
-#[ignore]
 #[test]
 fn block_add_2_drt_same_input() {
     let t0 = {
@@ -10408,7 +10420,7 @@ fn block_add_2_drt_same_input() {
         let output1_pointer = ONE_WIT_OUTPUT.parse().unwrap();
         let dr_tx_body =
             DRTransactionBody::new(vec![Input::new(output1_pointer)], dr_output, vec![vto0]);
-        let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
+        let drs = sign_tx(PRIV_KEY_1, &dr_tx_body, None);
         let dr_tx1 = DRTransaction::new(dr_tx_body, vec![drs]);
 
         let data_request = example_data_request();
@@ -10428,7 +10440,7 @@ fn block_add_2_drt_same_input() {
         let output1_pointer = ONE_WIT_OUTPUT.parse().unwrap();
         let dr_tx_body =
             DRTransactionBody::new(vec![Input::new(output1_pointer)], dr_output, vec![vto0]);
-        let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
+        let drs = sign_tx(PRIV_KEY_1, &dr_tx_body, None);
         let dr_tx2 = DRTransaction::new(dr_tx_body, vec![drs]);
 
         (
@@ -10448,7 +10460,6 @@ fn block_add_2_drt_same_input() {
     );
 }
 
-#[ignore]
 #[test]
 fn block_add_1_drt_and_1_vtt_same_input() {
     let t0 = {
@@ -10470,7 +10481,7 @@ fn block_add_1_drt_and_1_vtt_same_input() {
         let output1_pointer = ONE_WIT_OUTPUT.parse().unwrap();
         let dr_tx_body =
             DRTransactionBody::new(vec![Input::new(output1_pointer)], dr_output, vec![vto0]);
-        let drs = sign_tx(PRIV_KEY_1, &dr_tx_body);
+        let drs = sign_tx(PRIV_KEY_1, &dr_tx_body, None);
         let dr_tx = DRTransaction::new(dr_tx_body, vec![drs]);
 
         let vto0 = ValueTransferOutput {
@@ -10480,7 +10491,7 @@ fn block_add_1_drt_and_1_vtt_same_input() {
         };
         let output1_pointer = ONE_WIT_OUTPUT.parse().unwrap();
         let vt_body = VTTransactionBody::new(vec![Input::new(output1_pointer)], vec![vto0]);
-        let vts = sign_tx(PRIV_KEY_1, &vt_body);
+        let vts = sign_tx(PRIV_KEY_1, &vt_body, None);
         let vt_tx = VTTransaction::new(vt_body, vec![vts]);
 
         (
@@ -10554,7 +10565,7 @@ fn genesis_block_add_signature() {
     let bootstrap_hash = BOOTSTRAP_HASH.parse().unwrap();
     let mut b = Block::genesis(bootstrap_hash, vec![]);
     // Add an extra signature, not changing the block hash
-    b.block_sig = sign_tx(PRIV_KEY_1, &b);
+    b.block_sig = sign_tx(PRIV_KEY_1, &b, None);
 
     let x = validate_genesis_block(&b, b.hash());
     // Compare only enum variant
@@ -10623,8 +10634,8 @@ fn genesis_block_after_not_bootstrap_hash() {
         &rep_eng,
         &consensus_constants,
         &current_active_wips(),
-        ProtocolVersion::V1_7,
         &StakesTracker::default(),
+        ProtocolVersion::V1_7,
     );
     assert_eq!(signatures_to_verify, vec![]);
 
@@ -10658,6 +10669,7 @@ fn genesis_block_value_overflow() {
     let rep_eng = ReputationEngine::new(100);
     let utxo_set = UnspentOutputsPool::default();
     let stakes = StakesTracker::default();
+    let protocol_version = ProtocolVersion::default();
 
     let current_epoch = 0;
     let block_number = 0;
@@ -10706,8 +10718,8 @@ fn genesis_block_value_overflow() {
         &rep_eng,
         &consensus_constants,
         &current_active_wips(),
-        ProtocolVersion::V1_7,
         &stakes,
+        protocol_version,
     )
     .unwrap();
     assert_eq!(signatures_to_verify, vec![]);
@@ -10727,6 +10739,7 @@ fn genesis_block_value_overflow() {
         &current_active_wips(),
         None,
         &stakes,
+        protocol_version,
     );
     assert_eq!(signatures_to_verify, vec![]);
     assert_eq!(
@@ -10747,6 +10760,7 @@ fn genesis_block_full_validate() {
     let rep_eng = ReputationEngine::new(100);
     let utxo_set = UnspentOutputsPool::default();
     let stakes = StakesTracker::default();
+    let protocol_version = ProtocolVersion::default();
 
     let current_epoch = 0;
     let block_number = 0;
@@ -10794,8 +10808,8 @@ fn genesis_block_full_validate() {
         &rep_eng,
         &consensus_constants,
         &current_active_wips(),
-        ProtocolVersion::V1_7,
         &stakes,
+        protocol_version,
     )
     .unwrap();
     assert_eq!(signatures_to_verify, vec![]);
@@ -10815,6 +10829,7 @@ fn genesis_block_full_validate() {
         &current_active_wips(),
         None,
         &stakes,
+        protocol_version,
     )
     .unwrap();
     assert_eq!(signatures_to_verify, vec![]);
@@ -10858,6 +10873,7 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
         let rep_eng = ReputationEngine::new(100);
         let utxo_set = UnspentOutputsPool::default();
         let stakes = StakesTracker::default();
+        let protocol_version = ProtocolVersion::default();
 
         let secret_key = SecretKey {
             bytes: Protected::from(PRIV_KEY_1.to_vec()),
@@ -10889,7 +10905,7 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
             proof: BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap(),
             ..Default::default()
         };
-        let block_sig = sign_tx(PRIV_KEY_1, &block_header);
+        let block_sig = sign_tx(PRIV_KEY_1, &block_header, None);
         let b = Block::new(block_header, block_sig, txns);
         let mut signatures_to_verify = vec![];
 
@@ -10906,6 +10922,7 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
             &current_active_wips(),
             None,
             &stakes,
+            protocol_version,
         )
         .unwrap()
     };
@@ -10958,6 +10975,7 @@ fn validate_commit_transactions_included_in_utxo_diff() {
         let vrf = &mut VrfCtx::secp256k1().unwrap();
         let rep_eng = ReputationEngine::new(100);
         let stakes = StakesTracker::default();
+        let protocol_version = ProtocolVersion::default();
 
         let dro = DataRequestOutput {
             witness_reward: DEFAULT_WITNESS_REWARD,
@@ -10968,7 +10986,7 @@ fn validate_commit_transactions_included_in_utxo_diff() {
             ..DataRequestOutput::default()
         };
         let dr_body = DRTransactionBody::new(vec![], dro, vec![]);
-        let drs = sign_tx(PRIV_KEY_1, &dr_body);
+        let drs = sign_tx(PRIV_KEY_1, &dr_body, None);
         let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
         let dr_hash = dr_transaction.hash();
         assert_eq!(dr_hash, DR_HASH.parse().unwrap());
@@ -11044,7 +11062,7 @@ fn validate_commit_transactions_included_in_utxo_diff() {
         cb.outputs = outputs;
 
         // Sign commitment
-        let cs = sign_tx(PRIV_KEY_1, &cb);
+        let cs = sign_tx(PRIV_KEY_1, &cb, None);
         let c_tx = CommitTransaction::new(cb, vec![cs]);
         commit_tx_hash = c_tx.hash();
 
@@ -11056,7 +11074,7 @@ fn validate_commit_transactions_included_in_utxo_diff() {
             proof: BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap(),
             ..Default::default()
         };
-        let block_sig = sign_tx(PRIV_KEY_1, &block_header);
+        let block_sig = sign_tx(PRIV_KEY_1, &block_header, None);
         let b = Block::new(block_header, block_sig, txns);
         let mut signatures_to_verify = vec![];
 
@@ -11073,6 +11091,7 @@ fn validate_commit_transactions_included_in_utxo_diff() {
             &current_active_wips(),
             None,
             &stakes,
+            protocol_version,
         )
         .unwrap()
     };
@@ -11223,6 +11242,7 @@ fn validate_required_tally_not_found() {
     let mut dr_pool = DataRequestPool::default();
     dr_pool.data_request_pool.insert(dr_pointer, dr_state);
     let stakes = StakesTracker::default();
+    let protocol_version = ProtocolVersion::default();
 
     let b = Block::default();
 
@@ -11239,6 +11259,7 @@ fn validate_required_tally_not_found() {
         &current_active_wips(),
         None,
         &stakes,
+        protocol_version,
     )
     .unwrap_err();
 
@@ -11251,7 +11272,6 @@ fn validate_required_tally_not_found() {
     );
 }
 
-#[ignore]
 #[test]
 fn validate_vt_weight_overflow() {
     let t0 = {
@@ -11262,13 +11282,13 @@ fn validate_vt_weight_overflow() {
         };
         let output1_pointer = ONE_WIT_OUTPUT.parse().unwrap();
         let vt_body = VTTransactionBody::new(vec![Input::new(output1_pointer)], vec![vto0.clone()]);
-        let vts = sign_tx(PRIV_KEY_1, &vt_body);
+        let vts = sign_tx(PRIV_KEY_1, &vt_body, None);
         let vt_tx = VTTransaction::new(vt_body, vec![vts]);
         assert_eq!(vt_tx.weight(), 493);
 
         let output2_pointer = ONE_WIT_OUTPUT2.parse().unwrap();
         let vt_body2 = VTTransactionBody::new(vec![Input::new(output2_pointer)], vec![vto0]);
-        let vts2 = sign_tx(PRIV_KEY_1, &vt_body2);
+        let vts2 = sign_tx(PRIV_KEY_1, &vt_body2, None);
         let vt_tx2 = VTTransaction::new(vt_body2, vec![vts2]);
         assert_eq!(vt_tx2.weight(), 493);
 
@@ -11295,7 +11315,6 @@ fn validate_vt_weight_overflow() {
     );
 }
 
-#[ignore]
 #[test]
 fn validate_vt_weight_valid() {
     let t0 = {
@@ -11306,13 +11325,13 @@ fn validate_vt_weight_valid() {
         };
         let output1_pointer = ONE_WIT_OUTPUT.parse().unwrap();
         let vt_body = VTTransactionBody::new(vec![Input::new(output1_pointer)], vec![vto0.clone()]);
-        let vts = sign_tx(PRIV_KEY_1, &vt_body);
+        let vts = sign_tx(PRIV_KEY_1, &vt_body, None);
         let vt_tx = VTTransaction::new(vt_body, vec![vts]);
         assert_eq!(vt_tx.weight(), 493);
 
         let output2_pointer = ONE_WIT_OUTPUT2.parse().unwrap();
         let vt_body2 = VTTransactionBody::new(vec![Input::new(output2_pointer)], vec![vto0]);
-        let vts2 = sign_tx(PRIV_KEY_1, &vt_body2);
+        let vts2 = sign_tx(PRIV_KEY_1, &vt_body2, None);
         let vt_tx2 = VTTransaction::new(vt_body2, vec![vts2]);
         assert_eq!(vt_tx2.weight(), 493);
 
@@ -11328,7 +11347,6 @@ fn validate_vt_weight_valid() {
     x.unwrap();
 }
 
-#[ignore]
 #[test]
 fn validate_vt_weight_genesis_valid() {
     let new_genesis = "116e271cbda2c625ccc189a4b93b6d0e96063dd9b75258dc47acaac86cd19ceb";
@@ -11356,7 +11374,6 @@ fn validate_vt_weight_genesis_valid() {
     x.unwrap();
 }
 
-#[ignore]
 #[test]
 fn validate_dr_weight_overflow() {
     let t0 = {
@@ -11367,12 +11384,12 @@ fn validate_dr_weight_overflow() {
 
         let dr_body =
             DRTransactionBody::new(vec![Input::new(output1_pointer)], dro.clone(), vec![]);
-        let drs = sign_tx(PRIV_KEY_1, &dr_body);
+        let drs = sign_tx(PRIV_KEY_1, &dr_body, None);
         let dr_tx = DRTransaction::new(dr_body, vec![drs]);
         assert_eq!(dr_tx.weight(), 1589);
 
         let dr_body2 = DRTransactionBody::new(vec![Input::new(output2_pointer)], dro, vec![]);
-        let drs2 = sign_tx(PRIV_KEY_1, &dr_body2);
+        let drs2 = sign_tx(PRIV_KEY_1, &dr_body2, None);
         let dr_tx2 = DRTransaction::new(dr_body2, vec![drs2]);
         assert_eq!(dr_tx2.weight(), 1589);
 
@@ -11400,7 +11417,7 @@ fn validate_dr_weight_overflow() {
 }
 
 // This test evaluates the theoretical limit of witnesses for a MAX_DR_WEIGHT of 80_000
-#[ignore]
+
 #[test]
 fn validate_dr_weight_overflow_126_witnesses() {
     let dro = example_data_request_output(126, DEFAULT_WITNESS_REWARD, 0);
@@ -11410,7 +11427,7 @@ fn validate_dr_weight_overflow_126_witnesses() {
 
         let dr_body =
             DRTransactionBody::new(vec![Input::new(output1_pointer)], dro.clone(), vec![]);
-        let drs = sign_tx(PRIV_KEY_1, &dr_body);
+        let drs = sign_tx(PRIV_KEY_1, &dr_body, None);
         let dr_tx = DRTransaction::new(dr_body, vec![drs]);
 
         assert_eq!(dr_tx.weight(), 80453);
@@ -11439,7 +11456,6 @@ fn validate_dr_weight_overflow_126_witnesses() {
     );
 }
 
-#[ignore]
 #[test]
 fn validate_dr_weight_valid() {
     let t0 = {
@@ -11450,12 +11466,12 @@ fn validate_dr_weight_valid() {
 
         let dr_body =
             DRTransactionBody::new(vec![Input::new(output1_pointer)], dro.clone(), vec![]);
-        let drs = sign_tx(PRIV_KEY_1, &dr_body);
+        let drs = sign_tx(PRIV_KEY_1, &dr_body, None);
         let dr_tx = DRTransaction::new(dr_body, vec![drs]);
         assert_eq!(dr_tx.weight(), 1589);
 
         let dr_body2 = DRTransactionBody::new(vec![Input::new(output2_pointer)], dro, vec![]);
-        let drs2 = sign_tx(PRIV_KEY_1, &dr_body2);
+        let drs2 = sign_tx(PRIV_KEY_1, &dr_body2, None);
         let dr_tx2 = DRTransaction::new(dr_body2, vec![drs2]);
         assert_eq!(dr_tx2.weight(), 1589);
 

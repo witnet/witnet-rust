@@ -114,12 +114,13 @@ impl ChainManager {
 
         let mut beacon = chain_info.highest_block_checkpoint;
         let mut vrf_input = chain_info.highest_vrf_output;
+        let protocol_version = get_protocol_version(self.current_epoch);
 
         // The highest checkpoint beacon should contain the current epoch
         beacon.checkpoint = current_epoch;
         vrf_input.checkpoint = current_epoch;
 
-        let target_hash = if get_protocol_version(self.current_epoch) == V2_0 {
+        let target_hash = if protocol_version == V2_0 {
             let eligibility = self
                 .chain_state
                 .stakes
@@ -235,8 +236,7 @@ impl ChainManager {
                 );
 
                 // Sign the block hash
-                let protocol = get_protocol_version(Some(block_header.beacon.checkpoint));
-                let block_header_data = block_header.versioned_hash(protocol).data();
+                let block_header_data = block_header.versioned_hash(protocol_version).data();
 
                 signature_mngr::sign_data(block_header_data)
                     .map(|res| {
@@ -253,11 +253,11 @@ impl ChainManager {
                     beacon,
                     epoch_constants,
                 )
-                .map_ok(|_diff, act, _ctx| {
+                .map_ok(move |_diff, act, _ctx| {
                     // Send AddCandidates message to self
                     // This will run all the validations again
 
-                    let block_hash = block.hash();
+                    let block_hash = block.versioned_hash(protocol_version);
                     // FIXME(#1773): Currently last_block_proposed is not used, but removing it is a breaking change
                     act.chain_state.node_stats.last_block_proposed = block_hash;
                     act.chain_state.node_stats.block_proposed_count += 1;

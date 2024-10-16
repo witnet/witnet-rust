@@ -8,10 +8,8 @@ use protobuf::Message as _;
 use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumString};
 
-use crate::chain::Epoch;
-use crate::proto::schema::witnet::SuperBlock;
 use crate::{
-    chain::Hash,
+    chain::{Epoch, Hash},
     get_protocol_version,
     proto::{
         schema::witnet::{
@@ -23,7 +21,6 @@ use crate::{
         },
         ProtobufConvert,
     },
-    transaction::MemoizedHashable,
     types::Message,
 };
 
@@ -230,14 +227,7 @@ impl Versioned for crate::chain::BlockHeader {
 }
 
 impl Versioned for crate::chain::SuperBlock {
-    type LegacyType = SuperBlock;
-
-    fn to_versioned_pb_bytes(&self, _version: ProtocolVersion) -> Result<Vec<u8>, Error>
-    where
-        <Self as ProtobufConvert>::ProtoStruct: protobuf::Message,
-    {
-        Ok(self.hashable_bytes())
-    }
+    type LegacyType = <Self as ProtobufConvert>::ProtoStruct;
 }
 
 impl Versioned for crate::chain::Block {
@@ -274,10 +264,38 @@ impl Versioned for Message {
     }
 }
 
+impl Versioned for crate::transaction::Transaction {
+    type LegacyType = <Self as ProtobufConvert>::ProtoStruct;
+}
+
+impl Versioned for crate::transaction::VTTransaction {
+    type LegacyType = <Self as ProtobufConvert>::ProtoStruct;
+}
+impl Versioned for crate::transaction::VTTransactionBody {
+    type LegacyType = <Self as ProtobufConvert>::ProtoStruct;
+}
+impl Versioned for crate::transaction::DRTransactionBody {
+    type LegacyType = <Self as ProtobufConvert>::ProtoStruct;
+}
+impl Versioned for crate::transaction::CommitTransactionBody {
+    type LegacyType = <Self as ProtobufConvert>::ProtoStruct;
+}
+impl Versioned for crate::transaction::RevealTransaction {
+    type LegacyType = <Self as ProtobufConvert>::ProtoStruct;
+}
+impl Versioned for crate::transaction::RevealTransactionBody {
+    type LegacyType = <Self as ProtobufConvert>::ProtoStruct;
+}
+
 pub trait AutoVersioned: ProtobufConvert {}
 
 impl AutoVersioned for crate::chain::BlockHeader {}
 impl AutoVersioned for crate::chain::SuperBlock {}
+impl AutoVersioned for crate::transaction::VTTransactionBody {}
+impl AutoVersioned for crate::transaction::DRTransactionBody {}
+impl AutoVersioned for crate::transaction::CommitTransactionBody {}
+impl AutoVersioned for crate::transaction::RevealTransaction {}
+impl AutoVersioned for crate::transaction::RevealTransactionBody {}
 
 pub trait VersionedHashable {
     fn versioned_hash(&self, version: ProtocolVersion) -> Hash;
@@ -288,6 +306,7 @@ where
     T: AutoVersioned + Versioned,
     <Self as ProtobufConvert>::ProtoStruct: protobuf::Message,
 {
+    #[inline]
     fn versioned_hash(&self, version: ProtocolVersion) -> Hash {
         // This unwrap is kept in here just because we want `VersionedHashable` to have the same interface as
         // `Hashable`.
@@ -295,7 +314,26 @@ where
     }
 }
 
+impl VersionedHashable for crate::transaction::Transaction {
+    fn versioned_hash(&self, version: ProtocolVersion) -> Hash {
+        match self {
+            crate::transaction::Transaction::ValueTransfer(tx) => tx.versioned_hash(version),
+            _ => {
+                todo!();
+            }
+        }
+    }
+}
+
+impl VersionedHashable for crate::transaction::VTTransaction {
+    #[inline]
+    fn versioned_hash(&self, version: ProtocolVersion) -> Hash {
+        self.body.versioned_hash(version)
+    }
+}
+
 impl VersionedHashable for crate::chain::Block {
+    #[inline]
     fn versioned_hash(&self, version: ProtocolVersion) -> Hash {
         self.block_header.versioned_hash(version)
     }

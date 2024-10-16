@@ -200,8 +200,8 @@ mod tests {
         // If this default changes before the transition to V2 is complete, almost everything will
         // break because data structures change schema and, serialization changes and hash
         // derivation breaks too
-        let version = get_protocol_version(None);
-        assert_eq!(version, ProtocolVersion::V1_7);
+        let protocol_version = get_protocol_version(None);
+        assert_eq!(protocol_version, ProtocolVersion::V1_7);
 
         // Register the different protocol versions
         register_protocol_version(ProtocolVersion::V1_7, 100, 45);
