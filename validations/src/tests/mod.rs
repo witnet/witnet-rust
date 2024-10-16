@@ -23,7 +23,7 @@ use witnet_data_structures::{
         calculate_tally_change, calculate_witness_reward, create_tally, DataRequestPool,
     },
     error::{BlockError, DataRequestError, Secp256k1ConversionError, TransactionError},
-    proto::versioning::ProtocolVersion,
+    proto::versioning::{ProtocolVersion, VersionedHashable},
     radon_error::RadonError,
     radon_report::{RadonReport, ReportContext, TypeLike},
     staking::stakes::StakesTracker,
@@ -1497,6 +1497,7 @@ fn data_request_no_inputs() {
         MAX_DR_WEIGHT,
         REQUIRED_REWARD_COLLATERAL_RATIO,
         &current_active_wips(),
+        None,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1534,6 +1535,7 @@ fn data_request_no_inputs_but_one_signature() {
         MAX_DR_WEIGHT,
         REQUIRED_REWARD_COLLATERAL_RATIO,
         &current_active_wips(),
+        None,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1580,6 +1582,7 @@ fn data_request_one_input_but_no_signature() {
         MAX_DR_WEIGHT,
         REQUIRED_REWARD_COLLATERAL_RATIO,
         &current_active_wips(),
+        None,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1627,6 +1630,7 @@ fn data_request_one_input_signatures() {
             MAX_DR_WEIGHT,
             REQUIRED_REWARD_COLLATERAL_RATIO,
             &current_active_wips(),
+            None,
         )?;
         verify_signatures_test(signatures_to_verify)?;
 
@@ -1670,6 +1674,7 @@ fn data_request_input_double_spend() {
         MAX_DR_WEIGHT,
         REQUIRED_REWARD_COLLATERAL_RATIO,
         &current_active_wips(),
+        None,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1710,6 +1715,7 @@ fn data_request_input_not_in_utxo() {
         MAX_DR_WEIGHT,
         REQUIRED_REWARD_COLLATERAL_RATIO,
         &current_active_wips(),
+        None,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1755,6 +1761,7 @@ fn data_request_input_not_enough_value() {
         MAX_DR_WEIGHT,
         REQUIRED_REWARD_COLLATERAL_RATIO,
         &current_active_wips(),
+        None,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1824,6 +1831,7 @@ fn data_request_output_value_overflow() {
         MAX_DR_WEIGHT,
         REQUIRED_REWARD_COLLATERAL_RATIO,
         &current_active_wips(),
+        None,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -1861,6 +1869,7 @@ fn test_drtx(dr_output: DataRequestOutput) -> Result<(), failure::Error> {
         u32::MAX,
         REQUIRED_REWARD_COLLATERAL_RATIO,
         &all_wips_active(),
+        None,
     )
     .map(|_| ())
 }
@@ -2263,6 +2272,7 @@ fn data_request_http_post_before_wip_activation() {
             u32::MAX,
             REQUIRED_REWARD_COLLATERAL_RATIO,
             &active_wips,
+            None,
         )
         .map(|_| ())
     };
@@ -2331,6 +2341,7 @@ fn data_request_http_get_with_headers_before_wip_activation() {
             u32::MAX,
             REQUIRED_REWARD_COLLATERAL_RATIO,
             &active_wips,
+            None,
         )
         .map(|_| ())
     };
@@ -2389,6 +2400,7 @@ fn data_request_parse_xml_before_wip_activation() {
             u32::MAX,
             REQUIRED_REWARD_COLLATERAL_RATIO,
             &active_wips,
+            None,
         )
         .map(|_| ())
     };
@@ -2445,6 +2457,7 @@ fn data_request_parse_xml_after_wip_activation() {
             u32::MAX,
             REQUIRED_REWARD_COLLATERAL_RATIO,
             &active_wips,
+            None,
         )
         .map(|_| ())
     };
@@ -2478,6 +2491,7 @@ fn dr_validation_weight_limit_exceeded() {
         1625 - 1,
         REQUIRED_REWARD_COLLATERAL_RATIO,
         &current_active_wips(),
+        None,
     );
 
     assert_eq!(
@@ -2566,6 +2580,7 @@ fn data_request_miner_fee() {
         MAX_DR_WEIGHT,
         REQUIRED_REWARD_COLLATERAL_RATIO,
         &current_active_wips(),
+        None,
     )
     .map(|(_, _, fee)| fee)
     .unwrap();
@@ -2617,6 +2632,7 @@ fn data_request_miner_fee_with_change() {
         MAX_DR_WEIGHT,
         REQUIRED_REWARD_COLLATERAL_RATIO,
         &current_active_wips(),
+        None,
     )
     .map(|(_, _, fee)| fee)
     .unwrap();
@@ -2668,6 +2684,7 @@ fn data_request_change_to_different_pkh() {
         MAX_DR_WEIGHT,
         REQUIRED_REWARD_COLLATERAL_RATIO,
         &current_active_wips(),
+        None,
     );
 
     assert_eq!(
@@ -2729,6 +2746,7 @@ fn data_request_two_change_outputs() {
         MAX_DR_WEIGHT,
         REQUIRED_REWARD_COLLATERAL_RATIO,
         &current_active_wips(),
+        None,
     );
 
     assert_eq!(
@@ -2782,6 +2800,7 @@ fn data_request_miner_fee_with_too_much_change() {
         MAX_DR_WEIGHT,
         REQUIRED_REWARD_COLLATERAL_RATIO,
         &current_active_wips(),
+        None,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -2830,6 +2849,7 @@ fn data_request_zero_value_output() {
         MAX_DR_WEIGHT,
         REQUIRED_REWARD_COLLATERAL_RATIO,
         &current_active_wips(),
+        None,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -2881,6 +2901,7 @@ fn data_request_reward_collateral_ratio_wip() {
         MAX_DR_WEIGHT,
         PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO,
         &active_wips,
+        None,
     );
     x.unwrap();
 
@@ -2897,6 +2918,7 @@ fn data_request_reward_collateral_ratio_wip() {
         MAX_DR_WEIGHT,
         PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO,
         &active_wips,
+        None,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -2952,6 +2974,7 @@ fn data_request_reward_collateral_ratio_limit() {
         MAX_DR_WEIGHT,
         PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO,
         &active_wips,
+        None,
     );
     x.unwrap();
 
@@ -2979,6 +3002,7 @@ fn data_request_reward_collateral_ratio_limit() {
         MAX_DR_WEIGHT,
         PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO,
         &active_wips,
+        None,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -10002,6 +10026,7 @@ fn test_blocks(txns: Vec<(BlockTransactions, u64)>) -> Result<(), failure::Error
         MAX_VT_WEIGHT,
         MAX_DR_WEIGHT,
         GENESIS_BLOCK_HASH.parse().unwrap(),
+        None,
     )
 }
 
@@ -10010,6 +10035,7 @@ fn test_blocks_with_limits(
     max_vt_weight: u32,
     max_dr_weight: u32,
     genesis_block_hash: Hash,
+    protocol_version: Option<ProtocolVersion>,
 ) -> Result<(), failure::Error> {
     if txns.len() > 1 {
         // FIXME(#685): add sequence validations
@@ -10022,7 +10048,7 @@ fn test_blocks_with_limits(
     let mut utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
     let stakes = StakesTracker::default();
-    let protocol_version = ProtocolVersion::default();
+    let protocol_version = protocol_version.unwrap_or_default();
 
     let consensus_constants = ConsensusConstants {
         checkpoint_zero_timestamp: 0,
@@ -11305,6 +11331,7 @@ fn validate_vt_weight_overflow() {
         2 * 493 - 1,
         0,
         GENESIS_BLOCK_HASH.parse().unwrap(),
+        None,
     );
     assert_eq!(
         x.unwrap_err().downcast::<BlockError>().unwrap(),
@@ -11343,7 +11370,13 @@ fn validate_vt_weight_valid() {
             DEFAULT_INPUT_VALUE - 2 * 10,
         )
     };
-    let x = test_blocks_with_limits(vec![t0], 2 * 493, 0, GENESIS_BLOCK_HASH.parse().unwrap());
+    let x = test_blocks_with_limits(
+        vec![t0],
+        2 * 493,
+        0,
+        GENESIS_BLOCK_HASH.parse().unwrap(),
+        None,
+    );
     x.unwrap();
 }
 
@@ -11370,7 +11403,7 @@ fn validate_vt_weight_genesis_valid() {
             1_000_000 - 10,
         )
     };
-    let x = test_blocks_with_limits(vec![t0], 0, 0, new_genesis.parse().unwrap());
+    let x = test_blocks_with_limits(vec![t0], 0, 0, new_genesis.parse().unwrap(), None);
     x.unwrap();
 }
 
@@ -11406,6 +11439,7 @@ fn validate_dr_weight_overflow() {
         0,
         2 * 1589 - 1,
         GENESIS_BLOCK_HASH.parse().unwrap(),
+        None,
     );
     assert_eq!(
         x.unwrap_err().downcast::<BlockError>().unwrap(),
@@ -11445,6 +11479,7 @@ fn validate_dr_weight_overflow_126_witnesses() {
         0,
         MAX_DR_WEIGHT,
         GENESIS_BLOCK_HASH.parse().unwrap(),
+        None,
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -11483,7 +11518,13 @@ fn validate_dr_weight_valid() {
             DEFAULT_INPUT_VALUE - 2 * dr_value,
         )
     };
-    let x = test_blocks_with_limits(vec![t0], 0, 2 * 1605, GENESIS_BLOCK_HASH.parse().unwrap());
+    let x = test_blocks_with_limits(
+        vec![t0],
+        0,
+        2 * 1605,
+        GENESIS_BLOCK_HASH.parse().unwrap(),
+        None,
+    );
     x.unwrap();
 }
 

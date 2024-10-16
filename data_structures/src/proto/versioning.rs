@@ -278,12 +278,27 @@ impl Versioned for crate::transaction::DRTransactionBody {
     type LegacyType = <Self as ProtobufConvert>::ProtoStruct;
 }
 impl Versioned for crate::transaction::CommitTransactionBody {
+    // FIXME: implement proper versioning here for commit transactions
     type LegacyType = <Self as ProtobufConvert>::ProtoStruct;
 }
 impl Versioned for crate::transaction::RevealTransaction {
+    // FIXME: implement proper versioning here for reveal transactions
     type LegacyType = <Self as ProtobufConvert>::ProtoStruct;
 }
 impl Versioned for crate::transaction::RevealTransactionBody {
+    type LegacyType = <Self as ProtobufConvert>::ProtoStruct;
+}
+impl Versioned for crate::transaction::TallyTransaction {
+    // FIXME: implement proper versioning here for tally transactions
+    type LegacyType = <Self as ProtobufConvert>::ProtoStruct;
+}
+impl Versioned for crate::transaction::MintTransaction {
+    type LegacyType = <Self as ProtobufConvert>::ProtoStruct;
+}
+impl Versioned for crate::transaction::StakeTransactionBody {
+    type LegacyType = <Self as ProtobufConvert>::ProtoStruct;
+}
+impl Versioned for crate::transaction::UnstakeTransactionBody {
     type LegacyType = <Self as ProtobufConvert>::ProtoStruct;
 }
 
@@ -294,8 +309,11 @@ impl AutoVersioned for crate::chain::SuperBlock {}
 impl AutoVersioned for crate::transaction::VTTransactionBody {}
 impl AutoVersioned for crate::transaction::DRTransactionBody {}
 impl AutoVersioned for crate::transaction::CommitTransactionBody {}
-impl AutoVersioned for crate::transaction::RevealTransaction {}
 impl AutoVersioned for crate::transaction::RevealTransactionBody {}
+impl AutoVersioned for crate::transaction::TallyTransaction {}
+impl AutoVersioned for crate::transaction::MintTransaction {}
+impl AutoVersioned for crate::transaction::StakeTransactionBody {}
+impl AutoVersioned for crate::transaction::UnstakeTransactionBody {}
 
 pub trait VersionedHashable {
     fn versioned_hash(&self, version: ProtocolVersion) -> Hash;
@@ -316,11 +334,17 @@ where
 
 impl VersionedHashable for crate::transaction::Transaction {
     fn versioned_hash(&self, version: ProtocolVersion) -> Hash {
+        use crate::transaction::Transaction::*;
+
         match self {
-            crate::transaction::Transaction::ValueTransfer(tx) => tx.versioned_hash(version),
-            _ => {
-                todo!();
-            }
+            ValueTransfer(tx) => tx.versioned_hash(version),
+            DataRequest(tx) => tx.versioned_hash(version),
+            Commit(tx) => tx.versioned_hash(version),
+            Reveal(tx) => tx.versioned_hash(version),
+            Tally(tx) => tx.versioned_hash(version),
+            Mint(tx) => tx.versioned_hash(version),
+            Stake(tx) => tx.versioned_hash(version),
+            Unstake(tx) => tx.versioned_hash(version),
         }
     }
 }
@@ -332,8 +356,42 @@ impl VersionedHashable for crate::transaction::VTTransaction {
     }
 }
 
-impl VersionedHashable for crate::chain::Block {
+impl VersionedHashable for crate::transaction::DRTransaction {
     #[inline]
+    fn versioned_hash(&self, version: ProtocolVersion) -> Hash {
+        self.body.versioned_hash(version)
+    }
+}
+
+impl VersionedHashable for crate::transaction::CommitTransaction {
+    #[inline]
+    fn versioned_hash(&self, version: ProtocolVersion) -> Hash {
+        self.body.versioned_hash(version)
+    }
+}
+
+impl VersionedHashable for crate::transaction::RevealTransaction {
+    #[inline]
+    fn versioned_hash(&self, version: ProtocolVersion) -> Hash {
+        self.body.versioned_hash(version)
+    }
+}
+
+impl VersionedHashable for crate::transaction::StakeTransaction {
+    #[inline]
+    fn versioned_hash(&self, version: ProtocolVersion) -> Hash {
+        self.body.versioned_hash(version)
+    }
+}
+
+impl VersionedHashable for crate::transaction::UnstakeTransaction {
+    #[inline]
+    fn versioned_hash(&self, version: ProtocolVersion) -> Hash {
+        self.body.versioned_hash(version)
+    }
+}
+
+impl VersionedHashable for crate::chain::Block {
     fn versioned_hash(&self, version: ProtocolVersion) -> Hash {
         self.block_header.versioned_hash(version)
     }
