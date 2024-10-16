@@ -82,7 +82,7 @@ use witnet_data_structures::{
     },
     utxo_pool::{Diff, OwnUnspentOutputsPool, UnspentOutputsPool, UtxoDiff, UtxoWriteBatch},
     vrf::VrfCtx,
-    wit::{Wit, WIT_DECIMAL_PLACES},
+    wit::Wit,
 };
 use witnet_rad::{error::RadError::TooManyWitnesses, types::RadonTypes};
 use witnet_util::timestamp::seconds_to_human_string;
@@ -717,8 +717,8 @@ impl ChainManager {
                 resynchronizing,
                 &active_wips,
                 Some(&mut transaction_visitor),
-                protocol_version,
                 &self.chain_state.stakes,
+                protocol_version,
             )?;
 
             // Extract the collected priorities from the internal state of the visitor
@@ -884,8 +884,8 @@ impl ChainManager {
                     false,
                     &active_wips,
                     Some(&mut transaction_visitor),
-                    protocol_version,
                     &self.chain_state.stakes,
+                    protocol_version,
                 ) {
                     Ok(utxo_diff) => {
                         let priorities = transaction_visitor.take_state();
@@ -1552,6 +1552,7 @@ impl ChainManager {
                 // than or equal to the current epoch
                 block_epoch: current_epoch,
             };
+            let protocol_version = get_protocol_version(Some(current_epoch));
             let collateral_age = if active_wips.wip0027() {
                 PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE
             } else {
@@ -1580,6 +1581,7 @@ impl ChainManager {
                 &active_wips,
                 chain_info.consensus_constants.superblock_period,
                 &self.chain_state.stakes,
+                protocol_version,
             ))
             .into_actor(self)
             .and_then(|fee, act, _ctx| {
@@ -2105,8 +2107,8 @@ impl ChainManager {
             self.chain_state.reputation_engine.as_ref().unwrap(),
             &consensus_constants,
             &active_wips,
-            protocol_version,
             &self.chain_state.stakes,
+            protocol_version,
         );
 
         let fut = async {
@@ -2131,6 +2133,7 @@ impl ChainManager {
                 &active_wips,
                 None,
                 &act.chain_state.stakes,
+                protocol_version,
             );
             async {
                 // Short-circuit if validation failed
@@ -2906,8 +2909,8 @@ pub fn process_validations(
     resynchronizing: bool,
     active_wips: &ActiveWips,
     transaction_visitor: Option<&mut dyn Visitor<Visitable = (Transaction, u64, u32)>>,
-    protocol_version: ProtocolVersion,
     stakes: &StakesTracker,
+    protocol_version: ProtocolVersion,
 ) -> Result<Diff, failure::Error> {
     if !resynchronizing {
         let mut signatures_to_verify = vec![];
@@ -2920,8 +2923,8 @@ pub fn process_validations(
             rep_eng,
             consensus_constants,
             active_wips,
-            protocol_version,
             stakes,
+            protocol_version,
         )?;
         log::debug!("Verifying {} block signatures", signatures_to_verify.len());
         verify_signatures(signatures_to_verify, vrf_ctx)?;
@@ -2941,6 +2944,7 @@ pub fn process_validations(
         active_wips,
         transaction_visitor,
         stakes,
+        protocol_version,
     )?;
 
     if !resynchronizing {
@@ -3545,6 +3549,7 @@ mod tests {
             OutputPointer, PartialConsensusConstants, PublicKey, SecretKey, Signature,
             ValueTransferOutput,
         },
+        proto::versioning::VersionedHashable,
         transaction::{
             CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, VTTransaction,
             VTTransactionBody,
@@ -3983,8 +3988,12 @@ mod tests {
     static PRIV_KEY_1: [u8; 32] = [0xcd; 32];
     static PRIV_KEY_2: [u8; 32] = [0x43; 32];
 
-    fn sign_tx<H: Hashable>(mk: [u8; 32], tx: &H) -> KeyedSignature {
-        let Hash::SHA256(data) = tx.hash();
+    fn sign_tx<H: VersionedHashable>(
+        mk: [u8; 32],
+        tx: &H,
+        protocol_version: ProtocolVersion,
+    ) -> KeyedSignature {
+        let Hash::SHA256(data) = tx.versioned_hash(protocol_version);
 
         let secret_key =
             Secp256k1_SecretKey::from_slice(&mk).expect("32 bytes, within curve order");
@@ -4011,6 +4020,7 @@ mod tests {
     fn create_valid_block(chain_manager: &mut ChainManager, priv_key: &[u8; 32]) -> Block {
         let vrf = &mut VrfCtx::secp256k1().unwrap();
         let current_epoch = chain_manager.current_epoch.unwrap();
+        let protocol_version = get_protocol_version(Some(current_epoch));
 
         let consensus_constants = chain_manager.consensus_constants();
         let secret_key = SecretKey {
@@ -4064,7 +4074,7 @@ mod tests {
             proof: BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap(),
             ..Default::default()
         };
-        let block_sig = sign_tx(*priv_key, &block_header);
+        let block_sig = sign_tx(*priv_key, &block_header, protocol_version);
 
         Block::new(block_header, block_sig, txns)
     }
@@ -4178,6 +4188,7 @@ mod tests {
     fn create_valid_transaction(
         _chain_manager: &mut ChainManager,
         priv_key: &[u8; 32],
+        protocol_version: ProtocolVersion,
     ) -> Transaction {
         let my_pkh = pkh(priv_key);
 
@@ -4197,7 +4208,7 @@ mod tests {
         let outputs = vec![vto];
 
         let vt_body = VTTransactionBody::new(inputs, outputs);
-        let signatures = vec![sign_tx(*priv_key, &vt_body)];
+        let signatures = vec![sign_tx(*priv_key, &vt_body, protocol_version)];
         let vtt = VTTransaction::new(vt_body, signatures);
 
         Transaction::ValueTransfer(vtt)
@@ -4211,6 +4222,8 @@ mod tests {
             let mut config = Config::default();
             config.storage.backend = StorageBackend::HashMap;
             let config = Arc::new(config);
+            let epoch = Some(2000000);
+            let protocol_version = get_protocol_version(epoch);
             // Start relevant actors
             config_mngr::start(config);
             storage_mngr::start();
@@ -4218,7 +4231,7 @@ mod tests {
             let mut ctx = Context::new();
             let mut chain_manager = ChainManager::default();
 
-            chain_manager.current_epoch = Some(2000000);
+            chain_manager.current_epoch = epoch;
             // 1 epoch = 1000 seconds, for easy testing
             chain_manager.epoch_constants = Some(EpochConstants {
                 checkpoint_zero_timestamp: 0,
@@ -4259,7 +4272,7 @@ mod tests {
             chain_manager.vrf_ctx = Some(VrfCtx::secp256k1().unwrap());
             chain_manager.sm_state = StateMachine::Synced;
 
-            let t1 = create_valid_transaction(&mut chain_manager, &PRIV_KEY_1);
+            let t1 = create_valid_transaction(&mut chain_manager, &PRIV_KEY_1, protocol_version);
             let mut t1_mal = t1.clone();
             // Malleability!
             match &mut t1_mal {
@@ -4280,7 +4293,10 @@ mod tests {
             }
 
             // Changing signatures field does not change transaction hash
-            assert_eq!(t1.hash(), t1_mal.hash());
+            assert_eq!(
+                t1.versioned_hash(protocol_version),
+                t1_mal.versioned_hash(protocol_version)
+            );
             // But the transactions are different
             assert_ne!(t1, t1_mal);
 

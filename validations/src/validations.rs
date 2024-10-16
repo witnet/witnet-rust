@@ -418,7 +418,9 @@ pub fn validate_vt_transaction<'a>(
     epoch_constants: EpochConstants,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
     max_vt_weight: u32,
+    protocol_version: Option<ProtocolVersion>,
 ) -> Result<(Vec<&'a Input>, Vec<&'a ValueTransferOutput>, u64), failure::Error> {
+    let protocol_version = protocol_version.unwrap_or_default();
     if vt_tx.weight() > max_vt_weight {
         return Err(TransactionError::ValueTransferWeightLimitExceeded {
             weight: vt_tx.weight(),
@@ -430,7 +432,7 @@ pub fn validate_vt_transaction<'a>(
     validate_transaction_signature(
         &vt_tx.signatures,
         &vt_tx.body.inputs,
-        vt_tx.hash(),
+        vt_tx.versioned_hash(protocol_version),
         utxo_diff,
         signatures_to_verify,
     )?;
@@ -438,7 +440,7 @@ pub fn validate_vt_transaction<'a>(
     // A value transfer transaction must have at least one input
     if vt_tx.body.inputs.is_empty() {
         return Err(TransactionError::NoInputs {
-            tx_hash: vt_tx.hash(),
+            tx_hash: vt_tx.versioned_hash(protocol_version),
         }
         .into());
     }
@@ -447,7 +449,7 @@ pub fn validate_vt_transaction<'a>(
     for (idx, output) in vt_tx.body.outputs.iter().enumerate() {
         if output.value == 0 {
             return Err(TransactionError::ZeroValueOutput {
-                tx_hash: vt_tx.hash(),
+                tx_hash: vt_tx.versioned_hash(protocol_version),
                 output_id: idx,
             }
             .into());
@@ -1710,6 +1712,7 @@ pub fn validate_block_transactions(
     active_wips: &ActiveWips,
     mut visitor: Option<&mut dyn Visitor<Visitable = (Transaction, u64, u32)>>,
     stakes: &StakesTracker,
+    protocol_version: ProtocolVersion,
 ) -> Result<Diff, failure::Error> {
     let epoch = block.block_header.beacon.checkpoint;
     let is_genesis = block.is_genesis(&consensus_constants.genesis_hash);
@@ -1725,8 +1728,6 @@ pub fn validate_block_transactions(
             consensus_constants.halving_period,
         );
     let mut genesis_value_available = max_total_value_genesis;
-
-    let protocol_version = get_protocol_version(Some(epoch));
 
     // TODO: replace for loop with a try_fold
     // Validate value transfer transactions in a block
@@ -1752,6 +1753,7 @@ pub fn validate_block_transactions(
                 epoch_constants,
                 signatures_to_verify,
                 consensus_constants.max_vt_weight,
+                None,
             )?;
 
             (inputs, outputs, fee, transaction.weight())
@@ -2172,8 +2174,8 @@ pub fn validate_block(
     rep_eng: &ReputationEngine,
     consensus_constants: &ConsensusConstants,
     active_wips: &ActiveWips,
-    protocol_version: ProtocolVersion,
     stakes: &StakesTracker,
+    protocol_version: ProtocolVersion,
 ) -> Result<(), failure::Error> {
     let block_epoch = block.block_header.beacon.checkpoint;
     let hash_prev_block = block.block_header.beacon.hash_prev_block;
@@ -2291,9 +2293,9 @@ pub fn validate_new_transaction(
     active_wips: &ActiveWips,
     superblock_period: u16,
     stakes: &StakesTracker,
+    protocol_version: ProtocolVersion,
 ) -> Result<u64, failure::Error> {
     let utxo_diff = UtxoDiff::new(unspent_outputs_pool, block_number);
-    let protocol_version = get_protocol_version(Some(current_epoch));
 
     match transaction {
         Transaction::ValueTransfer(tx) => validate_vt_transaction(
@@ -2303,6 +2305,7 @@ pub fn validate_new_transaction(
             epoch_constants,
             signatures_to_verify,
             max_vt_weight,
+            Some(protocol_version),
         )
         .map(|(_, _, fee)| fee),
 
@@ -2451,9 +2454,9 @@ pub fn compare_block_candidates(
     b2_is_active: bool,
     b2_power: Power,
     s: &VrfSlots,
-    version: ProtocolVersion,
+    protocol_version: ProtocolVersion,
 ) -> Ordering {
-    if version == ProtocolVersion::V2_0 {
+    if protocol_version == ProtocolVersion::V2_0 {
         match b1_power.cmp(&b2_power) {
             // Equal power, first compare VRF hash and finally the block hash
             Ordering::Equal => {

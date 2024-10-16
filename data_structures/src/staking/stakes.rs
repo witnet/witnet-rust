@@ -900,6 +900,7 @@ mod tests {
         );
         assert_eq!(stakes.query_power(bob, Capability::Mining, 101), Ok(1_620));
         assert_eq!(stakes.query_power(charlie, Capability::Mining, 101), Ok(0));
+        assert_eq!(stakes.query_power(charlie, Capability::Mining, 102), Ok(0));
         assert_eq!(
             stakes.query_power(alice, Capability::Witnessing, 101),
             Ok(1_010)
