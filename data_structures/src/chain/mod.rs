@@ -7344,4 +7344,51 @@ mod tests {
             .reveal_contains(&dr_pointer, &pkh, &r.hash())
             .unwrap());
     }
+
+    #[test]
+    fn data_request_lifecycle() {
+        let extra_rounds = 3;
+        // Initial state
+        let mut state = DataRequestState::default();
+        state.data_request.witnesses = 1;
+        assert_eq!(state.stage, DataRequestStage::COMMIT);
+        assert_eq!(state.info.current_commit_round, 0);
+        // First commitment round
+        state.update_stage(extra_rounds, false);
+        assert_eq!(state.stage, DataRequestStage::COMMIT);
+        assert_eq!(state.info.current_commit_round, 1);
+        // Second commitment round
+        state.update_stage(extra_rounds, false);
+        assert_eq!(state.stage, DataRequestStage::COMMIT);
+        assert_eq!(state.info.current_commit_round, 2);
+        // Third commitment round
+        state.update_stage(extra_rounds, false);
+        assert_eq!(state.stage, DataRequestStage::COMMIT);
+        assert_eq!(state.info.current_commit_round, 3);
+        // Fourth and last commitment round
+        state.update_stage(extra_rounds, false);
+        assert_eq!(state.stage, DataRequestStage::COMMIT);
+        assert_eq!(state.info.current_commit_round, 4);
+        // We introduce at least 1 commit to force the stage to move to reveal
+        let _ = state.add_commit(Default::default(), Default::default());
+        // First reveal round
+        state.update_stage(extra_rounds, false);
+        assert_eq!(state.stage, DataRequestStage::REVEAL);
+        assert_eq!(state.info.current_reveal_round, 1);
+        // Second reveal round
+        state.update_stage(extra_rounds, false);
+        assert_eq!(state.stage, DataRequestStage::REVEAL);
+        assert_eq!(state.info.current_reveal_round, 2);
+        // Third reveal round
+        state.update_stage(extra_rounds, false);
+        assert_eq!(state.stage, DataRequestStage::REVEAL);
+        assert_eq!(state.info.current_reveal_round, 3);
+        // Fourth reveal round
+        state.update_stage(extra_rounds, false);
+        assert_eq!(state.stage, DataRequestStage::REVEAL);
+        assert_eq!(state.info.current_reveal_round, 4);
+        // Jumped to tally stage
+        state.update_stage(extra_rounds, false);
+        assert_eq!(state.stage, DataRequestStage::TALLY);
+    }
 }
