@@ -5,6 +5,9 @@ on:
     tags:
       - '*'
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
 #?####################################################################################################?#
 #?                                                                                                    ?#
@@ -14,27 +17,33 @@ jobs:
   aarch64:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: ./.github/actions/build-helper
-        name: Building Docker Image
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Building Docker Image
+        uses: ./.github/actions/build-helper
         with:
           imagename: aarch64-unknown-linux-gnu
 
   armv7:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: ./.github/actions/build-helper
-        name: Building Docker Image
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Building Docker Image
+        uses: ./.github/actions/build-helper
         with:
           imagename: armv7-unknown-linux-gnueabihf
 
   x86_64:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: ./.github/actions/build-helper
-        name: Building Docker Image
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Building Docker Image
+        uses: ./.github/actions/build-helper
         with:
           imagename: x86_64-unknown-linux-gnu
 
@@ -58,17 +67,16 @@ jobs:
     needs: [aarch64]
     runs-on: ubuntu-latest
     steps:
-      # Checkout Repo
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      # Download Images & Build Binary
-      - uses: ./.github/actions/build-linux
-        name: Building aarch64 Binary
+      - name: Building aarch64 Binary
+        uses: ./.github/actions/build-linux
         with:
           target: aarch64-unknown-linux-gnu
 
-      # Upload Build Releases
-      - uses: actions/upload-artifact@v3
+      - name: Upload Build
+        uses: actions/upload-artifact@v4
         with:
           name: aarch64-release
           path: |
@@ -79,17 +87,16 @@ jobs:
     needs: [armv7]
     runs-on: ubuntu-latest
     steps:
-      # Checkout Repo
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      # Download Images & Build Binary
-      - uses: ./.github/actions/build-linux
-        name: Building armv7 Binary
+      - name: Building armv7 Binary
+        uses: ./.github/actions/build-linux
         with:
           target: armv7-unknown-linux-gnueabihf
 
-      # Upload Build Releases
-      - uses: actions/upload-artifact@v3
+      - name: Upload Build
+        uses: actions/upload-artifact@v4
         with:
           name: armv7-release
           path: |
@@ -100,17 +107,16 @@ jobs:
     needs: [x86_64]
     runs-on: ubuntu-latest
     steps:
-      # Checkout Repo
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      # Download Images & Build Binary
-      - uses: ./.github/actions/build-linux
-        name: Building x86_64 Binary
+      - name: Building x86_64 Binary
+        uses: ./.github/actions/build-linux
         with:
           target: x86_64-unknown-linux-gnu
 
-      # Upload Build Releases
-      - uses: actions/upload-artifact@v3
+      - name: Upload Build
+        uses: actions/upload-artifact@v4
         with:
           name: x86_64-release
           path: |
@@ -122,19 +128,17 @@ jobs:
     needs: [macos_helper]
     runs-on: macos-latest
     steps:
-      # Checkout Repo
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      # Install Protobuf
       - name: Install Protobuf
         run: brew install protobuf
 
-      # MacOS Build
       - name: Building Macos Binary
         run: MACOSX_DEPLOYMENT_TARGET=10.14 OPENSSL_STATIC=1 OPENSSL_DIR="/usr/local/opt/openssl" cargo build --release -p witnet -p witnet_toolkit
 
-      # Upload Build Releases
-      - uses: actions/upload-artifact@v3
+      - name: Upload Build
+        uses: actions/upload-artifact@v4
         with:
           name: macos-release
           path: |
@@ -146,10 +150,9 @@ jobs:
     needs: [windows_helper]
     runs-on: windows-latest
     steps:
-      # Checkout Repo
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      # Install Protobuf
       - name: Install Protobuf
         run: |
           Invoke-WebRequest -Uri https://github.com/protocolbuffers/protobuf/releases/download/v21.1/protoc-21.1-win64.zip -OutFile "protoc.zip"
@@ -157,25 +160,22 @@ jobs:
           echo "C:\protoc\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       # TODO: Needs to be optimized takes wayyyy too long
-      # Install openssl static
       - name: Install openssl static
         run: |
           vcpkg.exe install openssl:x64-windows-static
           vcpkg.exe integrate install
 
-      # Windows Build
       - name: Build Windows
         run: |
           Set-Variable -Name "OPENSSL_STATIC" -Value "1"
           Set-Variable -Name "OPENSSL_DIR" -Value "C:\Program Files\vcpkg\installed\x64-windows-static"
           cargo build --release -p witnet -p witnet_toolkit
 
-      # Confirm openssl compiled statically
       - name: Confirm openssl compiled statically
         run: LDD.exe target\release\witnet.exe | Select-String -Pattern "ssl"
 
-      # Upload Build Releases
-      - uses: actions/upload-artifact@v3
+      - name: Upload Build
+        uses: actions/upload-artifact@v4
         with:
           name: windows-release
           path: |
@@ -193,14 +193,12 @@ jobs:
     runs-on: ubuntu-latest
     environment: tags
     steps:
-      # Checkout Repo
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      # Download Releases
-      - uses: ./.github/actions/download-releases
-        name: Downloading Artifacts
+      - name: Downloading Artifacts
+        uses: ./.github/actions/download-releases
 
-      # Import GPG Key
       - name: Import GPG key
         id: import_gpg
         uses: crazy-max/ghaction-import-gpg@v5
@@ -208,7 +206,6 @@ jobs:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
           passphrase: ${{ secrets.GPG_PASSPHRASE  }}
 
-      # Trust GPG key
       - name: Trust GPG key
         run: |
           gpg --no-tty --command-fd 0 --edit-key info@witnet.foundation << EOTRUST
@@ -217,13 +214,14 @@ jobs:
           y
           quit
           EOTRUST
+
       - name: Sign Hashes
         run: |
           cd release
           gpg --output SHA256SUMS.asc --default-key info@witnet.foundation --detach-sig --clearsign SHA256SUMS && rm SHA256SUMS
 
-      # Artifact Final Release Files
-      - uses: actions/upload-artifact@v3
+      - name: Upload Build
+        uses: actions/upload-artifact@v4
         with:
           name: final-release
           path: release/
@@ -234,48 +232,71 @@ jobs:
     permissions:
       contents: write
     steps:
-      # Checkout Repo
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      # Download Release Files
-      - uses: actions/download-artifact@v3
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
         with:
           name: final-release
           path: release/
 
-      # Replace tag in RELEASE.md
-      - run: |
-          TAG=${{github.ref_name}}
+      - name: Inject Tag
+        run: |
+          TAG=${{ github.ref_name }}
           sed -i "s/LATEST_VERSION/$TAG/g" RELEASE.md
 
-      # Publish new github release
-      - uses: ncipollo/release-action@v1
+      - name: Check Pre-Release
+        run: |
+          TAG=${{ github.ref_name }}
+          if [[ "$TAG" =~ - ]]; then
+            echo "prerelease=true" >> $GITHUB_ENV
+          else
+            echo "prerelease=false" >> $GITHUB_ENV
+          fi
+
+      - name: Publish Github Release
+        uses: ncipollo/release-action@v1
         with:
-          name: "Witnet-rust ${{github.ref_name}}"
+          name: "Witnet-rust ${{ github.ref_name }}"
           artifacts: "./release/*"
           bodyFile: "RELEASE.md"
           artifactErrorsFailBuild: true
+          prerelease: ${{ env.prerelease }}
 
   Publish:
     needs: [Release]
     runs-on: ubuntu-latest
     environment: tags
     steps:
-      # Checkout Repo
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Login to Docker Container Registry
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # Configure Buildx
-      - run: |
+      - name: Build Base
+        run: |
           docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
           docker buildx create --name multiarch --driver docker-container --use
           docker buildx inspect --bootstrap
 
       # Build Docker images (Latest & TAG)
-      - run: docker buildx build -f docker/witnet-rust/Dockerfile --progress=plain --build-arg WITNET_VERSION=${{github.ref_name}} --platform linux/amd64,linux/arm64,linux/arm/v7 --tag witnet/witnet-rust:${{github.ref_name}} docker/witnet-rust --push --no-cache
-      - run: docker buildx build -f docker/witnet-rust/Dockerfile --progress=plain --build-arg WITNET_VERSION=latest --platform linux/amd64,linux/arm64,linux/arm/v7 --tag witnet/witnet-rust:latest docker/witnet-rust --push --no-cache
+      - name: Build TAG
+        run: docker buildx build -f docker/witnet-rust/Dockerfile --progress=plain --build-arg WITNET_VERSION=${{github.ref_name}} --platform linux/amd64,linux/arm64,linux/arm/v7 --tag witnet/witnet-rust:${{github.ref_name}} docker/witnet-rust --push --no-cache
+      
+      - name: Check Pre-release
+        run: |
+          TAG=${{ github.ref_name }}
+          if [[ "$TAG" =~ - ]]; then
+            echo "prerelease=true" >> $GITHUB_ENV
+          else
+            echo "prerelease=false" >> $GITHUB_ENV
+          fi
+
+      - name: Build Latest if not Pre-Release
+        run: docker buildx build -f docker/witnet-rust/Dockerfile --progress=plain --build-arg WITNET_VERSION=latest --platform linux/amd64,linux/arm64,linux/arm/v7 --tag witnet/witnet-rust:latest docker/witnet-rust --push --no-cache
+        if: env.prerelease == 'false'
