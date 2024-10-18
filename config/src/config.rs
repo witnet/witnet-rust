@@ -415,18 +415,8 @@ pub struct Mempool {
 #[derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq, Eq)]
 #[serde(default)]
 pub struct Tapi {
-    /// Oppose WIP0022
-    pub oppose_wip0022: bool,
-    /// Oppose WIP0023
-    pub oppose_wip0023: bool,
-    /// Oppose WIP0024
-    pub oppose_wip0024: bool,
-    /// Oppose WIP0025
-    pub oppose_wip0025: bool,
-    /// Oppose WIP0026
-    pub oppose_wip0026: bool,
-    /// Oppose WIP0027
-    pub oppose_wip0027: bool,
+    /// Oppose WIP0028
+    pub oppose_wip0028: bool,
 }
 
 /// Configuration related to protocol versions.

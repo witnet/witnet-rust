@@ -1,6 +1,11 @@
-use crate::chain::{Environment, Epoch, PublicKeyHash};
+use crate::{
+    chain::{Environment, Epoch, PublicKeyHash},
+    register_protocol_version, ProtocolVersion,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+
+const TWO_WEEKS: u32 = 26880;
 
 /// Committee for superblock indices 750-1344
 const FIRST_EMERGENCY_COMMITTEE: [&str; 7] = [
@@ -83,6 +88,8 @@ pub fn wip_info() -> HashMap<String, Epoch> {
     active_wips.insert("WIP0025".to_string(), 1708901);
     active_wips.insert("WIP0026".to_string(), 1708901);
     active_wips.insert("WIP0027".to_string(), 1708901);
+    // TODO: Add epoch when WIP0028 was activated
+    // active_wips.insert("WIP0028".to_string(), 2949141);
 
     active_wips
 }
@@ -102,6 +109,7 @@ fn test_wip_info() -> HashMap<String, Epoch> {
     active_wips.insert("WIP0025".to_string(), 0);
     active_wips.insert("WIP0026".to_string(), 0);
     active_wips.insert("WIP0027".to_string(), 0);
+    // active_wips.insert("WIP0028".to_string(), 0);
 
     active_wips
 }
@@ -119,11 +127,7 @@ pub fn current_active_wips() -> ActiveWips {
 /// It is only used for testing
 pub fn all_wips_active() -> ActiveWips {
     let mut active_wips = current_active_wips();
-    active_wips.active_wips.insert("WIP0022".to_string(), 0);
-    active_wips.active_wips.insert("WIP0024".to_string(), 0);
-    active_wips.active_wips.insert("WIP0025".to_string(), 0);
-    active_wips.active_wips.insert("WIP0026".to_string(), 0);
-    active_wips.active_wips.insert("WIP0027".to_string(), 0);
+    active_wips.active_wips.insert("WIP0028".to_string(), 0);
 
     active_wips
 }
@@ -162,6 +166,13 @@ impl TapiEngine {
                             // achieved with consolidated blocks
                             self.wip_activation
                                 .insert(bit_counter.wip.clone(), block_epoch + 21);
+                            if bit_counter.wip == "WIP0028" {
+                                register_protocol_version(
+                                    ProtocolVersion::V1_8,
+                                    block_epoch + 21,
+                                    45,
+                                );
+                            }
                         }
                         bit_counter.votes = 0;
                     }
@@ -185,67 +196,16 @@ impl TapiEngine {
                 }
 
                 // Hardcoded information about WIPs in vote processing
-                let wip_0022 = BitVotesCounter {
+                let wip_0028 = BitVotesCounter {
                     votes: 0,
-                    period: 26880,
-                    wip: "WIP0022".to_string(),
-                    // Start signaling on February 23 at 9am UTC
-                    init: 1655120,
+                    period: TWO_WEEKS,
+                    wip: "WIP0028".to_string(),
+                    // Start signaling on December 14 at 9am UTC
+                    init: 2922240,
                     end: u32::MAX,
-                    bit: 3,
+                    bit: 9,
                 };
-                // Hardcoded information about WIPs in vote processing
-                let wip_0023 = BitVotesCounter {
-                    votes: 0,
-                    period: 26880,
-                    wip: "WIP0023".to_string(),
-                    // Start signaling on February 23 at 9am UTC
-                    init: 1655120,
-                    end: u32::MAX,
-                    bit: 4,
-                };
-                let wip_0024 = BitVotesCounter {
-                    votes: 0,
-                    period: 26880,
-                    wip: "WIP0024".to_string(),
-                    // Start signaling on February 23 at 9am UTC
-                    init: 1655120,
-                    end: u32::MAX,
-                    bit: 5,
-                };
-                let wip_0025 = BitVotesCounter {
-                    votes: 0,
-                    period: 26880,
-                    wip: "WIP0025".to_string(),
-                    // Start signaling on February 23 at 9am UTC
-                    init: 1655120,
-                    end: u32::MAX,
-                    bit: 6,
-                };
-                let wip_0026 = BitVotesCounter {
-                    votes: 0,
-                    period: 26880,
-                    wip: "WIP0026".to_string(),
-                    // Start signaling on February 23 at 9am UTC
-                    init: 1655120,
-                    end: u32::MAX,
-                    bit: 7,
-                };
-                let wip_0027 = BitVotesCounter {
-                    votes: 0,
-                    period: 26880,
-                    wip: "WIP0027".to_string(),
-                    // Start signaling on February 23 at 9am UTC
-                    init: 1655120,
-                    end: u32::MAX,
-                    bit: 8,
-                };
-                voting_wips[3] = Some(wip_0022);
-                voting_wips[4] = Some(wip_0023);
-                voting_wips[5] = Some(wip_0024);
-                voting_wips[6] = Some(wip_0025);
-                voting_wips[7] = Some(wip_0026);
-                voting_wips[8] = Some(wip_0027);
+                voting_wips[9] = Some(wip_0028);
             }
             Environment::Testnet | Environment::Development => {
                 // In non-mainnet chains, all the WIPs that are active in mainnet are considered
@@ -577,6 +537,10 @@ impl ActiveWips {
         self.wip_active("WIP0027")
     }
 
+    pub fn wip0028(&self) -> bool {
+        self.wip_active("WIP0028")
+    }
+
     /// Convenience method for inserting WIPs.
     pub fn insert_wip(&mut self, wip: &str, activation_epoch: Epoch) {
         self.active_wips.insert(String::from(wip), activation_epoch);
@@ -858,9 +822,9 @@ mod tests {
         let mut t = TapiEngine::default();
 
         let (epoch, old_wips) = t.initialize_wip_information(Environment::Mainnet);
-        // The first block whose vote must be counted is the one from WIP0022
-        let init_epoch_wip0022 = 1655120;
-        assert_eq!(epoch, init_epoch_wip0022);
+        // The first block whose vote must be counted is the one from WIP0028
+        let init_epoch_wip0028 = 2922240;
+        assert_eq!(epoch, init_epoch_wip0028);
         // The TapiEngine was just created, there list of old_wips must be empty
         assert_eq!(old_wips, HashSet::new());
         // The list of active WIPs should match those defined in `wip_info`
@@ -874,12 +838,7 @@ mod tests {
         let (epoch, old_wips) = t.initialize_wip_information(Environment::Mainnet);
         // WIP0022 is already included and it won't be updated
         let mut hs = HashSet::new();
-        hs.insert("WIP0022".to_string());
-        hs.insert("WIP0023".to_string());
-        hs.insert("WIP0024".to_string());
-        hs.insert("WIP0025".to_string());
-        hs.insert("WIP0026".to_string());
-        hs.insert("WIP0027".to_string());
+        hs.insert("WIP0028".to_string());
         assert_eq!(old_wips, hs);
 
         // There is no new WIPs to update so we obtain the max value
