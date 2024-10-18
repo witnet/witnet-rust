@@ -2701,14 +2701,7 @@ impl ChainManager {
 
     /// Return the value of the version field for a block in this epoch
     fn tapi_signals_mask(&self, epoch: Epoch) -> u32 {
-        let Tapi {
-            oppose_wip0022,
-            oppose_wip0023,
-            oppose_wip0024,
-            oppose_wip0025,
-            oppose_wip0026,
-            oppose_wip0027,
-        } = &self.tapi;
+        let Tapi { oppose_wip0028 } = &self.tapi;
 
         let mut v = 0;
         // Bit 0
@@ -2726,66 +2719,35 @@ impl ChainManager {
 
         // Bit 3
         let bit = 3;
-        if !oppose_wip0022
-            && self
-                .chain_state
-                .tapi_engine
-                .in_voting_range(epoch, "WIP0022")
-        {
-            v |= 1 << bit;
-        }
+        v |= 1 << bit;
 
         // Bit 4
         let bit = 4;
-        if !oppose_wip0023
-            && self
-                .chain_state
-                .tapi_engine
-                .in_voting_range(epoch, "WIP0023")
-        {
-            v |= 1 << bit;
-        }
+        v |= 1 << bit;
 
         // Bit 5
         let bit = 5;
-        if !oppose_wip0024
-            && self
-                .chain_state
-                .tapi_engine
-                .in_voting_range(epoch, "WIP0024")
-        {
-            v |= 1 << bit;
-        }
+        v |= 1 << bit;
 
         // Bit 6
         let bit = 6;
-        if !oppose_wip0025
-            && self
-                .chain_state
-                .tapi_engine
-                .in_voting_range(epoch, "WIP0025")
-        {
-            v |= 1 << bit;
-        }
+        v |= 1 << bit;
 
         // Bit 7
         let bit = 7;
-        if !oppose_wip0026
-            && self
-                .chain_state
-                .tapi_engine
-                .in_voting_range(epoch, "WIP0026")
-        {
-            v |= 1 << bit;
-        }
+        v |= 1 << bit;
 
         // Bit 8
         let bit = 8;
-        if !oppose_wip0027
+        v |= 1 << bit;
+
+        // Bit 9
+        let bit = 9;
+        if !oppose_wip0028
             && self
                 .chain_state
                 .tapi_engine
-                .in_voting_range(epoch, "WIP0027")
+                .in_voting_range(epoch, "WIP0028")
         {
             v |= 1 << bit;
         }
