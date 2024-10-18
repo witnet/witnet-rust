@@ -1,9 +1,10 @@
 use std::convert::TryFrom;
+
 use witnet_crypto::{
     hash::Sha256,
     merkle::{sha256_concat, InclusionProof},
 };
-use witnet_data_structures::{chain::*, transaction::*};
+use witnet_data_structures::{chain::*, proto::versioning::ProtocolVersion, transaction::*};
 
 fn h(left: Hash, right: Hash) -> Hash {
     let left = match left {
@@ -17,6 +18,7 @@ fn h(left: Hash, right: Hash) -> Hash {
 
 fn example_block(txns: BlockTransactions) -> Block {
     let current_epoch = 1000;
+    let protocol_version = ProtocolVersion::from_epoch(current_epoch);
     let last_block_hash = "62adde3e36db3f22774cc255215b2833575f66bf2204011f80c03d34c7c9ea41"
         .parse()
         .unwrap();
@@ -26,7 +28,7 @@ fn example_block(txns: BlockTransactions) -> Block {
         hash_prev_block: last_block_hash,
     };
     let block_header = BlockHeader {
-        merkle_roots: BlockMerkleRoots::from_transactions(&txns),
+        merkle_roots: BlockMerkleRoots::from_transactions(&txns, protocol_version),
         beacon: block_beacon,
         ..Default::default()
     };
@@ -59,7 +61,10 @@ fn dr_inclusion_0_drs() {
     });
 
     let dr = example_dr(0);
-    assert_eq!(dr.proof_of_inclusion(&block), None);
+    assert_eq!(
+        dr.proof_of_inclusion(&block, ProtocolVersion::default()),
+        None
+    );
 }
 
 #[test]
@@ -72,9 +77,12 @@ fn dr_inclusion_1_drs() {
         ..Default::default()
     });
 
-    assert_eq!(drx.proof_of_inclusion(&block), None);
     assert_eq!(
-        dr0.proof_of_inclusion(&block),
+        drx.proof_of_inclusion(&block, ProtocolVersion::default()),
+        None
+    );
+    assert_eq!(
+        dr0.proof_of_inclusion(&block, ProtocolVersion::default()),
         Some(TxInclusionProof {
             index: 0,
             lemma: vec![],
@@ -93,16 +101,19 @@ fn dr_inclusion_2_drs() {
         ..Default::default()
     });
 
-    assert_eq!(drx.proof_of_inclusion(&block), None);
     assert_eq!(
-        dr0.proof_of_inclusion(&block),
+        drx.proof_of_inclusion(&block, ProtocolVersion::default()),
+        None
+    );
+    assert_eq!(
+        dr0.proof_of_inclusion(&block, ProtocolVersion::default()),
         Some(TxInclusionProof {
             index: 0,
             lemma: vec![dr1.hash()],
         })
     );
     assert_eq!(
-        dr1.proof_of_inclusion(&block),
+        dr1.proof_of_inclusion(&block, ProtocolVersion::default()),
         Some(TxInclusionProof {
             index: 1,
             lemma: vec![dr0.hash()],
@@ -122,23 +133,26 @@ fn dr_inclusion_3_drs() {
         ..Default::default()
     });
 
-    assert_eq!(drx.proof_of_inclusion(&block), None);
     assert_eq!(
-        dr0.proof_of_inclusion(&block),
+        drx.proof_of_inclusion(&block, ProtocolVersion::default()),
+        None
+    );
+    assert_eq!(
+        dr0.proof_of_inclusion(&block, ProtocolVersion::default()),
         Some(TxInclusionProof {
             index: 0,
             lemma: vec![dr1.hash(), dr2.hash()],
         })
     );
     assert_eq!(
-        dr1.proof_of_inclusion(&block),
+        dr1.proof_of_inclusion(&block, ProtocolVersion::default()),
         Some(TxInclusionProof {
             index: 1,
             lemma: vec![dr0.hash(), dr2.hash()],
         })
     );
     assert_eq!(
-        dr2.proof_of_inclusion(&block),
+        dr2.proof_of_inclusion(&block, ProtocolVersion::default()),
         Some(TxInclusionProof {
             index: 1,
             lemma: vec![h(dr0.hash(), dr1.hash())],
@@ -166,37 +180,40 @@ fn dr_inclusion_5_drs() {
         ..Default::default()
     });
 
-    assert_eq!(drx.proof_of_inclusion(&block), None);
     assert_eq!(
-        dr0.proof_of_inclusion(&block),
+        drx.proof_of_inclusion(&block, ProtocolVersion::default()),
+        None
+    );
+    assert_eq!(
+        dr0.proof_of_inclusion(&block, ProtocolVersion::default()),
         Some(TxInclusionProof {
             index: 0,
             lemma: vec![dr1.hash(), h(dr2.hash(), dr3.hash()), dr4.hash()],
         })
     );
     assert_eq!(
-        dr1.proof_of_inclusion(&block),
+        dr1.proof_of_inclusion(&block, ProtocolVersion::default()),
         Some(TxInclusionProof {
             index: 1,
             lemma: vec![dr0.hash(), h(dr2.hash(), dr3.hash()), dr4.hash()],
         })
     );
     assert_eq!(
-        dr2.proof_of_inclusion(&block),
+        dr2.proof_of_inclusion(&block, ProtocolVersion::default()),
         Some(TxInclusionProof {
             index: 2,
             lemma: vec![dr3.hash(), h(dr0.hash(), dr1.hash()), dr4.hash()],
         })
     );
     assert_eq!(
-        dr3.proof_of_inclusion(&block),
+        dr3.proof_of_inclusion(&block, ProtocolVersion::default()),
         Some(TxInclusionProof {
             index: 3,
             lemma: vec![dr2.hash(), h(dr0.hash(), dr1.hash()), dr4.hash()],
         })
     );
     assert_eq!(
-        dr4.proof_of_inclusion(&block),
+        dr4.proof_of_inclusion(&block, ProtocolVersion::default()),
         Some(TxInclusionProof {
             index: 1,
             lemma: vec![h(h(dr0.hash(), dr1.hash()), h(dr2.hash(), dr3.hash()))],
@@ -212,7 +229,10 @@ fn ta_inclusion_0_tas() {
     });
 
     let ta = example_ta(0);
-    assert_eq!(ta.proof_of_inclusion(&block), None);
+    assert_eq!(
+        ta.proof_of_inclusion(&block, ProtocolVersion::default()),
+        None
+    );
 }
 
 #[test]
@@ -225,9 +245,12 @@ fn ta_inclusion_1_tas() {
         ..Default::default()
     });
 
-    assert_eq!(tax.proof_of_inclusion(&block), None);
     assert_eq!(
-        ta0.proof_of_inclusion(&block),
+        tax.proof_of_inclusion(&block, ProtocolVersion::default()),
+        None
+    );
+    assert_eq!(
+        ta0.proof_of_inclusion(&block, ProtocolVersion::default()),
         Some(TxInclusionProof {
             index: 0,
             lemma: vec![],
@@ -246,16 +269,19 @@ fn ta_inclusion_2_tas() {
         ..Default::default()
     });
 
-    assert_eq!(tax.proof_of_inclusion(&block), None);
     assert_eq!(
-        ta0.proof_of_inclusion(&block),
+        tax.proof_of_inclusion(&block, ProtocolVersion::default()),
+        None
+    );
+    assert_eq!(
+        ta0.proof_of_inclusion(&block, ProtocolVersion::default()),
         Some(TxInclusionProof {
             index: 0,
             lemma: vec![ta1.hash()],
         })
     );
     assert_eq!(
-        ta1.proof_of_inclusion(&block),
+        ta1.proof_of_inclusion(&block, ProtocolVersion::default()),
         Some(TxInclusionProof {
             index: 1,
             lemma: vec![ta0.hash()],
@@ -275,23 +301,26 @@ fn ta_inclusion_3_tas() {
         ..Default::default()
     });
 
-    assert_eq!(tax.proof_of_inclusion(&block), None);
     assert_eq!(
-        ta0.proof_of_inclusion(&block),
+        tax.proof_of_inclusion(&block, ProtocolVersion::default()),
+        None
+    );
+    assert_eq!(
+        ta0.proof_of_inclusion(&block, ProtocolVersion::default()),
         Some(TxInclusionProof {
             index: 0,
             lemma: vec![ta1.hash(), ta2.hash()],
         })
     );
     assert_eq!(
-        ta1.proof_of_inclusion(&block),
+        ta1.proof_of_inclusion(&block, ProtocolVersion::default()),
         Some(TxInclusionProof {
             index: 1,
             lemma: vec![ta0.hash(), ta2.hash()],
         })
     );
     assert_eq!(
-        ta2.proof_of_inclusion(&block),
+        ta2.proof_of_inclusion(&block, ProtocolVersion::default()),
         Some(TxInclusionProof {
             index: 1,
             lemma: vec![h(ta0.hash(), ta1.hash())],
@@ -319,37 +348,40 @@ fn ta_inclusion_5_tas() {
         ..Default::default()
     });
 
-    assert_eq!(tax.proof_of_inclusion(&block), None);
     assert_eq!(
-        ta0.proof_of_inclusion(&block),
+        tax.proof_of_inclusion(&block, ProtocolVersion::default()),
+        None
+    );
+    assert_eq!(
+        ta0.proof_of_inclusion(&block, ProtocolVersion::default()),
         Some(TxInclusionProof {
             index: 0,
             lemma: vec![ta1.hash(), h(ta2.hash(), ta3.hash()), ta4.hash()],
         })
     );
     assert_eq!(
-        ta1.proof_of_inclusion(&block),
+        ta1.proof_of_inclusion(&block, ProtocolVersion::default()),
         Some(TxInclusionProof {
             index: 1,
             lemma: vec![ta0.hash(), h(ta2.hash(), ta3.hash()), ta4.hash()],
         })
     );
     assert_eq!(
-        ta2.proof_of_inclusion(&block),
+        ta2.proof_of_inclusion(&block, ProtocolVersion::default()),
         Some(TxInclusionProof {
             index: 2,
             lemma: vec![ta3.hash(), h(ta0.hash(), ta1.hash()), ta4.hash()],
         })
     );
     assert_eq!(
-        ta3.proof_of_inclusion(&block),
+        ta3.proof_of_inclusion(&block, ProtocolVersion::default()),
         Some(TxInclusionProof {
             index: 3,
             lemma: vec![ta2.hash(), h(ta0.hash(), ta1.hash()), ta4.hash()],
         })
     );
     assert_eq!(
-        ta4.proof_of_inclusion(&block),
+        ta4.proof_of_inclusion(&block, ProtocolVersion::default()),
         Some(TxInclusionProof {
             index: 1,
             lemma: vec![h(h(ta0.hash(), ta1.hash()), h(ta2.hash(), ta3.hash()))],
@@ -360,7 +392,9 @@ fn ta_inclusion_5_tas() {
 fn check_dr_data_proof_inclusion(dr: DRTransaction, block: &Block) {
     let mt_root = block.block_header.merkle_roots.dr_hash_merkle_root.into();
 
-    let old_poi = dr.proof_of_inclusion(block).unwrap();
+    let old_poi = dr
+        .proof_of_inclusion(block, ProtocolVersion::default())
+        .unwrap();
     let data_hash = dr.body.data_poi_hash();
     let new_index = old_poi.index << 1;
     let mut new_lemma = old_poi.lemma;
@@ -463,13 +497,16 @@ fn check_ta_data_proof_inclusion(ta: TallyTransaction, block: &Block) {
         .tally_hash_merkle_root
         .into();
 
-    let old_poi = ta.proof_of_inclusion(block).unwrap();
+    let old_poi = ta
+        .proof_of_inclusion(block, ProtocolVersion::default())
+        .unwrap();
     let data_hash = ta.data_poi_hash();
     let new_index = old_poi.index << 1;
+    let protocol_version = ProtocolVersion::guess();
     let mut new_lemma = old_poi.lemma;
-    new_lemma.insert(0, ta.rest_poi_hash());
+    new_lemma.insert(0, ta.rest_poi_hash(protocol_version));
 
-    let poi = ta.data_proof_of_inclusion(block);
+    let poi = ta.data_proof_of_inclusion(block, protocol_version);
     assert_eq!(
         poi,
         Some(TxInclusionProof {

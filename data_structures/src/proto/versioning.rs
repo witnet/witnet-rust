@@ -91,6 +91,10 @@ impl ProtocolVersion {
     pub fn guess() -> Self {
         get_protocol_version(None)
     }
+
+    pub fn from_epoch(epoch: Epoch) -> Self {
+        get_protocol_version(Some(epoch))
+    }
 }
 
 impl PartialOrd for ProtocolVersion {

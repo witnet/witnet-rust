@@ -588,9 +588,9 @@ where
     F: FnMut(H, KeyedSignature) -> Result<(), failure::Error>,
     H: VersionedHashable + Clone,
 {
-    let version = ProtocolVersion::default();
-    let ks = sign_tx(PRIV_KEY_1, &hashable, Some(version));
-    let hash = hashable.versioned_hash(version);
+    let protocol_version = ProtocolVersion::guess();
+    let ks = sign_tx(PRIV_KEY_1, &hashable, Some(protocol_version));
+    let hash = hashable.versioned_hash(protocol_version);
 
     // Replace the signature with default (all zeros)
     let ks_default = KeyedSignature::default();
@@ -655,7 +655,7 @@ where
     );
 
     // Sign transaction with a different public key
-    let ks_different_pk = sign_tx(PRIV_KEY_2, &hashable, None);
+    let ks_different_pk = sign_tx(PRIV_KEY_2, &hashable, Some(protocol_version));
     let signature_pkh = ks_different_pk.public_key.pkh();
     let x = f(hashable, ks_different_pk);
     assert_eq!(
@@ -9127,7 +9127,7 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
     };
 
     let block_header = BlockHeader {
-        merkle_roots: BlockMerkleRoots::from_transactions(&txns),
+        merkle_roots: BlockMerkleRoots::from_transactions(&txns, protocol_version),
         beacon: block_beacon,
         proof: BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap(),
         ..Default::default()
@@ -9410,7 +9410,7 @@ fn block_difficult_proof() {
     };
 
     let block_header = BlockHeader {
-        merkle_roots: BlockMerkleRoots::from_transactions(&txns),
+        merkle_roots: BlockMerkleRoots::from_transactions(&txns, protocol_version),
         beacon: block_beacon,
         proof: BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap(),
         ..Default::default()
@@ -9561,6 +9561,7 @@ fn block_duplicated_commits() {
         bytes: Protected::from(PRIV_KEY_1.to_vec()),
     };
     let current_epoch = 1000;
+    let protocol_version = ProtocolVersion::from_epoch(current_epoch);
     let last_vrf_input = LAST_VRF_INPUT.parse().unwrap();
 
     let vrf_input = CheckpointVRF {
@@ -9608,7 +9609,7 @@ fn block_duplicated_commits() {
     cb.outputs = vec![];
 
     // Sign commitment
-    let cs = sign_tx(PRIV_KEY_1, &cb, None);
+    let cs = sign_tx(PRIV_KEY_1, &cb, Some(protocol_version));
     let c_tx = CommitTransaction::new(cb.clone(), vec![cs]);
 
     let mut cb2 = CommitTransactionBody::default();
@@ -9617,7 +9618,7 @@ fn block_duplicated_commits() {
     cb2.commitment = Hash::SHA256([1; 32]);
     cb2.collateral = vec![vti2];
     cb2.outputs = vec![];
-    let cs2 = sign_tx(PRIV_KEY_1, &cb2, None);
+    let cs2 = sign_tx(PRIV_KEY_1, &cb2, Some(protocol_version));
     let c2_tx = CommitTransaction::new(cb2, vec![cs2]);
 
     assert_ne!(c_tx.hash(), c2_tx.hash());
@@ -9637,7 +9638,8 @@ fn block_duplicated_commits() {
                 }],
             );
 
-            b.block_header.merkle_roots = BlockMerkleRoots::from_transactions(&b.txns);
+            b.block_header.merkle_roots =
+                BlockMerkleRoots::from_transactions(&b.txns, protocol_version);
 
             true
         },
@@ -9669,18 +9671,29 @@ fn block_duplicated_reveals() {
         data_request: example_data_request(),
         collateral: DEFAULT_COLLATERAL,
     };
+    let dr_epoch = 0;
+    let protocol_version = ProtocolVersion::from_epoch(dr_epoch);
     let dr_body = DRTransactionBody::new(vec![], dro, vec![]);
-    let drs = sign_tx(PRIV_KEY_1, &dr_body, None);
+    let drs = sign_tx(PRIV_KEY_1, &dr_body, Some(protocol_version));
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_hash = dr_transaction.hash();
-    let dr_epoch = 0;
     dr_pool
         .process_data_request(&dr_transaction, dr_epoch, &Hash::default())
         .unwrap();
 
     // Hack: get public key by signing an empty transaction
-    let public_key = sign_tx(PRIV_KEY_1, &RevealTransactionBody::default(), None).public_key;
-    let public_key2 = sign_tx(PRIV_KEY_2, &RevealTransactionBody::default(), None).public_key;
+    let public_key = sign_tx(
+        PRIV_KEY_1,
+        &RevealTransactionBody::default(),
+        Some(protocol_version),
+    )
+    .public_key;
+    let public_key2 = sign_tx(
+        PRIV_KEY_2,
+        &RevealTransactionBody::default(),
+        Some(protocol_version),
+    )
+    .public_key;
 
     let dr_pointer = dr_hash;
 
@@ -9689,7 +9702,7 @@ fn block_duplicated_reveals() {
     let reveal_value = vec![0x00];
     let reveal_body =
         RevealTransactionBody::new(dr_pointer, reveal_value.clone(), public_key.pkh());
-    let reveal_signature = sign_tx(PRIV_KEY_1, &reveal_body, None);
+    let reveal_signature = sign_tx(PRIV_KEY_1, &reveal_body, Some(protocol_version));
     let commitment = reveal_signature.signature.hash();
 
     let commit_transaction = CommitTransaction::new(
@@ -9745,7 +9758,8 @@ fn block_duplicated_reveals() {
                 }],
             );
 
-            b.block_header.merkle_roots = BlockMerkleRoots::from_transactions(&b.txns);
+            b.block_header.merkle_roots =
+                BlockMerkleRoots::from_transactions(&b.txns, protocol_version);
 
             true
         },
@@ -9768,6 +9782,7 @@ fn block_duplicated_tallies() {
     let dr_output = example_data_request_output(2, DEFAULT_WITNESS_REWARD, 20);
     let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output, 2, 2, 0, reveal_value, vec![], active_wips);
+    let protocol_version = ProtocolVersion::guess();
     // You earn your reward, and get your collateral back
     assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
 
@@ -9814,7 +9829,8 @@ fn block_duplicated_tallies() {
                 }],
             );
 
-            b.block_header.merkle_roots = BlockMerkleRoots::from_transactions(&b.txns);
+            b.block_header.merkle_roots =
+                BlockMerkleRoots::from_transactions(&b.txns, protocol_version);
 
             true
         },
@@ -9842,6 +9858,7 @@ fn block_before_and_after_hard_fork() {
     let drs = sign_tx(PRIV_KEY_1, &dr_body, None);
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_epoch = 0;
+    let protocol_version = ProtocolVersion::from_epoch(dr_epoch);
     dr_pool
         .process_data_request(&dr_transaction, dr_epoch, &Hash::default())
         .unwrap();
@@ -9872,7 +9889,8 @@ fn block_before_and_after_hard_fork() {
                 }],
             );
 
-            b.block_header.merkle_roots = BlockMerkleRoots::from_transactions(&b.txns);
+            b.block_header.merkle_roots =
+                BlockMerkleRoots::from_transactions(&b.txns, protocol_version);
 
             true
         },
@@ -9895,7 +9913,8 @@ fn block_before_and_after_hard_fork() {
                 }],
             );
 
-            b.block_header.merkle_roots = BlockMerkleRoots::from_transactions(&b.txns);
+            b.block_header.merkle_roots =
+                BlockMerkleRoots::from_transactions(&b.txns, protocol_version);
 
             true
         },
@@ -10124,7 +10143,7 @@ fn test_blocks_with_limits(
             hash_prev_block: last_block_hash,
         };
         let block_header = BlockHeader {
-            merkle_roots: BlockMerkleRoots::from_transactions(&txns),
+            merkle_roots: BlockMerkleRoots::from_transactions(&txns, protocol_version),
             beacon: block_beacon,
             proof: BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap(),
             ..Default::default()
@@ -10132,7 +10151,7 @@ fn test_blocks_with_limits(
         let block_sig = KeyedSignature::default();
         let mut b = Block::new(block_header, block_sig, txns);
 
-        b.block_sig = sign_tx(PRIV_KEY_1, &b.block_header, None);
+        b.block_sig = sign_tx(PRIV_KEY_1, &b.block_header, Some(protocol_version));
 
         let mut signatures_to_verify = vec![];
 
@@ -10926,7 +10945,7 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
         };
 
         let block_header = BlockHeader {
-            merkle_roots: BlockMerkleRoots::from_transactions(&txns),
+            merkle_roots: BlockMerkleRoots::from_transactions(&txns, protocol_version),
             beacon: block_beacon,
             proof: BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap(),
             ..Default::default()
@@ -11095,12 +11114,12 @@ fn validate_commit_transactions_included_in_utxo_diff() {
         txns.commit_txns.push(c_tx);
 
         let block_header = BlockHeader {
-            merkle_roots: BlockMerkleRoots::from_transactions(&txns),
+            merkle_roots: BlockMerkleRoots::from_transactions(&txns, protocol_version),
             beacon: block_beacon,
             proof: BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap(),
             ..Default::default()
         };
-        let block_sig = sign_tx(PRIV_KEY_1, &block_header, None);
+        let block_sig = sign_tx(PRIV_KEY_1, &block_header, Some(protocol_version));
         let b = Block::new(block_header, block_sig, txns);
         let mut signatures_to_verify = vec![];
 

@@ -809,7 +809,7 @@ impl ChainManager {
                     }
                 };
                 let protocol_version =
-                    get_protocol_version(Some(block.block_header.beacon.checkpoint));
+                    ProtocolVersion::from_epoch(block.block_header.beacon.checkpoint);
 
                 if let Some(best_candidate) = &self.best_candidate {
                     let best_hash = best_candidate.block.hash();
@@ -1024,7 +1024,7 @@ impl ChainManager {
                 let miner_pkh = block.block_header.proof.proof.pkh();
 
                 // Reset the coin age of the miner for all staked coins
-                if get_protocol_version(Some(block_epoch)) == ProtocolVersion::V2_0 {
+                if ProtocolVersion::from_epoch(block_epoch) == ProtocolVersion::V2_0 {
                     let _ = stakes.reset_age(miner_pkh, Capability::Mining, current_epoch, 1);
 
                     for co_tx in &block.txns.commit_txns {
@@ -1552,7 +1552,7 @@ impl ChainManager {
                 // than or equal to the current epoch
                 block_epoch: current_epoch,
             };
-            let protocol_version = get_protocol_version(Some(current_epoch));
+            let protocol_version = ProtocolVersion::from_epoch(current_epoch);
             let collateral_age = if active_wips.wip0027() {
                 PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE
             } else {
@@ -2097,7 +2097,7 @@ impl ChainManager {
             active_wips: self.chain_state.tapi_engine.wip_activation.clone(),
             block_epoch: block.block_header.beacon.checkpoint,
         };
-        let protocol_version = get_protocol_version(Some(block.block_header.beacon.checkpoint));
+        let protocol_version = ProtocolVersion::from_epoch(block.block_header.beacon.checkpoint);
         let res = validate_block(
             &block,
             current_epoch,
@@ -4020,7 +4020,7 @@ mod tests {
     fn create_valid_block(chain_manager: &mut ChainManager, priv_key: &[u8; 32]) -> Block {
         let vrf = &mut VrfCtx::secp256k1().unwrap();
         let current_epoch = chain_manager.current_epoch.unwrap();
-        let protocol_version = get_protocol_version(Some(current_epoch));
+        let protocol_version = ProtocolVersion::from_epoch(current_epoch);
 
         let consensus_constants = chain_manager.consensus_constants();
         let secret_key = SecretKey {
@@ -4069,7 +4069,7 @@ mod tests {
         };
 
         let block_header = BlockHeader {
-            merkle_roots: BlockMerkleRoots::from_transactions(&txns),
+            merkle_roots: BlockMerkleRoots::from_transactions(&txns, protocol_version),
             beacon: block_beacon,
             proof: BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap(),
             ..Default::default()

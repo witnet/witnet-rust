@@ -424,6 +424,7 @@ impl SuperBlockState {
         sync_superblock: Option<SuperBlock>,
         block_epoch: Epoch,
     ) -> SuperBlock {
+        let protocol_version = ProtocolVersion::from_epoch(block_epoch);
         let key_leaves = hash_key_leaves(&ars_identities.get_rep_ordered_bn256_list(alt_keys));
 
         self.update_ars_identities(ars_identities);
@@ -474,6 +475,7 @@ impl SuperBlockState {
                 superblock_index,
                 last_block_in_previous_superblock,
                 self.signing_committee.len() as u32,
+                protocol_version,
             )
         };
 
@@ -679,6 +681,7 @@ pub fn mining_build_superblock(
     index: u32,
     last_block_in_previous_superblock: Hash,
     signing_committee_length: u32,
+    protocol_version: ProtocolVersion,
 ) -> SuperBlock {
     let last_block = block_headers.last();
     match last_block {
@@ -704,7 +707,7 @@ pub fn mining_build_superblock(
             )
         }
         Some(last_block_header) => {
-            let last_block_hash = last_block_header.versioned_hash(ProtocolVersion::guess());
+            let last_block_hash = last_block_header.versioned_hash(protocol_version);
             let merkle_drs: Vec<Hash> = block_headers
                 .iter()
                 .map(|b| b.merkle_roots.dr_hash_merkle_root)
@@ -717,7 +720,13 @@ pub fn mining_build_superblock(
             let ars_root = hash_merkle_tree_root(ars_ordered_hash_leaves);
             let blocks: Vec<_> = block_headers
                 .iter()
-                .map(|b| format!("#{}: {}", b.beacon.checkpoint, b.hash()))
+                .map(|b| {
+                    format!(
+                        "#{}: {}",
+                        b.beacon.checkpoint,
+                        b.versioned_hash(protocol_version)
+                    )
+                })
                 .collect();
             log::trace!(
                 "Created superblock #{} with hash_prev_block {}, ARS {}, signing_committee_length: {}, blocks {:?}",
@@ -775,7 +784,8 @@ mod tests {
     #[test]
     fn test_superblock_creation_no_blocks() {
         let default_hash = Hash::default();
-        let superblock = mining_build_superblock(&[], &[], 0, default_hash, 0);
+        let superblock =
+            mining_build_superblock(&[], &[], 0, default_hash, 0, ProtocolVersion::default());
 
         let expected = SuperBlock::new(
             0,
@@ -833,7 +843,14 @@ mod tests {
             tally_merkle_root_1,
         );
 
-        let superblock = mining_build_superblock(&[block], &[default_hash], 0, default_hash, 1);
+        let superblock = mining_build_superblock(
+            &[block],
+            &[default_hash],
+            0,
+            default_hash,
+            1,
+            ProtocolVersion::default(),
+        );
         assert_eq!(superblock, expected_superblock);
     }
 
@@ -901,8 +918,14 @@ mod tests {
             expected_superblock_tally_root,
         );
 
-        let superblock =
-            mining_build_superblock(&[block_1, block_2], &[default_hash], 0, default_hash, 1);
+        let superblock = mining_build_superblock(
+            &[block_1, block_2],
+            &[default_hash],
+            0,
+            default_hash,
+            1,
+            ProtocolVersion::default(),
+        );
         assert_eq!(superblock, expected_superblock);
     }
 
@@ -1917,6 +1940,7 @@ mod tests {
             1,
             genesis_hash,
             3,
+            ProtocolVersion::default(),
         );
         let sb2_hash = expected_sb2.hash();
 
@@ -2018,6 +2042,7 @@ mod tests {
             1,
             genesis_hash,
             2,
+            ProtocolVersion::default(),
         );
 
         assert_eq!(sb2, expected_sb2);
@@ -2178,6 +2203,7 @@ mod tests {
             1,
             genesis_hash,
             2,
+            ProtocolVersion::default(),
         );
 
         assert_eq!(sb2, expected_sb2);

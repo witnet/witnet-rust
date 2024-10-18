@@ -1,14 +1,9 @@
 use std::convert::{TryFrom, TryInto};
 
+use futures_util::compat::Compat01As03;
 use jsonrpc_core as rpc;
 use serde_json::{json, Value};
 
-use crate::{
-    account, constants, crypto,
-    db::Database as _,
-    model, params,
-    types::{ChainEntry, DynamicSink, GetBlockChainParams},
-};
 use witnet_crypto::{key::ExtendedSK, mnemonic};
 use witnet_data_structures::{
     chain::{
@@ -16,8 +11,7 @@ use witnet_data_structures::{
         StateMachine, ValueTransferOutput,
     },
     fee::AbsoluteFee,
-    get_protocol_version,
-    proto::versioning::VersionedHashable,
+    proto::versioning::{ProtocolVersion, VersionedHashable},
     transaction::Transaction,
 };
 use witnet_futures_utils::TryFutureExt2;
@@ -25,8 +19,14 @@ use witnet_net::client::tcp::jsonrpc;
 use witnet_rad::{script::RadonScriptExecutionSettings, RADRequestExecutionReport};
 use witnet_util::timestamp::get_timestamp;
 
+use crate::{
+    account, constants, crypto,
+    db::Database as _,
+    model, params,
+    types::{ChainEntry, DynamicSink, GetBlockChainParams},
+};
+
 use super::*;
-use futures_util::compat::Compat01As03;
 
 pub enum IndexTransactionQuery {
     InputTransactions(Vec<OutputPointer>),
@@ -986,7 +986,7 @@ impl Worker {
         let wallet_data = wallet.public_data()?;
         let last_sync = wallet_data.last_sync;
         let last_confirmed = wallet_data.last_confirmed;
-        let protocol_version = get_protocol_version(Some(block_beacon.checkpoint));
+        let protocol_version = ProtocolVersion::from_epoch(block_beacon.checkpoint);
         let (needs_clear_pending, needs_indexing) = if block_beacon.hash_prev_block
             == last_sync.hash_prev_block
             && (block_beacon.checkpoint == 0 || block_beacon.checkpoint > last_sync.checkpoint)

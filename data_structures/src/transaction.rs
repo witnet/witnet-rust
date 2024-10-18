@@ -15,7 +15,11 @@ use crate::{
         PublicKeyHash, StakeOutput, ValueTransferOutput,
     },
     error::TransactionError,
-    proto::{schema::witnet, ProtobufConvert},
+    proto::{
+        schema::witnet,
+        versioning::{ProtocolVersion, VersionedHashable},
+        ProtobufConvert,
+    },
     vrf::DataRequestEligibilityClaim,
 };
 
@@ -309,11 +313,17 @@ pub struct TxInclusionProof {
 impl TxInclusionProof {
     /// New inclusion proof given index and list of all the transactions in the
     /// block, in the same order.
-    pub fn new<'a, I: IntoIterator<Item = &'a H>, H: 'a + Hashable>(
+    pub fn new<'a, I: IntoIterator<Item = &'a H>, H: 'a + VersionedHashable>(
         index: usize,
         leaves: I,
+        protocol_version: ProtocolVersion,
     ) -> TxInclusionProof {
-        Self::new_with_hashes(index, leaves.into_iter().map(|t| t.hash()))
+        Self::new_with_hashes(
+            index,
+            leaves
+                .into_iter()
+                .map(|t| t.versioned_hash(protocol_version)),
+        )
     }
 
     /// Create a TX inclusion proof assuming the inputs are already Hashes
@@ -362,13 +372,17 @@ impl DRTransaction {
     /// Creates a proof of inclusion.
     ///
     /// Returns None if the transaction is not included in this block.
-    pub fn proof_of_inclusion(&self, block: &Block) -> Option<TxInclusionProof> {
+    pub fn proof_of_inclusion(
+        &self,
+        block: &Block,
+        protocol_version: ProtocolVersion,
+    ) -> Option<TxInclusionProof> {
         // Find the transaction in this block
         let txs = &block.txns.data_request_txns;
 
         txs.iter()
             .position(|x| x == self)
-            .map(|tx_idx| TxInclusionProof::new(tx_idx, txs))
+            .map(|tx_idx| TxInclusionProof::new(tx_idx, txs, protocol_version))
     }
 
     /// Returns the weight of a data request transaction.
@@ -381,11 +395,12 @@ impl DRTransaction {
     /// Modify the proof of inclusion adding a new level that divide a specified data
     /// from the rest of transaction
     pub fn data_proof_of_inclusion(&self, block: &Block) -> Option<TxInclusionProof> {
-        self.proof_of_inclusion(block).map(|mut poi| {
-            poi.add_leave(self.body.rest_poi_hash());
+        self.proof_of_inclusion(block, ProtocolVersion::default())
+            .map(|mut poi| {
+                poi.add_leave(self.body.rest_poi_hash());
 
-            poi
-        })
+                poi
+            })
     }
 }
 
@@ -621,30 +636,39 @@ impl TallyTransaction {
 
     /// Rest of the transaction to be divided in a new level in the proof of inclusion
     /// In this case we choose the complete transaction
-    pub fn rest_poi_hash(&self) -> Hash {
-        calculate_sha256(&self.to_pb_bytes().unwrap()).into()
+    pub fn rest_poi_hash(&self, protocol_version: ProtocolVersion) -> Hash {
+        self.versioned_hash(protocol_version)
     }
 
     /// Creates a proof of inclusion.
     ///
     /// Returns None if the transaction is not included in this block.
-    pub fn proof_of_inclusion(&self, block: &Block) -> Option<TxInclusionProof> {
+    pub fn proof_of_inclusion(
+        &self,
+        block: &Block,
+        protocol_version: ProtocolVersion,
+    ) -> Option<TxInclusionProof> {
         // Find the transaction in this block
         let txs = &block.txns.tally_txns;
 
         txs.iter()
             .position(|x| x == self)
-            .map(|tx_idx| TxInclusionProof::new(tx_idx, txs))
+            .map(|tx_idx| TxInclusionProof::new(tx_idx, txs, protocol_version))
     }
 
     /// Modify the proof of inclusion adding a new level that divide a specified data
     /// from the rest of transaction
-    pub fn data_proof_of_inclusion(&self, block: &Block) -> Option<TxInclusionProof> {
-        self.proof_of_inclusion(block).map(|mut poi| {
-            poi.add_leave(self.rest_poi_hash());
+    pub fn data_proof_of_inclusion(
+        &self,
+        block: &Block,
+        protocol_version: ProtocolVersion,
+    ) -> Option<TxInclusionProof> {
+        self.proof_of_inclusion(block, protocol_version)
+            .map(|mut poi| {
+                poi.add_leave(self.rest_poi_hash(protocol_version));
 
-            poi
-        })
+                poi
+            })
     }
 }
 
@@ -930,7 +954,7 @@ impl MemoizedHashable for UnstakeTransactionBody {
 impl MemoizedHashable for TallyTransaction {
     fn hashable_bytes(&self) -> Vec<u8> {
         let Hash::SHA256(data_bytes) = self.data_poi_hash();
-        let Hash::SHA256(rest_bytes) = self.rest_poi_hash();
+        let Hash::SHA256(rest_bytes) = self.rest_poi_hash(ProtocolVersion::default());
 
         [data_bytes, rest_bytes].concat()
     }
