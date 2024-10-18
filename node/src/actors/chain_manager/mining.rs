@@ -21,7 +21,6 @@ use witnet_config::defaults::{
     PSEUDO_CONSENSUS_CONSTANTS_POS_MIN_STAKE_NANOWITS,
     PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE,
 };
-
 use witnet_data_structures::{
     chain::{
         tapi::{after_second_hard_fork, ActiveWips},
@@ -35,7 +34,7 @@ use witnet_data_structures::{
     },
     error::TransactionError,
     get_environment, get_protocol_version,
-    proto::versioning::{ProtocolVersion::*, VersionedHashable},
+    proto::versioning::{ProtocolVersion, ProtocolVersion::*, VersionedHashable},
     radon_error::RadonError,
     radon_report::{RadonReport, ReportContext, TypeLike},
     staking::{stake::totalize_stakes, stakes::QueryStakesKey},
@@ -1125,7 +1124,7 @@ pub fn build_block(
         }
     }
 
-    let protocol_version = get_protocol_version(Some(epoch));
+    let protocol_version = ProtocolVersion::from_epoch(epoch);
 
     if protocol_version > V1_7 {
         let mut included_validators = HashSet::<PublicKeyHash>::new();

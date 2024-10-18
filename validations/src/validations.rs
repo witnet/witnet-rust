@@ -319,7 +319,7 @@ pub fn validate_mint_transaction(
         .into());
     }
 
-    if get_protocol_version(Some(block_epoch)) != ProtocolVersion::V2_0 {
+    if ProtocolVersion::from_epoch(block_epoch) != ProtocolVersion::V2_0 {
         let mint_value = transaction_outputs_sum(&mint_tx.outputs)?;
         let block_reward_value = block_reward(mint_tx.epoch, initial_block_reward, halving_period);
         // Mint value must be equal to block_reward + transaction fees
@@ -556,7 +556,7 @@ pub fn validate_dr_transaction<'a>(
         // A value transfer output cannot have zero value
         if dr_output.value == 0 {
             return Err(TransactionError::ZeroValueOutput {
-                tx_hash: dr_tx.hash(),
+                tx_hash: dr_tx.versioned_hash(protocol_version),
                 output_id: 0,
             }
             .into());
@@ -2007,7 +2007,7 @@ pub fn validate_block_transactions(
             consensus_constants.max_dr_weight,
             required_reward_collateral_ratio,
             active_wips,
-            None,
+            Some(protocol_version),
         )?;
         total_fee += fee;
 

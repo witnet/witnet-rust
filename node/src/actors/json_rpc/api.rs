@@ -26,7 +26,7 @@ use witnet_data_structures::{
         tapi::ActiveWips, Block, DataRequestOutput, Epoch, Hash, Hashable, KeyedSignature,
         PublicKeyHash, RADType, StakeOutput, StateMachine, SyncStatus,
     },
-    get_environment, get_protocol_version,
+    get_environment,
     proto::versioning::ProtocolVersion,
     staking::prelude::*,
     transaction::Transaction,
@@ -809,7 +809,7 @@ pub async fn get_block(params: Params) -> Result<Value, Error> {
                     "tally" : tt_hashes
                 }));
 
-                if get_protocol_version(Some(block_epoch)) == ProtocolVersion::V2_0 {
+                if ProtocolVersion::from_epoch(block_epoch) == ProtocolVersion::V2_0 {
                     let st_hashes: Vec<_> = output
                         .txns
                         .stake_txns
@@ -862,7 +862,7 @@ pub async fn get_block(params: Params) -> Result<Value, Error> {
                     "data_request": drt_weights,
                 }));
 
-                if get_protocol_version(Some(block_epoch)) == ProtocolVersion::V2_0 {
+                if ProtocolVersion::from_epoch(block_epoch) == ProtocolVersion::V2_0 {
                     let st_weights: Vec<_> = output
                         .txns
                         .stake_txns

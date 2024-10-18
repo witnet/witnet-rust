@@ -17,10 +17,9 @@ use std::sync::RwLock;
 
 use lazy_static::lazy_static;
 
-use crate::proto::versioning::ProtocolInfo;
 use crate::{
     chain::{Environment, Epoch},
-    proto::versioning::ProtocolVersion,
+    proto::versioning::{ProtocolInfo, ProtocolVersion},
 };
 
 pub const DEFAULT_VALIDATOR_COUNT_FOR_TESTS: usize = 1000;
@@ -163,7 +162,7 @@ pub fn set_protocol_version(protocol_version: ProtocolVersion) {
 /// Refresh the protocol version, i.e. derive the current version from the current epoch, and update `current_version`
 /// accordingly.
 pub fn refresh_protocol_version(current_epoch: Epoch) {
-    let current_version = get_protocol_version(Some(current_epoch));
+    let current_version = ProtocolVersion::from_epoch(current_epoch);
     set_protocol_version(current_version)
 }
 
@@ -200,7 +199,7 @@ mod tests {
         // If this default changes before the transition to V2 is complete, almost everything will
         // break because data structures change schema and, serialization changes and hash
         // derivation breaks too
-        let protocol_version = get_protocol_version(None);
+        let protocol_version = ProtocolVersion::guess();
         assert_eq!(protocol_version, ProtocolVersion::V1_7);
 
         // Register the different protocol versions
@@ -209,23 +208,23 @@ mod tests {
         register_protocol_version(ProtocolVersion::V2_0, 300, 20);
 
         // The initial protocol version should be the default one
-        let version = get_protocol_version(Some(0));
+        let version = ProtocolVersion::from_epoch(0);
         assert_eq!(version, ProtocolVersion::V1_7);
 
         // Right after the
-        let version = get_protocol_version(Some(100));
+        let version = ProtocolVersion::from_epoch(100);
         assert_eq!(version, ProtocolVersion::V1_7);
-        let version = get_protocol_version(Some(200));
+        let version = ProtocolVersion::from_epoch(200);
         assert_eq!(version, ProtocolVersion::V1_8);
-        let version = get_protocol_version(Some(300));
+        let version = ProtocolVersion::from_epoch(300);
         assert_eq!(version, ProtocolVersion::V2_0);
 
-        let version = get_protocol_version(None);
+        let version = ProtocolVersion::guess();
         assert_eq!(version, ProtocolVersion::V1_7);
 
         set_protocol_version(ProtocolVersion::V2_0);
 
-        let version = get_protocol_version(None);
+        let version = ProtocolVersion::guess();
         assert_eq!(version, ProtocolVersion::V2_0);
     }
 }

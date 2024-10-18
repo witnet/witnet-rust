@@ -20,7 +20,6 @@ use witnet_data_structures::{
         Hashable, NodeStats, PublicKeyHash, SuperBlockVote, SupplyInfo, ValueTransferOutput,
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
-    get_protocol_version,
     proto::versioning::ProtocolVersion,
     staking::errors::StakesError,
     transaction::{
@@ -186,7 +185,8 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                                 "There was no valid block candidate to consolidate for epoch {}",
                                 previous_epoch
                             );
-                            if get_protocol_version(Some(previous_epoch)) == ProtocolVersion::V2_0 {
+                            if ProtocolVersion::from_epoch(previous_epoch) == ProtocolVersion::V2_0
+                            {
                                 let rank_subset: Vec<_> = stakes
                                     .rank(Capability::Mining, previous_epoch)
                                     .take(MINING_REPLICATION_FACTOR)

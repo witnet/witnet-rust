@@ -40,7 +40,7 @@ use crate::{
     },
     get_environment,
     proto::{
-        versioning::{ProtocolVersion, Versioned},
+        versioning::{ProtocolVersion, Versioned, VersionedHashable},
         ProtobufConvert,
     },
     staking::prelude::*,
@@ -756,13 +756,13 @@ pub struct BlockMerkleRoots {
 }
 
 /// Function to calculate a merkle tree from a transaction vector
-pub fn merkle_tree_root<T>(transactions: &[T]) -> Hash
+pub fn merkle_tree_root<T>(transactions: &[T], protocol_version: ProtocolVersion) -> Hash
 where
-    T: Hashable,
+    T: VersionedHashable,
 {
     let transactions_hashes: Vec<Sha256> = transactions
         .iter()
-        .map(|x| match x.hash() {
+        .map(|x| match x.versioned_hash(protocol_version) {
             Hash::SHA256(x) => Sha256(x),
         })
         .collect();
@@ -773,16 +773,16 @@ where
 }
 
 impl BlockMerkleRoots {
-    pub fn from_transactions(txns: &BlockTransactions) -> Self {
+    pub fn from_transactions(txns: &BlockTransactions, protocol_version: ProtocolVersion) -> Self {
         BlockMerkleRoots {
-            mint_hash: txns.mint.hash(),
-            vt_hash_merkle_root: merkle_tree_root(&txns.value_transfer_txns),
-            dr_hash_merkle_root: merkle_tree_root(&txns.data_request_txns),
-            commit_hash_merkle_root: merkle_tree_root(&txns.commit_txns),
-            reveal_hash_merkle_root: merkle_tree_root(&txns.reveal_txns),
-            tally_hash_merkle_root: merkle_tree_root(&txns.tally_txns),
-            stake_hash_merkle_root: merkle_tree_root(&txns.stake_txns),
-            unstake_hash_merkle_root: merkle_tree_root(&txns.unstake_txns),
+            mint_hash: txns.mint.versioned_hash(protocol_version),
+            vt_hash_merkle_root: merkle_tree_root(&txns.value_transfer_txns, protocol_version),
+            dr_hash_merkle_root: merkle_tree_root(&txns.data_request_txns, protocol_version),
+            commit_hash_merkle_root: merkle_tree_root(&txns.commit_txns, protocol_version),
+            reveal_hash_merkle_root: merkle_tree_root(&txns.reveal_txns, protocol_version),
+            tally_hash_merkle_root: merkle_tree_root(&txns.tally_txns, protocol_version),
+            stake_hash_merkle_root: merkle_tree_root(&txns.stake_txns, protocol_version),
+            unstake_hash_merkle_root: merkle_tree_root(&txns.unstake_txns, protocol_version),
         }
     }
 }
@@ -901,13 +901,13 @@ impl SuperBlock {
         &self,
         blocks: &[Block],
         tally_tx: &TallyTransaction,
+        protocol_version: ProtocolVersion,
     ) -> Option<TxInclusionProof> {
         // Get the PoI for the block root, if the tally transaction is found on the list of blocks
         // Obtain also the index of the tally root of the block containing the tally TX.
-        let (mut poi, tally_root_idx) = blocks
-            .iter()
-            .enumerate()
-            .find_map(|(idx, b)| Some((tally_tx.data_proof_of_inclusion(b)?, idx)))?;
+        let (mut poi, tally_root_idx) = blocks.iter().enumerate().find_map(|(idx, b)| {
+            Some((tally_tx.data_proof_of_inclusion(b, protocol_version)?, idx))
+        })?;
 
         // Collect all tally roots from the blocks
         let tally_roots = blocks
@@ -4726,10 +4726,11 @@ mod tests {
         expected_lemma_lengths: Vec<usize>,
         blocks: Vec<Block>,
         tally_txs: Vec<TallyTransaction>,
+        protocol_version: ProtocolVersion,
     ) {
         for index in 0..expected_indices.len() {
             let result = sb
-                .tally_proof_of_inclusion(&blocks, &tally_txs[index])
+                .tally_proof_of_inclusion(&blocks, &tally_txs[index], protocol_version)
                 .unwrap();
             assert_eq!(result.index, expected_indices[index]);
             assert_eq!(result.lemma.len(), expected_lemma_lengths[index]);
@@ -6883,6 +6884,7 @@ mod tests {
             1,
             Hash::default(),
             1,
+            ProtocolVersion::default(),
         );
 
         let expected_indices = vec![0, 2, 2];
@@ -6937,6 +6939,7 @@ mod tests {
             1,
             Hash::default(),
             1,
+            ProtocolVersion::default(),
         );
 
         let expected_indices = vec![0, 2, 2, 8, 10, 6, 4, 6];
@@ -6972,6 +6975,7 @@ mod tests {
             1,
             Hash::default(),
             1,
+            ProtocolVersion::default(),
         );
 
         let result = sb.dr_proof_of_inclusion(&[b1, b2], &dr_txs[2]);
@@ -6982,7 +6986,14 @@ mod tests {
     fn test_dr_merkle_root_no_block() {
         let dr_txs = build_test_dr_txs(3);
 
-        let sb = mining_build_superblock(&[], &[Hash::default()], 1, Hash::default(), 1);
+        let sb = mining_build_superblock(
+            &[],
+            &[Hash::default()],
+            1,
+            Hash::default(),
+            1,
+            ProtocolVersion::default(),
+        );
 
         let result = sb.dr_proof_of_inclusion(&[], &dr_txs[2]);
         assert!(result.is_none());
@@ -7008,6 +7019,7 @@ mod tests {
             1,
             Hash::default(),
             1,
+            ProtocolVersion::default(),
         );
 
         let expected_indices = vec![0, 2];
@@ -7046,6 +7058,7 @@ mod tests {
             1,
             Hash::default(),
             1,
+            ProtocolVersion::default(),
         );
 
         let expected_indices = vec![0, 2, 2];
@@ -7057,6 +7070,7 @@ mod tests {
             expected_lemma_lengths,
             vec![b1, b2],
             tally_txs,
+            ProtocolVersion::default(),
         );
     }
 
@@ -7108,6 +7122,7 @@ mod tests {
             1,
             Hash::default(),
             1,
+            ProtocolVersion::default(),
         );
 
         let expected_indices = vec![0, 2, 2, 8, 10, 6, 4, 6];
@@ -7119,12 +7134,14 @@ mod tests {
             expected_lemma_lengths,
             vec![b1, b2, b3],
             tally_txs,
+            ProtocolVersion::default(),
         );
     }
 
     #[test]
     fn test_tally_merkle_root_none() {
         let tally_txs = build_test_tally_txs(3);
+        let protocol_version = ProtocolVersion::default();
 
         let mut b1 = block_example();
         let mut b2 = block_example();
@@ -7143,9 +7160,10 @@ mod tests {
             1,
             Hash::default(),
             1,
+            ProtocolVersion::default(),
         );
 
-        let result = sb.tally_proof_of_inclusion(&[b1, b2], &tally_txs[2]);
+        let result = sb.tally_proof_of_inclusion(&[b1, b2], &tally_txs[2], protocol_version);
         assert!(result.is_none());
     }
 
@@ -7174,6 +7192,7 @@ mod tests {
             1,
             Hash::default(),
             1,
+            ProtocolVersion::default(),
         );
 
         let expected_indices = vec![0, 2, 2];
@@ -7185,6 +7204,7 @@ mod tests {
             expected_lemma_lengths,
             vec![b1],
             tally_txs,
+            ProtocolVersion::default(),
         );
     }
 
