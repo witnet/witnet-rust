@@ -7,7 +7,7 @@ use rand::Rng;
 use witnet_data_structures::{
     chain::{Epoch, EpochConstants},
     error::EpochCalculationError,
-    get_protocol_version_activation_epoch, get_protocol_version_period,
+    get_protocol_version, get_protocol_version_activation_epoch, get_protocol_version_period,
     proto::versioning::ProtocolVersion,
 };
 use witnet_util::timestamp::{
@@ -217,6 +217,30 @@ impl EpochManager {
                 act.last_checked_epoch
             );
             if let Ok(current_epoch) = current_epoch {
+                // Update epoch constants for wit/2
+                if get_protocol_version(Some(current_epoch)) == ProtocolVersion::V1_8 {
+                    if let Some(constants) = &mut act.constants {
+                        if constants.checkpoint_zero_timestamp_v2 == i64::MAX {
+                            let checkpoints_period_v2 =
+                                get_protocol_version_period(ProtocolVersion::V2_0);
+                            let activation_epoch_v2 =
+                                get_protocol_version_activation_epoch(ProtocolVersion::V2_0);
+                            if checkpoints_period_v2 != u16::MAX
+                                && activation_epoch_v2 != Epoch::MAX
+                            {
+                                match constants
+                                    .set_values_for_wit2(checkpoints_period_v2, activation_epoch_v2)
+                                {
+                                    Ok(_) => (),
+                                    Err(_) => panic!("Could not set wit/2 checkpoint variables"),
+                                };
+                            }
+                        }
+                    } else {
+                        panic!("Could not set wit/2 checkpoint variables");
+                    }
+                }
+
                 let epoch_timestamp = act.epoch_timestamp(current_epoch).unwrap_or(0);
                 let last_checked_epoch = act.last_checked_epoch.unwrap_or(0);
 

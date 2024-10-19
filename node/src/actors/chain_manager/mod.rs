@@ -51,6 +51,7 @@ use rand::Rng;
 use witnet_config::{
     config::Tapi,
     defaults::{
+        PSEUDO_CONSENSUS_CONSTANTS_POS_MIN_TOTAL_STAKE_NANOWITS,
         PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO,
         PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE,
     },
@@ -69,10 +70,11 @@ use witnet_data_structures::{
         SuperBlock, SuperBlockVote, TransactionsPool,
     },
     data_request::DataRequestPool,
-    get_environment, get_protocol_version,
+    get_environment, get_protocol_version, get_protocol_version_activation_epoch,
     proto::versioning::ProtocolVersion,
     radon_error::RadonError,
     radon_report::{RadonReport, ReportContext},
+    register_protocol_version,
     staking::prelude::*,
     superblock::{ARSIdentities, AddSuperBlockVote, SuperBlockConsensus},
     transaction::{RevealTransaction, TallyTransaction, Transaction},
@@ -119,6 +121,8 @@ mod actor;
 mod handlers;
 /// Block and data request mining
 pub mod mining;
+
+const POS_MIN_TOTAL_STAKE_NANOWITS: u64 = PSEUDO_CONSENSUS_CONSTANTS_POS_MIN_TOTAL_STAKE_NANOWITS;
 
 /// Maximum blocks number to be sent during synchronization process
 pub const MAX_BLOCKS_SYNC: usize = 500;
@@ -1022,6 +1026,30 @@ impl ChainManager {
                 chain_info.highest_vrf_output = vrf_input;
 
                 let miner_pkh = block.block_header.proof.proof.pkh();
+
+                // Check total amount staked to make sure we can activate wit/2
+                let superblock_period = chain_info.consensus_constants.superblock_period;
+                if get_protocol_version(Some(block_epoch)) == ProtocolVersion::V1_8
+                    && get_protocol_version_activation_epoch(ProtocolVersion::V2_0) == Epoch::MAX
+                {
+                    if block_epoch % u32::from(superblock_period) == 0 {
+                        if stakes.total_staked() >= Wit::from(POS_MIN_TOTAL_STAKE_NANOWITS) {
+                            register_protocol_version(
+                                ProtocolVersion::V2_0,
+                                block_epoch + 26880,
+                                20,
+                            );
+                            if let Some(epoch_constants) = &mut self.epoch_constants {
+                                match epoch_constants.set_values_for_wit2(20, block_epoch + 26880) {
+                                    Ok(_) => (),
+                                    Err(_) => panic!("Could not set wit/2 checkpoint variables"),
+                                };
+                            } else {
+                                panic!("Could not set wit/2 checkpoint variables");
+                            }
+                        }
+                    }
+                }
 
                 // Reset the coin age of the miner for all staked coins
                 if ProtocolVersion::from_epoch(block_epoch) == ProtocolVersion::V2_0 {

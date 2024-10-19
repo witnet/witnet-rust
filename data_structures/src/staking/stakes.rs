@@ -455,6 +455,16 @@ where
         self.by_validator.len()
     }
 
+    /// Return the total number staked.
+    pub fn total_staked(&self) -> Coins {
+        self.by_key
+            .values()
+            .map(|entry| entry.value.read().unwrap().coins)
+            .collect::<Vec<Coins>>()
+            .into_iter()
+            .sum()
+    }
+
     /// Query stakes to check for an existing validator / withdrawer pair.
     pub fn check_validator_withdrawer<ISK>(
         &self,
