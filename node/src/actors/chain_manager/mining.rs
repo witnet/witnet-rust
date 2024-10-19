@@ -1209,7 +1209,7 @@ pub fn build_block(
         merkle_tree_root(&stake_txns)
     };
 
-    let unstake_hash_merkle_root = if protocol_version == V1_7 {
+    let unstake_hash_merkle_root = if protocol_version < V2_0 {
         Hash::from(hash::EMPTY_SHA256)
     } else {
         merkle_tree_root(&unstake_txns)
