@@ -4599,6 +4599,20 @@ impl EpochConstants {
             Ok(self.checkpoints_period)
         }
     }
+
+    pub fn set_values_for_wit2(
+        &mut self,
+        period: u16,
+        epoch: Epoch,
+    ) -> Result<(), EpochCalculationError> {
+        self.checkpoints_period_v2 = period;
+        match self.epoch_timestamp(epoch) {
+            Ok((timestamp, _)) => self.checkpoint_zero_timestamp_v2 = timestamp,
+            Err(e) => return Err(e),
+        };
+
+        Ok(())
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]

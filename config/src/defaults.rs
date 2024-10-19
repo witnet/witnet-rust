@@ -502,6 +502,9 @@ pub const PSEUDO_CONSENSUS_CONSTANTS_POS_MAX_STAKE_BLOCK_WEIGHT: u32 = 10_000_00
 /// left in stake by an `UnstakeTransaction`.
 pub const PSEUDO_CONSENSUS_CONSTANTS_POS_MIN_STAKE_NANOWITS: u64 = 10_000_000_000_000;
 
+/// Minimum amount of nanoWits which need to be staked before wit/2 activation
+pub const PSEUDO_CONSENSUS_CONSTANTS_POS_MIN_TOTAL_STAKE_NANOWITS: u64 = 300_000_000_000_000_000;
+
 /// Struct that will implement all the development defaults
 pub struct Development;
 
