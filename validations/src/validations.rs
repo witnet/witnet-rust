@@ -1758,6 +1758,19 @@ pub fn validate_block_transactions(
         );
     let mut genesis_value_available = max_total_value_genesis;
 
+    // Check stake transactions are added in V1_8 at the earliest
+    if protocol_version == ProtocolVersion::V1_7 {
+        if block.txns.stake_txns.len() > 0 {
+            return Err(TransactionError::NoStakeTransactionsAllowed.into());
+        }
+    }
+    // Check stake transactions are added in V2_0 at the earliest
+    if protocol_version <= ProtocolVersion::V1_8 {
+        if block.txns.unstake_txns.len() > 0 {
+            return Err(TransactionError::NoUnstakeTransactionsAllowed.into());
+        }
+    }
+
     // TODO: replace for loop with a try_fold
     // Validate value transfer transactions in a block
     let mut vt_mt = ProgressiveMerkleTree::sha256();
@@ -2070,7 +2083,7 @@ pub fn validate_block_transactions(
     }
     let dr_hash_merkle_root = dr_mt.root();
 
-    let (st_root, ut_root) = if protocol_version != ProtocolVersion::V1_7 {
+    let st_root = if protocol_version >= ProtocolVersion::V1_8 {
         // validate stake transactions in a block
         let mut st_mt = ProgressiveMerkleTree::sha256();
         let mut st_weight: u32 = 0;
@@ -2133,6 +2146,13 @@ pub fn validate_block_transactions(
             // }
         }
 
+        st_mt.root()
+    } else {
+        // Nullify stake merkle roots for the legacy protocol version
+        hash::EMPTY_SHA256
+    };
+
+    let ut_root = if protocol_version >= ProtocolVersion::V2_0 {
         let mut ut_mt = ProgressiveMerkleTree::sha256();
         let mut ut_weight: u32 = 0;
 
@@ -2173,10 +2193,10 @@ pub fn validate_block_transactions(
             // }
         }
 
-        (st_mt.root(), ut_mt.root())
+        ut_mt.root()
     } else {
-        // Nullify stake and unstake merkle roots for the legacy protocol version
-        (hash::EMPTY_SHA256, hash::EMPTY_SHA256)
+        // Nullify unstake merkle roots for the legacy protocol version
+        hash::EMPTY_SHA256
     };
 
     if !is_genesis {

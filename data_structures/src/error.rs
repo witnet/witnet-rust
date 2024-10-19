@@ -310,6 +310,9 @@ pub enum TransactionError {
     /// An stake output with zero value does not make sense
     #[fail(display = "Transaction {} has a zero value stake output", tx_hash)]
     ZeroValueStakeOutput { tx_hash: Hash },
+    /// No stake transactions allowed yet
+    #[fail(display = "No stake transactions allowed yet")]
+    NoStakeTransactionsAllowed,
     /// Invalid unstake signature
     #[fail(
         display = "Invalid unstake signature: ({}), withdrawal ({}), operator ({})",
@@ -338,6 +341,9 @@ pub enum TransactionError {
         collateral: u64,
         validator: PublicKeyHash,
     },
+    /// No unstake transactions allowed yet
+    #[fail(display = "No unstake transactions allowed yet")]
+    NoUnstakeTransactionsAllowed,
     #[fail(
         display = "The reward-to-collateral ratio for this data request is {}, but must be equal or less than {}",
         reward_collateral_ratio, required_reward_collateral_ratio
