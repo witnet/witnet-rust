@@ -765,12 +765,8 @@ where
         };
 
         let honests_count = reveals_count - liars_count - errors_count;
-        let tally_change = calculate_tally_change(
-            commits_count,
-            reveals_count,
-            honests_count,
-            dr_output,
-        );
+        let tally_change =
+            calculate_tally_change(commits_count, reveals_count, honests_count, dr_output);
         if tally_change > 0 {
             let vt_output_change = ValueTransferOutput {
                 pkh,
