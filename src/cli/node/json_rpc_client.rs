@@ -1058,8 +1058,9 @@ pub fn authorize_st(addr: SocketAddr, withdrawer: Option<String>) -> Result<(), 
 #[allow(clippy::too_many_arguments)]
 pub fn send_ut(
     addr: SocketAddr,
-    value: u64,
     operator: MagicEither<String, PublicKeyHash>,
+    value: u64,
+    fee: u64,
     dry_run: bool,
 ) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
@@ -1068,6 +1069,7 @@ pub fn send_ut(
     let build_unstake_params = BuildUnstakeParams {
         operator,
         value,
+        fee,
         dry_run,
     };
 

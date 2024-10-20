@@ -775,10 +775,11 @@ pub fn build_st(
 
 /// Build unstake transaction.
 pub fn build_ut(
-    withdrawal: ValueTransferOutput,
     operator: PublicKeyHash,
+    withdrawal: ValueTransferOutput,
+    fee: u64,
 ) -> Result<UnstakeTransactionBody, TransactionError> {
-    let body = UnstakeTransactionBody::new(operator, withdrawal);
+    let body = UnstakeTransactionBody::new(operator, withdrawal, fee);
 
     Ok(body)
 }

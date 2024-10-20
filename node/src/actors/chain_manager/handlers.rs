@@ -1414,7 +1414,7 @@ impl Handler<BuildUnstake> for ChainManager {
             pkh: self.own_pkh.unwrap(),
             value: msg.value,
         };
-        match transaction_factory::build_ut(withdrawal, msg.operator) {
+        match transaction_factory::build_ut(msg.operator, withdrawal, msg.fee) {
             Err(e) => {
                 log::error!("Error when building stake transaction: {}", e);
                 Box::pin(actix::fut::err(e.into()))

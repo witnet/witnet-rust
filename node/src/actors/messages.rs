@@ -246,11 +246,14 @@ impl Message for BuildStake {
 /// Builds an `UnstakeTransaction`
 #[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub struct BuildUnstake {
+    /// Node address operating the staked coins
+    pub operator: PublicKeyHash,
     /// Amount to unstake
     #[serde(default)]
     pub value: u64,
-    /// Node address operating the staked coins
-    pub operator: PublicKeyHash,
+    /// Fee for the unstake transaction
+    #[serde(default)]
+    pub fee: u64,
     /// Construct the transaction but do not broadcast it
     #[serde(default)]
     pub dry_run: bool,
@@ -263,11 +266,14 @@ impl Message for BuildUnstake {
 /// Builds a `UnstakeTransaction` from a list of `ValueTransferOutput`s
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct BuildUnstakeParams {
+    /// Node address operating the staked coins
+    pub operator: MagicEither<String, PublicKeyHash>,
     /// Amount to unstake
     #[serde(default)]
     pub value: u64,
-    /// Node address operating the staked coins
-    pub operator: MagicEither<String, PublicKeyHash>,
+    /// Fee for the unstake transaction
+    #[serde(default)]
+    pub fee: u64,
     /// Construct the transaction but do not broadcast it
     #[serde(default)]
     pub dry_run: bool,
