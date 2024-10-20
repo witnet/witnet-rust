@@ -35,7 +35,7 @@ use witnet_data_structures::{
     get_protocol_version,
     proto::versioning::{ProtocolVersion, VersionedHashable},
     radon_report::{RadonReport, ReportContext},
-    staking::prelude::{Power, QueryStakesKey, StakesTracker},
+    staking::prelude::{Power, QueryStakesKey, StakeKey, StakesTracker},
     transaction::{
         CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, StakeTransaction,
         TallyTransaction, Transaction, UnstakeTransaction, VTTransaction,
@@ -1369,42 +1369,65 @@ pub fn validate_stake_transaction<'a>(
 /// Function to validate a unstake transaction
 pub fn validate_unstake_transaction<'a>(
     ut_tx: &'a UnstakeTransaction,
-    st_tx: &'a StakeTransaction,
-    _utxo_diff: &UtxoDiff<'_>,
-    _epoch: Epoch,
-    _epoch_constants: EpochConstants,
+    stakes: &StakesTracker,
 ) -> Result<(u64, u32), failure::Error> {
     // Check if is unstaking more than the total stake
-    // FIXME: actually query the stakes tracker for staked value
     let amount_to_unstake = ut_tx.body.withdrawal.value;
-    if amount_to_unstake > st_tx.body.output.value {
-        return Err(TransactionError::UnstakingMoreThanStaked {
-            unstake: MIN_STAKE_NANOWITS,
-            stake: st_tx.body.output.value,
-        }
-        .into());
-    }
 
-    // Check that the stake is greater than the min allowed
-    if amount_to_unstake - st_tx.body.output.value < MIN_STAKE_NANOWITS {
+    let validator = ut_tx.body.operator;
+    let withdrawer = ut_tx.signature.public_key.pkh();
+    let stakes_key = QueryStakesKey::Key(StakeKey {
+        validator,
+        withdrawer,
+    });
+    let staked_amount = match stakes.query_stakes(stakes_key) {
+        Ok(stake_entry) => {
+            // TODO: modify this to enable delegated staking with multiple withdrawer addresses on a single validator
+            let staked_amount = stake_entry
+                .first()
+                .map(|stake| stake.value.coins)
+                .unwrap()
+                .into();
+            if amount_to_unstake > staked_amount {
+                return Err(TransactionError::UnstakingMoreThanStaked {
+                    unstake: amount_to_unstake,
+                    stake: staked_amount,
+                }
+                .into());
+            }
+
+            staked_amount
+        }
+        Err(_) => {
+            return Err(TransactionError::NoStakeFound {
+                validator,
+                withdrawer,
+            }
+            .into());
+        }
+    };
+
+    // Allowed unstake actions:
+    // 1) Unstake the full balance (checked by the first condition)
+    // 2) Unstake an amount such that the leftover staked amount is greater than the min allowed
+    if staked_amount - amount_to_unstake > 0
+        && staked_amount - amount_to_unstake < MIN_STAKE_NANOWITS
+    {
         return Err(TransactionError::StakeBelowMinimum {
             min_stake: MIN_STAKE_NANOWITS,
-            stake: st_tx.body.output.value,
+            stake: staked_amount,
         }
         .into());
     }
-
-    // TODO: take the operator from the StakesTracker when implemented
-    let operator = PublicKeyHash::default();
-    // validate unstake_signature
-    validate_unstake_signature(ut_tx, operator)?;
 
     // Validate unstake timestamp
     validate_unstake_timelock(ut_tx)?;
 
-    // let fee = ut_tx.body.withdrawal.value;
+    // validate unstake_signature
+    validate_unstake_signature(ut_tx, validator)?;
+
     let fee = ut_transaction_fee(ut_tx)?;
-    let weight = st_tx.weight();
+    let weight = ut_tx.weight();
 
     Ok((fee, weight))
 }
@@ -1428,16 +1451,37 @@ pub fn validate_unstake_signature(
     ut_tx: &UnstakeTransaction,
     operator: PublicKeyHash,
 ) -> Result<(), failure::Error> {
-    let ut_tx_pkh = ut_tx.signature.public_key.hash();
-    // TODO: move to variables and use better names
-    if ut_tx_pkh != ut_tx.body.withdrawal.pkh.hash() || ut_tx_pkh != operator.hash() {
+    let ut_tx_pkh = ut_tx.signature.public_key.pkh();
+    if ut_tx_pkh != ut_tx.body.withdrawal.pkh {
         return Err(TransactionError::InvalidUnstakeSignature {
             signature: ut_tx_pkh,
-            withdrawal: ut_tx.body.withdrawal.pkh.hash(),
-            operator: operator.hash(),
+            withdrawal: ut_tx.body.withdrawal.pkh,
+            operator,
         }
         .into());
     }
+
+    // Validate message body and signature
+    let Hash::SHA256(message) = ut_tx.hash();
+
+    let fte = |e: failure::Error| TransactionError::VerifyTransactionSignatureFail {
+        hash: ut_tx.hash(),
+        msg: e.to_string(),
+    };
+
+    let signature = ut_tx.signature.signature.clone().try_into().map_err(fte)?;
+    let public_key = ut_tx.signature.public_key.clone().try_into().map_err(fte)?;
+
+    verify(&public_key, &message.to_vec(), &signature).map_err(|e| {
+        TransactionError::VerifyTransactionSignatureFail {
+            hash: {
+                let mut sha256 = [0; 32];
+                sha256.copy_from_slice(&message.to_vec());
+                Hash::SHA256(sha256)
+            },
+            msg: e.to_string(),
+        }
+    })?;
 
     Ok(())
 }
@@ -2157,15 +2201,7 @@ pub fn validate_block_transactions(
         let mut ut_weight: u32 = 0;
 
         for transaction in &block.txns.unstake_txns {
-            // TODO: get tx, default to compile
-            let st_tx = StakeTransaction::default();
-            let (fee, weight) = validate_unstake_transaction(
-                transaction,
-                &st_tx,
-                &utxo_diff,
-                epoch,
-                epoch_constants,
-            )?;
+            let (fee, weight) = validate_unstake_transaction(transaction, stakes)?;
 
             total_fee += fee;
 
@@ -2432,6 +2468,7 @@ pub fn validate_new_transaction(
             stakes,
         )
         .map(|(_, _, fee, _, _)| fee),
+        Transaction::Unstake(tx) => validate_unstake_transaction(tx, stakes).map(|(fee, _)| fee),
         _ => Err(TransactionError::NotValidTransaction.into()),
     }
 }
