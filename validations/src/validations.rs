@@ -35,7 +35,7 @@ use witnet_data_structures::{
     get_protocol_version,
     proto::versioning::{ProtocolVersion, VersionedHashable},
     radon_report::{RadonReport, ReportContext},
-    staking::prelude::{Power, StakesTracker},
+    staking::prelude::{Power, QueryStakesKey, StakesTracker},
     transaction::{
         CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, StakeTransaction,
         TallyTransaction, Transaction, UnstakeTransaction, VTTransaction,
@@ -175,12 +175,32 @@ pub fn validate_commit_collateral(
     collateral_age: u32,
     superblock_period: u16,
     protocol_version: ProtocolVersion,
+    stakes: &StakesTracker,
 ) -> Result<(), failure::Error> {
     let block_number_limit = block_number.saturating_sub(collateral_age);
     let commit_pkh = co_tx.body.proof.proof.pkh();
     let mut in_value: u64 = 0;
     let mut seen_output_pointers = HashSet::with_capacity(co_tx.body.collateral.len());
     let qualification_requirement = 100 * NANOWITS_PER_WIT;
+
+    // Validate commit collateral value in wit/2
+    if protocol_version >= ProtocolVersion::V2_0 {
+        // TODO: modify this to enable delegated staking with multiple withdrawer addresses on a single validator
+        let validator_balance: u64 = stakes
+            .query_stakes(QueryStakesKey::Validator(commit_pkh))
+            .unwrap_or_default()
+            .first()
+            .map(|stake| stake.value.coins)
+            .unwrap()
+            .into();
+        if validator_balance < MIN_STAKE_NANOWITS + required_collateral {
+            return Err(TransactionError::CollateralBelowMinimumStake {
+                collateral: required_collateral,
+                validator: commit_pkh,
+            }
+            .into());
+        }
+    }
 
     for input in &co_tx.body.collateral {
         let vt_output = utxo_diff.get(input.output_pointer()).ok_or_else(|| {
@@ -746,6 +766,7 @@ pub fn validate_commit_transaction(
         collateral_age,
         superblock_period,
         protocol_version,
+        stakes,
     )?;
 
     // commit time_lock was disabled in the first hard fork
