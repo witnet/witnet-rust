@@ -329,6 +329,15 @@ pub enum TransactionError {
         time_lock: u64,
         unstaking_delay_seconds: u32,
     },
+    /// The collateral requirement would reduce the validator's balance below the minimum required stake amount
+    #[fail(
+        display = "Collateral requirement of {} would put validator {} stake below the minimum stake amount",
+        collateral, validator
+    )]
+    CollateralBelowMinimumStake {
+        collateral: u64,
+        validator: PublicKeyHash,
+    },
     #[fail(
         display = "The reward-to-collateral ratio for this data request is {}, but must be equal or less than {}",
         reward_collateral_ratio, required_reward_collateral_ratio
