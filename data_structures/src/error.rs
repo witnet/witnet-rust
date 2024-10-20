@@ -319,9 +319,9 @@ pub enum TransactionError {
         signature, withdrawal, operator
     )]
     InvalidUnstakeSignature {
-        signature: Hash,
-        withdrawal: Hash,
-        operator: Hash,
+        signature: PublicKeyHash,
+        withdrawal: PublicKeyHash,
+        operator: PublicKeyHash,
     },
     /// Invalid unstake time_lock
     #[fail(
@@ -331,6 +331,15 @@ pub enum TransactionError {
     InvalidUnstakeTimelock {
         time_lock: u64,
         unstaking_delay_seconds: u32,
+    },
+    /// Invalid unstake request
+    #[fail(
+        display = "No stake found for validator and withdrawer pair ({}, {})",
+        validator, withdrawer
+    )]
+    NoStakeFound {
+        validator: PublicKeyHash,
+        withdrawer: PublicKeyHash,
     },
     /// The collateral requirement would reduce the validator's balance below the minimum required stake amount
     #[fail(
