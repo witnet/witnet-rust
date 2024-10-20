@@ -672,7 +672,7 @@ where
         withdrawer: transaction.body.withdrawal.pkh,
     };
 
-    let coins = Wit::from_nanowits(transaction.body.withdrawal.value);
+    let coins = Wit::from_nanowits(transaction.body.withdrawal.value + transaction.body.fee);
 
     let environment = get_environment();
     log::debug!(

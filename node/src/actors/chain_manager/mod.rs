@@ -91,9 +91,9 @@ use witnet_util::timestamp::seconds_to_human_string;
 use witnet_validations::{
     eligibility::legacy::VrfSlots,
     validations::{
-        compare_block_candidates, dr_transaction_fee, st_transaction_fee, ut_transaction_fee,
-        validate_block, validate_block_transactions, validate_new_transaction,
-        validate_rad_request, verify_signatures, vt_transaction_fee,
+        compare_block_candidates, dr_transaction_fee, st_transaction_fee, validate_block,
+        validate_block_transactions, validate_new_transaction, validate_rad_request,
+        verify_signatures, vt_transaction_fee,
     },
 };
 
@@ -1187,7 +1187,7 @@ impl ChainManager {
                                 .unwrap_or_default();
                     }
                     for ut_tx in &block.txns.unstake_txns {
-                        transaction_fees += ut_transaction_fee(ut_tx).unwrap_or_default();
+                        transaction_fees += ut_tx.body.fee;
                     }
 
                     let _ = stakes.add_reward(

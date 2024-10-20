@@ -142,19 +142,20 @@ pub fn st_transaction_fee(
 
 /// Returns the fee of a unstake transaction.
 ///
-/// The fee is the difference between the output and the inputs
-/// of the transaction. The pool parameter is used to find the
-/// outputs pointed by the inputs and that contain the actual
-/// their value.
-pub fn ut_transaction_fee(ut_tx: &UnstakeTransaction) -> Result<u64, failure::Error> {
-    // TODO: take in_value from stakes tracker
-    let in_value = 0;
+/// The fee is suplied as part of the unstake transaction
+/// We check that the staked amount is greater than the
+/// requested unstake amount plus the fee
+pub fn ut_transaction_fee(
+    ut_tx: &UnstakeTransaction,
+    staked_amount: u64,
+) -> Result<u64, failure::Error> {
     let out_value = ut_tx.body.value();
+    let fee_value = ut_tx.body.fee;
 
-    if out_value > in_value {
+    if out_value + fee_value > staked_amount {
         Err(TransactionError::NegativeFee.into())
     } else {
-        Ok(in_value - out_value)
+        Ok(fee_value)
     }
 }
 
@@ -1372,7 +1373,7 @@ pub fn validate_unstake_transaction<'a>(
     stakes: &StakesTracker,
 ) -> Result<(u64, u32), failure::Error> {
     // Check if is unstaking more than the total stake
-    let amount_to_unstake = ut_tx.body.withdrawal.value;
+    let amount_to_unstake = ut_tx.body.value() + ut_tx.body.fee;
 
     let validator = ut_tx.body.operator;
     let withdrawer = ut_tx.signature.public_key.pkh();
@@ -1426,7 +1427,7 @@ pub fn validate_unstake_transaction<'a>(
     // validate unstake_signature
     validate_unstake_signature(ut_tx, validator)?;
 
-    let fee = ut_transaction_fee(ut_tx)?;
+    let fee = ut_transaction_fee(ut_tx, staked_amount)?;
     let weight = ut_tx.weight();
 
     Ok((fee, weight))

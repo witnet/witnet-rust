@@ -2113,6 +2113,7 @@ pub async fn unstake(params: Result<BuildUnstakeParams, Error>) -> JsonRpcResult
     let build_unstake = BuildUnstake {
         operator,
         value: params.value,
+        fee: params.fee,
         dry_run: params.dry_run,
     };
 

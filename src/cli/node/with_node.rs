@@ -299,13 +299,15 @@ pub fn exec_cmd(
         } => rpc::query_stakes(node.unwrap_or(default_jsonrpc), validator, withdrawer),
         Command::Unstake {
             node,
-            value,
             operator,
+            value,
+            fee,
             dry_run,
         } => rpc::send_ut(
             node.unwrap_or(default_jsonrpc),
-            value,
             MagicEither::Left(operator),
+            value,
+            fee,
             dry_run,
         ),
     }
@@ -819,12 +821,15 @@ pub enum Command {
         /// Socket address of the Witnet node to query
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
-        /// Value
-        #[structopt(long = "value")]
-        value: u64,
         /// Node address operating the staked coins
         #[structopt(long = "operator")]
         operator: String,
+        /// Value
+        #[structopt(long = "value")]
+        value: u64,
+        /// Fee
+        #[structopt(long = "fee")]
+        fee: u64,
         /// Print the request that would be sent to the node and exit without doing anything
         #[structopt(long = "dry-run")]
         dry_run: bool,
