@@ -4729,12 +4729,7 @@ fn dr_pool_with_dr_in_tally_all_errors(
     // be rewarded
     // To calculate witness reward we take into account than non-revealers are considered liars
     let liars_count = liars_count + commits_count - reveals_count;
-    let change = calculate_tally_change(
-        commits_count,
-        reveals_count,
-        reveals_count,
-        &dr_output,
-    );
+    let change = calculate_tally_change(commits_count, reveals_count, reveals_count, &dr_output);
 
     // Calculate tally change assuming that the consensus will be error, and therefore errors will
     // be rewarded
@@ -7133,24 +7128,15 @@ fn validate_calculate_tally_change() {
 
     // Case 0 commits
     let expected_change = (15 + 15 + DEFAULT_WITNESS_REWARD) * 5;
-    assert_eq!(
-        expected_change,
-        calculate_tally_change(0, 0, 0, &dr_output)
-    );
+    assert_eq!(expected_change, calculate_tally_change(0, 0, 0, &dr_output));
 
     // Case 0 reveals
     let expected_change = (15 + DEFAULT_WITNESS_REWARD) * 5;
-    assert_eq!(
-        expected_change,
-        calculate_tally_change(5, 0, 0, &dr_output)
-    );
+    assert_eq!(expected_change, calculate_tally_change(5, 0, 0, &dr_output));
 
     // Case all honests
     let expected_change = 0;
-    assert_eq!(
-        expected_change,
-        calculate_tally_change(5, 5, 5, &dr_output)
-    );
+    assert_eq!(expected_change, calculate_tally_change(5, 5, 5, &dr_output));
 
     // Case 2 liars
     let expected_change = DEFAULT_WITNESS_REWARD * 2;

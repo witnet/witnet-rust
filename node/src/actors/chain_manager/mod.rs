@@ -1070,11 +1070,7 @@ impl ChainManager {
                         // Subtract collateral from staked balance
                         let _ = stakes.reserve_collateral(commit_pkh, Wit::from(collateral));
                         // Add commit reward
-                        let _ = stakes.add_reward(
-                            commit_pkh,
-                            Wit::from(commit_fee),
-                            block_epoch,
-                        );
+                        let _ = stakes.add_reward(commit_pkh, Wit::from(commit_fee), block_epoch);
                     }
 
                     // Add reveal rewards
@@ -1086,11 +1082,7 @@ impl ChainManager {
                             .get_dr_output(&re_tx.body.dr_pointer)
                             .unwrap()
                             .commit_and_reveal_fee;
-                        let _ = stakes.add_reward(
-                            reveal_pkh,
-                            Wit::from(reveal_fee),
-                            block_epoch,
-                        );
+                        let _ = stakes.add_reward(reveal_pkh, Wit::from(reveal_fee), block_epoch);
                     }
 
                     for ta_tx in &block.txns.tally_txns {
