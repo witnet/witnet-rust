@@ -959,7 +959,7 @@ pub fn build_block(
             }
         };
 
-        let new_vt_weight = st_weight.saturating_add(transaction_weight);
+        let new_vt_weight = vt_weight.saturating_add(transaction_weight);
         if new_vt_weight <= max_vt_weight {
             update_utxo_diff(
                 &mut utxo_diff,
