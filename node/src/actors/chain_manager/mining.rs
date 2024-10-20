@@ -42,7 +42,7 @@ use witnet_data_structures::{
     transaction::{
         CommitTransaction, CommitTransactionBody, DRTransactionBody, MintTransaction,
         RevealTransaction, RevealTransactionBody, StakeTransactionBody, TallyTransaction,
-        VTTransactionBody,
+        UnstakeTransactionBody, VTTransactionBody,
     },
     transaction_factory::{build_commit_collateral, check_commit_collateral},
     utxo_pool::{UnspentOutputsPool, UtxoDiff},
@@ -106,6 +106,7 @@ impl ChainManager {
         let max_vt_weight = chain_info.consensus_constants.max_vt_weight;
         let max_dr_weight = chain_info.consensus_constants.max_dr_weight;
         let max_st_weight = PSEUDO_CONSENSUS_CONSTANTS_POS_MAX_STAKE_BLOCK_WEIGHT;
+        let max_ut_weight = PSEUDO_CONSENSUS_CONSTANTS_POS_MAX_STAKE_BLOCK_WEIGHT;
         let mining_bf = chain_info.consensus_constants.mining_backup_factor;
         let collateral_minimum = chain_info.consensus_constants.collateral_minimum;
         let minimum_difficulty = chain_info.consensus_constants.minimum_difficulty;
@@ -218,6 +219,7 @@ impl ChainManager {
                     max_vt_weight,
                     max_dr_weight,
                     max_st_weight,
+                    max_ut_weight,
                     beacon,
                     eligibility_claim,
                     &tally_transactions,
@@ -900,6 +902,7 @@ pub fn build_block(
     max_vt_weight: u32,
     max_dr_weight: u32,
     max_st_weight: u32,
+    max_ut_weight: u32,
     beacon: CheckpointBeacon,
     proof: BlockEligibilityClaim,
     tally_transactions: &[TallyTransaction],
@@ -926,12 +929,12 @@ pub fn build_block(
     let mut vt_weight: u32 = 0;
     let mut dr_weight: u32 = 0;
     let mut st_weight: u32 = 0;
+    let mut ut_weight: u32 = 0;
     let mut value_transfer_txns = Vec::new();
     let mut data_request_txns = Vec::new();
     let mut tally_txns = Vec::new();
     let mut stake_txns = Vec::new();
-    // TODO: handle unstake tx
-    let unstake_txns = Vec::new();
+    let mut unstake_txns = Vec::new();
 
     // Calculate the base weight for different types of transactions, to know when to give up trying to fit more
     // transactions into a block
@@ -940,6 +943,8 @@ pub fn build_block(
             .weight();
     let min_st_weight =
         StakeTransactionBody::new(vec![Input::default()], Default::default(), None).weight();
+    let min_ut_weight =
+        UnstakeTransactionBody::new(PublicKeyHash::default(), Default::default(), 0).weight();
 
     for vt_tx in transactions_pool.vt_iter() {
         let transaction_weight = vt_tx.weight();
@@ -1177,6 +1182,36 @@ pub fn build_block(
         }
     }
 
+    if protocol_version > V1_8 {
+        let mut included_validators = HashSet::<PublicKeyHash>::new();
+        for ut_tx in transactions_pool.ut_iter() {
+            let validator_pkh = ut_tx.body.operator;
+            if included_validators.contains(&validator_pkh) {
+                log::debug!(
+                    "Cannot include more than one unstake transaction for {} in a single block",
+                    validator_pkh
+                );
+                continue;
+            }
+
+            let transaction_weight = ut_tx.weight();
+            let new_ut_weight = ut_weight.saturating_add(transaction_weight);
+            if new_ut_weight <= max_ut_weight {
+                unstake_txns.push(ut_tx.clone());
+                transaction_fees = transaction_fees.saturating_add(ut_tx.body.fee);
+                ut_weight = new_ut_weight;
+            }
+
+            // The condition to stop is if the free space in the block for VTTransactions
+            // is less than the minimum stake transaction weight
+            if ut_weight > max_ut_weight.saturating_sub(min_ut_weight) {
+                break;
+            }
+
+            included_validators.insert(validator_pkh);
+        }
+    }
+
     // Include Mint Transaction by miner
     let mint = if protocol_version == V2_0 {
         let mut mint = MintTransaction::default();
@@ -1285,6 +1320,7 @@ mod tests {
         let max_vt_weight = 0;
         let max_dr_weight = 0;
         let max_st_weight = 0;
+        let max_ut_weight = 0;
 
         // Fields required to mine a block
         let block_beacon = CheckpointBeacon::default();
@@ -1299,6 +1335,7 @@ mod tests {
             max_vt_weight,
             max_dr_weight,
             max_st_weight,
+            max_ut_weight,
             block_beacon,
             block_proof,
             &[],
@@ -1349,6 +1386,7 @@ mod tests {
         let max_vt_weight = 0;
         let max_dr_weight = 0;
         let max_st_weight = 0;
+        let max_ut_weight = 0;
 
         // Fields required to mine a block
         let block_beacon = CheckpointBeacon::default();
@@ -1379,6 +1417,7 @@ mod tests {
             max_vt_weight,
             max_dr_weight,
             max_st_weight,
+            max_ut_weight,
             block_beacon,
             block_proof,
             &[],
@@ -1473,6 +1512,7 @@ mod tests {
         let max_vt_weight = vt_tx1.weight();
         let max_dr_weight = 0;
         let max_st_weight = 0;
+        let max_ut_weight = 0;
 
         // Insert transactions into `transactions_pool`
         let mut transaction_pool = TransactionsPool::default();
@@ -1510,6 +1550,7 @@ mod tests {
             max_vt_weight,
             max_dr_weight,
             max_st_weight,
+            max_ut_weight,
             block_beacon,
             block_proof,
             &[],
@@ -1577,6 +1618,7 @@ mod tests {
         let max_vt_weight = vt_tx2.weight();
         let max_dr_weight = 0;
         let max_st_weight = 0;
+        let max_ut_weight = 0;
 
         // Insert transactions into `transactions_pool`
         let mut transaction_pool = TransactionsPool::default();
@@ -1614,6 +1656,7 @@ mod tests {
             max_vt_weight,
             max_dr_weight,
             max_st_weight,
+            max_ut_weight,
             block_beacon,
             block_proof,
             &[],
@@ -1695,6 +1738,7 @@ mod tests {
         let max_vt_weight = 0;
         let max_dr_weight = dr_tx1.weight();
         let max_st_weight = 0;
+        let max_ut_weight = 0;
 
         // Insert transactions into `transactions_pool`
         let mut transaction_pool = TransactionsPool::default();
@@ -1732,6 +1776,7 @@ mod tests {
             max_vt_weight,
             max_dr_weight,
             max_st_weight,
+            max_ut_weight,
             block_beacon,
             block_proof,
             &[],
@@ -1796,6 +1841,7 @@ mod tests {
         let max_vt_weight = 0;
         let max_dr_weight = dr_tx2.weight();
         let max_st_weight = 0;
+        let max_ut_weight = 0;
 
         // Insert transactions into `transactions_pool`
         let mut transaction_pool = TransactionsPool::default();
@@ -1833,6 +1879,7 @@ mod tests {
             max_vt_weight,
             max_dr_weight,
             max_st_weight,
+            max_ut_weight,
             block_beacon,
             block_proof,
             &[],
