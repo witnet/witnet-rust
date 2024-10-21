@@ -1327,6 +1327,10 @@ pub fn validate_stake_transaction<'a>(
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
     stakes: &StakesTracker,
 ) -> Result<ValidatedStakeTransaction<'a>, failure::Error> {
+    if get_protocol_version(Some(epoch)) == ProtocolVersion::V1_7 {
+        return Err(TransactionError::NoStakeTransactionsAllowed.into());
+    }
+
     // Check that the amount of coins to stake is equal or greater than the minimum allowed
     if st_tx.body.output.value < MIN_STAKE_NANOWITS {
         Err(TransactionError::StakeBelowMinimum {
@@ -1370,8 +1374,13 @@ pub fn validate_stake_transaction<'a>(
 /// Function to validate a unstake transaction
 pub fn validate_unstake_transaction<'a>(
     ut_tx: &'a UnstakeTransaction,
+    epoch: Epoch,
     stakes: &StakesTracker,
 ) -> Result<(u64, u32), failure::Error> {
+    if get_protocol_version(Some(epoch)) <= ProtocolVersion::V1_8 {
+        return Err(TransactionError::NoUnstakeTransactionsAllowed.into());
+    }
+
     // Check if is unstaking more than the total stake
     let amount_to_unstake = ut_tx.body.value() + ut_tx.body.fee;
 
@@ -2202,7 +2211,7 @@ pub fn validate_block_transactions(
         let mut ut_weight: u32 = 0;
 
         for transaction in &block.txns.unstake_txns {
-            let (fee, weight) = validate_unstake_transaction(transaction, stakes)?;
+            let (fee, weight) = validate_unstake_transaction(transaction, epoch, stakes)?;
 
             total_fee += fee;
 
@@ -2469,7 +2478,9 @@ pub fn validate_new_transaction(
             stakes,
         )
         .map(|(_, _, fee, _, _)| fee),
-        Transaction::Unstake(tx) => validate_unstake_transaction(tx, stakes).map(|(fee, _)| fee),
+        Transaction::Unstake(tx) => {
+            validate_unstake_transaction(tx, current_epoch, stakes).map(|(fee, _)| fee)
+        }
         _ => Err(TransactionError::NotValidTransaction.into()),
     }
 }
