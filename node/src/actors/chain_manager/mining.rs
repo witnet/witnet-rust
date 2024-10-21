@@ -1180,6 +1180,8 @@ pub fn build_block(
 
             included_validators.insert(validator_pkh);
         }
+    } else {
+        transactions_pool.clear_stake_transactions();
     }
 
     if protocol_version > V1_8 {
@@ -1210,6 +1212,8 @@ pub fn build_block(
 
             included_validators.insert(validator_pkh);
         }
+    } else {
+        transactions_pool.clear_unstake_transactions();
     }
 
     // Include Mint Transaction by miner

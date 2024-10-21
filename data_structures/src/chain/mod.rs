@@ -2569,6 +2569,18 @@ impl TransactionsPool {
         self.re_hash_index.clear();
     }
 
+    /// Clear stake transactions in TransactionsPool
+    pub fn clear_stake_transactions(&mut self) {
+        self.st_transactions.clear();
+        self.sorted_st_index.clear();
+    }
+
+    /// Clear unstake transactions in TransactionsPool
+    pub fn clear_unstake_transactions(&mut self) {
+        self.ut_transactions.clear();
+        self.sorted_ut_index.clear();
+    }
+
     /// Returns `Ok(true)` if the pool already contains this transaction.
     /// Returns an error if:
     /// * The transaction is of an invalid type (mint or tally)
