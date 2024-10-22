@@ -1376,7 +1376,7 @@ pub fn validate_unstake_transaction<'a>(
     ut_tx: &'a UnstakeTransaction,
     epoch: Epoch,
     stakes: &StakesTracker,
-) -> Result<(u64, u32), failure::Error> {
+) -> Result<(u64, u32, Vec<&'a ValueTransferOutput>), failure::Error> {
     if get_protocol_version(Some(epoch)) <= ProtocolVersion::V1_8 {
         return Err(TransactionError::NoUnstakeTransactionsAllowed.into());
     }
@@ -1439,7 +1439,7 @@ pub fn validate_unstake_transaction<'a>(
     let fee = ut_transaction_fee(ut_tx, staked_amount)?;
     let weight = ut_tx.weight();
 
-    Ok((fee, weight))
+    Ok((fee, weight, vec![&ut_tx.body.withdrawal]))
 }
 
 /// Validate unstake timelock
@@ -2211,7 +2211,7 @@ pub fn validate_block_transactions(
         let mut ut_weight: u32 = 0;
 
         for transaction in &block.txns.unstake_txns {
-            let (fee, weight) = validate_unstake_transaction(transaction, epoch, stakes)?;
+            let (fee, weight, outputs) = validate_unstake_transaction(transaction, epoch, stakes)?;
 
             total_fee += fee;
 
@@ -2226,17 +2226,15 @@ pub fn validate_block_transactions(
             }
             ut_weight = acc_weight;
 
-            // Add new hash to merkle tree
-            let txn_hash = transaction.versioned_hash(protocol_version);
-            let Hash::SHA256(sha) = txn_hash;
-            ut_mt.push(Sha256(sha));
+            update_utxo_diff(
+                &mut utxo_diff,
+                vec![],
+                outputs,
+                transaction.versioned_hash(protocol_version),
+            );
 
-            // TODO: Move validations to a visitor
-            // // Execute visitor
-            // if let Some(visitor) = &mut visitor {
-            //     let transaction = Transaction::ValueTransfer(transaction.clone());
-            //     visitor.visit(&(transaction, fee, weight));
-            // }
+            // Add new hash to merkle tree
+            ut_mt.push(transaction.versioned_hash(protocol_version).into());
         }
 
         ut_mt.root()
@@ -2479,7 +2477,7 @@ pub fn validate_new_transaction(
         )
         .map(|(_, _, fee, _, _)| fee),
         Transaction::Unstake(tx) => {
-            validate_unstake_transaction(tx, current_epoch, stakes).map(|(fee, _)| fee)
+            validate_unstake_transaction(tx, current_epoch, stakes).map(|(fee, _, _)| fee)
         }
         _ => Err(TransactionError::NotValidTransaction.into()),
     }
