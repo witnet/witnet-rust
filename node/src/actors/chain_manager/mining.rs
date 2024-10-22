@@ -111,6 +111,7 @@ impl ChainManager {
         let collateral_minimum = chain_info.consensus_constants.collateral_minimum;
         let minimum_difficulty = chain_info.consensus_constants.minimum_difficulty;
         let initial_block_reward = chain_info.consensus_constants.initial_block_reward;
+        let checkpoint_zero_timestamp = chain_info.consensus_constants.checkpoint_zero_timestamp;
         let halving_period = chain_info.consensus_constants.halving_period;
 
         let mut beacon = chain_info.highest_block_checkpoint;
@@ -231,6 +232,7 @@ impl ChainManager {
                     act.external_address,
                     act.external_percentage,
                     initial_block_reward,
+                    checkpoint_zero_timestamp,
                     halving_period,
                     tapi_version,
                     &active_wips,
@@ -914,6 +916,7 @@ pub fn build_block(
     external_address: Option<PublicKeyHash>,
     external_percentage: u8,
     initial_block_reward: u64,
+    checkpoint_zero_timestamp: i64,
     halving_period: u32,
     tapi_signals: u32,
     active_wips: &ActiveWips,
@@ -966,6 +969,8 @@ pub fn build_block(
                 vt_tx.body.inputs.iter(),
                 vt_tx.body.outputs.iter(),
                 vt_tx.hash(),
+                epoch,
+                checkpoint_zero_timestamp,
             );
             value_transfer_txns.push(vt_tx.clone());
             transaction_fees = transaction_fees.saturating_add(transaction_fee);
@@ -1071,6 +1076,8 @@ pub fn build_block(
                 dr_tx.body.inputs.iter(),
                 dr_tx.body.outputs.iter(),
                 dr_tx.hash(),
+                epoch,
+                checkpoint_zero_timestamp,
             );
 
             // Number of data request witnesses should be at most the number of validators divided by four
@@ -1166,6 +1173,8 @@ pub fn build_block(
                     st_tx.body.inputs.iter(),
                     st_tx.body.change.iter(),
                     st_tx.hash(),
+                    epoch,
+                    checkpoint_zero_timestamp,
                 );
                 stake_txns.push(st_tx.clone());
                 transaction_fees = transaction_fees.saturating_add(transaction_fee);
@@ -1204,6 +1213,8 @@ pub fn build_block(
                     vec![],
                     vec![&ut_tx.body.withdrawal],
                     ut_tx.hash(),
+                    epoch,
+                    checkpoint_zero_timestamp,
                 );
                 unstake_txns.push(ut_tx.clone());
                 transaction_fees = transaction_fees.saturating_add(ut_tx.body.fee);
@@ -1310,6 +1321,7 @@ mod tests {
 
     use super::*;
 
+    const CHECKPOINT_ZERO_TIMESTAMP: i64 = 1_602_666_000;
     const INITIAL_BLOCK_REWARD: u64 = 250 * 1_000_000_000;
     const HALVING_PERIOD: u32 = 3_500_000;
 
@@ -1357,6 +1369,7 @@ mod tests {
             None,
             0,
             INITIAL_BLOCK_REWARD,
+            CHECKPOINT_ZERO_TIMESTAMP,
             HALVING_PERIOD,
             0,
             &active_wips,
@@ -1439,6 +1452,7 @@ mod tests {
             None,
             0,
             INITIAL_BLOCK_REWARD,
+            CHECKPOINT_ZERO_TIMESTAMP,
             HALVING_PERIOD,
             0,
             &active_wips,
@@ -1572,6 +1586,7 @@ mod tests {
             None,
             0,
             INITIAL_BLOCK_REWARD,
+            CHECKPOINT_ZERO_TIMESTAMP,
             HALVING_PERIOD,
             0,
             &active_wips,
@@ -1678,6 +1693,7 @@ mod tests {
             None,
             0,
             INITIAL_BLOCK_REWARD,
+            CHECKPOINT_ZERO_TIMESTAMP,
             HALVING_PERIOD,
             0,
             &active_wips,
@@ -1798,6 +1814,7 @@ mod tests {
             None,
             0,
             INITIAL_BLOCK_REWARD,
+            CHECKPOINT_ZERO_TIMESTAMP,
             HALVING_PERIOD,
             0,
             &active_wips,
@@ -1901,6 +1918,7 @@ mod tests {
             None,
             0,
             INITIAL_BLOCK_REWARD,
+            CHECKPOINT_ZERO_TIMESTAMP,
             HALVING_PERIOD,
             0,
             &active_wips,

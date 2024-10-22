@@ -11233,7 +11233,7 @@ fn validate_update_utxo_diff() {
         |inputs: &[Input], outputs: &[ValueTransferOutput], block_numbers: &[u32]| {
             let mut utxo_diff = UtxoDiff::new(&utxo_set, block_number);
 
-            update_utxo_diff(&mut utxo_diff, inputs, outputs, tx_hash);
+            update_utxo_diff(&mut utxo_diff, inputs, outputs, tx_hash, 0, 0);
 
             let diff = utxo_diff.take_diff();
 
