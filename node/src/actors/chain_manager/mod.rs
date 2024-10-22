@@ -1167,24 +1167,36 @@ impl ChainManager {
                     }
 
                     let epoch_constants = self.epoch_constants.unwrap();
-                    let utxo_diff =
+                    let utxo_diff_wit2 =
                         UtxoDiff::new(&self.chain_state.unspent_outputs_pool, block_epoch);
 
                     let mut transaction_fees = 0;
                     for vt_tx in &block.txns.value_transfer_txns {
-                        transaction_fees +=
-                            vt_transaction_fee(vt_tx, &utxo_diff, current_epoch, epoch_constants)
-                                .unwrap_or_default();
+                        transaction_fees += vt_transaction_fee(
+                            vt_tx,
+                            &utxo_diff_wit2,
+                            current_epoch,
+                            epoch_constants,
+                        )
+                        .unwrap_or_default();
                     }
                     for dr_tx in &block.txns.data_request_txns {
-                        transaction_fees +=
-                            dr_transaction_fee(dr_tx, &utxo_diff, current_epoch, epoch_constants)
-                                .unwrap_or_default();
+                        transaction_fees += dr_transaction_fee(
+                            dr_tx,
+                            &utxo_diff_wit2,
+                            current_epoch,
+                            epoch_constants,
+                        )
+                        .unwrap_or_default();
                     }
                     for st_tx in &block.txns.stake_txns {
-                        transaction_fees +=
-                            st_transaction_fee(st_tx, &utxo_diff, current_epoch, epoch_constants)
-                                .unwrap_or_default();
+                        transaction_fees += st_transaction_fee(
+                            st_tx,
+                            &utxo_diff_wit2,
+                            current_epoch,
+                            epoch_constants,
+                        )
+                        .unwrap_or_default();
                     }
                     for ut_tx in &block.txns.unstake_txns {
                         transaction_fees += ut_tx.body.fee;
