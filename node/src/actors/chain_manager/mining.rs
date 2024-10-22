@@ -1199,6 +1199,12 @@ pub fn build_block(
             let transaction_weight = ut_tx.weight();
             let new_ut_weight = ut_weight.saturating_add(transaction_weight);
             if new_ut_weight <= max_ut_weight {
+                update_utxo_diff(
+                    &mut utxo_diff,
+                    vec![],
+                    vec![&ut_tx.body.withdrawal],
+                    ut_tx.hash(),
+                );
                 unstake_txns.push(ut_tx.clone());
                 transaction_fees = transaction_fees.saturating_add(ut_tx.body.fee);
                 ut_weight = new_ut_weight;
