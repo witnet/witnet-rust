@@ -11,6 +11,7 @@ use futures::future::Either;
 
 use witnet_config::defaults::{
     PSEUDO_CONSENSUS_CONSTANTS_POS_MAX_STAKE_BLOCK_WEIGHT,
+    PSEUDO_CONSENSUS_CONSTANTS_POS_UNSTAKING_DELAY_SECONDS,
     PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE,
 };
 use witnet_data_structures::{
@@ -1410,7 +1411,7 @@ impl Handler<BuildUnstake> for ChainManager {
         }
 
         let withdrawal = ValueTransferOutput {
-            time_lock: 0,
+            time_lock: PSEUDO_CONSENSUS_CONSTANTS_POS_UNSTAKING_DELAY_SECONDS,
             pkh: self.own_pkh.unwrap(),
             value: msg.value,
         };

@@ -9,6 +9,7 @@ use itertools::Itertools;
 
 use witnet_config::defaults::{
     PSEUDO_CONSENSUS_CONSTANTS_POS_MIN_STAKE_NANOWITS,
+    PSEUDO_CONSENSUS_CONSTANTS_POS_UNSTAKING_DELAY_SECONDS,
     PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO,
     PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE,
 };
@@ -69,7 +70,7 @@ use crate::eligibility::{
 const MAX_STAKE_BLOCK_WEIGHT: u32 = 10_000_000;
 const MIN_STAKE_NANOWITS: u64 = PSEUDO_CONSENSUS_CONSTANTS_POS_MIN_STAKE_NANOWITS;
 const MAX_UNSTAKE_BLOCK_WEIGHT: u32 = 5_000;
-const UNSTAKING_DELAY_SECONDS: u32 = 1_209_600;
+const UNSTAKING_DELAY_SECONDS: u64 = PSEUDO_CONSENSUS_CONSTANTS_POS_UNSTAKING_DELAY_SECONDS;
 
 /// Returns the fee of a value transfer transaction.
 ///
@@ -1444,8 +1445,7 @@ pub fn validate_unstake_transaction<'a>(
 
 /// Validate unstake timelock
 pub fn validate_unstake_timelock(ut_tx: &UnstakeTransaction) -> Result<(), failure::Error> {
-    // TODO: is this correct or should we use calculate it from the staking tx epoch?
-    if ut_tx.body.withdrawal.time_lock >= UNSTAKING_DELAY_SECONDS.into() {
+    if ut_tx.body.withdrawal.time_lock < UNSTAKING_DELAY_SECONDS {
         return Err(TransactionError::InvalidUnstakeTimelock {
             time_lock: ut_tx.body.withdrawal.time_lock,
             unstaking_delay_seconds: UNSTAKING_DELAY_SECONDS,

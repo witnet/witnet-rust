@@ -502,6 +502,9 @@ pub const PSEUDO_CONSENSUS_CONSTANTS_POS_MAX_STAKE_BLOCK_WEIGHT: u32 = 10_000_00
 /// left in stake by an `UnstakeTransaction`.
 pub const PSEUDO_CONSENSUS_CONSTANTS_POS_MIN_STAKE_NANOWITS: u64 = 10_000_000_000_000;
 
+/// Unstake transactions are only spendable after below specified time lock expires
+pub const PSEUDO_CONSENSUS_CONSTANTS_POS_UNSTAKING_DELAY_SECONDS: u64 = 1_209_600;
+
 /// Minimum amount of nanoWits which need to be staked before wit/2 activation
 pub const PSEUDO_CONSENSUS_CONSTANTS_POS_MIN_TOTAL_STAKE_NANOWITS: u64 = 300_000_000_000_000_000;
 
