@@ -3013,6 +3013,19 @@ impl TransactionsPool {
             })
     }
 
+    /// Remove an unstake transaction from the pool.
+    ///
+    /// This should be used to remove transactions that got included in a consolidated block.
+    ///
+    /// Returns an `Option` with the stake transaction for the specified hash or `None` if not exist.
+    ///
+    /// The `key` may be any borrowed form of the hash, but `Hash` and
+    /// `Eq` on the borrowed form must match those for the key type.
+    ///
+    pub fn ut_remove(&mut self, tx: &UnstakeTransaction) -> Option<UnstakeTransaction> {
+        self.ut_remove_inner(&tx.hash())
+    }
+
     /// Remove an unstake transaction from the pool but do not remove other transactions that
     /// may try to spend the same UTXOs, because this kind of transactions spend no UTXOs.
     /// This should be used to remove transactions that did not get included in a consolidated
