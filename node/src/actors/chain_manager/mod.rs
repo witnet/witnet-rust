@@ -3198,6 +3198,10 @@ fn update_pools(
         transactions_pool.st_remove(st_tx);
     }
 
+    for ut_tx in &block.txns.unstake_txns {
+        transactions_pool.ut_remove(ut_tx);
+    }
+
     // Update own_utxos
     utxo_diff.visit(
         own_utxos,
