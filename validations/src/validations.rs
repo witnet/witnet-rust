@@ -1727,6 +1727,8 @@ pub fn update_utxo_diff<'a, IterInputs, IterOutputs>(
     inputs: IterInputs,
     outputs: IterOutputs,
     tx_hash: Hash,
+    epoch: Epoch,
+    checkpoint_zero_timestamp: i64,
 ) where
     IterInputs: IntoIterator<Item = &'a Input>,
     IterOutputs: IntoIterator<Item = &'a ValueTransferOutput>,
@@ -1774,7 +1776,21 @@ pub fn update_utxo_diff<'a, IterInputs, IterOutputs>(
             None
         };
 
-        utxo_diff.insert_utxo(output_pointer, output.clone(), block_number);
+        let output_to_insert = if get_protocol_version(Some(epoch)) >= ProtocolVersion::V2_0 {
+            if output.time_lock < checkpoint_zero_timestamp.try_into().unwrap() {
+                ValueTransferOutput {
+                    pkh: output.pkh,
+                    value: output.value,
+                    time_lock: output.time_lock + checkpoint_zero_timestamp as u64,
+                }
+            } else {
+                output.clone()
+            }
+        } else {
+            output.clone()
+        };
+
+        utxo_diff.insert_utxo(output_pointer, output_to_insert, block_number);
     }
 }
 
@@ -1872,6 +1888,8 @@ pub fn validate_block_transactions(
             inputs,
             outputs,
             transaction.versioned_hash(protocol_version),
+            epoch,
+            consensus_constants.checkpoint_zero_timestamp,
         );
 
         // Add new hash to merkle tree
@@ -1936,6 +1954,8 @@ pub fn validate_block_transactions(
             inputs,
             outputs,
             transaction.versioned_hash(protocol_version),
+            epoch,
+            consensus_constants.checkpoint_zero_timestamp,
         );
 
         // Add new hash to merkle tree
@@ -2047,6 +2067,8 @@ pub fn validate_block_transactions(
             vec![],
             outputs,
             transaction.versioned_hash(protocol_version),
+            epoch,
+            consensus_constants.checkpoint_zero_timestamp,
         );
 
         // Add new hash to merkle tree
@@ -2110,6 +2132,8 @@ pub fn validate_block_transactions(
             inputs,
             outputs,
             transaction.versioned_hash(protocol_version),
+            epoch,
+            consensus_constants.checkpoint_zero_timestamp,
         );
 
         // Add new hash to merkle tree
@@ -2187,6 +2211,8 @@ pub fn validate_block_transactions(
                 inputs,
                 outputs,
                 transaction.versioned_hash(protocol_version),
+                epoch,
+                consensus_constants.checkpoint_zero_timestamp,
             );
 
             // Add new hash to merkle tree
@@ -2231,6 +2257,8 @@ pub fn validate_block_transactions(
                 vec![],
                 outputs,
                 transaction.versioned_hash(protocol_version),
+                epoch,
+                consensus_constants.checkpoint_zero_timestamp,
             );
 
             // Add new hash to merkle tree
@@ -2259,6 +2287,8 @@ pub fn validate_block_transactions(
             vec![],
             block.txns.mint.outputs.iter(),
             block.txns.mint.versioned_hash(protocol_version),
+            epoch,
+            consensus_constants.checkpoint_zero_timestamp,
         );
     }
 
