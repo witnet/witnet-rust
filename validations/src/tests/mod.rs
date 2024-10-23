@@ -26,6 +26,7 @@ use witnet_data_structures::{
     proto::versioning::{ProtocolVersion, VersionedHashable},
     radon_error::RadonError,
     radon_report::{RadonReport, ReportContext, TypeLike},
+    register_protocol_version,
     staking::stakes::StakesTracker,
     transaction::*,
     transaction_factory::transaction_outputs_sum,
@@ -8813,13 +8814,14 @@ fn tally_error_encode_reveal_wip() {
     .map(|_| ());
     x.unwrap();
 }
-
 #[test]
-fn st_no_inputs() {
+fn st_not_allowed() {
     let utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
     let stakes = Default::default();
+
+    register_protocol_version(ProtocolVersion::V1_8, 10000, 10);
 
     // Try to create a stake tx with no inputs
     let st_output = StakeOutput {
@@ -8833,6 +8835,37 @@ fn st_no_inputs() {
         &st_tx,
         &utxo_diff,
         Epoch::default(),
+        EpochConstants::default(),
+        &mut vec![],
+        &stakes,
+    );
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::NoStakeTransactionsAllowed {}
+    );
+}
+
+#[test]
+fn st_no_inputs() {
+    let utxo_set = UnspentOutputsPool::default();
+    let block_number = 0;
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+    let stakes = Default::default();
+
+    register_protocol_version(ProtocolVersion::V1_8, 10000, 10);
+
+    // Try to create a stake tx with no inputs
+    let st_output = StakeOutput {
+        value: MIN_STAKE_NANOWITS + 1,
+        ..Default::default()
+    };
+
+    let st_body = StakeTransactionBody::new(vec![], st_output, None);
+    let st_tx = StakeTransaction::new(st_body, vec![]);
+    let x = validate_stake_transaction(
+        &st_tx,
+        &utxo_diff,
+        Epoch::from(10000 as u32),
         EpochConstants::default(),
         &mut vec![],
         &stakes,
@@ -8858,6 +8891,8 @@ fn st_one_input_but_no_signature() {
     );
     let stakes = Default::default();
 
+    register_protocol_version(ProtocolVersion::V1_8, 10000, 10);
+
     // No signatures but 1 input
     let stake_output = StakeOutput {
         value: MIN_STAKE_NANOWITS + 1,
@@ -8869,7 +8904,7 @@ fn st_one_input_but_no_signature() {
     let x = validate_stake_transaction(
         &stake_tx,
         &utxo_diff,
-        Epoch::default(),
+        Epoch::from(10000 as u32),
         EpochConstants::default(),
         &mut signatures_to_verify,
         &stakes,
@@ -8896,6 +8931,8 @@ fn st_below_min_stake() {
     );
     let stakes = Default::default();
 
+    register_protocol_version(ProtocolVersion::V1_8, 10000, 10);
+
     // No signatures but 1 input
     let stake_output = StakeOutput {
         value: 1,
@@ -8907,7 +8944,7 @@ fn st_below_min_stake() {
     let x = validate_stake_transaction(
         &stake_tx,
         &utxo_diff,
-        Epoch::default(),
+        Epoch::from(10000 as u32),
         EpochConstants::default(),
         &mut signatures_to_verify,
         &stakes,
