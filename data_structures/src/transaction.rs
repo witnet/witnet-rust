@@ -950,6 +950,7 @@ impl MemoizedHashable for UnstakeTransactionBody {
     }
 
     fn memoized_hash(&self) -> &MemoHash {
+        self.hash.set(None);
         &self.hash
     }
 }
