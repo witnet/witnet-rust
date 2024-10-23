@@ -8,6 +8,7 @@ use itertools::Itertools;
 
 use witnet_config::defaults::{
     PSEUDO_CONSENSUS_CONSTANTS_POS_MIN_STAKE_NANOWITS,
+    PSEUDO_CONSENSUS_CONSTANTS_POS_UNSTAKING_DELAY_SECONDS,
     PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO,
 };
 use witnet_crypto::{
@@ -27,7 +28,10 @@ use witnet_data_structures::{
     radon_error::RadonError,
     radon_report::{RadonReport, ReportContext, TypeLike},
     register_protocol_version,
-    staking::stakes::StakesTracker,
+    staking::{
+        helpers::StakeKey,
+        stakes::{process_stake_transactions, StakesTracker},
+    },
     transaction::*,
     transaction_factory::transaction_outputs_sum,
     utxo_pool::{UnspentOutputsPool, UtxoDiff},
@@ -54,6 +58,7 @@ static ONE_WIT: u64 = 1_000_000_000;
 const MAX_VT_WEIGHT: u32 = 20_000;
 const MAX_DR_WEIGHT: u32 = 80_000;
 const MIN_STAKE_NANOWITS: u64 = PSEUDO_CONSENSUS_CONSTANTS_POS_MIN_STAKE_NANOWITS;
+const UNSTAKING_DELAY_SECONDS: u64 = PSEUDO_CONSENSUS_CONSTANTS_POS_UNSTAKING_DELAY_SECONDS;
 
 const REQUIRED_REWARD_COLLATERAL_RATIO: u64 =
     PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
@@ -8816,6 +8821,42 @@ fn tally_error_encode_reveal_wip() {
     .map(|_| ());
     x.unwrap();
 }
+
+fn setup_stakes_tracker(
+    stake_value: u64,
+    key_1: [u8; 32],
+    key_2: [u8; 32],
+) -> (PublicKeyHash, PublicKeyHash, StakesTracker) {
+    register_protocol_version(ProtocolVersion::V2_0, 20000, 10);
+
+    let validator_sk =
+        Secp256k1_SecretKey::from_slice(&key_1).expect("32 bytes, within curve order");
+    let withdrawer_sk =
+        Secp256k1_SecretKey::from_slice(&key_2).expect("32 bytes, within curve order");
+    let validator_pkh =
+        PublicKey::from(Secp256k1_PublicKey::from_secret_key_global(&validator_sk)).pkh();
+    let withdrawer_pkh =
+        PublicKey::from(Secp256k1_PublicKey::from_secret_key_global(&withdrawer_sk)).pkh();
+
+    let stake_output = StakeOutput {
+        value: stake_value,
+        key: StakeKey::from((validator_pkh, withdrawer_pkh)),
+        ..Default::default()
+    };
+    let vti = Input::new(
+        "2222222222222222222222222222222222222222222222222222222222222222:0"
+            .parse()
+            .unwrap(),
+    );
+    let stake_tx_body = StakeTransactionBody::new(vec![vti], stake_output, None);
+    let stake_tx = StakeTransaction::new(stake_tx_body, vec![]);
+
+    let mut stakes = StakesTracker::default();
+    let _ = process_stake_transactions(&mut stakes, vec![stake_tx].iter(), 0);
+
+    (validator_pkh, withdrawer_pkh, stakes)
+}
+
 #[test]
 fn st_not_allowed() {
     let utxo_set = UnspentOutputsPool::default();
@@ -8956,6 +8997,237 @@ fn st_below_min_stake() {
         TransactionError::StakeBelowMinimum {
             min_stake: MIN_STAKE_NANOWITS,
             stake: 1
+        }
+    );
+}
+
+#[test]
+fn unstake_success() {
+    // Setup stakes tracker with a (validator, validator) pair
+    let (validator_pkh, _, stakes) =
+        setup_stakes_tracker(MIN_STAKE_NANOWITS + 1000, PRIV_KEY_1, PRIV_KEY_1);
+
+    let vto = ValueTransferOutput {
+        pkh: validator_pkh,
+        value: 1000,
+        time_lock: UNSTAKING_DELAY_SECONDS,
+    };
+    let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 1);
+    // Sign with the validator private key instead of the withdrawer private key
+    let signature = sign_tx(PRIV_KEY_1, &unstake_tx_body, None);
+    let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
+    let x = validate_unstake_transaction(&unstake_tx, Epoch::from(20001 as u32), &stakes);
+    assert!(x.is_ok());
+
+    // Setup stakes tracker with a (validator, withdrawer) pair
+    let (validator_pkh, withdrawer_pkh, stakes) =
+        setup_stakes_tracker(MIN_STAKE_NANOWITS + 1000, PRIV_KEY_1, PRIV_KEY_2);
+
+    // Try unstaking up to the MIN_STAKE_NANOWITS balance
+    let vto = ValueTransferOutput {
+        pkh: withdrawer_pkh,
+        value: 1000,
+        time_lock: UNSTAKING_DELAY_SECONDS,
+    };
+    let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 1);
+    // Sign with the validator private key instead of the withdrawer private key
+    let signature = sign_tx(PRIV_KEY_2, &unstake_tx_body, None);
+    let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
+    let x = validate_unstake_transaction(&unstake_tx, Epoch::from(20001 as u32), &stakes);
+    assert!(x.is_ok());
+
+    // Note that we did not process above unstake transaction, so the stakes structure did not change
+    // Try unstaking the full balance
+    let vto = ValueTransferOutput {
+        pkh: withdrawer_pkh,
+        value: MIN_STAKE_NANOWITS + 1000,
+        time_lock: UNSTAKING_DELAY_SECONDS,
+    };
+    let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 1);
+    // Sign with the validator private key instead of the withdrawer private key
+    let signature = sign_tx(PRIV_KEY_2, &unstake_tx_body, None);
+    let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
+    let x = validate_unstake_transaction(&unstake_tx, Epoch::from(20001 as u32), &stakes);
+    assert!(x.is_ok());
+}
+
+#[test]
+fn unstake_not_allowed() {
+    register_protocol_version(ProtocolVersion::V2_0, 20000, 10);
+
+    let stakes = StakesTracker::default();
+    let vto = ValueTransferOutput {
+        pkh: PublicKeyHash::default(),
+        value: 1,
+        time_lock: 0,
+    };
+    let unstake_tx_body = UnstakeTransactionBody::new(PublicKeyHash::default(), vto, 0, 1);
+    let unstake_tx = UnstakeTransaction::new(unstake_tx_body, KeyedSignature::default());
+    let x = validate_unstake_transaction(&unstake_tx, Epoch::default(), &stakes);
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::NoUnstakeTransactionsAllowed {}
+    );
+}
+
+#[test]
+fn unstake_more_than_staked() {
+    let (validator_pkh, withdrawer_pkh, stakes) =
+        setup_stakes_tracker(MIN_STAKE_NANOWITS, PRIV_KEY_1, PRIV_KEY_2);
+
+    // Unstaking 1 nanowit more than what was staked (using a zero nanowit fee)
+    let vto = ValueTransferOutput {
+        pkh: withdrawer_pkh,
+        value: MIN_STAKE_NANOWITS + 1,
+        time_lock: UNSTAKING_DELAY_SECONDS,
+    };
+    let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 1);
+    let signature = sign_tx(PRIV_KEY_2, &unstake_tx_body, None);
+    let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
+    let x = validate_unstake_transaction(&unstake_tx, Epoch::from(20001 as u32), &stakes);
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::UnstakingMoreThanStaked {
+            unstake: MIN_STAKE_NANOWITS + 1,
+            stake: MIN_STAKE_NANOWITS
+        }
+    );
+
+    // Unstaking what was staked, but adding a 1 nanowit fee resulting in unstaking too much
+    let vto = ValueTransferOutput {
+        pkh: withdrawer_pkh,
+        value: MIN_STAKE_NANOWITS,
+        time_lock: UNSTAKING_DELAY_SECONDS,
+    };
+    let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 1, 1);
+    let signature = sign_tx(PRIV_KEY_2, &unstake_tx_body, None);
+    let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
+    let x = validate_unstake_transaction(&unstake_tx, Epoch::from(20001 as u32), &stakes);
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::UnstakingMoreThanStaked {
+            unstake: MIN_STAKE_NANOWITS + 1,
+            stake: MIN_STAKE_NANOWITS
+        }
+    );
+}
+
+#[test]
+fn unstake_invalid_nonce() {
+    let (validator_pkh, withdrawer_pkh, stakes) =
+        setup_stakes_tracker(MIN_STAKE_NANOWITS, PRIV_KEY_1, PRIV_KEY_2);
+
+    let vto = ValueTransferOutput {
+        pkh: withdrawer_pkh,
+        value: MIN_STAKE_NANOWITS,
+        time_lock: UNSTAKING_DELAY_SECONDS,
+    };
+    let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 0);
+    let signature = sign_tx(PRIV_KEY_2, &unstake_tx_body, None);
+    let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
+    let x = validate_unstake_transaction(&unstake_tx, Epoch::from(20001 as u32), &stakes);
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::UnstakeInvalidNonce {
+            used: 0,
+            current: 1
+        }
+    );
+}
+
+#[test]
+fn unstake_wrong_withdrawer() {
+    let (validator_pkh, withdrawer_pkh, stakes) =
+        setup_stakes_tracker(MIN_STAKE_NANOWITS, PRIV_KEY_1, PRIV_KEY_2);
+
+    let vto = ValueTransferOutput {
+        pkh: withdrawer_pkh,
+        value: MIN_STAKE_NANOWITS,
+        time_lock: UNSTAKING_DELAY_SECONDS,
+    };
+    let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 1);
+    // Sign with the validator private key instead of the withdrawer private key
+    let signature = sign_tx(PRIV_KEY_1, &unstake_tx_body, None);
+    let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
+    let x = validate_unstake_transaction(&unstake_tx, Epoch::from(20001 as u32), &stakes);
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::NoStakeFound {
+            validator: validator_pkh,
+            withdrawer: validator_pkh,
+        }
+    );
+}
+
+#[test]
+fn unstake_below_stake_minimum() {
+    let (validator_pkh, withdrawer_pkh, stakes) =
+        setup_stakes_tracker(MIN_STAKE_NANOWITS + 1000, PRIV_KEY_1, PRIV_KEY_2);
+
+    let vto = ValueTransferOutput {
+        pkh: withdrawer_pkh,
+        value: 1001,
+        time_lock: UNSTAKING_DELAY_SECONDS,
+    };
+    let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 1);
+    let signature = sign_tx(PRIV_KEY_2, &unstake_tx_body, None);
+    let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
+    let x = validate_unstake_transaction(&unstake_tx, Epoch::from(20001 as u32), &stakes);
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::StakeBelowMinimum {
+            min_stake: MIN_STAKE_NANOWITS,
+            stake: MIN_STAKE_NANOWITS + 1000,
+        }
+    );
+}
+
+#[test]
+fn unstake_timelock() {
+    let (validator_pkh, withdrawer_pkh, stakes) =
+        setup_stakes_tracker(MIN_STAKE_NANOWITS, PRIV_KEY_1, PRIV_KEY_2);
+
+    let vto = ValueTransferOutput {
+        pkh: withdrawer_pkh,
+        value: MIN_STAKE_NANOWITS,
+        time_lock: 0,
+    };
+    let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 1);
+    let signature = sign_tx(PRIV_KEY_2, &unstake_tx_body, None);
+    let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
+    let x = validate_unstake_transaction(&unstake_tx, Epoch::from(20001 as u32), &stakes);
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::InvalidUnstakeTimelock {
+            time_lock: unstake_tx.body.withdrawal.time_lock,
+            unstaking_delay_seconds: UNSTAKING_DELAY_SECONDS,
+        }
+    );
+}
+
+#[test]
+fn unstake_signature() {
+    let (validator_pkh, withdrawer_pkh, stakes) =
+        setup_stakes_tracker(MIN_STAKE_NANOWITS + 1000, PRIV_KEY_1, PRIV_KEY_2);
+
+    let vto = ValueTransferOutput {
+        pkh: withdrawer_pkh,
+        value: 1000,
+        time_lock: UNSTAKING_DELAY_SECONDS,
+    };
+    let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 1);
+    let signature = sign_tx(PRIV_KEY_2, &unstake_tx_body, None);
+    let mut unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
+    let x = validate_unstake_transaction(&unstake_tx, Epoch::from(20001 as u32), &stakes);
+    assert!(x.is_ok());
+
+    unstake_tx.body.withdrawal.value = 999;
+    let x = validate_unstake_transaction(&unstake_tx, Epoch::from(20001 as u32), &stakes);
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::VerifyTransactionSignatureFail {
+            hash: unstake_tx.hash(),
+            msg: "signature failed verification".to_string(),
         }
     );
 }
