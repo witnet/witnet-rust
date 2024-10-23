@@ -1206,7 +1206,7 @@ fn vtt_output_value_overflow() {
 fn vtt_timelock() {
     // 1 epoch = 1000 seconds, for easy testing
     let epoch_constants = EpochConstants {
-        checkpoint_zero_timestamp: 0,
+        checkpoint_zero_timestamp: 1_000_000,
         checkpoints_period: 1_000,
         checkpoint_zero_timestamp_wit2: i64::MAX,
         checkpoints_period_wit2: 1_000,
@@ -1247,17 +1247,18 @@ fn vtt_timelock() {
     };
 
     // (epoch, time_lock, should_be_accepted_into_block)
+    let czt = epoch_constants.checkpoint_zero_timestamp as u64;
     let tests = vec![
-        (0, 0, true),
-        (0, 1, false),
-        (0, 1_000_000, false),
-        (999, 1_000_000, false),
-        (999, 999_999, false),
-        (1000, 999_999, true),
-        (1000, 1_000_000, true),
-        (1000, 1_000_001, false),
-        (1001, 1_000_000, true),
-        (1001, 1_000_001, true),
+        (0, czt + 0, true),
+        (0, czt + 1, false),
+        (0, czt + 1_000_000, false),
+        (999, czt + 1_000_000, false),
+        (999, czt + 999_999, false),
+        (1000, czt + 999_999, true),
+        (1000, czt + 1_000_000, true),
+        (1000, czt + 1_000_001, false),
+        (1001, czt + 1_000_000, true),
+        (1001, czt + 1_000_001, true),
     ];
 
     for (epoch, time_lock, is_ok) in tests {
@@ -4024,7 +4025,7 @@ fn commitment_collateral_zero_is_minimum() {
 fn commitment_timelock() {
     // 1 epoch = 1000 seconds, for easy testing
     let epoch_constants = EpochConstants {
-        checkpoint_zero_timestamp: 0,
+        checkpoint_zero_timestamp: 1_000_000,
         checkpoints_period: 1_000,
         checkpoint_zero_timestamp_wit2: i64::MAX,
         checkpoints_period_wit2: 1_000,
@@ -4113,21 +4114,22 @@ fn commitment_timelock() {
         verify_signatures_test(signatures_to_verify)
     };
 
+    let czt = epoch_constants.checkpoint_zero_timestamp as u64;
     let first_timestamp =
-        u64::from(FIRST_HARD_FORK) * u64::from(epoch_constants.checkpoints_period);
+        czt + u64::from(FIRST_HARD_FORK) * u64::from(epoch_constants.checkpoints_period);
 
     // (epoch, time_lock, should_be_accepted_into_block)
     let tests = vec![
-        (0, 0, true),
-        (0, 1, false),
-        (0, 1_000_000, false),
-        (999, 1_000_000, false),
-        (999, 999_999, false),
-        (1000, 999_999, true),
-        (1000, 1_000_000, true),
-        (1000, 1_000_001, false),
-        (1001, 1_000_000, true),
-        (1001, 1_000_001, true),
+        (0, czt + 0, true),
+        (0, czt + 1, false),
+        (0, czt + 1_000_000, false),
+        (999, czt + 1_000_000, false),
+        (999, czt + 999_999, false),
+        (1000, czt + 999_999, true),
+        (1000, czt + 1_000_000, true),
+        (1000, czt + 1_000_001, false),
+        (1001, czt + 1_000_000, true),
+        (1001, czt + 1_000_001, true),
         // After FIRST_HARD_FORK epoch, this validation is disabled
         (FIRST_HARD_FORK - 1, first_timestamp + 1_000_000, false),
         (FIRST_HARD_FORK, first_timestamp, true),
