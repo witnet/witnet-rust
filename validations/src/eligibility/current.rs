@@ -1,7 +1,7 @@
 use std::{
     fmt::{Debug, Display},
     iter::Sum,
-    ops::{Add, Div, Mul, Rem, Sub},
+    ops::{Add, AddAssign, Div, Mul, Rem, Sub},
 };
 
 use serde::Serialize;
@@ -39,11 +39,12 @@ impl From<IneligibilityReason> for Eligible {
 }
 
 /// Trait providing eligibility calculation for multiple protocol capabilities.
-pub trait Eligibility<Address, Coins, Epoch, Power>
+pub trait Eligibility<Address, Coins, Epoch, Nonce, Power>
 where
     Address: Debug + Display + Sync + Send + 'static,
     Coins: Debug + Display + Sync + Send + Sum + 'static,
     Epoch: Debug + Display + Sync + Send + 'static,
+    Nonce: Debug + Display + Sync + Send + 'static,
 {
     /// Tells whether a VRF proof meets the requirements to become eligible for mining. Unless an error occurs, returns
     /// an `Eligibility` structure signaling eligibility or lack thereof (in which case you also get an
@@ -97,8 +98,9 @@ where
     }
 }
 
-impl<const UNIT: u8, Address, Coins, Epoch, Power> Eligibility<Address, Coins, Epoch, Power>
-    for Stakes<UNIT, Address, Coins, Epoch, Power>
+impl<const UNIT: u8, Address, Coins, Epoch, Nonce, Power>
+    Eligibility<Address, Coins, Epoch, Nonce, Power>
+    for Stakes<UNIT, Address, Coins, Epoch, Nonce, Power>
 where
     Address: Clone + Debug + Default + Display + Ord + Sync + Send + Serialize + 'static,
     Coins: Copy
@@ -129,6 +131,17 @@ where
         + Sub<Output = Epoch>
         + Add<Output = Epoch>
         + Div<Output = Epoch>
+        + From<u32>
+        + Sync
+        + Send
+        + Serialize
+        + 'static,
+    Nonce: Copy
+        + Debug
+        + Default
+        + Display
+        + num_traits::Saturating
+        + AddAssign
         + From<u32>
         + Sync
         + Send
@@ -273,7 +286,7 @@ mod tests {
 
     #[test]
     fn test_mining_eligibility_no_stakers() {
-        let stakes = <Stakes<0, String, _, _, _>>::with_minimum(100u64);
+        let stakes = <Stakes<0, String, _, _, u64, u64>>::with_minimum(100u64);
         let isk = "validator";
 
         assert_eq!(
@@ -291,7 +304,7 @@ mod tests {
 
     #[test]
     fn test_mining_eligibility_absolute_power() {
-        let mut stakes = <Stakes<0, String, _, _, _>>::with_minimum(100u64);
+        let mut stakes = <Stakes<0, String, _, _, u64, u64>>::with_minimum(100u64);
         let isk = "validator";
 
         stakes.add_stake(isk, 10_000_000_000, 0).unwrap();
@@ -308,7 +321,7 @@ mod tests {
 
     #[test]
     fn test_witnessing_eligibility_no_stakers() {
-        let stakes = <Stakes<0, String, _, _, _>>::with_minimum(100u64);
+        let stakes = <Stakes<0, String, _, _, u64, u64>>::with_minimum(100u64);
         let isk = "validator";
 
         let eligibility = stakes.witnessing_eligibility(isk, 0, 10, 0);
@@ -328,7 +341,7 @@ mod tests {
 
     #[test]
     fn test_witnessing_eligibility_absolute_power() {
-        let mut stakes = <Stakes<0, String, _, _, _>>::with_minimum(100u64);
+        let mut stakes = <Stakes<0, String, _, _, u64, u64>>::with_minimum(100u64);
         let isk = "validator";
 
         stakes.add_stake(isk, 10_000_000_000, 0).unwrap();
@@ -347,7 +360,7 @@ mod tests {
 
     #[test]
     fn test_witnessing_eligibility_target_hash() {
-        let mut stakes = <Stakes<0, String, _, _, _>>::with_minimum(100u64);
+        let mut stakes = <Stakes<0, String, _, _, u64, u64>>::with_minimum(100u64);
         let isk_1 = "validator_1";
         let isk_2 = "validator_2";
         let isk_3 = "validator_3";

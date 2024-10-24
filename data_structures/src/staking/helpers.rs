@@ -3,7 +3,7 @@ use std::{
     fmt::{Debug, Display, Formatter},
     iter::Sum,
     marker::PhantomData,
-    ops::{Add, Div, Mul, Rem, Sub},
+    ops::{Add, AddAssign, Div, Mul, Rem, Sub},
     rc::Rc,
     str::FromStr,
     sync::RwLock,
@@ -28,37 +28,39 @@ pub type StakesResult<T, Address, Coins, Epoch> = Result<T, StakesError<Address,
 
 /// Pairs a stake key and the stake data it refers.
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
-pub struct StakeEntry<const UNIT: u8, Address, Coins, Epoch, Power>
+pub struct StakeEntry<const UNIT: u8, Address, Coins, Epoch, Nonce, Power>
 where
     Address: Clone + Default + Serialize,
     Coins: Clone + Serialize,
     Epoch: Clone + Default + Serialize,
+    Nonce: Clone + Default + Serialize,
     Power: Clone + Serialize,
 {
     /// The key to which this stake entry belongs to.
     pub key: StakeKey<Address>,
     /// The stake data itself.
-    pub value: Stake<UNIT, Address, Coins, Epoch, Power>,
+    pub value: Stake<UNIT, Address, Coins, Epoch, Nonce, Power>,
 }
 
 /// The resulting type for functions in this module that return a single stake entry.
-pub type StakeEntryResult<const UNIT: u8, Address, Coins, Epoch, Power> =
-    StakesResult<StakeEntry<UNIT, Address, Coins, Epoch, Power>, Address, Coins, Epoch>;
+pub type StakeEntryResult<const UNIT: u8, Address, Coins, Epoch, Nonce, Power> =
+    StakesResult<StakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>, Address, Coins, Epoch>;
 
 /// The resulting type for functions in this module that return a vector of stake entries.
-pub type StakeEntryVecResult<const UNIT: u8, Address, Coins, Epoch, Power> =
-    StakesResult<Vec<StakeEntry<UNIT, Address, Coins, Epoch, Power>>, Address, Coins, Epoch>;
+pub type StakeEntryVecResult<const UNIT: u8, Address, Coins, Epoch, Nonce, Power> =
+    StakesResult<Vec<StakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>>, Address, Coins, Epoch>;
 
-impl<const UNIT: u8, Address, Coins, Epoch, Power>
-    From<StakeEntry<UNIT, Address, Coins, Epoch, Power>>
-    for Stake<UNIT, Address, Coins, Epoch, Power>
+impl<const UNIT: u8, Address, Coins, Epoch, Nonce, Power>
+    From<StakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>>
+    for Stake<UNIT, Address, Coins, Epoch, Nonce, Power>
 where
     Address: Clone + Default + Serialize,
     Coins: Clone + Serialize,
     Epoch: Clone + Default + Serialize,
+    Nonce: Clone + Default + Serialize,
     Power: Clone + Serialize,
 {
-    fn from(entry: StakeEntry<UNIT, Address, Coins, Epoch, Power>) -> Self {
+    fn from(entry: StakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>) -> Self {
         entry.value
     }
 }
@@ -68,29 +70,31 @@ where
 /// This is needed for implementing `PartialEq` manually on the locked data, which cannot be done directly
 /// because those are externally owned types.
 #[derive(Clone, Debug, Default)]
-pub struct SyncStakeEntry<const UNIT: u8, Address, Coins, Epoch, Power>
+pub struct SyncStakeEntry<const UNIT: u8, Address, Coins, Epoch, Nonce, Power>
 where
     Address: Clone + Default,
     Coins: Clone,
     Epoch: Clone + Default,
+    Nonce: Clone + Default,
     Power: Clone,
 {
     /// A smart lock referring the key to which this stake entry belongs to.
     pub key: Rc<RwLock<StakeKey<Address>>>,
     /// A smart lock referring the stake data itself.
-    pub value: Rc<RwLock<Stake<UNIT, Address, Coins, Epoch, Power>>>,
+    pub value: Rc<RwLock<Stake<UNIT, Address, Coins, Epoch, Nonce, Power>>>,
 }
 
-impl<const UNIT: u8, Address, Coins, Epoch, Power>
-    SyncStakeEntry<UNIT, Address, Coins, Epoch, Power>
+impl<const UNIT: u8, Address, Coins, Epoch, Nonce, Power>
+    SyncStakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>
 where
     Address: Clone + Default + Serialize,
     Coins: Clone + Serialize,
     Epoch: Clone + Default + Serialize,
+    Nonce: Clone + Default + Serialize,
     Power: Clone + Serialize,
 {
     /// Locks and reads both the stake key and the stake data referred by the stake entry.
-    pub fn read_entry(&self) -> StakeEntry<UNIT, Address, Coins, Epoch, Power> {
+    pub fn read_entry(&self) -> StakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power> {
         let key = self.read_key();
         let value = self.read_value();
 
@@ -105,21 +109,22 @@ where
 
     /// Locks and reads the stake data referred by the stake entry.
     #[inline]
-    pub fn read_value(&self) -> Stake<UNIT, Address, Coins, Epoch, Power> {
+    pub fn read_value(&self) -> Stake<UNIT, Address, Coins, Epoch, Nonce, Power> {
         self.value.read().unwrap().clone()
     }
 }
 
-impl<const UNIT: u8, Address, Coins, Epoch, Power>
-    From<StakeEntry<UNIT, Address, Coins, Epoch, Power>>
-    for SyncStakeEntry<UNIT, Address, Coins, Epoch, Power>
+impl<const UNIT: u8, Address, Coins, Epoch, Nonce, Power>
+    From<StakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>>
+    for SyncStakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>
 where
     Address: Clone + Default + Serialize,
     Coins: Clone + Serialize,
     Epoch: Clone + Default + Serialize,
+    Nonce: Clone + Default + Serialize,
     Power: Clone + Serialize,
 {
-    fn from(entry: StakeEntry<UNIT, Address, Coins, Epoch, Power>) -> Self {
+    fn from(entry: StakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>) -> Self {
         SyncStakeEntry {
             key: Rc::new(RwLock::new(entry.key)),
             value: Rc::new(RwLock::new(entry.value)),
@@ -127,16 +132,17 @@ where
     }
 }
 
-impl<const UNIT: u8, Address, Coins, Epoch, Power>
-    From<&SyncStakeEntry<UNIT, Address, Coins, Epoch, Power>>
-    for StakeEntry<UNIT, Address, Coins, Epoch, Power>
+impl<const UNIT: u8, Address, Coins, Epoch, Nonce, Power>
+    From<&SyncStakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>>
+    for StakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>
 where
     Address: Clone + Default + Serialize,
     Coins: Clone + Serialize,
     Epoch: Clone + Default + Serialize,
+    Nonce: Clone + Default + Serialize,
     Power: Clone + Serialize,
 {
-    fn from(sync: &SyncStakeEntry<UNIT, Address, Coins, Epoch, Power>) -> Self {
+    fn from(sync: &SyncStakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>) -> Self {
         StakeEntry {
             key: sync.read_key(),
             value: sync.read_value(),
@@ -144,49 +150,54 @@ where
     }
 }
 
-impl<const UNIT: u8, Address, Coins, Epoch, Power> PartialEq
-    for SyncStakeEntry<UNIT, Address, Coins, Epoch, Power>
+impl<const UNIT: u8, Address, Coins, Epoch, Nonce, Power> PartialEq
+    for SyncStakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>
 where
     Address: Clone + Default,
-    Epoch: Clone + Default + PartialEq,
     Coins: Clone + PartialEq,
+    Epoch: Clone + Default + PartialEq,
+    Nonce: Clone + Default + PartialEq,
     Power: Clone,
 {
     fn eq(&self, other: &Self) -> bool {
         let self_stake = self.value.read().unwrap();
         let other_stake = other.value.read().unwrap();
 
-        self_stake.coins.eq(&other_stake.coins) && other_stake.epochs.eq(&other_stake.epochs)
+        self_stake.coins.eq(&other_stake.coins)
+            && other_stake.epochs.eq(&other_stake.epochs)
+            && other_stake.nonce.eq(&other_stake.nonce)
     }
 }
 
-impl<'de, const UNIT: u8, Address, Coins, Epoch, Power> Deserialize<'de>
-    for SyncStakeEntry<UNIT, Address, Coins, Epoch, Power>
+impl<'de, const UNIT: u8, Address, Coins, Epoch, Nonce, Power> Deserialize<'de>
+    for SyncStakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>
 where
     Address: Clone + Default + Serialize,
     Coins: Clone + Serialize,
     Epoch: Clone + Default + Serialize,
+    Nonce: Clone + Default + Serialize,
     Power: Clone + Serialize,
-    StakeEntry<UNIT, Address, Coins, Epoch, Power>: Deserialize<'de>,
+    StakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>: Deserialize<'de>,
 {
     #[inline]
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        <StakeEntry<UNIT, Address, Coins, Epoch, Power>>::deserialize(deserializer)
+        <StakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>>::deserialize(deserializer)
             .map(SyncStakeEntry::from)
     }
 }
 
-impl<const UNIT: u8, Address, Coins, Epoch, Power> Serialize
-    for SyncStakeEntry<UNIT, Address, Coins, Epoch, Power>
+impl<const UNIT: u8, Address, Coins, Epoch, Nonce, Power> Serialize
+    for SyncStakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>
 where
     Address: Clone + Default + Serialize,
     Coins: Clone + Serialize,
     Epoch: Clone + Default + Serialize,
+    Nonce: Clone + Default + Serialize,
     Power: Clone + Serialize,
-    Stake<UNIT, Address, Coins, Epoch, Power>: Serialize,
+    Stake<UNIT, Address, Coins, Epoch, Nonce, Power>: Serialize,
 {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -292,15 +303,16 @@ pub enum CensusStrategy {
     Evenly(usize) = 3,
 }
 
-impl<const UNIT: u8, Address, Coins, Epoch, Power> Serialize
-    for Stakes<UNIT, Address, Coins, Epoch, Power>
+impl<const UNIT: u8, Address, Coins, Epoch, Nonce, Power> Serialize
+    for Stakes<UNIT, Address, Coins, Epoch, Nonce, Power>
 where
     Address: Clone + Default + Ord,
     Coins: Clone + Ord,
     Epoch: Clone + Default,
+    Nonce: Clone + Default,
     Power: Clone,
     StakeKey<Address>: Serialize,
-    SyncStakeEntry<UNIT, Address, Coins, Epoch, Power>: Serialize,
+    SyncStakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>: Serialize,
 {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -310,8 +322,8 @@ where
     }
 }
 
-impl<'de, const UNIT: u8, Address, Coins, Epoch, Power> Deserialize<'de>
-    for Stakes<UNIT, Address, Coins, Epoch, Power>
+impl<'de, const UNIT: u8, Address, Coins, Epoch, Nonce, Power> Deserialize<'de>
+    for Stakes<UNIT, Address, Coins, Epoch, Nonce, Power>
 where
     Address: Clone
         + Debug
@@ -354,6 +366,17 @@ where
         + Sync
         + Add<Output = Epoch>
         + Div<Output = Epoch>,
+    Nonce: AddAssign
+        + Copy
+        + Debug
+        + Default
+        + DeserializeOwned
+        + Display
+        + From<u32>
+        + Saturating
+        + Send
+        + Serialize
+        + Sync,
     Power: Add<Output = Power>
         + Copy
         + Default
@@ -368,20 +391,22 @@ where
     where
         D: Deserializer<'de>,
     {
-        deserializer.deserialize_map(StakesVisitor::<UNIT, Address, Coins, Epoch, Power>::default())
+        deserializer
+            .deserialize_map(StakesVisitor::<UNIT, Address, Coins, Epoch, Nonce, Power>::default())
     }
 }
 
 #[derive(Default)]
-struct StakesVisitor<const UNIT: u8, Address, Coins, Epoch, Power> {
+struct StakesVisitor<const UNIT: u8, Address, Coins, Epoch, Nonce, Power> {
     phantom_address: PhantomData<Address>,
     phantom_coins: PhantomData<Coins>,
     phantom_epoch: PhantomData<Epoch>,
+    phantom_action: PhantomData<Nonce>,
     phantom_power: PhantomData<Power>,
 }
 
-impl<'de, const UNIT: u8, Address, Coins, Epoch, Power> Visitor<'de>
-    for StakesVisitor<UNIT, Address, Coins, Epoch, Power>
+impl<'de, const UNIT: u8, Address, Coins, Epoch, Nonce, Power> Visitor<'de>
+    for StakesVisitor<UNIT, Address, Coins, Epoch, Nonce, Power>
 where
     Address: Clone
         + Debug
@@ -424,6 +449,17 @@ where
         + Sync
         + Add<Output = Epoch>
         + Div<Output = Epoch>,
+    Nonce: AddAssign
+        + Copy
+        + Debug
+        + Default
+        + DeserializeOwned
+        + Display
+        + From<u32>
+        + Saturating
+        + Send
+        + Serialize
+        + Sync,
     Power: Add<Output = Power>
         + Copy
         + Default
@@ -434,7 +470,7 @@ where
         + Sum,
     u64: From<Coins> + From<Power>,
 {
-    type Value = Stakes<UNIT, Address, Coins, Epoch, Power>;
+    type Value = Stakes<UNIT, Address, Coins, Epoch, Nonce, Power>;
 
     fn expecting(&self, formatter: &mut Formatter) -> std::fmt::Result {
         formatter.write_str("Stakes<Address, Coins, Epoch, Power>")
@@ -444,9 +480,10 @@ where
     where
         A: MapAccess<'de>,
     {
-        let mut entries =
-            <BTreeMap<StakeKey<Address>, SyncStakeEntry<UNIT, Address, Coins, Epoch, Power>>>::new(
-            );
+        let mut entries = <BTreeMap<
+            StakeKey<Address>,
+            SyncStakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>,
+        >>::new();
 
         while let Some((key, value)) = map.next_entry()? {
             entries.insert(key, value);
@@ -464,9 +501,9 @@ mod test {
 
     #[test]
     fn test_cloning_assumptions() {
-        let a = SyncStakeEntry::<0, String, u64, u64, u64>::from(StakeEntry {
+        let a = SyncStakeEntry::<0, String, u64, u64, u64, u64>::from(StakeEntry {
             key: Default::default(),
-            value: Stake::from_parts(123, Default::default()),
+            value: Stake::from_parts(123, Default::default(), Default::default()),
         });
         let b = a.clone();
 

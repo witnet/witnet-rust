@@ -10,23 +10,27 @@ use super::prelude::*;
 /// A data structure that keeps track of a staker's staked coins and the epochs for different
 /// capabilities.
 #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
-pub struct Stake<const UNIT: u8, Address, Coins, Epoch, Power>
+pub struct Stake<const UNIT: u8, Address, Coins, Epoch, Nonce, Power>
 where
     Address: Clone + Default,
     Coins: Clone,
     Epoch: Clone + Default,
+    Nonce: Clone + Default,
     Power: Clone,
 {
     /// An amount of staked coins.
     pub coins: Coins,
     /// The average epoch used to derive coin age for different capabilities.
     pub epochs: CapabilityMap<Epoch>,
+    /// The amount of stake and unstake actions.
+    pub nonce: Nonce,
     // These two phantom fields are here just for the sake of specifying generics.
     phantom_address: PhantomData<Address>,
     phantom_power: PhantomData<Power>,
 }
 
-impl<const UNIT: u8, Address, Coins, Epoch, Power> Stake<UNIT, Address, Coins, Epoch, Power>
+impl<const UNIT: u8, Address, Coins, Epoch, Nonce, Power>
+    Stake<UNIT, Address, Coins, Epoch, Nonce, Power>
 where
     Address: Clone + Default + Debug + Display + Sync + Send,
     Coins: Copy
@@ -48,6 +52,16 @@ where
         + Default
         + num_traits::Saturating
         + Sub<Output = Epoch>
+        + From<u32>
+        + Debug
+        + Display
+        + Sync
+        + Send,
+    Nonce: Copy
+        + Clone
+        + Default
+        + num_traits::Saturating
+        + AddAssign
         + From<u32>
         + Debug
         + Display
@@ -97,16 +111,19 @@ where
             self.epochs.update(capability, epoch_after);
         }
 
+        self.nonce += Nonce::from(1);
+
         Ok(coins_after)
     }
 
     /// Construct a Stake entry from a number of coins and a capability map. This is only useful for
     /// tests.
     #[cfg(test)]
-    pub fn from_parts(coins: Coins, epochs: CapabilityMap<Epoch>) -> Self {
+    pub fn from_parts(coins: Coins, epochs: CapabilityMap<Epoch>, nonce: Nonce) -> Self {
         Self {
             coins,
             epochs,
+            nonce,
             phantom_address: Default::default(),
             phantom_power: Default::default(),
         }
@@ -140,6 +157,8 @@ where
 
         self.coins = coins_after;
 
+        self.nonce += Nonce::from(1);
+
         Ok(self.coins)
     }
 
@@ -150,16 +169,17 @@ where
 }
 
 /// Adds up the total amount of staked in multiple stake entries provided as a vector.
-pub fn totalize_stakes<const UNIT: u8, Address, Coins, Epoch, I, Power, S>(
+pub fn totalize_stakes<const UNIT: u8, Address, Coins, Epoch, Nonce, I, Power, S>(
     stakes: I,
 ) -> StakesResult<Coins, Address, Coins, Epoch>
 where
     Address: Clone + Debug + Default + Display + Send + Sync,
     Coins: Clone + Debug + Display + num_traits::Zero + Send + Sync,
     Epoch: Clone + Debug + Default + Display + Send + Sync,
+    Nonce: Clone + Debug + Default + Display + Send + Sync,
     I: IntoIterator<Item = S>,
     Power: Clone,
-    S: Into<Stake<UNIT, Address, Coins, Epoch, Power>>,
+    S: Into<Stake<UNIT, Address, Coins, Epoch, Nonce, Power>>,
 {
     Ok(stakes
         .into_iter()

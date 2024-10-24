@@ -2,7 +2,7 @@ use std::{
     collections::{btree_map::Entry, BTreeMap},
     fmt::{Debug, Display},
     iter::Sum,
-    ops::{Add, Div, Mul, Rem, Sub},
+    ops::{Add, AddAssign, Div, Mul, Rem, Sub},
 };
 
 use itertools::Itertools;
@@ -64,27 +64,29 @@ where
 /// This structure holds indexes of stake entries. Because the entries themselves are reference
 /// counted and write-locked, we can have as many indexes here as we need at a negligible cost.
 #[derive(Clone, Debug, Default, PartialEq)]
-pub struct Stakes<const UNIT: u8, Address, Coins, Epoch, Power>
+pub struct Stakes<const UNIT: u8, Address, Coins, Epoch, Nonce, Power>
 where
     Address: Clone + Default + Ord,
     Coins: Clone + Ord,
     Epoch: Clone + Default,
+    Nonce: Clone + Default,
     Power: Clone,
 {
     /// A listing of all the stake entries, indexed by their stake key.
     pub(crate) by_key:
-        BTreeMap<StakeKey<Address>, SyncStakeEntry<UNIT, Address, Coins, Epoch, Power>>,
+        BTreeMap<StakeKey<Address>, SyncStakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>>,
     /// A listing of all the stake entries, indexed by validator.
-    by_validator: BTreeMap<Address, Vec<SyncStakeEntry<UNIT, Address, Coins, Epoch, Power>>>,
+    by_validator: BTreeMap<Address, Vec<SyncStakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>>>,
     /// A listing of all the stake entries, indexed by withdrawer.
-    by_withdrawer: BTreeMap<Address, Vec<SyncStakeEntry<UNIT, Address, Coins, Epoch, Power>>>,
+    by_withdrawer:
+        BTreeMap<Address, Vec<SyncStakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>>>,
     /// A listing of all the stake entries, indexed by their coins and address.
     ///
     /// Because this uses a compound key to prevent duplicates, if we want to know which addresses
     /// have staked a particular amount, we just need to run a range lookup on the tree.
     by_coins: BTreeMap<
         CoinsAndAddresses<Coins, Address>,
-        SyncStakeEntry<UNIT, Address, Coins, Epoch, Power>,
+        SyncStakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>,
     >,
     /// The amount of coins that can be staked or can be left staked after unstaking.
     /// TODO: reconsider whether this should be here, taking into account that it hinders the possibility of adjusting
@@ -94,7 +96,8 @@ where
     minimum_stakeable: Option<Coins>,
 }
 
-impl<const UNIT: u8, Address, Coins, Epoch, Power> Stakes<UNIT, Address, Coins, Epoch, Power>
+impl<const UNIT: u8, Address, Coins, Epoch, Nonce, Power>
+    Stakes<UNIT, Address, Coins, Epoch, Nonce, Power>
 where
     Address: Clone + Debug + Default + Ord + Send + Serialize + Sync + Display + 'static,
     Coins: Copy
@@ -128,6 +131,16 @@ where
         + Sync
         + Add<Output = Epoch>
         + Div<Output = Epoch>,
+    Nonce: AddAssign
+        + Copy
+        + Debug
+        + Default
+        + Display
+        + From<u32>
+        + Saturating
+        + Send
+        + Serialize
+        + Sync,
     Power: Copy + Default + Ord + Add<Output = Power> + Div<Output = Power> + Serialize + Sum,
     u64: From<Coins> + From<Power>,
 {
@@ -137,7 +150,7 @@ where
         key: ISK,
         coins: Coins,
         epoch: Epoch,
-    ) -> StakesResult<Stake<UNIT, Address, Coins, Epoch, Power>, Address, Coins, Epoch>
+    ) -> StakesResult<Stake<UNIT, Address, Coins, Epoch, Nonce, Power>, Address, Coins, Epoch>
     where
         ISK: Into<StakeKey<Address>>,
     {
@@ -252,6 +265,22 @@ where
             })
             .sorted_by_key(|(_, power)| *power)
             .rev()
+    }
+
+    /// Query the current nonce from a stake entry.
+    pub fn query_nonce<ISK>(&mut self, key: ISK) -> StakesResult<Nonce, Address, Coins, Epoch>
+    where
+        ISK: Into<StakeKey<Address>>,
+    {
+        let key = key.into();
+
+        if let Entry::Occupied(entry) = self.by_key.entry(key.clone()) {
+            let stake = entry.get().value.read()?;
+
+            Ok(stake.nonce)
+        } else {
+            Err(StakesError::EntryNotFound { key })
+        }
     }
 
     /// Remove a certain amount of staked coins from a given identity at a given epoch.
@@ -391,7 +420,10 @@ where
     /// This is specially convenient after loading stakes from storage, as this function rebuilds
     /// all the indexes at once to preserve write locks and reference counts.
     pub fn with_entries(
-        entries: BTreeMap<StakeKey<Address>, SyncStakeEntry<UNIT, Address, Coins, Epoch, Power>>,
+        entries: BTreeMap<
+            StakeKey<Address>,
+            SyncStakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>,
+        >,
     ) -> Self {
         let mut stakes = Stakes {
             by_key: entries,
@@ -423,7 +455,7 @@ where
     pub fn query_stakes<TIQSK>(
         &self,
         query: TIQSK,
-    ) -> StakeEntryVecResult<UNIT, Address, Coins, Epoch, Power>
+    ) -> StakeEntryVecResult<UNIT, Address, Coins, Epoch, Nonce, Power>
     where
         TIQSK: TryInto<QueryStakesKey<Address>>,
     {
@@ -494,7 +526,7 @@ where
     fn query_by_key(
         &self,
         key: StakeKey<Address>,
-    ) -> StakeEntryResult<UNIT, Address, Coins, Epoch, Power> {
+    ) -> StakeEntryResult<UNIT, Address, Coins, Epoch, Nonce, Power> {
         Ok(self
             .by_key
             .get(&key)
@@ -507,7 +539,7 @@ where
     fn query_by_validator(
         &self,
         validator: Address,
-    ) -> StakeEntryVecResult<UNIT, Address, Coins, Epoch, Power> {
+    ) -> StakeEntryVecResult<UNIT, Address, Coins, Epoch, Nonce, Power> {
         let validator = self
             .by_validator
             .get(&validator)
@@ -521,7 +553,7 @@ where
     fn query_by_withdrawer(
         &self,
         withdrawer: Address,
-    ) -> StakeEntryVecResult<UNIT, Address, Coins, Epoch, Power> {
+    ) -> StakeEntryVecResult<UNIT, Address, Coins, Epoch, Nonce, Power> {
         let withdrawer = self
             .by_withdrawer
             .get(&withdrawer)
@@ -532,26 +564,27 @@ where
 }
 
 /// The default concrete type for tracking stakes in the node software.
-pub type StakesTracker = Stakes<WIT_DECIMAL_PLACES, PublicKeyHash, Wit, Epoch, u64>;
+pub type StakesTracker = Stakes<WIT_DECIMAL_PLACES, PublicKeyHash, Wit, Epoch, u64, u64>;
 
 /// The default concrete type for testing stakes in unit tests.
-pub type StakesTester = Stakes<0, String, u64, u64, u64>;
+pub type StakesTester = Stakes<0, String, u64, u64, u64, u64>;
 
 /// Update the position of the staker in a `by_coins` index.
 /// If this stake entry was not indexed by coins, this will add it to the index.
 ///
 /// This function was made static instead of adding it to `impl Stakes` because of limitations
-pub fn index_coins<const UNIT: u8, Address, Coins, Epoch, Power>(
+pub fn index_coins<const UNIT: u8, Address, Coins, Epoch, Nonce, Power>(
     by_coins: &mut BTreeMap<
         CoinsAndAddresses<Coins, Address>,
-        SyncStakeEntry<UNIT, Address, Coins, Epoch, Power>,
+        SyncStakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>,
     >,
     key: StakeKey<Address>,
-    stake: SyncStakeEntry<UNIT, Address, Coins, Epoch, Power>,
+    stake: SyncStakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>,
 ) where
     Address: Clone + Default + Ord,
     Coins: Copy + Default + Ord,
     Epoch: Clone + Default,
+    Nonce: Clone + Default,
     Power: Clone + Default,
 {
     let coins_and_addresses = CoinsAndAddresses {
@@ -564,15 +597,22 @@ pub fn index_coins<const UNIT: u8, Address, Coins, Epoch, Power>(
 }
 
 /// Upsert a stake entry into those indexes that allow querying by validator or withdrawer.
-pub fn index_addresses<const UNIT: u8, Address, Coins, Epoch, Power>(
-    by_validator: &mut BTreeMap<Address, Vec<SyncStakeEntry<UNIT, Address, Coins, Epoch, Power>>>,
-    by_withdrawer: &mut BTreeMap<Address, Vec<SyncStakeEntry<UNIT, Address, Coins, Epoch, Power>>>,
+pub fn index_addresses<const UNIT: u8, Address, Coins, Epoch, Nonce, Power>(
+    by_validator: &mut BTreeMap<
+        Address,
+        Vec<SyncStakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>>,
+    >,
+    by_withdrawer: &mut BTreeMap<
+        Address,
+        Vec<SyncStakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>>,
+    >,
     key: StakeKey<Address>,
-    stake: SyncStakeEntry<UNIT, Address, Coins, Epoch, Power>,
+    stake: SyncStakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>,
 ) where
     Address: Clone + Default + Ord,
     Coins: Clone + Default + Ord,
     Epoch: Clone + Default,
+    Nonce: Clone + Default,
     Power: Clone + Default,
 {
     let validator_key = key.validator;
@@ -594,8 +634,8 @@ pub fn index_addresses<const UNIT: u8, Address, Coins, Epoch, Power>(
 ///
 /// This function was made static instead of adding it to `impl Stakes` because it is not generic over `Address` and
 /// `Coins`.
-pub fn process_stake_transaction<const UNIT: u8, Epoch, Power>(
-    stakes: &mut Stakes<UNIT, PublicKeyHash, Wit, Epoch, Power>,
+pub fn process_stake_transaction<const UNIT: u8, Epoch, Nonce, Power>(
+    stakes: &mut Stakes<UNIT, PublicKeyHash, Wit, Epoch, Nonce, Power>,
     transaction: &StakeTransaction,
     epoch: Epoch,
 ) -> StakesResult<(), PublicKeyHash, Wit, Epoch>
@@ -612,6 +652,16 @@ where
         + Sync
         + Add<Output = Epoch>
         + Div<Output = Epoch>,
+    Nonce: AddAssign
+        + Copy
+        + Debug
+        + Default
+        + Display
+        + From<u32>
+        + Saturating
+        + Send
+        + Serialize
+        + Sync,
     Power:
         Add<Output = Power> + Copy + Debug + Default + Div<Output = Power> + Ord + Serialize + Sum,
     Wit: Mul<Epoch, Output = Power>,
@@ -645,8 +695,8 @@ where
 ///
 /// This function was made static instead of adding it to `impl Stakes` because it is not generic over `Address` and
 /// `Coins`.
-pub fn process_unstake_transaction<const UNIT: u8, Epoch, Power>(
-    stakes: &mut Stakes<UNIT, PublicKeyHash, Wit, Epoch, Power>,
+pub fn process_unstake_transaction<const UNIT: u8, Epoch, Nonce, Power>(
+    stakes: &mut Stakes<UNIT, PublicKeyHash, Wit, Epoch, Nonce, Power>,
     transaction: &UnstakeTransaction,
 ) -> StakesResult<(), PublicKeyHash, Wit, Epoch>
 where
@@ -662,6 +712,16 @@ where
         + Sync
         + Add<Output = Epoch>
         + Div<Output = Epoch>,
+    Nonce: AddAssign
+        + Copy
+        + Debug
+        + Default
+        + Display
+        + From<u32>
+        + Saturating
+        + Send
+        + Serialize
+        + Sync,
     Power:
         Add<Output = Power> + Copy + Debug + Default + Div<Output = Power> + Ord + Serialize + Sum,
     Wit: Mul<Epoch, Output = Power>,
@@ -692,8 +752,8 @@ where
 ///
 /// This function was made static instead of adding it to `impl Stakes` because it is not generic over `Address` and
 /// `Coins`.
-pub fn process_stake_transactions<'a, const UNIT: u8, Epoch, Power>(
-    stakes: &mut Stakes<UNIT, PublicKeyHash, Wit, Epoch, Power>,
+pub fn process_stake_transactions<'a, const UNIT: u8, Epoch, Nonce, Power>(
+    stakes: &mut Stakes<UNIT, PublicKeyHash, Wit, Epoch, Nonce, Power>,
     transactions: impl Iterator<Item = &'a StakeTransaction>,
     epoch: Epoch,
 ) -> Result<(), StakesError<PublicKeyHash, Wit, Epoch>>
@@ -710,6 +770,16 @@ where
         + Display
         + Add<Output = Epoch>
         + Div<Output = Epoch>,
+    Nonce: AddAssign
+        + Copy
+        + Debug
+        + Default
+        + Display
+        + From<u32>
+        + Saturating
+        + Send
+        + Serialize
+        + Sync,
     Power:
         Add<Output = Power> + Copy + Debug + Default + Div<Output = Power> + Ord + Serialize + Sum,
     Wit: Mul<Epoch, Output = Power>,
@@ -725,8 +795,8 @@ where
 ///
 /// This function was made static instead of adding it to `impl Stakes` because it is not generic over `Address` and
 /// `Coins`.
-pub fn process_unstake_transactions<'a, const UNIT: u8, Epoch, Power>(
-    stakes: &mut Stakes<UNIT, PublicKeyHash, Wit, Epoch, Power>,
+pub fn process_unstake_transactions<'a, const UNIT: u8, Epoch, Nonce, Power>(
+    stakes: &mut Stakes<UNIT, PublicKeyHash, Wit, Epoch, Nonce, Power>,
     transactions: impl Iterator<Item = &'a UnstakeTransaction>,
 ) -> Result<(), StakesError<PublicKeyHash, Wit, Epoch>>
 where
@@ -742,6 +812,16 @@ where
         + Display
         + Add<Output = Epoch>
         + Div<Output = Epoch>,
+    Nonce: AddAssign
+        + Copy
+        + Debug
+        + Default
+        + Display
+        + From<u32>
+        + Saturating
+        + Send
+        + Serialize
+        + Sync,
     Power:
         Add<Output = Power> + Copy + Debug + Default + Div<Output = Power> + Ord + Serialize + Sum,
     Wit: Mul<Epoch, Output = Power>,
@@ -798,7 +878,8 @@ mod tests {
                 CapabilityMap {
                     mining: 100,
                     witnessing: 100
-                }
+                },
+                1,
             )
         );
 
@@ -819,7 +900,8 @@ mod tests {
                 CapabilityMap {
                     mining: 166,
                     witnessing: 166
-                }
+                },
+                2,
             )
         );
         assert_eq!(
@@ -847,7 +929,8 @@ mod tests {
                 CapabilityMap {
                     mining: 1_000,
                     witnessing: 1_000
-                }
+                },
+                1,
             )
         );
 
@@ -1102,7 +1185,8 @@ mod tests {
                     CapabilityMap {
                         mining: 30,
                         witnessing: 30
-                    }
+                    },
+                    1,
                 )
             }])
         );
@@ -1117,7 +1201,8 @@ mod tests {
                     CapabilityMap {
                         mining: 30,
                         witnessing: 30
-                    }
+                    },
+                    1,
                 )
             }])
         );
@@ -1140,7 +1225,8 @@ mod tests {
                     CapabilityMap {
                         mining: 30,
                         witnessing: 30
-                    }
+                    },
+                    1,
                 )
             }])
         );
@@ -1207,5 +1293,31 @@ mod tests {
                 validator: alice.into()
             })
         );
+    }
+
+    #[test]
+    fn test_stakes_nonce() {
+        // First, lets create a setup with a few stakers
+        let mut stakes = StakesTester::with_minimum(5);
+        let alice = "Alice";
+        let bob = "Bob";
+        let charlie = "Charlie";
+        let david = "David";
+
+        let alice_charlie = (alice, charlie);
+        let bob_david = (bob, david);
+
+        stakes.add_stake(alice_charlie, 10, 0).unwrap();
+        stakes.add_stake(bob_david, 20, 10).unwrap();
+        assert_eq!(stakes.query_nonce(alice_charlie), Ok(1));
+        assert_eq!(stakes.query_nonce(bob_david), Ok(1));
+
+        stakes.remove_stake(bob_david, 10).unwrap();
+        assert_eq!(stakes.query_nonce(alice_charlie), Ok(1));
+        assert_eq!(stakes.query_nonce(bob_david), Ok(2));
+
+        stakes.add_stake(bob_david, 40, 30).unwrap();
+        assert_eq!(stakes.query_nonce(alice_charlie), Ok(1));
+        assert_eq!(stakes.query_nonce(bob_david), Ok(3));
     }
 }

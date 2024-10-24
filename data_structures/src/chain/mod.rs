@@ -3861,7 +3861,7 @@ pub struct ChainState {
     pub tapi_engine: TapiEngine,
     /// Tracks stakes for every validator in the network
     #[serde(default)]
-    pub stakes: Stakes<WIT_DECIMAL_PLACES, PublicKeyHash, Wit, Epoch, u64>,
+    pub stakes: Stakes<WIT_DECIMAL_PLACES, PublicKeyHash, Wit, Epoch, u64, u64>,
     /// Unspent Outputs Pool
     #[serde(skip)]
     pub unspent_outputs_pool: UnspentOutputsPool,
