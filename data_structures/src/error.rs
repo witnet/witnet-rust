@@ -307,6 +307,12 @@ pub enum TransactionError {
         unstake, stake
     )]
     UnstakingMoreThanStaked { stake: u64, unstake: u64 },
+    /// Tried to perform an unstake action with an invalid nonce.
+    #[fail(
+        display = "Cannot unstake with an invalid nonce: {} < {}",
+        used, current
+    )]
+    UnstakeInvalidNonce { used: u64, current: u64 },
     /// An stake output with zero value does not make sense
     #[fail(display = "Transaction {} has a zero value stake output", tx_hash)]
     ZeroValueStakeOutput { tx_hash: Hash },

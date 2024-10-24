@@ -21,7 +21,7 @@ use witnet_data_structures::{
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
     proto::versioning::ProtocolVersion,
-    staking::errors::StakesError,
+    staking::{errors::StakesError, prelude::StakeKey},
     transaction::{
         DRTransaction, StakeTransaction, Transaction, UnstakeTransaction, VTTransaction,
     },
@@ -1409,47 +1409,60 @@ impl Handler<BuildUnstake> for ChainManager {
             ));
         }
 
-        let withdrawal = ValueTransferOutput {
-            time_lock: 0,
-            pkh: self.own_pkh.unwrap(),
-            value: msg.value,
-        };
-        match transaction_factory::build_ut(msg.operator, withdrawal, msg.fee) {
+        match self.chain_state.stakes.query_nonce(StakeKey {
+            validator: msg.operator,
+            withdrawer: self.own_pkh.unwrap(),
+        }) {
             Err(e) => {
                 log::error!("Error when building stake transaction: {}", e);
                 Box::pin(actix::fut::err(e.into()))
             }
-            Ok(ut) => {
-                let fut = signature_mngr::sign_transaction(&ut, 1)
-                    .into_actor(self)
-                    .then(move |s, act, _ctx| match s {
-                        Ok(signature) => {
-                            let ut =
-                                UnstakeTransaction::new(ut, signature.first().unwrap().clone());
+            Ok(nonce) => {
+                let withdrawal = ValueTransferOutput {
+                    time_lock: 0,
+                    pkh: self.own_pkh.unwrap(),
+                    value: msg.value,
+                };
+                match transaction_factory::build_ut(msg.operator, withdrawal, msg.fee, nonce) {
+                    Err(e) => {
+                        log::error!("Error when building stake transaction: {}", e);
+                        Box::pin(actix::fut::err(e.into()))
+                    }
+                    Ok(ut) => {
+                        let fut = signature_mngr::sign_transaction(&ut, 1)
+                            .into_actor(self)
+                            .then(move |s, act, _ctx| match s {
+                                Ok(signature) => {
+                                    let ut = UnstakeTransaction::new(
+                                        ut,
+                                        signature.first().unwrap().clone(),
+                                    );
 
-                            if msg.dry_run {
-                                Either::Right(actix::fut::result(Ok(ut)))
-                            } else {
-                                let transaction = Transaction::Unstake(ut.clone());
-                                Either::Left(
-                                    act.add_transaction(
-                                        AddTransaction {
-                                            transaction,
-                                            broadcast_flag: true,
-                                        },
-                                        get_timestamp(),
-                                    )
-                                    .map_ok(move |_, _, _| ut),
-                                )
-                            }
-                        }
-                        Err(e) => {
-                            log::error!("Failed to sign stake transaction: {}", e);
-                            Either::Right(actix::fut::result(Err(e)))
-                        }
-                    });
+                                    if msg.dry_run {
+                                        Either::Right(actix::fut::result(Ok(ut)))
+                                    } else {
+                                        let transaction = Transaction::Unstake(ut.clone());
+                                        Either::Left(
+                                            act.add_transaction(
+                                                AddTransaction {
+                                                    transaction,
+                                                    broadcast_flag: true,
+                                                },
+                                                get_timestamp(),
+                                            )
+                                            .map_ok(move |_, _, _| ut),
+                                        )
+                                    }
+                                }
+                                Err(e) => {
+                                    log::error!("Failed to sign stake transaction: {}", e);
+                                    Either::Right(actix::fut::result(Err(e)))
+                                }
+                            });
 
-                Box::pin(fut)
+                        Box::pin(fut)
+                    }
+                }
             }
         }
     }

@@ -947,7 +947,7 @@ pub fn build_block(
     let min_st_weight =
         StakeTransactionBody::new(vec![Input::default()], Default::default(), None).weight();
     let min_ut_weight =
-        UnstakeTransactionBody::new(PublicKeyHash::default(), Default::default(), 0).weight();
+        UnstakeTransactionBody::new(PublicKeyHash::default(), Default::default(), 0, 0).weight();
 
     for vt_tx in transactions_pool.vt_iter() {
         let transaction_weight = vt_tx.weight();

@@ -314,6 +314,7 @@ message UnstakeTransactionBody {
     PublicKeyHash operator = 1;
     ValueTransferOutput withdrawal = 2;
     uint64 fee = 3;
+    uint64 nonce = 4;
 }
 
 message UnstakeTransaction {
