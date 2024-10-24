@@ -8,7 +8,11 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
-use web3::{contract::{self, Contract}, transports::Http, types::H160};
+use web3::{
+    contract::{self, Contract},
+    transports::Http,
+    types::H160,
+};
 use witnet_net::client::tcp::{jsonrpc, JsonRpcClient};
 use witnet_node::utils::stop_system_if_panicking;
 
@@ -169,29 +173,35 @@ impl WatchDog {
 
             let mut metrics: String = "{".to_string();
 
-            metrics.push_str(&format!("\"drsCurrentlyPending\": {}, ", drs_new + drs_pending));
+            metrics.push_str(&format!(
+                "\"drsCurrentlyPending\": {}, ",
+                drs_new + drs_pending
+            ));
 
             drs_history = if drs_history != (0u64, 0u64, 0u64) {
-                let daily_queries = ((total_queries - drs_history.2) as f64 / running_secs as f64) * 86400_f64;
+                let daily_queries =
+                    ((total_queries - drs_history.2) as f64 / running_secs as f64) * 86400_f64;
                 metrics.push_str(&format!("\"drsDailyQueries\": {:.1}, ", daily_queries));
 
                 let last_dismissed = drs_dismissed - drs_history.1;
                 metrics.push_str(&format!("\"drsLastDismissed\": {last_dismissed}, "));
-                
+
                 let last_reported = drs_finished - drs_history.0;
                 metrics.push_str(&format!("\"drsLastReported\": {last_reported}, "));
 
                 // preserve the number of total queries counted upon bridge launch,
                 // so average queries per day can be averaged:
                 (drs_finished, drs_dismissed, drs_history.2)
-            
             } else {
                 status = WatchDogStatus::UpAndRestarted;
                 (drs_finished, drs_dismissed, total_queries)
             };
             metrics.push_str(&format!("\"drsTotalQueries\": {total_queries}, "));
 
-            let eth_balance = match (eth_balance, check_eth_account_balance(&eth_jsonrpc_url, eth_account).await) {
+            let eth_balance = match (
+                eth_balance,
+                check_eth_account_balance(&eth_jsonrpc_url, eth_account).await,
+            ) {
                 (Some(eth_balance), Ok(Some(new_balance))) => {
                     if status == WatchDogStatus::UpAndRunning && new_balance < eth_balance {
                         status = WatchDogStatus::EvmBalanceLeak
@@ -207,13 +217,10 @@ impl WatchDog {
                 }
             };
 
-            let eth_contract_class: Option<String> = match eth_contract.query(
-                "class",
-                (),
-                None,
-                contract::Options::default(),
-                None,
-            ).await {
+            let eth_contract_class: Option<String> = match eth_contract
+                .query("class", (), None, contract::Options::default(), None)
+                .await
+            {
                 Ok(version) => Some(version),
                 Err(err) => {
                     log::error!(
@@ -228,13 +235,10 @@ impl WatchDog {
                 }
             };
 
-            let eth_contract_version: Option<String> = match eth_contract.query(
-                "version",
-                (),
-                None,
-                contract::Options::default(),
-                None,
-            ).await {
+            let eth_contract_version: Option<String> = match eth_contract
+                .query("version", (), None, contract::Options::default(), None)
+                .await
+            {
                 Ok(version) => Some(version),
                 Err(web3::contract::Error::InterfaceUnsupported) => None,
                 Err(err) => {
@@ -257,14 +261,15 @@ impl WatchDog {
                 metrics.push_str(&format!("\"evmContract\": \"{eth_contract_address}\", "));
                 if let Some(eth_contract_class) = eth_contract_class {
                     if let Some(eth_contract_version) = eth_contract_version {
-                        metrics.push_str(
-                            &format!("\"evmContractVersion\": \"{}:{}\", ", 
-                            eth_contract_class, 
-                            eth_contract_version
+                        metrics.push_str(&format!(
+                            "\"evmContractVersion\": \"{}:{}\", ",
+                            eth_contract_class, eth_contract_version
                         ));
                     } else {
-                        metrics.push_str(
-                            &format!("\"evmContractVersion\": {:?}, ", eth_contract_class));
+                        metrics.push_str(&format!(
+                            "\"evmContractVersion\": {:?}, ",
+                            eth_contract_class
+                        ));
                     }
                 }
                 if let Some(start_eth_balance) = start_eth_balance {
@@ -308,7 +313,9 @@ impl WatchDog {
                             "\"witHourlyExpenditure\": {:.1}, ",
                             wit_hourly_expenditure
                         ));
-                        if wit_hourly_expenditure > 0.0 && wit_balance / wit_hourly_expenditure < 72.0 {
+                        if wit_hourly_expenditure > 0.0
+                            && wit_balance / wit_hourly_expenditure < 72.0
+                        {
                             if status == WatchDogStatus::UpAndRunning {
                                 status = WatchDogStatus::WitBalanceLow;
                             }
@@ -327,7 +334,7 @@ impl WatchDog {
                         }
                     }
                 }
-                
+
                 wit_next_balance = wit_balance;
             }
 
