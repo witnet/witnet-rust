@@ -1407,6 +1407,20 @@ pub fn validate_unstake_transaction<'a>(
                 .into());
             }
 
+            // TODO: modify this to enable delegated staking with multiple withdrawer addresses on a single validator
+            let nonce = stake_entry
+                .first()
+                .map(|stake| stake.value.nonce)
+                .unwrap()
+                .into();
+            if ut_tx.body.nonce != nonce {
+                return Err(TransactionError::UnstakeInvalidNonce {
+                    used: ut_tx.body.nonce,
+                    current: nonce,
+                }
+                .into());
+            }
+
             staked_amount
         }
         Err(_) => {

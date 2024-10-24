@@ -864,6 +864,7 @@ pub struct UnstakeTransactionBody {
     pub operator: PublicKeyHash,
     pub withdrawal: ValueTransferOutput,
     pub fee: u64,
+    pub nonce: u64,
 
     #[protobuf_convert(skip)]
     #[serde(skip)]
@@ -872,11 +873,17 @@ pub struct UnstakeTransactionBody {
 
 impl UnstakeTransactionBody {
     /// Creates a new stake transaction body.
-    pub fn new(operator: PublicKeyHash, withdrawal: ValueTransferOutput, fee: u64) -> Self {
+    pub fn new(
+        operator: PublicKeyHash,
+        withdrawal: ValueTransferOutput,
+        fee: u64,
+        nonce: u64,
+    ) -> Self {
         UnstakeTransactionBody {
             operator,
             withdrawal,
             fee,
+            nonce,
             ..Default::default()
         }
     }
