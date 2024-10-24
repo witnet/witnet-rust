@@ -68,28 +68,36 @@ impl Actor for WatchDog {
 
 #[derive(Debug, PartialEq)]
 enum WatchDogStatus {
+    EvmBalanceLeak,
     EvmDisconnect,
     EvmErrors,
     EvmSyncing,
     WitAlmostSynced,
+    WitBalanceLow,
     WitErrors,
     WitDisconnect,
     WitSyncing,
+    WitUtxosLow,
     WitWaitingConsensus,
+    UpAndRestarted,
     UpAndRunning,
 }
 
 impl fmt::Display for WatchDogStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            WatchDogStatus::EvmBalanceLeak => write!(f, "evm-balanace-leak"),
             WatchDogStatus::EvmDisconnect => write!(f, "evm-disconnect"),
             WatchDogStatus::EvmErrors => write!(f, "evm-errors"),
             WatchDogStatus::EvmSyncing => write!(f, "evm-syncing"),
             WatchDogStatus::WitAlmostSynced => write!(f, "wit-almost-synced"),
+            WatchDogStatus::WitBalanceLow => write!(f, "wit-balance-low"),
             WatchDogStatus::WitDisconnect => write!(f, "wit-disconnect"),
             WatchDogStatus::WitErrors => write!(f, "wit-errors"),
             WatchDogStatus::WitSyncing => write!(f, "wit-syncing"),
+            WatchDogStatus::WitUtxosLow => write!(f, "wit-utxos-low"),
             WatchDogStatus::WitWaitingConsensus => write!(f, "wit-waiting-consensus"),
+            WatchDogStatus::UpAndRestarted => write!(f, "up-and-restarted"),
             WatchDogStatus::UpAndRunning => write!(f, "up-and-running"),
         }
     }
@@ -178,13 +186,20 @@ impl WatchDog {
                 (drs_finished, drs_dismissed, drs_history.2)
             
             } else {
+                status = WatchDogStatus::UpAndRestarted;
                 (drs_finished, drs_dismissed, total_queries)
             };
             metrics.push_str(&format!("\"drsTotalQueries\": {total_queries}, "));
 
-            let eth_balance = match check_eth_account_balance(&eth_jsonrpc_url, eth_account).await {
-                Ok(eth_balance) => eth_balance,
-                Err(err) => {
+            let eth_balance = match (eth_balance, check_eth_account_balance(&eth_jsonrpc_url, eth_account).await) {
+                (Some(eth_balance), Ok(Some(new_balance))) => {
+                    if status == WatchDogStatus::UpAndRunning && new_balance < eth_balance {
+                        status = WatchDogStatus::EvmBalanceLeak
+                    }
+                    Some(new_balance)
+                }
+                (_, Ok(new_balance)) => new_balance,
+                (_, Err(err)) => {
                     if status == WatchDogStatus::UpAndRunning {
                         status = err;
                     }
@@ -293,14 +308,24 @@ impl WatchDog {
                             "\"witHourlyExpenditure\": {:.1}, ",
                             wit_hourly_expenditure
                         ));
+                        if wit_hourly_expenditure > 0.0 && wit_balance / wit_hourly_expenditure < 72.0 {
+                            if status == WatchDogStatus::UpAndRunning {
+                                status = WatchDogStatus::WitBalanceLow;
+                            }
+                        }
                     }
                 }
                 metrics.push_str(&format!("\"witNodeSocket\": \"{wit_jsonrpc_socket}\", "));
-                if wit_utxos_above_threshold.is_some() {
+                if let Some(wit_utxos_above_threshold) = wit_utxos_above_threshold {
                     metrics.push_str(&format!(
                         "\"witUtxosAboveThreshold\": {}, ",
-                        wit_utxos_above_threshold.unwrap()
+                        wit_utxos_above_threshold
                     ));
+                    if wit_utxos_above_threshold < 10 {
+                        if status == WatchDogStatus::UpAndRunning {
+                            status = WatchDogStatus::WitUtxosLow;
+                        }
+                    }
                 }
                 
                 wit_next_balance = wit_balance;
