@@ -96,7 +96,7 @@ where
 
 impl<const UNIT: u8, Address, Coins, Epoch, Power> Stakes<UNIT, Address, Coins, Epoch, Power>
 where
-    Address: Clone + Debug + Default + Ord + Send + Sync + Display + 'static,
+    Address: Clone + Debug + Default + Ord + Send + Serialize + Sync + Display + 'static,
     Coins: Copy
         + Default
         + Ord
@@ -111,6 +111,7 @@ where
         + Send
         + Sync
         + Display
+        + Serialize
         + Sum
         + Div<Output = Coins>
         + Rem<Output = Coins>
@@ -123,10 +124,11 @@ where
         + Debug
         + Display
         + Send
+        + Serialize
         + Sync
         + Add<Output = Epoch>
         + Div<Output = Epoch>,
-    Power: Copy + Default + Ord + Add<Output = Power> + Div<Output = Power> + Sum,
+    Power: Copy + Default + Ord + Add<Output = Power> + Div<Output = Power> + Serialize + Sum,
     u64: From<Coins> + From<Power>,
 {
     /// Register a certain amount of additional stake for a certain address, capability and epoch.
@@ -143,7 +145,13 @@ where
 
         // Find or create a matching stake entry
         let stake_found = self.by_key.contains_key(&key);
-        let stake = self.by_key.entry(key.clone()).or_default();
+        let stake = self
+            .by_key
+            .entry(key.clone())
+            .or_insert(SyncStakeEntry::from(StakeEntry {
+                key: key.clone(),
+                ..Default::default()
+            }));
 
         // Actually increase the number of coins
         stake
@@ -151,7 +159,7 @@ where
             .write()?
             .add_stake(coins, epoch, self.minimum_stakeable)?;
 
-        // Update all indexes if needed
+        // Update all indexes if needed (only when the stake entry didn't exist before)
         index_coins(&mut self.by_coins, key.clone(), stake.clone());
         if !stake_found {
             index_addresses(
@@ -563,10 +571,12 @@ where
         + Debug
         + Display
         + Send
+        + Serialize
         + Sync
         + Add<Output = Epoch>
         + Div<Output = Epoch>,
-    Power: Add<Output = Power> + Copy + Default + Div<Output = Power> + Ord + Debug + Sum,
+    Power:
+        Add<Output = Power> + Copy + Debug + Default + Div<Output = Power> + Ord + Serialize + Sum,
     Wit: Mul<Epoch, Output = Power>,
     u64: From<Wit> + From<Power>,
 {
@@ -611,10 +621,12 @@ where
         + Debug
         + Display
         + Send
+        + Serialize
         + Sync
         + Add<Output = Epoch>
         + Div<Output = Epoch>,
-    Power: Add<Output = Power> + Copy + Default + Div<Output = Power> + Ord + Debug + Sum,
+    Power:
+        Add<Output = Power> + Copy + Debug + Default + Div<Output = Power> + Ord + Serialize + Sum,
     Wit: Mul<Epoch, Output = Power>,
     u64: From<Wit> + From<Power>,
 {
@@ -656,11 +668,13 @@ where
         + From<u32>
         + Debug
         + Send
+        + Serialize
         + Sync
         + Display
         + Add<Output = Epoch>
         + Div<Output = Epoch>,
-    Power: Add<Output = Power> + Copy + Default + Div<Output = Power> + Ord + Debug + Sum,
+    Power:
+        Add<Output = Power> + Copy + Debug + Default + Div<Output = Power> + Ord + Serialize + Sum,
     Wit: Mul<Epoch, Output = Power>,
     u64: From<Wit> + From<Power>,
 {
@@ -686,11 +700,13 @@ where
         + From<u32>
         + Debug
         + Send
+        + Serialize
         + Sync
         + Display
         + Add<Output = Epoch>
         + Div<Output = Epoch>,
-    Power: Add<Output = Power> + Copy + Default + Div<Output = Power> + Ord + Debug + Sum,
+    Power:
+        Add<Output = Power> + Copy + Debug + Default + Div<Output = Power> + Ord + Serialize + Sum,
     Wit: Mul<Epoch, Output = Power>,
     u64: From<Wit> + From<Power>,
 {
@@ -705,7 +721,6 @@ where
 mod tests {
     use super::*;
 
-    #[ignore]
     #[test]
     fn test_stakes_initialization() {
         let stakes = StakesTester::default();
@@ -713,7 +728,6 @@ mod tests {
         assert_eq!(ranking, Vec::default());
     }
 
-    #[ignore]
     #[test]
     fn test_add_stake() {
         let mut stakes = StakesTester::with_minimum(5);
@@ -832,7 +846,6 @@ mod tests {
         );
     }
 
-    #[ignore]
     #[test]
     fn test_coin_age_resets() {
         // First, lets create a setup with a few stakers
@@ -900,7 +913,6 @@ mod tests {
         );
         assert_eq!(stakes.query_power(bob, Capability::Mining, 101), Ok(1_620));
         assert_eq!(stakes.query_power(charlie, Capability::Mining, 101), Ok(0));
-        assert_eq!(stakes.query_power(charlie, Capability::Mining, 102), Ok(0));
         assert_eq!(
             stakes.query_power(alice, Capability::Witnessing, 101),
             Ok(1_010)
@@ -930,7 +942,9 @@ mod tests {
             ]
         );
 
-        // Don't panic, Charlie! After enough time, you can take over again ;)
+        // Don't panic, Charlie! You can start to collect power right after, and eventually, you can
+        // even take over again ;)
+        assert_eq!(stakes.query_power(charlie, Capability::Mining, 102), Ok(30));
         assert_eq!(
             stakes.query_power(alice, Capability::Mining, 300),
             Ok(3_000)
@@ -970,7 +984,6 @@ mod tests {
         );
     }
 
-    #[ignore]
     #[test]
     fn test_rank_proportional_reset() {
         // First, lets create a setup with a few stakers
@@ -1024,7 +1037,6 @@ mod tests {
         assert_eq!(stakes.query_power(alice, Capability::Mining, 90), Ok(900));
     }
 
-    #[ignore]
     #[test]
     fn test_query_stakes() {
         // First, lets create a setup with a few stakers
@@ -1105,7 +1117,6 @@ mod tests {
         );
     }
 
-    #[ignore]
     #[test]
     fn test_serde() {
         use bincode;
@@ -1118,8 +1129,7 @@ mod tests {
         stakes.add_stake(alice_bob, 123, 456).ok();
 
         let serialized = bincode::serialize(&stakes).unwrap().clone();
-        let mut deserialized: Stakes<0, String, u64, u64, u64> =
-            bincode::deserialize(serialized.as_slice()).unwrap();
+        let mut deserialized: StakesTester = bincode::deserialize(serialized.as_slice()).unwrap();
 
         deserialized
             .reset_age(alice.clone(), Capability::Mining, 789, 1)
@@ -1134,7 +1144,6 @@ mod tests {
         assert_eq!(epoch, 789);
     }
 
-    #[ignore]
     #[test]
     fn test_validator_withdrawer_pair() {
         // First, lets create a setup with a few stakers

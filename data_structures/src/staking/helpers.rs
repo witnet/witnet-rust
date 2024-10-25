@@ -27,13 +27,13 @@ pub type Power = u64;
 pub type StakesResult<T, Address, Coins, Epoch> = Result<T, StakesError<Address, Coins, Epoch>>;
 
 /// Pairs a stake key and the stake data it refers.
-#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
 pub struct StakeEntry<const UNIT: u8, Address, Coins, Epoch, Power>
 where
-    Address: Clone + Default,
-    Coins: Clone,
-    Epoch: Clone + Default,
-    Power: Clone,
+    Address: Clone + Default + Serialize,
+    Coins: Clone + Serialize,
+    Epoch: Clone + Default + Serialize,
+    Power: Clone + Serialize,
 {
     /// The key to which this stake entry belongs to.
     pub key: StakeKey<Address>,
@@ -53,10 +53,10 @@ impl<const UNIT: u8, Address, Coins, Epoch, Power>
     From<StakeEntry<UNIT, Address, Coins, Epoch, Power>>
     for Stake<UNIT, Address, Coins, Epoch, Power>
 where
-    Address: Clone + Default,
-    Coins: Clone,
-    Epoch: Clone + Default,
-    Power: Clone,
+    Address: Clone + Default + Serialize,
+    Coins: Clone + Serialize,
+    Epoch: Clone + Default + Serialize,
+    Power: Clone + Serialize,
 {
     fn from(entry: StakeEntry<UNIT, Address, Coins, Epoch, Power>) -> Self {
         entry.value
@@ -84,10 +84,10 @@ where
 impl<const UNIT: u8, Address, Coins, Epoch, Power>
     SyncStakeEntry<UNIT, Address, Coins, Epoch, Power>
 where
-    Address: Clone + Default,
-    Coins: Clone,
-    Epoch: Clone + Default,
-    Power: Clone,
+    Address: Clone + Default + Serialize,
+    Coins: Clone + Serialize,
+    Epoch: Clone + Default + Serialize,
+    Power: Clone + Serialize,
 {
     /// Locks and reads both the stake key and the stake data referred by the stake entry.
     pub fn read_entry(&self) -> StakeEntry<UNIT, Address, Coins, Epoch, Power> {
@@ -114,15 +114,32 @@ impl<const UNIT: u8, Address, Coins, Epoch, Power>
     From<StakeEntry<UNIT, Address, Coins, Epoch, Power>>
     for SyncStakeEntry<UNIT, Address, Coins, Epoch, Power>
 where
-    Address: Clone + Default,
-    Coins: Clone,
-    Epoch: Clone + Default,
-    Power: Clone,
+    Address: Clone + Default + Serialize,
+    Coins: Clone + Serialize,
+    Epoch: Clone + Default + Serialize,
+    Power: Clone + Serialize,
 {
     fn from(entry: StakeEntry<UNIT, Address, Coins, Epoch, Power>) -> Self {
         SyncStakeEntry {
             key: Rc::new(RwLock::new(entry.key)),
             value: Rc::new(RwLock::new(entry.value)),
+        }
+    }
+}
+
+impl<const UNIT: u8, Address, Coins, Epoch, Power>
+    From<&SyncStakeEntry<UNIT, Address, Coins, Epoch, Power>>
+    for StakeEntry<UNIT, Address, Coins, Epoch, Power>
+where
+    Address: Clone + Default + Serialize,
+    Coins: Clone + Serialize,
+    Epoch: Clone + Default + Serialize,
+    Power: Clone + Serialize,
+{
+    fn from(sync: &SyncStakeEntry<UNIT, Address, Coins, Epoch, Power>) -> Self {
+        StakeEntry {
+            key: sync.read_key(),
+            value: sync.read_value(),
         }
     }
 }
@@ -146,10 +163,10 @@ where
 impl<'de, const UNIT: u8, Address, Coins, Epoch, Power> Deserialize<'de>
     for SyncStakeEntry<UNIT, Address, Coins, Epoch, Power>
 where
-    Address: Clone + Default,
-    Coins: Clone,
-    Epoch: Clone + Default,
-    Power: Clone,
+    Address: Clone + Default + Serialize,
+    Coins: Clone + Serialize,
+    Epoch: Clone + Default + Serialize,
+    Power: Clone + Serialize,
     StakeEntry<UNIT, Address, Coins, Epoch, Power>: Deserialize<'de>,
 {
     #[inline]
@@ -165,17 +182,17 @@ where
 impl<const UNIT: u8, Address, Coins, Epoch, Power> Serialize
     for SyncStakeEntry<UNIT, Address, Coins, Epoch, Power>
 where
-    Address: Clone + Default,
-    Coins: Clone,
-    Epoch: Clone + Default,
-    Power: Clone,
+    Address: Clone + Default + Serialize,
+    Coins: Clone + Serialize,
+    Epoch: Clone + Default + Serialize,
+    Power: Clone + Serialize,
     Stake<UNIT, Address, Coins, Epoch, Power>: Serialize,
 {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        self.value.read().unwrap().serialize(serializer)
+        StakeEntry::from(self).serialize(serializer)
     }
 }
 
@@ -296,7 +313,16 @@ where
 impl<'de, const UNIT: u8, Address, Coins, Epoch, Power> Deserialize<'de>
     for Stakes<UNIT, Address, Coins, Epoch, Power>
 where
-    Address: Clone + Debug + Default + DeserializeOwned + Display + Ord + Send + Sync + 'static,
+    Address: Clone
+        + Debug
+        + Default
+        + DeserializeOwned
+        + Display
+        + Ord
+        + Send
+        + Serialize
+        + Sync
+        + 'static,
     Coins: Copy
         + Debug
         + Default
@@ -308,6 +334,7 @@ where
         + Ord
         + PrecisionLoss
         + Send
+        + Serialize
         + Sub<Output = Coins>
         + Sum
         + Sync
@@ -322,12 +349,19 @@ where
         + From<u32>
         + Saturating
         + Send
+        + Serialize
         + Sub<Output = Epoch>
         + Sync
         + Add<Output = Epoch>
         + Div<Output = Epoch>,
-    Power:
-        Add<Output = Power> + Copy + Default + DeserializeOwned + Div<Output = Power> + Ord + Sum,
+    Power: Add<Output = Power>
+        + Copy
+        + Default
+        + DeserializeOwned
+        + Div<Output = Power>
+        + Ord
+        + Serialize
+        + Sum,
     u64: From<Coins> + From<Power>,
 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
@@ -349,7 +383,16 @@ struct StakesVisitor<const UNIT: u8, Address, Coins, Epoch, Power> {
 impl<'de, const UNIT: u8, Address, Coins, Epoch, Power> Visitor<'de>
     for StakesVisitor<UNIT, Address, Coins, Epoch, Power>
 where
-    Address: Clone + Debug + Default + Deserialize<'de> + Display + Ord + Send + Sync + 'static,
+    Address: Clone
+        + Debug
+        + Default
+        + Deserialize<'de>
+        + Display
+        + Ord
+        + Send
+        + Serialize
+        + Sync
+        + 'static,
     Coins: Copy
         + Debug
         + Default
@@ -361,6 +404,7 @@ where
         + Ord
         + PrecisionLoss
         + Send
+        + Serialize
         + Sub<Output = Coins>
         + Sum
         + Sync
@@ -374,13 +418,20 @@ where
         + Display
         + From<u32>
         + Send
+        + Serialize
         + Saturating
         + Sub<Output = Epoch>
         + Sync
         + Add<Output = Epoch>
         + Div<Output = Epoch>,
-    Power:
-        Add<Output = Power> + Copy + Default + Deserialize<'de> + Div<Output = Power> + Ord + Sum,
+    Power: Add<Output = Power>
+        + Copy
+        + Default
+        + Deserialize<'de>
+        + Div<Output = Power>
+        + Ord
+        + Serialize
+        + Sum,
     u64: From<Coins> + From<Power>,
 {
     type Value = Stakes<UNIT, Address, Coins, Epoch, Power>;
