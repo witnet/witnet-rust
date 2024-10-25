@@ -166,6 +166,11 @@ where
                 ..Default::default()
             }));
 
+        if !stake_found {
+            stake.key.write()?.validator = key.validator.clone();
+            stake.key.write()?.withdrawer = key.withdrawer.clone();
+        }
+
         // Actually increase the number of coins
         stake
             .value
