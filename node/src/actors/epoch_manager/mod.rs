@@ -127,10 +127,15 @@ impl EpochManager {
         config_mngr::get()
             .into_actor(self)
             .and_then(|config, act, ctx| {
-                let checkpoint_zero_timestamp_v2 =
+                let activation_epoch_wit2 =
+                    get_protocol_version_activation_epoch(ProtocolVersion::V2_0);
+                let checkpoint_zero_timestamp_v2 = if activation_epoch_wit2 == u32::MAX {
+                    i64::MAX
+                } else {
                     config.consensus_constants.checkpoint_zero_timestamp
                         + i64::from(get_protocol_version_activation_epoch(ProtocolVersion::V2_0))
-                            * i64::from(config.consensus_constants.checkpoints_period);
+                            * i64::from(config.consensus_constants.checkpoints_period)
+                };
                 act.set_checkpoint_zero_and_period(
                     config.consensus_constants.checkpoint_zero_timestamp,
                     config.consensus_constants.checkpoints_period,
