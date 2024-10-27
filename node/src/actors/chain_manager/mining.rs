@@ -18,6 +18,7 @@ use futures::future::{try_join_all, FutureExt};
 
 use witnet_config::defaults::{
     PSEUDO_CONSENSUS_CONSTANTS_POS_MAX_STAKE_BLOCK_WEIGHT,
+    PSEUDO_CONSENSUS_CONSTANTS_POS_MAX_STAKE_NANOWITS,
     PSEUDO_CONSENSUS_CONSTANTS_POS_MIN_STAKE_NANOWITS,
     PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE,
 };
@@ -38,7 +39,11 @@ use witnet_data_structures::{
     proto::versioning::{ProtocolVersion, ProtocolVersion::*, VersionedHashable},
     radon_error::RadonError,
     radon_report::{RadonReport, ReportContext, TypeLike},
-    staking::{stake::totalize_stakes, stakes::QueryStakesKey},
+    staking::{
+        helpers::StakeKey,
+        stake::totalize_stakes,
+        stakes::{QueryStakesKey, StakesTracker},
+    },
     transaction::{
         CommitTransaction, CommitTransactionBody, DRTransactionBody, MintTransaction,
         RevealTransaction, RevealTransactionBody, StakeTransactionBody, TallyTransaction,
@@ -77,6 +82,8 @@ use crate::{
     },
     signature_mngr,
 };
+
+const MAX_STAKE_NANOWITS: u64 = PSEUDO_CONSENSUS_CONSTANTS_POS_MAX_STAKE_NANOWITS;
 
 impl ChainManager {
     /// Try to mine a block
@@ -237,6 +244,7 @@ impl ChainManager {
                     tapi_version,
                     &active_wips,
                     Some(validator_count),
+                    &act.chain_state.stakes,
                 );
 
                 // Sign the block hash
@@ -921,6 +929,7 @@ pub fn build_block(
     tapi_signals: u32,
     active_wips: &ActiveWips,
     validator_count: Option<usize>,
+    stakes: &StakesTracker,
 ) -> (BlockHeader, BlockTransactions) {
     let validator_count = validator_count.unwrap_or(DEFAULT_VALIDATOR_COUNT_FOR_TESTS);
     let (transactions_pool, unspent_outputs_pool, dr_pool) = pools_ref;
@@ -1142,6 +1151,7 @@ pub fn build_block(
     let protocol_version = ProtocolVersion::from_epoch(epoch);
 
     if protocol_version > V1_7 {
+        let mut overstake_transactions = Vec::<Hash>::new();
         let mut included_validators = HashSet::<PublicKeyHash>::new();
         for st_tx in transactions_pool.st_iter() {
             let validator_pkh = st_tx.body.output.authorization.public_key.pkh();
@@ -1152,6 +1162,37 @@ pub fn build_block(
                 );
                 continue;
             }
+
+            // If a set of staking transactions is sent simultaneously to the transactions pool using a staking amount smaller
+            // than MAX_STAKE_NANOWITS they can all be accepted since they do not introduce overstaking yet. However, accepting
+            // all of them in subsequent blocks could violate the MAX_STAKE_NANOWITS rule. Thus we still need to check that we
+            // do not include all these staking transactions in a block so we do not produce an invalid block.
+            let stakes_key = QueryStakesKey::Key(StakeKey {
+                validator: st_tx.body.output.key.validator,
+                withdrawer: st_tx.body.output.key.withdrawer,
+            });
+            match stakes.query_stakes(stakes_key) {
+                Ok(stake_entry) => {
+                    // TODO: modify this to enable delegated staking with multiple withdrawer addresses on a single validator
+                    let staked_amount: u64 = stake_entry
+                        .first()
+                        .map(|stake| stake.value.coins)
+                        .unwrap()
+                        .into();
+                    if st_tx.body.output.value + staked_amount > MAX_STAKE_NANOWITS {
+                        overstake_transactions.push(st_tx.hash());
+                        continue;
+                    }
+                }
+                Err(_) => {
+                    // This should never happen since a staking transaction to a non-existing (validator, withdrawer) pair
+                    // with a value higher than MAX_STAKE_NANOWITS should not have been accepted in the transactions pool.
+                    if st_tx.body.output.value > MAX_STAKE_NANOWITS {
+                        overstake_transactions.push(st_tx.hash());
+                        continue;
+                    }
+                }
+            };
 
             let transaction_weight = st_tx.weight();
             let transaction_fee =
@@ -1189,6 +1230,8 @@ pub fn build_block(
 
             included_validators.insert(validator_pkh);
         }
+
+        transactions_pool.remove_overstake_transactions(overstake_transactions);
     } else {
         transactions_pool.clear_stake_transactions();
     }
@@ -1374,6 +1417,7 @@ mod tests {
             0,
             &active_wips,
             None,
+            &StakesTracker::default(),
         );
         let block = Block::new(block_header, KeyedSignature::default(), txns);
 
@@ -1457,6 +1501,7 @@ mod tests {
             0,
             &active_wips,
             None,
+            &StakesTracker::default(),
         );
 
         // Create a KeyedSignature
@@ -1591,6 +1636,7 @@ mod tests {
             0,
             &active_wips,
             None,
+            &StakesTracker::default(),
         );
         let block = Block::new(block_header, KeyedSignature::default(), txns);
 
@@ -1698,6 +1744,7 @@ mod tests {
             0,
             &active_wips,
             None,
+            &StakesTracker::default(),
         );
         let block = Block::new(block_header, KeyedSignature::default(), txns);
 
@@ -1819,6 +1866,7 @@ mod tests {
             0,
             &active_wips,
             None,
+            &StakesTracker::default(),
         );
         let block = Block::new(block_header, KeyedSignature::default(), txns);
 
@@ -1923,6 +1971,7 @@ mod tests {
             0,
             &active_wips,
             None,
+            &StakesTracker::default(),
         );
         let block = Block::new(block_header, KeyedSignature::default(), txns);
 

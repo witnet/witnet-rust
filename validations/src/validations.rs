@@ -8,6 +8,7 @@ use std::{
 use itertools::Itertools;
 
 use witnet_config::defaults::{
+    PSEUDO_CONSENSUS_CONSTANTS_POS_MAX_STAKE_NANOWITS,
     PSEUDO_CONSENSUS_CONSTANTS_POS_MIN_STAKE_NANOWITS,
     PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO,
     PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE,
@@ -67,6 +68,7 @@ use crate::eligibility::{
 
 // TODO: move to a configuration
 const MAX_STAKE_BLOCK_WEIGHT: u32 = 10_000_000;
+const MAX_STAKE_NANOWITS: u64 = PSEUDO_CONSENSUS_CONSTANTS_POS_MAX_STAKE_NANOWITS;
 const MIN_STAKE_NANOWITS: u64 = PSEUDO_CONSENSUS_CONSTANTS_POS_MIN_STAKE_NANOWITS;
 const MAX_UNSTAKE_BLOCK_WEIGHT: u32 = 5_000;
 const UNSTAKING_DELAY_SECONDS: u32 = 1_209_600;
@@ -1344,6 +1346,37 @@ pub fn validate_stake_transaction<'a>(
         st_tx.body.output.key.validator,
         st_tx.body.output.key.withdrawer,
     )?;
+
+    // Check that the amount of coins to stake plus the alread staked amount is equal or smaller than the maximum allowed
+    let stakes_key = QueryStakesKey::Key(StakeKey {
+        validator: st_tx.body.output.key.validator,
+        withdrawer: st_tx.body.output.key.withdrawer,
+    });
+    match stakes.query_stakes(stakes_key) {
+        Ok(stake_entry) => {
+            // TODO: modify this to enable delegated staking with multiple withdrawer addresses on a single validator
+            let staked_amount: u64 = stake_entry
+                .first()
+                .map(|stake| stake.value.coins)
+                .unwrap()
+                .into();
+            if staked_amount + st_tx.body.output.value > MAX_STAKE_NANOWITS {
+                Err(TransactionError::StakeAboveMaximum {
+                    max_stake: MAX_STAKE_NANOWITS,
+                    stake: staked_amount + st_tx.body.output.value,
+                })?;
+            }
+        }
+        Err(_) => {
+            // Check that the amount of coins to stake is equal or smaller than the maximum allowed
+            if st_tx.body.output.value > MAX_STAKE_NANOWITS {
+                Err(TransactionError::StakeAboveMaximum {
+                    max_stake: MAX_STAKE_NANOWITS,
+                    stake: st_tx.body.output.value,
+                })?;
+            }
+        }
+    };
 
     validate_transaction_signature(
         &st_tx.signatures,

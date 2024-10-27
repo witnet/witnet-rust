@@ -393,6 +393,7 @@ mod tests {
             OutputPointer, PublicKeyHash, TransactionsPool, ValueTransferOutput,
         },
         data_request::DataRequestPool,
+        staking::prelude::StakesTracker,
         transaction::{Transaction, VTTransaction, VTTransactionBody},
         utxo_pool::UnspentOutputsPool,
         vrf::BlockEligibilityClaim,
@@ -497,6 +498,7 @@ mod tests {
             0,
             &active_wips,
             None,
+            &StakesTracker::default(),
         );
 
         Block::new(block_header, KeyedSignature::default(), txns)
