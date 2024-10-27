@@ -498,6 +498,9 @@ pub const PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE: u32 = 13440;
 /// Maximum weight units that a block can devote to `StakeTransaction`s.
 pub const PSEUDO_CONSENSUS_CONSTANTS_POS_MAX_STAKE_BLOCK_WEIGHT: u32 = 10_000_000;
 
+/// Maximum amount of nanoWits that a `StakeTransaction` can add (and can be staked on a single validator).
+pub const PSEUDO_CONSENSUS_CONSTANTS_POS_MAX_STAKE_NANOWITS: u64 = 10_000_000_000_000_000;
+
 /// Minimum amount of nanoWits that a `StakeTransaction` can add, and minimum amount that can be
 /// left in stake by an `UnstakeTransaction`.
 pub const PSEUDO_CONSENSUS_CONSTANTS_POS_MIN_STAKE_NANOWITS: u64 = 10_000_000_000_000;

@@ -7,6 +7,7 @@ use std::{
 use itertools::Itertools;
 
 use witnet_config::defaults::{
+    PSEUDO_CONSENSUS_CONSTANTS_POS_MAX_STAKE_NANOWITS,
     PSEUDO_CONSENSUS_CONSTANTS_POS_MIN_STAKE_NANOWITS,
     PSEUDO_CONSENSUS_CONSTANTS_POS_UNSTAKING_DELAY_SECONDS,
     PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO,
@@ -57,6 +58,7 @@ mod witnessing;
 static ONE_WIT: u64 = 1_000_000_000;
 const MAX_VT_WEIGHT: u32 = 20_000;
 const MAX_DR_WEIGHT: u32 = 80_000;
+const MAX_STAKE_NANOWITS: u64 = PSEUDO_CONSENSUS_CONSTANTS_POS_MAX_STAKE_NANOWITS;
 const MIN_STAKE_NANOWITS: u64 = PSEUDO_CONSENSUS_CONSTANTS_POS_MIN_STAKE_NANOWITS;
 const UNSTAKING_DELAY_SECONDS: u64 = PSEUDO_CONSENSUS_CONSTANTS_POS_UNSTAKING_DELAY_SECONDS;
 
@@ -8997,6 +8999,73 @@ fn st_below_min_stake() {
         TransactionError::StakeBelowMinimum {
             min_stake: MIN_STAKE_NANOWITS,
             stake: 1
+        }
+    );
+}
+
+#[test]
+fn st_above_max_stake() {
+    register_protocol_version(ProtocolVersion::V1_8, 10000, 10);
+
+    // Setup stakes tracker with a (validator, validator) pair
+    let (validator_pkh, withdrawer_pkh, stakes) =
+        setup_stakes_tracker(MAX_STAKE_NANOWITS, PRIV_KEY_1, PRIV_KEY_2);
+
+    let utxo_set = UnspentOutputsPool::default();
+    let block_number = 0;
+    let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
+    let mut signatures_to_verify = vec![];
+    let vti = Input::new(
+        "2222222222222222222222222222222222222222222222222222222222222222:1"
+            .parse()
+            .unwrap(),
+    );
+
+    // The stake transaction will fail because its value is above MAX_STAKE_NANOWITS
+    let stake_output = StakeOutput {
+        value: MAX_STAKE_NANOWITS + 1,
+        ..Default::default()
+    };
+    let stake_tx_body = StakeTransactionBody::new(vec![vti], stake_output, None);
+    let stake_tx = StakeTransaction::new(stake_tx_body, vec![]);
+    let x = validate_stake_transaction(
+        &stake_tx,
+        &utxo_diff,
+        Epoch::from(10000 as u32),
+        EpochConstants::default(),
+        &mut signatures_to_verify,
+        &stakes,
+    );
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::StakeAboveMaximum {
+            max_stake: MAX_STAKE_NANOWITS,
+            stake: MAX_STAKE_NANOWITS + 1,
+        }
+    );
+
+    // The stake transaction will fail because the sum of its value and the amount which is
+    // already staked is above MAX_STAKE_NANOWITS
+    let stake_output = StakeOutput {
+        value: MIN_STAKE_NANOWITS,
+        key: StakeKey::from((validator_pkh, withdrawer_pkh)),
+        ..Default::default()
+    };
+    let stake_tx_body = StakeTransactionBody::new(vec![vti], stake_output, None);
+    let stake_tx = StakeTransaction::new(stake_tx_body, vec![]);
+    let x = validate_stake_transaction(
+        &stake_tx,
+        &utxo_diff,
+        Epoch::from(10000 as u32),
+        EpochConstants::default(),
+        &mut signatures_to_verify,
+        &stakes,
+    );
+    assert_eq!(
+        x.unwrap_err().downcast::<TransactionError>().unwrap(),
+        TransactionError::StakeAboveMaximum {
+            max_stake: MAX_STAKE_NANOWITS,
+            stake: MAX_STAKE_NANOWITS + MIN_STAKE_NANOWITS,
         }
     );
 }

@@ -3013,6 +3013,19 @@ impl TransactionsPool {
             })
     }
 
+    /// Remove stake transactions that would result in overstaking on a validator
+    pub fn remove_overstake_transactions(&mut self, transactions: Vec<Hash>) {
+        for st_tx_hash in transactions.iter() {
+            if let Some(st_tx) = self
+                .st_transactions
+                .get(st_tx_hash)
+                .map(|(_, st)| st.clone())
+            {
+                self.st_remove(&st_tx);
+            }
+        }
+    }
+
     /// Remove an unstake transaction from the pool.
     ///
     /// This should be used to remove transactions that got included in a consolidated block.
