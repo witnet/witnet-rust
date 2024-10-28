@@ -1342,10 +1342,19 @@ pub fn validate_stake_transaction<'a>(
     }
 
     // A stake transaction can only stake on an existing validator if the withdrawer address is the same
-    stakes.check_validator_withdrawer(
+    match stakes.check_validator_withdrawer(
         st_tx.body.output.key.validator,
         st_tx.body.output.key.withdrawer,
-    )?;
+    ) {
+        Ok(_) => (),
+        Err(_) => {
+            return Err(TransactionError::NoStakeFound {
+                validator: st_tx.body.output.key.validator,
+                withdrawer: st_tx.body.output.key.withdrawer,
+            }
+            .into());
+        }
+    }
 
     // Check that the amount of coins to stake plus the alread staked amount is equal or smaller than the maximum allowed
     let stakes_key = QueryStakesKey::Key(StakeKey {
