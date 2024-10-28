@@ -4486,10 +4486,10 @@ pub struct EpochConstants {
     pub checkpoints_period: u16,
 
     /// Timestamp of checkpoint (in seconds) when v2 started)
-    pub checkpoint_zero_timestamp_v2: i64,
+    pub checkpoint_zero_timestamp_wit2: i64,
 
     /// Period between checkpoints, in seconds, starting at v2
-    pub checkpoints_period_v2: u16,
+    pub checkpoints_period_wit2: u16,
 }
 
 // This default is only used for tests
@@ -4500,9 +4500,9 @@ impl Default for EpochConstants {
             // This cannot be 0 because we would divide by zero
             checkpoints_period: 1,
             // Variables for v2
-            checkpoint_zero_timestamp_v2: i64::MAX,
+            checkpoint_zero_timestamp_wit2: i64::MAX,
             // This cannot be 0 because we would divide by zero
-            checkpoints_period_v2: 1,
+            checkpoints_period_wit2: 1,
         }
     }
 }
@@ -4510,9 +4510,9 @@ impl Default for EpochConstants {
 impl EpochConstants {
     /// Calculate the last checkpoint (current epoch) at the supplied timestamp
     pub fn epoch_at(&self, timestamp: i64) -> Result<Epoch, EpochCalculationError> {
-        if timestamp >= self.checkpoint_zero_timestamp_v2 {
+        if timestamp >= self.checkpoint_zero_timestamp_wit2 {
             let epochs_pre_v2 = match Epoch::try_from(
-                self.checkpoint_zero_timestamp_v2 - self.checkpoint_zero_timestamp,
+                self.checkpoint_zero_timestamp_wit2 - self.checkpoint_zero_timestamp,
             ) {
                 Ok(epoch) => epoch / Epoch::from(self.checkpoints_period),
                 Err(_) => {
@@ -4522,8 +4522,8 @@ impl EpochConstants {
                 }
             };
             let epochs_post_v2 =
-                match Epoch::try_from(timestamp - self.checkpoint_zero_timestamp_v2) {
-                    Ok(epoch) => epoch / Epoch::from(self.checkpoints_period_v2),
+                match Epoch::try_from(timestamp - self.checkpoint_zero_timestamp_wit2) {
+                    Ok(epoch) => epoch / Epoch::from(self.checkpoints_period_wit2),
                     Err(_) => {
                         return Err(EpochCalculationError::CheckpointZeroInTheFuture(
                             self.checkpoint_zero_timestamp,
@@ -4555,17 +4555,17 @@ impl EpochConstants {
             .ok_or(EpochCalculationError::Overflow)?;
 
         let mut in_v2 = false;
-        let timestamp = if epoch_timestamp >= self.checkpoint_zero_timestamp_v2 {
+        let timestamp = if epoch_timestamp >= self.checkpoint_zero_timestamp_wit2 {
             in_v2 = true;
 
             let epochs_pre_v2: u32 = u32::try_from(
-                (self.checkpoint_zero_timestamp_v2 - self.checkpoint_zero_timestamp)
+                (self.checkpoint_zero_timestamp_wit2 - self.checkpoint_zero_timestamp)
                     / i64::from(self.checkpoints_period),
             )
             .map_err(|_| EpochCalculationError::Overflow)?;
 
-            self.checkpoint_zero_timestamp_v2
-                + i64::from((epoch - epochs_pre_v2) * Epoch::from(self.checkpoints_period_v2))
+            self.checkpoint_zero_timestamp_wit2
+                + i64::from((epoch - epochs_pre_v2) * Epoch::from(self.checkpoints_period_wit2))
         } else {
             epoch_timestamp
         };
@@ -4579,7 +4579,7 @@ impl EpochConstants {
         // TODO: analyze when should nodes start mining a block
         // Start mining at the midpoint of the epoch
         let checkpoints_period = if in_v2 {
-            self.checkpoints_period_v2
+            self.checkpoints_period_wit2
         } else {
             self.checkpoints_period
         };
@@ -4594,7 +4594,7 @@ impl EpochConstants {
     pub fn get_epoch_period(&self, epoch: Epoch) -> Result<u16, EpochCalculationError> {
         let (_, in_v2) = self.epoch_timestamp(epoch)?;
         if in_v2 {
-            Ok(self.checkpoints_period_v2)
+            Ok(self.checkpoints_period_wit2)
         } else {
             Ok(self.checkpoints_period)
         }
@@ -4605,9 +4605,9 @@ impl EpochConstants {
         period: u16,
         epoch: Epoch,
     ) -> Result<(), EpochCalculationError> {
-        self.checkpoints_period_v2 = period;
+        self.checkpoints_period_wit2 = period;
         match self.epoch_timestamp(epoch) {
-            Ok((timestamp, _)) => self.checkpoint_zero_timestamp_v2 = timestamp,
+            Ok((timestamp, _)) => self.checkpoint_zero_timestamp_wit2 = timestamp,
             Err(e) => return Err(e),
         };
 

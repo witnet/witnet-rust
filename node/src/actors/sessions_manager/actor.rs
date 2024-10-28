@@ -47,19 +47,19 @@ impl Actor for SessionsManager {
                     config.consensus_constants.checkpoint_zero_timestamp;
                 let activation_epoch_wit2 =
                     get_protocol_version_activation_epoch(ProtocolVersion::V2_0);
-                let checkpoint_zero_timestamp_v2 = if activation_epoch_wit2 == u32::MAX {
+                let checkpoint_zero_timestamp_wit2 = if activation_epoch_wit2 == u32::MAX {
                     i64::MAX
                 } else {
                     config.consensus_constants.checkpoint_zero_timestamp
                         + i64::from(get_protocol_version_activation_epoch(ProtocolVersion::V2_0))
                             * i64::from(config.consensus_constants.checkpoints_period)
                 };
-                let checkpoints_period_v2 = get_protocol_version_period(ProtocolVersion::V2_0);
+                let checkpoints_period_wit2 = get_protocol_version_period(ProtocolVersion::V2_0);
                 let epoch_constants = EpochConstants {
                     checkpoint_zero_timestamp,
                     checkpoints_period,
-                    checkpoint_zero_timestamp_v2,
-                    checkpoints_period_v2,
+                    checkpoint_zero_timestamp_wit2,
+                    checkpoints_period_wit2,
                 };
                 act.current_epoch = epoch_constants
                     .epoch_at(get_timestamp())

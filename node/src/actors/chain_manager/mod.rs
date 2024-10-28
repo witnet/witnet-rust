@@ -4197,8 +4197,8 @@ mod tests {
             chain_manager.epoch_constants = Some(EpochConstants {
                 checkpoint_zero_timestamp: 0,
                 checkpoints_period: 1_000,
-                checkpoint_zero_timestamp_v2: i64::MAX,
-                checkpoints_period_v2: 1,
+                checkpoint_zero_timestamp_wit2: i64::MAX,
+                checkpoints_period_wit2: 1,
             });
             chain_manager.chain_state.chain_info = Some(ChainInfo {
                 environment: Environment::default(),
@@ -4331,8 +4331,8 @@ mod tests {
             chain_manager.epoch_constants = Some(EpochConstants {
                 checkpoint_zero_timestamp: 0,
                 checkpoints_period: 1_000,
-                checkpoint_zero_timestamp_v2: i64::MAX,
-                checkpoints_period_v2: 1,
+                checkpoint_zero_timestamp_wit2: i64::MAX,
+                checkpoints_period_wit2: 1,
             });
             chain_manager.chain_state.chain_info = Some(ChainInfo {
                 environment: Environment::default(),
