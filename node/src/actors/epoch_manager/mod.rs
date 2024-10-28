@@ -88,14 +88,14 @@ impl EpochManager {
         &mut self,
         checkpoint_zero_timestamp: i64,
         checkpoints_period: u16,
-        checkpoint_zero_timestamp_v2: i64,
-        checkpoints_period_v2: u16,
+        checkpoint_zero_timestamp_wit2: i64,
+        checkpoints_period_wit2: u16,
     ) {
         self.constants = Some(EpochConstants {
             checkpoint_zero_timestamp,
             checkpoints_period,
-            checkpoint_zero_timestamp_v2,
-            checkpoints_period_v2,
+            checkpoint_zero_timestamp_wit2,
+            checkpoints_period_wit2,
         });
     }
     /// Calculate the last checkpoint (current epoch) at the supplied timestamp
@@ -129,7 +129,7 @@ impl EpochManager {
             .and_then(|config, act, ctx| {
                 let activation_epoch_wit2 =
                     get_protocol_version_activation_epoch(ProtocolVersion::V2_0);
-                let checkpoint_zero_timestamp_v2 = if activation_epoch_wit2 == u32::MAX {
+                let checkpoint_zero_timestamp_wit2 = if activation_epoch_wit2 == u32::MAX {
                     i64::MAX
                 } else {
                     config.consensus_constants.checkpoint_zero_timestamp
@@ -139,7 +139,7 @@ impl EpochManager {
                 act.set_checkpoint_zero_and_period(
                     config.consensus_constants.checkpoint_zero_timestamp,
                     config.consensus_constants.checkpoints_period,
-                    checkpoint_zero_timestamp_v2,
+                    checkpoint_zero_timestamp_wit2,
                     get_protocol_version_period(ProtocolVersion::V2_0),
                 );
                 log::info!(
@@ -220,17 +220,18 @@ impl EpochManager {
                 // Update epoch constants for wit/2
                 if get_protocol_version(Some(current_epoch)) == ProtocolVersion::V1_8 {
                     if let Some(constants) = &mut act.constants {
-                        if constants.checkpoint_zero_timestamp_v2 == i64::MAX {
-                            let checkpoints_period_v2 =
+                        if constants.checkpoint_zero_timestamp_wit2 == i64::MAX {
+                            let checkpoints_period_wit2 =
                                 get_protocol_version_period(ProtocolVersion::V2_0);
-                            let activation_epoch_v2 =
+                            let activation_epoch_wit2 =
                                 get_protocol_version_activation_epoch(ProtocolVersion::V2_0);
-                            if checkpoints_period_v2 != u16::MAX
-                                && activation_epoch_v2 != Epoch::MAX
+                            if checkpoints_period_wit2 != u16::MAX
+                                && activation_epoch_wit2 != Epoch::MAX
                             {
-                                match constants
-                                    .set_values_for_wit2(checkpoints_period_v2, activation_epoch_v2)
-                                {
+                                match constants.set_values_for_wit2(
+                                    checkpoints_period_wit2,
+                                    activation_epoch_wit2,
+                                ) {
                                     Ok(_) => (),
                                     Err(_) => panic!("Could not set wit/2 checkpoint variables"),
                                 };

@@ -1207,8 +1207,8 @@ fn vtt_timelock() {
     let epoch_constants = EpochConstants {
         checkpoint_zero_timestamp: 0,
         checkpoints_period: 1_000,
-        checkpoint_zero_timestamp_v2: i64::MAX,
-        checkpoints_period_v2: 1_000,
+        checkpoint_zero_timestamp_wit2: i64::MAX,
+        checkpoints_period_wit2: 1_000,
     };
 
     let test_vtt_epoch = |epoch, time_lock| {
@@ -4025,8 +4025,8 @@ fn commitment_timelock() {
     let epoch_constants = EpochConstants {
         checkpoint_zero_timestamp: 0,
         checkpoints_period: 1_000,
-        checkpoint_zero_timestamp_v2: i64::MAX,
-        checkpoints_period_v2: 1_000,
+        checkpoint_zero_timestamp_wit2: i64::MAX,
+        checkpoints_period_wit2: 1_000,
     };
     let test_commit_epoch = |epoch, time_lock| {
         let mut dr_pool = DataRequestPool::default();

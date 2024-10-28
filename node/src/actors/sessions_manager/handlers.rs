@@ -379,13 +379,14 @@ impl Handler<EpochNotification<()>> for SessionsManager {
         // Check if we need to update the epoch constants
         if get_protocol_version(Some(msg.checkpoint)) == ProtocolVersion::V1_8 {
             if let Some(epoch_constants) = &mut self.epoch_constants {
-                if epoch_constants.checkpoint_zero_timestamp_v2 == i64::MAX {
-                    let checkpoints_period_v2 = get_protocol_version_period(ProtocolVersion::V2_0);
-                    let activation_epoch_v2 =
+                if epoch_constants.checkpoint_zero_timestamp_wit2 == i64::MAX {
+                    let checkpoints_period_wit2 =
+                        get_protocol_version_period(ProtocolVersion::V2_0);
+                    let activation_epoch_wit2 =
                         get_protocol_version_activation_epoch(ProtocolVersion::V2_0);
-                    if checkpoints_period_v2 != u16::MAX && activation_epoch_v2 != Epoch::MAX {
+                    if checkpoints_period_wit2 != u16::MAX && activation_epoch_wit2 != Epoch::MAX {
                         match epoch_constants
-                            .set_values_for_wit2(checkpoints_period_v2, activation_epoch_v2)
+                            .set_values_for_wit2(checkpoints_period_wit2, activation_epoch_wit2)
                         {
                             Ok(_) => (),
                             Err(_) => panic!("Could not set wit/2 checkpoint variables"),

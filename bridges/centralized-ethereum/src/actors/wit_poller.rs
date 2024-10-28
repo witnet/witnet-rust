@@ -229,8 +229,8 @@ async fn get_dr_timestamp(
     let epoch_constants = EpochConstants {
         checkpoint_zero_timestamp: get_protocol_version_activation_epoch(V1_7).into(),
         checkpoints_period: get_protocol_version_period(V1_7),
-        checkpoint_zero_timestamp_v2: get_protocol_version_activation_epoch(V2_0).into(),
-        checkpoints_period_v2: get_protocol_version_period(V2_0),
+        checkpoint_zero_timestamp_wit2: get_protocol_version_activation_epoch(V2_0).into(),
+        checkpoints_period_wit2: get_protocol_version_period(V2_0),
     };
     let timestamp = convert_block_epoch_to_timestamp(
         epoch_constants,

@@ -5,14 +5,14 @@ use witnet_node::actors::epoch_manager::{EpochManager, EpochManagerError};
 fn epoch_zero_range() {
     let zero = 1000;
     let period = 90;
-    let zero_v2 = i64::MAX;
-    let period_v2 = 1;
+    let zero_wit2 = i64::MAX;
+    let period_wit2 = 1;
     let mut em = EpochManager::default();
     em.set_checkpoint_zero_and_period(
         zero,
         u16::try_from(period).unwrap(),
-        zero_v2,
-        u16::try_from(period_v2).unwrap(),
+        zero_wit2,
+        u16::try_from(period_wit2).unwrap(),
     );
 
     // [1000, 1089] are in epoch 0
@@ -35,10 +35,10 @@ fn epoch_zero_in_the_future() {
     let zero = 1000;
     let now = 999;
     let period = 90u16;
-    let zero_v2 = i64::MAX;
-    let period_v2 = 1u16;
+    let zero_wit2 = i64::MAX;
+    let period_wit2 = 1u16;
     let mut em = EpochManager::default();
-    em.set_checkpoint_zero_and_period(zero, period, zero_v2, period_v2);
+    em.set_checkpoint_zero_and_period(zero, period, zero_wit2, period_wit2);
 
     assert_eq!(
         em.epoch_at(now),
@@ -60,14 +60,14 @@ fn epoch_unknown() {
 fn epoch_v2() {
     let zero = 1000;
     let period = 50;
-    let zero_v2 = 2000;
-    let period_v2 = 25;
+    let zero_wit2 = 2000;
+    let period_wit2 = 25;
     let mut em = EpochManager::default();
     em.set_checkpoint_zero_and_period(
         zero,
         u16::try_from(period).unwrap(),
-        zero_v2,
-        u16::try_from(period_v2).unwrap(),
+        zero_wit2,
+        u16::try_from(period_wit2).unwrap(),
     );
 
     // [1000, 1049] are in epoch 0
