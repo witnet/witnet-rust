@@ -1207,7 +1207,7 @@ fn vtt_timelock() {
     let epoch_constants = EpochConstants {
         checkpoint_zero_timestamp: 0,
         checkpoints_period: 1_000,
-        checkpoint_zero_timestamp_v2: 500,
+        checkpoint_zero_timestamp_v2: i64::MAX,
         checkpoints_period_v2: 1_000,
     };
 
@@ -2810,6 +2810,7 @@ fn data_request_miner_fee_with_too_much_change() {
 
 #[test]
 fn data_request_zero_value_output() {
+    let protocol_version = ProtocolVersion::default();
     let mut signatures_to_verify = vec![];
     let data_request = example_data_request();
     let dr_output = DataRequestOutput {
@@ -2849,12 +2850,12 @@ fn data_request_zero_value_output() {
         MAX_DR_WEIGHT,
         REQUIRED_REWARD_COLLATERAL_RATIO,
         &current_active_wips(),
-        None,
+        Some(protocol_version),
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::ZeroValueOutput {
-            tx_hash: dr_transaction.hash(),
+            tx_hash: dr_transaction.versioned_hash(protocol_version),
             output_id: 0,
         }
     );
@@ -4024,7 +4025,7 @@ fn commitment_timelock() {
     let epoch_constants = EpochConstants {
         checkpoint_zero_timestamp: 0,
         checkpoints_period: 1_000,
-        checkpoint_zero_timestamp_v2: 500,
+        checkpoint_zero_timestamp_v2: i64::MAX,
         checkpoints_period_v2: 1_000,
     };
     let test_commit_epoch = |epoch, time_lock| {

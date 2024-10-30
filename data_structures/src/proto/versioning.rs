@@ -306,6 +306,10 @@ impl Versioned for crate::transaction::UnstakeTransactionBody {
     type LegacyType = <Self as ProtobufConvert>::ProtoStruct;
 }
 
+impl Versioned for crate::chain::DataRequestOutput {
+    type LegacyType = <Self as ProtobufConvert>::ProtoStruct;
+}
+
 pub trait AutoVersioned: ProtobufConvert {}
 
 impl AutoVersioned for crate::chain::BlockHeader {}
@@ -318,6 +322,7 @@ impl AutoVersioned for crate::transaction::TallyTransaction {}
 impl AutoVersioned for crate::transaction::MintTransaction {}
 impl AutoVersioned for crate::transaction::StakeTransactionBody {}
 impl AutoVersioned for crate::transaction::UnstakeTransactionBody {}
+impl AutoVersioned for crate::chain::DataRequestOutput {}
 
 pub trait VersionedHashable {
     fn versioned_hash(&self, version: ProtocolVersion) -> Hash;
@@ -396,6 +401,7 @@ impl VersionedHashable for crate::transaction::UnstakeTransaction {
 }
 
 impl VersionedHashable for crate::chain::Block {
+    #[inline]
     fn versioned_hash(&self, version: ProtocolVersion) -> Hash {
         self.block_header.versioned_hash(version)
     }

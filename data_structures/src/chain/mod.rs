@@ -1139,10 +1139,7 @@ pub enum Hash {
 
 impl Default for Hash {
     fn default() -> Hash {
-        Hash::SHA256([
-            227, 176, 196, 66, 152, 252, 28, 20, 154, 251, 244, 200, 153, 111, 185, 36, 39, 174,
-            65, 228, 100, 155, 147, 76, 164, 149, 153, 27, 120, 82, 184, 85,
-        ])
+        Hash::SHA256([0; 32])
     }
 }
 
@@ -4714,7 +4711,10 @@ mod tests {
                 .collect();
             let proof = InclusionProof::sha256(result.index, lemma);
             assert!(proof.verify(
-                dr_txs[index].body.data_poi_hash().into(),
+                dr_txs[index]
+                    .body
+                    .data_poi_hash(ProtocolVersion::default())
+                    .into(),
                 sb.data_request_root.into()
             ));
         }
@@ -4742,10 +4742,8 @@ mod tests {
                 })
                 .collect();
             let proof = InclusionProof::sha256(result.index, lemma);
-            assert!(proof.verify(
-                tally_txs[index].data_poi_hash().into(),
-                sb.tally_root.into()
-            ));
+            let data_poi_hash = tally_txs[index].data_poi_hash();
+            assert!(proof.verify(data_poi_hash.into(), sb.tally_root.into()));
         }
     }
 
@@ -4793,7 +4791,82 @@ mod tests {
         tally_txs
     }
 
-    #[ignore]
+    #[test]
+    fn test_block_header_serialization_across_protocol_versions() {
+        let block = block_example();
+        assert_ne!(
+            hex::encode(
+                block
+                    .block_header
+                    .to_versioned_pb_bytes(ProtocolVersion::V1_7)
+                    .unwrap()
+            ),
+            hex::encode(
+                block
+                    .block_header
+                    .to_versioned_pb_bytes(ProtocolVersion::V1_8)
+                    .unwrap()
+            ),
+        );
+        assert_eq!(
+            hex::encode(
+                block
+                    .block_header
+                    .to_versioned_pb_bytes(ProtocolVersion::V1_8)
+                    .unwrap()
+            ),
+            hex::encode(
+                block
+                    .block_header
+                    .to_versioned_pb_bytes(ProtocolVersion::V2_0)
+                    .unwrap()
+            ),
+        );
+    }
+
+    #[test]
+    fn test_block_header_hashing_across_protocol_versions() {
+        let block = block_example();
+        assert_ne!(
+            hex::encode(block.block_header.versioned_hash(ProtocolVersion::V1_7)),
+            hex::encode(block.block_header.versioned_hash(ProtocolVersion::V1_8)),
+        );
+        assert_eq!(
+            hex::encode(block.block_header.versioned_hash(ProtocolVersion::V1_8)),
+            hex::encode(block.block_header.versioned_hash(ProtocolVersion::V2_0)),
+        );
+    }
+
+    #[test]
+    fn test_block_hashing_across_protocol_versions() {
+        let block = block_example();
+        assert_ne!(
+            hex::encode(block.versioned_hash(ProtocolVersion::V1_7)),
+            hex::encode(block.versioned_hash(ProtocolVersion::V1_8)),
+        );
+        assert_eq!(
+            hex::encode(block.versioned_hash(ProtocolVersion::V1_8)),
+            hex::encode(block.versioned_hash(ProtocolVersion::V2_0)),
+        );
+    }
+
+    #[test]
+    fn test_block_hashing_matches_block_header_hashing() {
+        let block = block_example();
+        assert_eq!(
+            hex::encode(block.versioned_hash(ProtocolVersion::V1_7)),
+            hex::encode(block.block_header.versioned_hash(ProtocolVersion::V1_7)),
+        );
+        assert_eq!(
+            hex::encode(block.versioned_hash(ProtocolVersion::V1_8)),
+            hex::encode(block.block_header.versioned_hash(ProtocolVersion::V1_8)),
+        );
+        assert_eq!(
+            hex::encode(block.versioned_hash(ProtocolVersion::V2_0)),
+            hex::encode(block.block_header.versioned_hash(ProtocolVersion::V2_0)),
+        );
+    }
+
     #[test]
     fn test_block_hashable_trait() {
         let block = block_example();
@@ -4814,7 +4887,6 @@ mod tests {
         );
     }
 
-    #[ignore]
     #[test]
     fn test_transaction_hashable_trait() {
         let transaction = transaction_example();

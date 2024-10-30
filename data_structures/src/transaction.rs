@@ -397,7 +397,7 @@ impl DRTransaction {
     pub fn data_proof_of_inclusion(&self, block: &Block) -> Option<TxInclusionProof> {
         self.proof_of_inclusion(block, ProtocolVersion::default())
             .map(|mut poi| {
-                poi.add_leave(self.body.rest_poi_hash());
+                poi.add_leave(self.body.rest_poi_hash(ProtocolVersion::default()));
 
                 poi
             })
@@ -463,14 +463,14 @@ impl DRTransactionBody {
 
     /// Specified data to be divided in a new level in the proof of inclusion
     /// In this case data = Hash( dr_output )
-    pub fn data_poi_hash(&self) -> Hash {
-        self.dr_output.hash()
+    pub fn data_poi_hash(&self, protocol_version: ProtocolVersion) -> Hash {
+        self.dr_output.versioned_hash(protocol_version)
     }
 
     /// Rest of the transaction to be divided in a new level in the proof of inclusion
     /// In this case we choose the complete transaction
-    pub fn rest_poi_hash(&self) -> Hash {
-        calculate_sha256(&self.to_pb_bytes().unwrap()).into()
+    pub fn rest_poi_hash(&self, protocol_version: ProtocolVersion) -> Hash {
+        self.versioned_hash(protocol_version)
     }
 }
 
@@ -905,8 +905,8 @@ impl MemoizedHashable for VTTransactionBody {
 }
 impl MemoizedHashable for DRTransactionBody {
     fn hashable_bytes(&self) -> Vec<u8> {
-        let Hash::SHA256(data_bytes) = self.data_poi_hash();
-        let Hash::SHA256(rest_bytes) = self.rest_poi_hash();
+        let Hash::SHA256(data_bytes) = self.data_poi_hash(ProtocolVersion::V1_7);
+        let Hash::SHA256(rest_bytes) = self.rest_poi_hash(ProtocolVersion::V1_7);
 
         [data_bytes, rest_bytes].concat()
     }

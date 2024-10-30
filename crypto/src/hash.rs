@@ -3,6 +3,7 @@
 use digest::Digest;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+use std::fmt::Formatter;
 
 /// Enumeration of hash-function names
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -13,7 +14,7 @@ pub enum HashFunction {
 }
 
 /// Secure hashing algorithm v2
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Sha256(pub [u8; 32]);
 
 /// Value of an empty hash
@@ -25,6 +26,12 @@ pub static EMPTY_SHA256: Sha256 = Sha256([
 impl AsRef<[u8]> for Sha256 {
     fn as_ref(&self) -> &[u8] {
         &self.0
+    }
+}
+
+impl std::fmt::Debug for Sha256 {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", hex::encode(self))
     }
 }
 

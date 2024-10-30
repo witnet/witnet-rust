@@ -4,6 +4,9 @@ use std::{
     ops::{Add, Div, Mul, Rem, Sub},
 };
 
+use serde::Serialize;
+
+use witnet_crypto::secp256k1::serde;
 use witnet_data_structures::{chain::Hash, staking::prelude::*, wit::PrecisionLoss};
 
 const MINING_REPLICATION_FACTOR: usize = 4;
@@ -97,7 +100,7 @@ where
 impl<const UNIT: u8, Address, Coins, Epoch, Power> Eligibility<Address, Coins, Epoch, Power>
     for Stakes<UNIT, Address, Coins, Epoch, Power>
 where
-    Address: Clone + Debug + Default + Display + Ord + Sync + Send + 'static,
+    Address: Clone + Debug + Default + Display + Ord + Sync + Send + Serialize + 'static,
     Coins: Copy
         + Debug
         + Default
@@ -115,6 +118,7 @@ where
         + PrecisionLoss
         + Sync
         + Send
+        + Serialize
         + Sum
         + 'static,
     Epoch: Copy
@@ -128,6 +132,7 @@ where
         + From<u32>
         + Sync
         + Send
+        + Serialize
         + 'static,
     Power: Copy
         + Default
@@ -137,6 +142,7 @@ where
         + Mul<Output = Power>
         + Div<Output = Power>
         + From<u64>
+        + Serialize
         + Sum
         + Display,
     u64: From<Coins> + From<Power> + Mul<Power, Output = u64> + Div<Power, Output = u64>,
