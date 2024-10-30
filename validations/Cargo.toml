@@ -10,6 +10,7 @@ workspace = ".."
 failure = "0.1.8"
 itertools = "0.11.0"
 log = "0.4.8"
+serde = { version = "1.0.104", features = ["derive"] }
 url = "2.2.2"
 
 witnet_config = { path = "../config" }

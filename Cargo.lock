@@ -5646,6 +5646,7 @@ dependencies = [
  "itertools 0.11.0",
  "log 0.4.22",
  "num-traits",
+ "serde",
  "url",
  "witnet_config",
  "witnet_crypto",
