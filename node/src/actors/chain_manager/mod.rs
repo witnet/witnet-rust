@@ -1055,44 +1055,68 @@ impl ChainManager {
                 if ProtocolVersion::from_epoch(block_epoch) == ProtocolVersion::V2_0 {
                     let _ = stakes.reset_age(miner_pkh, Capability::Mining, current_epoch, 1);
 
+                    let mut total_commit_reward = 0;
                     for co_tx in &block.txns.commit_txns {
                         let commit_pkh = co_tx.body.proof.proof.pkh();
-                        let dr_output = self
-                            .chain_state
-                            .data_request_pool
-                            .get_dr_output(&co_tx.body.dr_pointer)
-                            .unwrap();
-                        let collateral = dr_output.collateral;
-                        let commit_fee = dr_output.commit_and_reveal_fee;
                         // Reset witnessing power
                         let _ =
                             stakes.reset_age(commit_pkh, Capability::Witnessing, current_epoch, 1);
-                        // Subtract collateral from staked balance
-                        let _ = stakes.reserve_collateral(commit_pkh, Wit::from(collateral));
-                        // Add commit reward
-                        let _ = stakes.add_reward(commit_pkh, Wit::from(commit_fee), block_epoch);
+
+                        total_commit_reward += if let Some(dr_output) = self
+                            .chain_state
+                            .data_request_pool
+                            .get_dr_output(&co_tx.body.dr_pointer)
+                        {
+                            // Subtract collateral from staked balance
+                            let _ = stakes
+                                .reserve_collateral(commit_pkh, Wit::from(dr_output.collateral));
+
+                            dr_output.commit_and_reveal_fee
+                        } else {
+                            0
+                        };
+                    }
+                    // Add commit reward
+                    if total_commit_reward > 0 {
+                        let _ = stakes.add_reward(
+                            miner_pkh,
+                            Wit::from(total_commit_reward),
+                            block_epoch,
+                        );
                     }
 
                     // Add reveal rewards
+                    let mut total_reveal_reward = 0;
                     for re_tx in &block.txns.reveal_txns {
-                        let reveal_pkh = re_tx.body.pkh;
-                        let reveal_fee = self
+                        total_reveal_reward += if let Some(dr_output) = self
                             .chain_state
                             .data_request_pool
                             .get_dr_output(&re_tx.body.dr_pointer)
-                            .unwrap()
-                            .commit_and_reveal_fee;
-                        let _ = stakes.add_reward(reveal_pkh, Wit::from(reveal_fee), block_epoch);
+                        {
+                            dr_output.commit_and_reveal_fee
+                        } else {
+                            0
+                        };
+                    }
+                    // Add reveal reward
+                    if total_reveal_reward > 0 {
+                        let _ = stakes.add_reward(
+                            miner_pkh,
+                            Wit::from(total_reveal_reward),
+                            block_epoch,
+                        );
                     }
 
                     for ta_tx in &block.txns.tally_txns {
-                        let dr_output = self
+                        let (collateral, reward) = if let Some(dr_output) = self
                             .chain_state
                             .data_request_pool
                             .get_dr_output(&ta_tx.dr_pointer)
-                            .unwrap();
-                        let collateral = dr_output.collateral;
-                        let reward = dr_output.witness_reward;
+                        {
+                            (dr_output.collateral, dr_output.witness_reward)
+                        } else {
+                            (0, 0)
+                        };
                         let commits: Vec<_> = self.chain_state.data_request_pool.data_request_pool
                             [&ta_tx.dr_pointer]
                             .info
