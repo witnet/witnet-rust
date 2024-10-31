@@ -1,6 +1,8 @@
 name: Validate
 
-on: [pull_request]
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 env:
   CARGO_TERM_COLOR: always
@@ -37,12 +39,12 @@ jobs:
           subcrate: node
 
       - name: Checking version of wallet
-        uses: ./.github/actions/versions-match  
+        uses: ./.github/actions/versions-match
         with:
           subcrate: wallet
 
       - name: Checking version of toolkit
-        uses: ./.github/actions/versions-match  
+        uses: ./.github/actions/versions-match
         with:
           subcrate: toolkit
 
