@@ -188,7 +188,6 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                                 let rank_subset: Vec<_> = stakes
                                     .rank(Capability::Mining, previous_epoch)
                                     .take(replication_factor.into())
-                                    .map(|sk| sk)
                                     .collect();
                                 for (i, (stake_key, _)) in rank_subset.into_iter().enumerate() {
                                     log::warn!(

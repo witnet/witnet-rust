@@ -143,13 +143,11 @@ where
     ) -> StakesResult<Coins, Address, Coins, Epoch> {
         let coins_after = self.coins.sub(coins);
 
-        if coins_after > Coins::zero() {
-            if coins_after < minimum_stakeable {
-                Err(StakesError::AmountIsBelowMinimum {
-                    amount: coins_after,
-                    minimum: minimum_stakeable,
-                })?;
-            }
+        if coins_after > Coins::zero() && coins_after < minimum_stakeable {
+            Err(StakesError::AmountIsBelowMinimum {
+                amount: coins_after,
+                minimum: minimum_stakeable,
+            })?;
         }
 
         self.coins = coins_after;
