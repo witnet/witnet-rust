@@ -1033,30 +1033,29 @@ impl ChainManager {
                 let superblock_period = chain_info.consensus_constants.superblock_period;
                 if get_protocol_version(Some(block_epoch)) == ProtocolVersion::V1_8
                     && get_protocol_version_activation_epoch(ProtocolVersion::V2_0) == Epoch::MAX
+                    && block_epoch % u32::from(superblock_period) == 0
                 {
-                    if block_epoch % u32::from(superblock_period) == 0 {
-                        let min_total_stake = self
-                            .consensus_constants_wit2
-                            .get_wit2_minimum_total_stake_nanowits();
-                        let activation_delay = self
-                            .consensus_constants_wit2
-                            .get_wit2_activation_delay_epochs();
-                        if stakes.total_staked() >= Wit::from(min_total_stake) {
-                            register_protocol_version(
-                                ProtocolVersion::V2_0,
-                                block_epoch + activation_delay,
-                                20,
-                            );
-                            if let Some(epoch_constants) = &mut self.epoch_constants {
-                                match epoch_constants
-                                    .set_values_for_wit2(20, block_epoch + activation_delay)
-                                {
-                                    Ok(_) => (),
-                                    Err(_) => panic!("Could not set wit/2 checkpoint variables"),
-                                };
-                            } else {
-                                panic!("Could not set wit/2 checkpoint variables");
-                            }
+                    let min_total_stake = self
+                        .consensus_constants_wit2
+                        .get_wit2_minimum_total_stake_nanowits();
+                    let activation_delay = self
+                        .consensus_constants_wit2
+                        .get_wit2_activation_delay_epochs();
+                    if stakes.total_staked() >= Wit::from(min_total_stake) {
+                        register_protocol_version(
+                            ProtocolVersion::V2_0,
+                            block_epoch + activation_delay,
+                            20,
+                        );
+                        if let Some(epoch_constants) = &mut self.epoch_constants {
+                            match epoch_constants
+                                .set_values_for_wit2(20, block_epoch + activation_delay)
+                            {
+                                Ok(_) => (),
+                                Err(_) => panic!("Could not set wit/2 checkpoint variables"),
+                            };
+                        } else {
+                            panic!("Could not set wit/2 checkpoint variables");
                         }
                     }
                 }

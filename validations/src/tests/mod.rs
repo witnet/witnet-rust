@@ -1251,9 +1251,10 @@ fn vtt_timelock() {
     };
 
     // (epoch, time_lock, should_be_accepted_into_block)
+    #[allow(clippy::cast_sign_loss)]
     let czt = epoch_constants.checkpoint_zero_timestamp as u64;
     let tests = vec![
-        (0, czt + 0, true),
+        (0, czt, true),
         (0, czt + 1, false),
         (0, czt + 1_000_000, false),
         (999, czt + 1_000_000, false),
@@ -4134,13 +4135,14 @@ fn commitment_timelock() {
         verify_signatures_test(signatures_to_verify)
     };
 
+    #[allow(clippy::cast_sign_loss)]
     let czt = epoch_constants.checkpoint_zero_timestamp as u64;
     let first_timestamp =
         czt + u64::from(FIRST_HARD_FORK) * u64::from(epoch_constants.checkpoints_period);
 
     // (epoch, time_lock, should_be_accepted_into_block)
     let tests = vec![
-        (0, czt + 0, true),
+        (0, czt, true),
         (0, czt + 1, false),
         (0, czt + 1_000_000, false),
         (999, czt + 1_000_000, false),
@@ -8925,7 +8927,7 @@ fn st_no_inputs() {
     let x = validate_stake_transaction(
         &st_tx,
         &utxo_diff,
-        Epoch::from(10000 as u32),
+        Epoch::from(10000_u32),
         EpochConstants::default(),
         &mut vec![],
         &stakes,
@@ -8966,7 +8968,7 @@ fn st_one_input_but_no_signature() {
     let x = validate_stake_transaction(
         &stake_tx,
         &utxo_diff,
-        Epoch::from(10000 as u32),
+        Epoch::from(10000_u32),
         EpochConstants::default(),
         &mut signatures_to_verify,
         &stakes,
@@ -9008,7 +9010,7 @@ fn st_below_min_stake() {
     let x = validate_stake_transaction(
         &stake_tx,
         &utxo_diff,
-        Epoch::from(10000 as u32),
+        Epoch::from(10000_u32),
         EpochConstants::default(),
         &mut signatures_to_verify,
         &stakes,
@@ -9052,7 +9054,7 @@ fn st_above_max_stake() {
     let x = validate_stake_transaction(
         &stake_tx,
         &utxo_diff,
-        Epoch::from(10000 as u32),
+        Epoch::from(10000_u32),
         EpochConstants::default(),
         &mut signatures_to_verify,
         &stakes,
@@ -9079,7 +9081,7 @@ fn st_above_max_stake() {
     let x = validate_stake_transaction(
         &stake_tx,
         &utxo_diff,
-        Epoch::from(10000 as u32),
+        Epoch::from(10000_u32),
         EpochConstants::default(),
         &mut signatures_to_verify,
         &stakes,
@@ -9112,7 +9114,7 @@ fn unstake_success() {
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
     let x = validate_unstake_transaction(
         &unstake_tx,
-        Epoch::from(20001 as u32),
+        Epoch::from(20001_u32),
         &stakes,
         MIN_STAKE_NANOWITS,
         UNSTAKING_DELAY_SECONDS,
@@ -9135,7 +9137,7 @@ fn unstake_success() {
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
     let x = validate_unstake_transaction(
         &unstake_tx,
-        Epoch::from(20001 as u32),
+        Epoch::from(20001_u32),
         &stakes,
         MIN_STAKE_NANOWITS,
         UNSTAKING_DELAY_SECONDS,
@@ -9155,7 +9157,7 @@ fn unstake_success() {
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
     let x = validate_unstake_transaction(
         &unstake_tx,
-        Epoch::from(20001 as u32),
+        Epoch::from(20001_u32),
         &stakes,
         MIN_STAKE_NANOWITS,
         UNSTAKING_DELAY_SECONDS,
@@ -9204,7 +9206,7 @@ fn unstake_more_than_staked() {
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
     let x = validate_unstake_transaction(
         &unstake_tx,
-        Epoch::from(20001 as u32),
+        Epoch::from(20001_u32),
         &stakes,
         MIN_STAKE_NANOWITS,
         UNSTAKING_DELAY_SECONDS,
@@ -9228,7 +9230,7 @@ fn unstake_more_than_staked() {
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
     let x = validate_unstake_transaction(
         &unstake_tx,
-        Epoch::from(20001 as u32),
+        Epoch::from(20001_u32),
         &stakes,
         MIN_STAKE_NANOWITS,
         UNSTAKING_DELAY_SECONDS,
@@ -9257,7 +9259,7 @@ fn unstake_invalid_nonce() {
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
     let x = validate_unstake_transaction(
         &unstake_tx,
-        Epoch::from(20001 as u32),
+        Epoch::from(20001_u32),
         &stakes,
         MIN_STAKE_NANOWITS,
         UNSTAKING_DELAY_SECONDS,
@@ -9287,7 +9289,7 @@ fn unstake_wrong_withdrawer() {
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
     let x = validate_unstake_transaction(
         &unstake_tx,
-        Epoch::from(20001 as u32),
+        Epoch::from(20001_u32),
         &stakes,
         MIN_STAKE_NANOWITS,
         UNSTAKING_DELAY_SECONDS,
@@ -9316,7 +9318,7 @@ fn unstake_below_stake_minimum() {
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
     let x = validate_unstake_transaction(
         &unstake_tx,
-        Epoch::from(20001 as u32),
+        Epoch::from(20001_u32),
         &stakes,
         MIN_STAKE_NANOWITS,
         UNSTAKING_DELAY_SECONDS,
@@ -9345,7 +9347,7 @@ fn unstake_timelock() {
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
     let x = validate_unstake_transaction(
         &unstake_tx,
-        Epoch::from(20001 as u32),
+        Epoch::from(20001_u32),
         &stakes,
         MIN_STAKE_NANOWITS,
         UNSTAKING_DELAY_SECONDS,
@@ -9374,7 +9376,7 @@ fn unstake_signature() {
     let mut unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
     let x = validate_unstake_transaction(
         &unstake_tx,
-        Epoch::from(20001 as u32),
+        Epoch::from(20001_u32),
         &stakes,
         MIN_STAKE_NANOWITS,
         UNSTAKING_DELAY_SECONDS,
@@ -9384,7 +9386,7 @@ fn unstake_signature() {
     unstake_tx.body.withdrawal.value = 999;
     let x = validate_unstake_transaction(
         &unstake_tx,
-        Epoch::from(20001 as u32),
+        Epoch::from(20001_u32),
         &stakes,
         MIN_STAKE_NANOWITS,
         UNSTAKING_DELAY_SECONDS,

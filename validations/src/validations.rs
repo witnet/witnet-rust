@@ -1317,6 +1317,7 @@ pub type ValidatedStakeTransaction<'a> = (
 );
 
 /// Function to validate a stake transaction.
+#[allow(clippy::too_many_arguments)]
 pub fn validate_stake_transaction<'a>(
     st_tx: &'a StakeTransaction,
     utxo_diff: &UtxoDiff<'_>,
@@ -1449,11 +1450,7 @@ pub fn validate_unstake_transaction<'a>(
             }
 
             // TODO: modify this to enable delegated staking with multiple withdrawer addresses on a single validator
-            let nonce = stake_entry
-                .first()
-                .map(|stake| stake.value.nonce)
-                .unwrap()
-                .into();
+            let nonce = stake_entry.first().map(|stake| stake.value.nonce).unwrap();
             if ut_tx.body.nonce != nonce {
                 return Err(TransactionError::UnstakeInvalidNonce {
                     used: ut_tx.body.nonce,
@@ -1540,11 +1537,11 @@ pub fn validate_unstake_signature(
     let signature = ut_tx.signature.signature.clone().try_into().map_err(fte)?;
     let public_key = ut_tx.signature.public_key.clone().try_into().map_err(fte)?;
 
-    verify(&public_key, &message.to_vec(), &signature).map_err(|e| {
+    verify(&public_key, message.as_ref(), &signature).map_err(|e| {
         TransactionError::VerifyTransactionSignatureFail {
             hash: {
                 let mut sha256 = [0; 32];
-                sha256.copy_from_slice(&message.to_vec());
+                sha256.copy_from_slice(message.as_ref());
                 Hash::SHA256(sha256)
             },
             msg: e.to_string(),
@@ -1834,6 +1831,7 @@ pub fn update_utxo_diff<'a, IterInputs, IterOutputs>(
             None
         };
 
+        #[allow(clippy::cast_sign_loss)]
         let output_to_insert = if get_protocol_version(Some(epoch)) >= ProtocolVersion::V2_0 {
             if output.time_lock < checkpoint_zero_timestamp.try_into().unwrap() {
                 ValueTransferOutput {
@@ -1888,16 +1886,12 @@ pub fn validate_block_transactions(
     let mut genesis_value_available = max_total_value_genesis;
 
     // Check stake transactions are added in V1_8 at the earliest
-    if protocol_version == ProtocolVersion::V1_7 {
-        if block.txns.stake_txns.len() > 0 {
-            return Err(TransactionError::NoStakeTransactionsAllowed.into());
-        }
+    if protocol_version == ProtocolVersion::V1_7 && !block.txns.stake_txns.is_empty() {
+        return Err(TransactionError::NoStakeTransactionsAllowed.into());
     }
     // Check stake transactions are added in V2_0 at the earliest
-    if protocol_version <= ProtocolVersion::V1_8 {
-        if block.txns.unstake_txns.len() > 0 {
-            return Err(TransactionError::NoUnstakeTransactionsAllowed.into());
-        }
+    if protocol_version <= ProtocolVersion::V1_8 && !block.txns.unstake_txns.is_empty() {
+        return Err(TransactionError::NoUnstakeTransactionsAllowed.into());
     }
 
     // TODO: replace for loop with a try_fold
