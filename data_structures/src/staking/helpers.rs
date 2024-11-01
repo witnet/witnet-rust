@@ -69,6 +69,7 @@ where
 ///
 /// This is needed for implementing `PartialEq` manually on the locked data, which cannot be done directly
 /// because those are externally owned types.
+#[allow(clippy::type_complexity)]
 #[derive(Clone, Debug, Default)]
 pub struct SyncStakeEntry<const UNIT: u8, Address, Coins, Epoch, Nonce, Power>
 where

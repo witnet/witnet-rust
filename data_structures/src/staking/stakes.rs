@@ -63,6 +63,7 @@ where
 ///
 /// This structure holds indexes of stake entries. Because the entries themselves are reference
 /// counted and write-locked, we can have as many indexes here as we need at a negligible cost.
+#[allow(clippy::type_complexity)]
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Stakes<const UNIT: u8, Address, Coins, Epoch, Nonce, Power>
 where
@@ -567,6 +568,7 @@ pub type StakesTester = Stakes<0, String, u64, u64, u64, u64>;
 /// If this stake entry was not indexed by coins, this will add it to the index.
 ///
 /// This function was made static instead of adding it to `impl Stakes` because of limitations
+#[allow(clippy::type_complexity)]
 pub fn index_coins<const UNIT: u8, Address, Coins, Epoch, Nonce, Power>(
     by_coins: &mut BTreeMap<
         CoinsAndAddresses<Coins, Address>,
@@ -591,6 +593,7 @@ pub fn index_coins<const UNIT: u8, Address, Coins, Epoch, Nonce, Power>(
 }
 
 /// Upsert a stake entry into those indexes that allow querying by validator or withdrawer.
+#[allow(clippy::type_complexity)]
 pub fn index_addresses<const UNIT: u8, Address, Coins, Epoch, Nonce, Power>(
     by_validator: &mut BTreeMap<
         Address,
@@ -628,6 +631,7 @@ pub fn index_addresses<const UNIT: u8, Address, Coins, Epoch, Nonce, Power>(
 ///
 /// This function was made static instead of adding it to `impl Stakes` because it is not generic over `Address` and
 /// `Coins`.
+#[allow(clippy::type_complexity)]
 pub fn process_stake_transaction<const UNIT: u8, Epoch, Nonce, Power>(
     stakes: &mut Stakes<UNIT, PublicKeyHash, Wit, Epoch, Nonce, Power>,
     transaction: &StakeTransaction,
