@@ -21,6 +21,7 @@ use witnet_config::defaults::{
     PSEUDO_CONSENSUS_CONSTANTS_POS_MIN_STAKE_NANOWITS,
     PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE,
 };
+use witnet_crypto::hash;
 use witnet_data_structures::{
     chain::{
         tapi::{after_second_hard_fork, ActiveWips},
@@ -1200,14 +1201,14 @@ pub fn build_block(
 
     let stake_hash_merkle_root = if protocol_version == V1_7 {
         log::debug!("Legacy protocol: the default stake hash merkle root will be used");
-        Hash::default()
+        Hash::from(hash::EMPTY_SHA256)
     } else {
         log::debug!("Pseudo-2.0 protocol: a merkle tree will be built for the stake transactions");
         merkle_tree_root(&stake_txns)
     };
 
     let unstake_hash_merkle_root = if protocol_version == V1_7 {
-        Hash::default()
+        Hash::from(hash::EMPTY_SHA256)
     } else {
         merkle_tree_root(&unstake_txns)
     };
