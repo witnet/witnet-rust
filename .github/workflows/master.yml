@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - '*'
+      - '!*bridge*'
 
 env:
   CARGO_TERM_COLOR: always
@@ -287,7 +288,7 @@ jobs:
       # Build Docker images (Latest & TAG)
       - name: Build TAG
         run: docker buildx build -f docker/witnet-rust/Dockerfile --progress=plain --build-arg WITNET_VERSION=${{github.ref_name}} --platform linux/amd64,linux/arm64,linux/arm/v7 --tag witnet/witnet-rust:${{github.ref_name}} docker/witnet-rust --push --no-cache
-      
+
       - name: Check Pre-release
         run: |
           TAG=${{ github.ref_name }}

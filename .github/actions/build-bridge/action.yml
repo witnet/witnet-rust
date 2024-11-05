@@ -23,7 +23,7 @@ runs:
 
       - name: Build Binary
         shell: bash
-        run: docker run -v `pwd`:/project:ro -v `pwd`/target:/target -v ~/.cargo:/root/.cargo -w /project -i witnet-rust/$TARGET bash -c "cargo build --release --target=$TARGET --target-dir=/target -p witnet -p witnet_toolkit"
+        run: docker run -v `pwd`:/project:ro -v `pwd`/target:/target -v ~/.cargo:/root/.cargo -w /project -i witnet-rust/$TARGET bash -c "cargo build --release --target=$TARGET --target-dir=/target -p witnet-centralized-ethereum-bridge"
 
       - name: List Directory
         shell: bash

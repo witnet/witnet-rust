@@ -24,6 +24,7 @@ main() {
     local dependencies=(
         ca-certificates
         curl
+        wget
         m4
         make
         perl
@@ -42,8 +43,8 @@ main() {
     td=$(mktemp -d)
 
     pushd $td
-    curl https://www.openssl.org/source/openssl-$version.tar.gz | \
-        tar --strip-components=1 -xz
+    wget https://www.openssl.org/source/openssl-$version.tar.gz
+    tar --strip-components=1 -xzvf openssl-$version.tar.gz
     AR=${triple}ar CC=${triple}gcc ./Configure \
       --prefix=/openssl \
       no-dso \

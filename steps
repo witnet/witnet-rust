@@ -1,0 +1,16 @@
+A. Build helper images
+B. Build binary for aarch64 and x86_64
+C. Push a multi-architecture docker image with buildx
+
+1. Bridge workflow completely separate from main workflow
+2. Only triggers when the tag has -bridge in it
+3. Avoid matching versions between binary & docker image in rc releases
+4. For non RC releases follows the same paradigm pruning the bridge from the tag itself
+5. Avoid pulling from github releases & find a way to inject respective binaries (artifacts from previous stages)
+6. No releases on github for the bridge
+7. Main releases update the latest tag as well
+
+
+1.1.1-bridge_rc.1 -> 1.1.1_rc.1 -> RC Release
+
+1.1.1-bridge -> 1.1.1 -> Official Release

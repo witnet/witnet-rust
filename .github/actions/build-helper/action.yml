@@ -1,7 +1,7 @@
 name: Build Helpers
 description: "Builds & Parallelize Helper images for the compilation then archives them for next stage"
 
-Inputs:
+inputs:
   imagename:
     description: name of the image to tag & upload
     required: true
