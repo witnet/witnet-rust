@@ -29,7 +29,7 @@ eth_witnet_oracle = "0x77703aE126B971c9946d562F41Dd47071dA00777"
 watch_dog_enabled = true 
 
 # Polling period for checking and tracing global status
-watch_dog_polling_rate_ms = 5_000
+watch_dog_polling_rate_minutes = 1
 
 # Minimum collateral required on data requests read from the WitnetOracle contract
 witnet_dr_min_collateral_nanowits = 20_000_000_000

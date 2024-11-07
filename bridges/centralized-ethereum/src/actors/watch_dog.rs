@@ -1,3 +1,4 @@
+use chrono::{Timelike, Utc, NaiveTime};
 use crate::{
     actors::dr_database::{CountDrsPerState, DrDatabase},
     config::Config,
@@ -33,7 +34,7 @@ pub struct WatchDog {
     /// WitOracle bridge contract
     pub eth_contract: Option<Arc<Contract<web3::transports::Http>>>,
     /// Polling period for global status
-    pub polling_rate_ms: u64,
+    pub polling_rate_minutes: u64,
     /// Instant at which the actor is created
     pub start_ts: Option<Instant>,
     /// Eth balance upon first metric report:
@@ -64,8 +65,7 @@ impl Actor for WatchDog {
             None,
             None,
             None,
-            ctx,
-            Duration::from_millis(self.polling_rate_ms),
+            ctx
         );
     }
 }
@@ -90,7 +90,7 @@ enum WatchDogStatus {
 impl fmt::Display for WatchDogStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            WatchDogStatus::EvmBalanceLeak => write!(f, "evm-balanace-leak"),
+            WatchDogStatus::EvmBalanceLeak => write!(f, "evm-balance-leak"),
             WatchDogStatus::EvmDisconnect => write!(f, "evm-disconnect"),
             WatchDogStatus::EvmErrors => write!(f, "evm-errors"),
             WatchDogStatus::EvmSyncing => write!(f, "evm-syncing"),
@@ -122,7 +122,7 @@ impl WatchDog {
             eth_account: config.eth_from,
             eth_contract: Some(eth_contract),
             eth_jsonrpc_url: config.eth_jsonrpc_url.clone(),
-            polling_rate_ms: config.watch_dog_polling_rate_ms,
+            polling_rate_minutes: config.watch_dog_polling_rate_minutes,
             start_ts: Some(Instant::now()),
             start_eth_balance: None,
             start_wit_balance: None,
@@ -135,8 +135,7 @@ impl WatchDog {
         eth_balance: Option<f64>,
         wit_balance: Option<f64>,
         drs_history: Option<(u64, u64, u64)>,
-        ctx: &mut Context<Self>,
-        period: Duration,
+        ctx: &mut Context<Self>
     ) {
         if self.start_eth_balance.is_none() && eth_balance.is_some() {
             self.start_eth_balance = eth_balance;
@@ -348,11 +347,30 @@ impl WatchDog {
         };
 
         ctx.spawn(fut.into_actor(self).then(
-            move |(eth_balance, wit_balance, drs_history), _act, ctx| {
+            move |(eth_balance, wit_balance, drs_history), act, ctx| {
+                let time_now = Utc::now().time();
+                let period_minutes = act.polling_rate_minutes as u32;
+                let time_next_minute= period_minutes * (time_now.minute().div_euclid(period_minutes) + 1);
+                let time_next = if time_next_minute >= 60 {
+                    NaiveTime::from_hms_opt(time_now.hour() + 1, time_next_minute - 60, 0)
+                } else {
+                    NaiveTime::from_hms_opt(time_now.hour() , time_next_minute, 0)
+                };
+                let dur = if let Some(time_next) = time_next {
+                    let num_nanosecs = (time_next - time_now).num_nanoseconds();
+                    if let Some(num_nanosecs) = num_nanosecs {
+                        Duration::from_nanos(num_nanosecs.abs() as u64)
+                    } else {
+                        Duration::from_secs((period_minutes * 60) as u64)
+                    }
+                } else {
+                    Duration::from_secs((period_minutes * 60) as u64)
+                };
+                log::debug!("time_now = {:?} time_next_minute = {} dur = {:?}", time_now, time_next_minute, dur);
                 // Schedule next iteration only when finished,
                 // as to avoid multiple tasks running in parallel
-                ctx.run_later(period, move |act, ctx| {
-                    act.watch_global_status(eth_balance, wit_balance, drs_history, ctx, period);
+                ctx.run_later(dur, move |act, ctx| {
+                    act.watch_global_status(eth_balance, wit_balance, drs_history, ctx);
                 });
                 actix::fut::ready(())
             },
@@ -389,11 +407,6 @@ async fn check_eth_account_balance(
         }
     }
 }
-
-// async fn check_eth_contract_version(
-//     eth_jsonrpc_url: &str,
-//     eth_contract_address: H160,
-// ) ->
 
 async fn check_wit_connection_status(
     wit_client: &Addr<JsonRpcClient>,
