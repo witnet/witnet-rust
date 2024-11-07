@@ -880,8 +880,20 @@ impl BlockMerkleRoots {
             commit_hash_merkle_root: merkle_tree_root(&txns.commit_txns, protocol_version),
             reveal_hash_merkle_root: merkle_tree_root(&txns.reveal_txns, protocol_version),
             tally_hash_merkle_root: merkle_tree_root(&txns.tally_txns, protocol_version),
-            stake_hash_merkle_root: merkle_tree_root(&txns.stake_txns, protocol_version),
-            unstake_hash_merkle_root: merkle_tree_root(&txns.unstake_txns, protocol_version),
+            stake_hash_merkle_root: {
+                if protocol_version < ProtocolVersion::V1_8 {
+                    Hash::default()
+                } else {
+                    merkle_tree_root(&txns.stake_txns, protocol_version)
+                }
+            },
+            unstake_hash_merkle_root: {
+                if protocol_version < ProtocolVersion::V2_0 {
+                    Hash::default()
+                } else {
+                    merkle_tree_root(&txns.unstake_txns, protocol_version)
+                }
+            },
         }
     }
 }

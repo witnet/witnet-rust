@@ -17,7 +17,6 @@ use ansi_term::Color::{White, Yellow};
 use futures::future::{try_join_all, FutureExt};
 
 use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE;
-use witnet_crypto::hash;
 use witnet_data_structures::{
     chain::{
         tapi::{after_second_hard_fork, ActiveWips},
@@ -1308,14 +1307,14 @@ pub fn build_block(
 
     let stake_hash_merkle_root = if protocol_version == V1_7 {
         log::debug!("Legacy protocol: the default stake hash merkle root will be used");
-        Hash::from(hash::EMPTY_SHA256)
+        Hash::default()
     } else {
         log::debug!("Pseudo-2.0 protocol: a merkle tree will be built for the stake transactions");
         merkle_tree_root(&stake_txns)
     };
 
     let unstake_hash_merkle_root = if protocol_version < V2_0 {
-        Hash::from(hash::EMPTY_SHA256)
+        Hash::default()
     } else {
         merkle_tree_root(&unstake_txns)
     };
