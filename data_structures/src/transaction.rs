@@ -17,7 +17,7 @@ use crate::{
     error::TransactionError,
     proto::{
         schema::witnet,
-        versioning::{ProtocolVersion, VersionedHashable},
+        versioning::{ProtocolVersion, Versioned, VersionedHashable},
         ProtobufConvert,
     },
     vrf::DataRequestEligibilityClaim,
@@ -470,7 +470,7 @@ impl DRTransactionBody {
     /// Rest of the transaction to be divided in a new level in the proof of inclusion
     /// In this case we choose the complete transaction
     pub fn rest_poi_hash(&self, protocol_version: ProtocolVersion) -> Hash {
-        self.versioned_hash(protocol_version)
+        calculate_sha256(&self.to_versioned_pb_bytes(protocol_version).unwrap()).into()
     }
 }
 
@@ -637,7 +637,7 @@ impl TallyTransaction {
     /// Rest of the transaction to be divided in a new level in the proof of inclusion
     /// In this case we choose the complete transaction
     pub fn rest_poi_hash(&self, protocol_version: ProtocolVersion) -> Hash {
-        self.versioned_hash(protocol_version)
+        calculate_sha256(&self.to_versioned_pb_bytes(protocol_version).unwrap()).into()
     }
 
     /// Creates a proof of inclusion.
@@ -1096,6 +1096,30 @@ mod tests {
         // Check that after memoizing the hash, the transactions are still considered to be equal.
         let _tx_hash = tx1.hash();
         assert_eq!(tx1, tx2);
+    }
+
+    #[test]
+    fn test_data_request_hash_protocol_version() {
+        let dr_tx = DRTransaction::default();
+        assert_eq!(dr_tx.hash(), dr_tx.versioned_hash(ProtocolVersion::V1_7),);
+    }
+
+    #[test]
+    fn test_commit_hash_protocol_version() {
+        let c_tx = CommitTransaction::default();
+        assert_eq!(c_tx.hash(), c_tx.versioned_hash(ProtocolVersion::V1_7),);
+    }
+
+    #[test]
+    fn test_reveal_hash_protocol_version() {
+        let r_tx = RevealTransaction::default();
+        assert_eq!(r_tx.hash(), r_tx.versioned_hash(ProtocolVersion::V1_7),);
+    }
+
+    #[test]
+    fn test_tally_hash_protocol_version() {
+        let t_tx = TallyTransaction::default();
+        assert_eq!(t_tx.hash(), t_tx.versioned_hash(ProtocolVersion::V1_7),);
     }
 
     #[test]
