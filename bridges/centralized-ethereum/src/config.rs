@@ -40,8 +40,8 @@ pub struct Config {
     /// Let the dog out?
     pub watch_dog_enabled: bool,
     /// Watch dog polling rate
-    #[serde(default = "default_watch_dog_polling_rate_ms")]
-    pub watch_dog_polling_rate_ms: u64,
+    #[serde(default = "default_watch_dog_polling_rate_minutes")]
+    pub watch_dog_polling_rate_minutes: u64,
 
     /// Minimum collateral required on data requests read from the WitnetOracle contract
     pub witnet_dr_min_collateral_nanowits: u64,
@@ -77,8 +77,8 @@ fn default_max_batch_size() -> u16 {
     256
 }
 
-fn default_watch_dog_polling_rate_ms() -> u64 {
-    900_000
+fn default_watch_dog_polling_rate_minutes() -> u64 {
+    15
 }
 
 /// Gas limits for some methods. If missing, let the client estimate
