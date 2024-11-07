@@ -315,10 +315,8 @@ pub trait AutoVersioned: ProtobufConvert {}
 impl AutoVersioned for crate::chain::BlockHeader {}
 impl AutoVersioned for crate::chain::SuperBlock {}
 impl AutoVersioned for crate::transaction::VTTransactionBody {}
-impl AutoVersioned for crate::transaction::DRTransactionBody {}
 impl AutoVersioned for crate::transaction::CommitTransactionBody {}
 impl AutoVersioned for crate::transaction::RevealTransactionBody {}
-impl AutoVersioned for crate::transaction::TallyTransaction {}
 impl AutoVersioned for crate::transaction::MintTransaction {}
 impl AutoVersioned for crate::transaction::StakeTransactionBody {}
 impl AutoVersioned for crate::transaction::UnstakeTransactionBody {}
@@ -365,6 +363,16 @@ impl VersionedHashable for crate::transaction::VTTransaction {
     }
 }
 
+impl VersionedHashable for crate::transaction::DRTransactionBody {
+    #[inline]
+    fn versioned_hash(&self, version: ProtocolVersion) -> Hash {
+        let Hash::SHA256(data_bytes) = self.data_poi_hash(version);
+        let Hash::SHA256(rest_bytes) = self.rest_poi_hash(version);
+
+        witnet_crypto::hash::calculate_sha256(&[data_bytes, rest_bytes].concat()).into()
+    }
+}
+
 impl VersionedHashable for crate::transaction::DRTransaction {
     #[inline]
     fn versioned_hash(&self, version: ProtocolVersion) -> Hash {
@@ -383,6 +391,16 @@ impl VersionedHashable for crate::transaction::RevealTransaction {
     #[inline]
     fn versioned_hash(&self, version: ProtocolVersion) -> Hash {
         self.body.versioned_hash(version)
+    }
+}
+
+impl VersionedHashable for crate::transaction::TallyTransaction {
+    #[inline]
+    fn versioned_hash(&self, version: ProtocolVersion) -> Hash {
+        let Hash::SHA256(data_bytes) = self.data_poi_hash();
+        let Hash::SHA256(rest_bytes) = self.rest_poi_hash(version);
+
+        witnet_crypto::hash::calculate_sha256(&[data_bytes, rest_bytes].concat()).into()
     }
 }
 
