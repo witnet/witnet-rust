@@ -12,7 +12,6 @@ use witnet_config::defaults::{
     PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE,
 };
 use witnet_crypto::{
-    hash,
     hash::{calculate_sha256, Sha256},
     merkle::{merkle_tree_root as crypto_merkle_tree_root, ProgressiveMerkleTree},
     signature::{verify, PublicKey, Signature},
@@ -2288,10 +2287,10 @@ pub fn validate_block_transactions(
             // }
         }
 
-        st_mt.root()
+        Hash::from(st_mt.root())
     } else {
         // Nullify stake merkle roots for the legacy protocol version
-        hash::EMPTY_SHA256
+        Hash::default()
     };
 
     let ut_root = if protocol_version >= ProtocolVersion::V2_0 {
@@ -2332,10 +2331,10 @@ pub fn validate_block_transactions(
             ut_mt.push(transaction.versioned_hash(protocol_version).into());
         }
 
-        ut_mt.root()
+        Hash::from(ut_mt.root())
     } else {
         // Nullify unstake merkle roots for the legacy protocol version
-        hash::EMPTY_SHA256
+        Hash::default()
     };
 
     if !is_genesis {
@@ -2367,8 +2366,8 @@ pub fn validate_block_transactions(
         commit_hash_merkle_root: Hash::from(co_hash_merkle_root),
         reveal_hash_merkle_root: Hash::from(re_hash_merkle_root),
         tally_hash_merkle_root: Hash::from(ta_hash_merkle_root),
-        stake_hash_merkle_root: Hash::from(st_root),
-        unstake_hash_merkle_root: Hash::from(ut_root),
+        stake_hash_merkle_root: st_root,
+        unstake_hash_merkle_root: ut_root,
     };
 
     if merkle_roots != block.block_header.merkle_roots {
