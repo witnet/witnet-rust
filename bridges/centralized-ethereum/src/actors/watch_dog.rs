@@ -1,9 +1,9 @@
-use chrono::{Timelike, Utc, NaiveTime};
 use crate::{
     actors::dr_database::{CountDrsPerState, DrDatabase},
     config::Config,
 };
 use actix::prelude::*;
+use chrono::{NaiveTime, Timelike, Utc};
 use core::fmt;
 use std::{
     sync::Arc,
@@ -61,12 +61,7 @@ impl Actor for WatchDog {
     fn started(&mut self, ctx: &mut Self::Context) {
         log::debug!("WatchDog actor has been started!");
 
-        self.watch_global_status(
-            None,
-            None,
-            None,
-            ctx
-        );
+        self.watch_global_status(None, None, None, ctx);
     }
 }
 
@@ -135,7 +130,7 @@ impl WatchDog {
         eth_balance: Option<f64>,
         wit_balance: Option<f64>,
         drs_history: Option<(u64, u64, u64)>,
-        ctx: &mut Context<Self>
+        ctx: &mut Context<Self>,
     ) {
         if self.start_eth_balance.is_none() && eth_balance.is_some() {
             self.start_eth_balance = eth_balance;
@@ -350,11 +345,12 @@ impl WatchDog {
             move |(eth_balance, wit_balance, drs_history), act, ctx| {
                 let time_now = Utc::now().time();
                 let period_minutes = act.polling_rate_minutes as u32;
-                let time_next_minute= period_minutes * (time_now.minute().div_euclid(period_minutes) + 1);
+                let time_next_minute =
+                    period_minutes * (time_now.minute().div_euclid(period_minutes) + 1);
                 let time_next = if time_next_minute >= 60 {
                     NaiveTime::from_hms_opt(time_now.hour() + 1, time_next_minute - 60, 0)
                 } else {
-                    NaiveTime::from_hms_opt(time_now.hour() , time_next_minute, 0)
+                    NaiveTime::from_hms_opt(time_now.hour(), time_next_minute, 0)
                 };
                 let dur = if let Some(time_next) = time_next {
                     let num_nanosecs = (time_next - time_now).num_nanoseconds();
@@ -366,7 +362,6 @@ impl WatchDog {
                 } else {
                     Duration::from_secs((period_minutes * 60) as u64)
                 };
-                log::debug!("time_now = {:?} time_next_minute = {} dur = {:?}", time_now, time_next_minute, dur);
                 // Schedule next iteration only when finished,
                 // as to avoid multiple tasks running in parallel
                 ctx.run_later(dur, move |act, ctx| {
