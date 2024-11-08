@@ -342,7 +342,7 @@ pub enum TransactionError {
     )]
     InvalidUnstakeTimelock {
         time_lock: u64,
-        unstaking_delay_seconds: u32,
+        unstaking_delay_seconds: u64,
     },
     /// Invalid unstake request
     #[fail(
