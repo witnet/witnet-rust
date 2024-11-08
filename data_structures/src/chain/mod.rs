@@ -584,8 +584,8 @@ impl Block {
             commit_hash_merkle_root: merkle_tree_root(&txns.commit_txns),
             reveal_hash_merkle_root: merkle_tree_root(&txns.reveal_txns),
             tally_hash_merkle_root: merkle_tree_root(&txns.tally_txns),
-            stake_hash_merkle_root: merkle_tree_root(&txns.stake_txns),
-            unstake_hash_merkle_root: merkle_tree_root(&txns.unstake_txns),
+            stake_hash_merkle_root: Hash::default(),
+            unstake_hash_merkle_root: Hash::default(),
         };
 
         Block::new(
