@@ -653,7 +653,6 @@ mod tests {
                 ])
             })
             .collect();
-        let verbose = true;
 
         let params_one = unwrap_batch(batch_results[0].clone());
         wrb_contract_abi
@@ -661,7 +660,7 @@ mod tests {
             .and_then(|function| function.encode_input(&params_one.into_tokens()))
             .expect("encode args failed");
 
-        let params_batch = (batch_results, verbose);
+        let params_batch = batch_results;
         wrb_contract_abi
             .function("reportResultBatch")
             .and_then(|function| function.encode_input(&params_batch.into_tokens()))
@@ -682,15 +681,11 @@ mod tests {
                 .parse()
                 .unwrap(),
             topics: vec![
-                "0x00e9413c6321ec446a267b7ebf5bb108663f2ef58b35c4f6e18905ac8f205cb2"
+                "0x4df64445edc775fba59db44b8001852fb1b777eea88fd54f04572dd114e3ff7f"
                     .parse()
                     .unwrap(),
             ],
-            data: web3::types::Bytes(vec![
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 248, 117, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 16, 232, 36, 130, 44, 106, 92,
-                40, 222, 53, 104, 223, 153, 96, 77, 104, 233, 253, 156, 140,
-            ]),
+            data: web3::types::Bytes(hex::decode("0000000000000000000000000000000000000000000000000000000000001b58000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000146e6f7420696e20506f7374656420737461747573000000000000000000000000").unwrap()),
             block_hash: None,
             block_number: None,
             transaction_hash: None,
@@ -700,13 +695,9 @@ mod tests {
             log_type: None,
             removed: None,
         };
-
         assert_eq!(
             parse_batch_report_error_log(&wrb_contract_abi, log_posted_result),
-            Some((
-                U256::from(63605),
-                String::from("WitnetOracle: query not in Posted status"),
-            ))
+            Some((U256::from(7000), String::from("not in Posted status"),))
         );
     }
 
