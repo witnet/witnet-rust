@@ -5553,6 +5553,7 @@ version = "2.0.0-rc.1"
 dependencies = [
  "actix",
  "async-jsonrpc-client",
+ "chrono",
  "ctrlc",
  "env_logger",
  "envy",
