@@ -142,7 +142,7 @@ impl WatchDog {
             }
         }
         if self.drs_history.is_none() && drs_history.is_some() {
-            self.drs_history = drs_history.clone();
+            self.drs_history = drs_history;
         }
         let start_eth_balance = self.start_eth_balance;
         let start_wit_balance = self.start_wit_balance;
@@ -307,12 +307,8 @@ impl WatchDog {
                             "\"witHourlyExpenditure\": {:.1}, ",
                             wit_hourly_expenditure
                         ));
-                        if wit_hourly_expenditure > 0.0
-                            && wit_balance / wit_hourly_expenditure < 72.0
-                        {
-                            if status == WatchDogStatus::UpAndRunning {
-                                status = WatchDogStatus::WitBalanceLow;
-                            }
+                        if wit_hourly_expenditure > 0.0 && wit_balance / wit_hourly_expenditure < 72.0 && status == WatchDogStatus::UpAndRunning {
+                            status = WatchDogStatus::WitBalanceLow;
                         }
                     }
                 }
@@ -322,10 +318,8 @@ impl WatchDog {
                         "\"witUtxosAboveThreshold\": {}, ",
                         wit_utxos_above_threshold
                     ));
-                    if wit_utxos_above_threshold < 10 {
-                        if status == WatchDogStatus::UpAndRunning {
-                            status = WatchDogStatus::WitUtxosLow;
-                        }
+                    if wit_utxos_above_threshold < 10 && status == WatchDogStatus::UpAndRunning {
+                        status = WatchDogStatus::WitUtxosLow;
                     }
                 }
 
@@ -355,7 +349,7 @@ impl WatchDog {
                 let dur = if let Some(time_next) = time_next {
                     let num_nanosecs = (time_next - time_now).num_nanoseconds();
                     if let Some(num_nanosecs) = num_nanosecs {
-                        Duration::from_nanos(num_nanosecs.abs() as u64)
+                        Duration::from_nanos(num_nanosecs.unsigned_abs())
                     } else {
                         Duration::from_secs((period_minutes * 60) as u64)
                     }
