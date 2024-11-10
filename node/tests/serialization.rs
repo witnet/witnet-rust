@@ -1,7 +1,7 @@
 use bincode::{deserialize, serialize};
 use serde::{de::DeserializeOwned, Serialize};
 use std::fmt::Debug;
-use witnet_data_structures::chain::*;
+use witnet_data_structures::{chain::*, proto::versioning::ProtocolInfo};
 
 fn t<T>(al: T)
 where
@@ -57,6 +57,7 @@ fn chain_state() {
             checkpoint: 0,
             hash_prev_vrf: bootstrap_hash,
         },
+        protocol: ProtocolInfo::default(),
     };
     let c = ChainState {
         chain_info: Some(chain_info),

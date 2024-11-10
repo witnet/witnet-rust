@@ -1319,6 +1319,17 @@ impl ChainManager {
                 // Insert candidate block into `block_chain` state
                 self.chain_state.block_chain.insert(block_epoch, block_hash);
 
+                // Update votes counter for WIPs
+                let checkpoints_period = chain_info.consensus_constants.checkpoints_period;
+                self.chain_state.tapi_engine.update_bit_counter(
+                    block_signals,
+                    block_epoch,
+                    block_epoch,
+                    &HashSet::default(),
+                    checkpoints_period,
+                    chain_info,
+                );
+
                 match self.sm_state {
                     StateMachine::WaitingConsensus => {
                         // Persist finished data requests into storage
@@ -1419,14 +1430,6 @@ impl ChainManager {
 
                 // Update transaction priority information
                 self.priority_engine.push_priorities(priorities);
-
-                // Update votes counter for WIPs
-                self.chain_state.tapi_engine.update_bit_counter(
-                    block_signals,
-                    block_epoch,
-                    block_epoch,
-                    &HashSet::default(),
-                );
 
                 if miner_pkh == own_pkh {
                     self.chain_state.node_stats.block_mined_count += 1;
@@ -2793,14 +2796,21 @@ impl ChainManager {
         }
         .into_actor(self)
         .and_then(move |block_headers, act, _ctx| {
-            for block_header in block_headers {
-                act.chain_state.tapi_engine.update_bit_counter(
-                    block_header.signals,
-                    block_header.beacon.checkpoint,
-                    block_header.beacon.checkpoint,
-                    &old_wips,
-                );
-            }
+            if let Some(chain_info) = act.chain_state.chain_info.as_mut() {
+                let checkpoints_period = chain_info.consensus_constants.checkpoints_period;
+                for block_header in block_headers {
+                    act.chain_state.tapi_engine.update_bit_counter(
+                        block_header.signals,
+                        block_header.beacon.checkpoint,
+                        block_header.beacon.checkpoint,
+                        &old_wips,
+                        checkpoints_period,
+                        chain_info,
+                    );
+                }
+            } else {
+                log::error!("Could not get chain info");
+            };
 
             actix::fut::ok(())
         });
@@ -3733,7 +3743,7 @@ mod tests {
             OutputPointer, PartialConsensusConstants, PublicKey, SecretKey, Signature,
             ValueTransferOutput,
         },
-        proto::versioning::VersionedHashable,
+        proto::versioning::{ProtocolInfo, VersionedHashable},
         transaction::{
             CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, VTTransaction,
             VTTransactionBody,
@@ -3882,6 +3892,7 @@ mod tests {
                     hash_prev_block: Hash::SHA256([1; 32]),
                 },
                 highest_vrf_output: CheckpointVRF::default(),
+                protocol: ProtocolInfo::default(),
             });
 
             assert_eq!(
@@ -4301,6 +4312,7 @@ mod tests {
                     hash_prev_block: Hash::SHA256([1; 32]),
                 },
                 highest_vrf_output: CheckpointVRF::default(),
+                protocol: ProtocolInfo::default(),
             });
             chain_manager.chain_state.reputation_engine = Some(ReputationEngine::new(1000));
             chain_manager.vrf_ctx = Some(VrfCtx::secp256k1().unwrap());
@@ -4435,6 +4447,7 @@ mod tests {
                     hash_prev_block: Hash::SHA256([1; 32]),
                 },
                 highest_vrf_output: CheckpointVRF::default(),
+                protocol: ProtocolInfo::default(),
             });
             let out_ptr = OutputPointer {
                 transaction_id: "0000000000000000000000000000000000000000000000000000000000000001"

@@ -1,5 +1,5 @@
 use crate::{
-    chain::{Environment, Epoch, PublicKeyHash},
+    chain::{ChainInfo, Environment, Epoch, PublicKeyHash},
     register_protocol_version, ProtocolVersion,
 };
 use serde::{Deserialize, Serialize};
@@ -139,6 +139,8 @@ impl TapiEngine {
         epoch_to_update: Epoch,
         block_epoch: Epoch,
         avoid_wip_list: &HashSet<String>,
+        checkpoints_period: u16,
+        chain_info: &mut ChainInfo,
     ) {
         // In case of empty epochs, they would be considered as blocks with tapi version to 0
         // In order to not update bit counter from old blocks where the block version was not used,
@@ -149,7 +151,14 @@ impl TapiEngine {
             let init = self.bit_tapi_counter.last_epoch + 1;
             let end = epoch_to_update;
             for i in init..end {
-                self.update_bit_counter(0, i, block_epoch, avoid_wip_list);
+                self.update_bit_counter(
+                    0,
+                    i,
+                    block_epoch,
+                    avoid_wip_list,
+                    checkpoints_period,
+                    chain_info,
+                );
             }
         }
         for n in 0..self.bit_tapi_counter.len() {
@@ -170,7 +179,14 @@ impl TapiEngine {
                                 register_protocol_version(
                                     ProtocolVersion::V1_8,
                                     block_epoch + 21,
-                                    45,
+                                    checkpoints_period,
+                                );
+                                // Register the 1_8 protocol into chain state (namely, chain info) so that
+                                // the scheduled activation data eventually gets persisted into storage.
+                                chain_info.protocol.register(
+                                    block_epoch + 11,
+                                    ProtocolVersion::V1_8,
+                                    checkpoints_period,
                                 );
                             }
                         }
@@ -665,6 +681,7 @@ mod tests {
     #[test]
     fn test_update_bit_counter() {
         let empty_hs = HashSet::default();
+        let mut chain_info = ChainInfo::default();
         let mut t = TapiEngine::default();
         let bit = 0;
         let wip = BitVotesCounter {
@@ -678,21 +695,21 @@ mod tests {
         t.bit_tapi_counter.insert(wip);
         assert_eq!(t.bit_tapi_counter.last_epoch, 0);
 
-        t.update_bit_counter(1, 9_999, 9_999, &empty_hs);
+        t.update_bit_counter(1, 9_999, 9_999, &empty_hs, 45, &mut chain_info);
         // Updating with epoch < init does not increase the votes counter
         assert_eq!(t.bit_tapi_counter.info[bit].clone().unwrap().votes, 0);
         assert_eq!(t.bit_tapi_counter.last_epoch, 9_999);
 
-        t.update_bit_counter(1, 10_000, 10_000, &empty_hs);
+        t.update_bit_counter(1, 10_000, 10_000, &empty_hs, 45, &mut chain_info);
         // Updating with epoch >= init does increase the votes counter
         // But since this is the first epoch, the votes counter is reset to 0 again afterwards
         assert_eq!(t.bit_tapi_counter.info[bit].clone().unwrap().votes, 0);
 
-        t.update_bit_counter(1, 10_001, 10_001, &empty_hs);
+        t.update_bit_counter(1, 10_001, 10_001, &empty_hs, 45, &mut chain_info);
         // Updating with epoch >= init does increase the votes counter
         assert_eq!(t.bit_tapi_counter.info[bit].clone().unwrap().votes, 1);
 
-        t.update_bit_counter(1, 10_002, 10_002, &empty_hs);
+        t.update_bit_counter(1, 10_002, 10_002, &empty_hs, 45, &mut chain_info);
         // Updating with epoch >= init does increase the votes counter
         assert_eq!(t.bit_tapi_counter.info[bit].clone().unwrap().votes, 2);
 
@@ -700,20 +717,20 @@ mod tests {
         // protection against this because the update_new_wip_votes function must be able to count
         // votes from old blocks
         /*
-        t.update_bit_counter(1, 10_002, &empty_hs);
+        t.update_bit_counter(1, 10_002, &empty_hs, 45, &mut chain_info);
          */
 
-        t.update_bit_counter(0, 10_003, 10_003, &empty_hs);
+        t.update_bit_counter(0, 10_003, 10_003, &empty_hs, 45, &mut chain_info);
         // Updating with epoch >= init but voting against does not increase the votes counter
         assert_eq!(t.bit_tapi_counter.info[bit].clone().unwrap().votes, 2);
 
-        t.update_bit_counter(0, 10_103, 10_103, &empty_hs);
+        t.update_bit_counter(0, 10_103, 10_103, &empty_hs, 45, &mut chain_info);
         // The vote counting is at epoch 10_100, the votes should be reset to 0
         assert_eq!(t.bit_tapi_counter.info[bit].clone().unwrap().votes, 0);
 
         // Add 90 votes to test activation
         for epoch in 10_200..10_290 {
-            t.update_bit_counter(1, epoch, epoch, &empty_hs);
+            t.update_bit_counter(1, epoch, epoch, &empty_hs, 45, &mut chain_info);
         }
         // More than 80% of votes means that the WIP should activate at the next counting epoch
         assert_eq!(t.bit_tapi_counter.info[bit].clone().unwrap().votes, 89);
@@ -724,7 +741,7 @@ mod tests {
         // so that all the blocks after 10_321 are validated using the new validation logic, or
         // change the WIP activation date to 10_501?
         // Decided to change the WIP activation date to 10_521
-        t.update_bit_counter(0, 10_500, 10_500, &empty_hs);
+        t.update_bit_counter(0, 10_500, 10_500, &empty_hs, 45, &mut chain_info);
         // The votes counter should reset
         assert_eq!(t.bit_tapi_counter.info[bit].clone().unwrap().votes, 0);
         // The activation date should be
@@ -734,6 +751,7 @@ mod tests {
     #[test]
     fn test_update_bit_counter_multi_vote() {
         let empty_hs = HashSet::default();
+        let mut chain_info = ChainInfo::default();
         let mut t = TapiEngine::default();
         let wip0 = BitVotesCounter {
             votes: 0,
@@ -756,35 +774,35 @@ mod tests {
         assert_eq!(t.bit_tapi_counter.last_epoch, 0);
 
         // Vote for none
-        t.update_bit_counter(0, 10_001, 10_001, &empty_hs);
+        t.update_bit_counter(0, 10_001, 10_001, &empty_hs, 45, &mut chain_info);
         assert_eq!(t.bit_tapi_counter.info[0].clone().unwrap().votes, 0);
         assert_eq!(t.bit_tapi_counter.info[1].clone().unwrap().votes, 0);
         assert_eq!(t.bit_tapi_counter.last_epoch, 10_001);
 
         // Vote for both
-        t.update_bit_counter(3, 10_002, 10_002, &empty_hs);
+        t.update_bit_counter(3, 10_002, 10_002, &empty_hs, 45, &mut chain_info);
         assert_eq!(t.bit_tapi_counter.info[0].clone().unwrap().votes, 1);
         assert_eq!(t.bit_tapi_counter.info[1].clone().unwrap().votes, 1);
 
         // Vote only for wip0
-        t.update_bit_counter(1, 10_002, 10_002, &empty_hs);
+        t.update_bit_counter(1, 10_002, 10_002, &empty_hs, 45, &mut chain_info);
         assert_eq!(t.bit_tapi_counter.info[0].clone().unwrap().votes, 2);
         assert_eq!(t.bit_tapi_counter.info[1].clone().unwrap().votes, 1);
 
         // Vote only for wip1
-        t.update_bit_counter(2, 10_002, 10_002, &empty_hs);
+        t.update_bit_counter(2, 10_002, 10_002, &empty_hs, 45, &mut chain_info);
         assert_eq!(t.bit_tapi_counter.info[0].clone().unwrap().votes, 2);
         assert_eq!(t.bit_tapi_counter.info[1].clone().unwrap().votes, 2);
 
         // Add 90 votes to test activation of both wips in the same epoch
         for epoch in 10_003..10_093 {
-            t.update_bit_counter(3, epoch, epoch, &empty_hs);
+            t.update_bit_counter(3, epoch, epoch, &empty_hs, 45, &mut chain_info);
         }
 
         assert_eq!(t.bit_tapi_counter.info[0].clone().unwrap().votes, 92);
         assert_eq!(t.bit_tapi_counter.info[1].clone().unwrap().votes, 92);
 
-        t.update_bit_counter(0, 10_100, 10_100, &empty_hs);
+        t.update_bit_counter(0, 10_100, 10_100, &empty_hs, 45, &mut chain_info);
         // The votes counter should reset
         assert_eq!(t.bit_tapi_counter.info[0].clone().unwrap().votes, 0);
         assert_eq!(t.bit_tapi_counter.info[1].clone().unwrap().votes, 0);
@@ -798,6 +816,7 @@ mod tests {
         // Check that voting for unallocated wips is allowed, but the extra votes are not counted,
         // and the votes for active bits are valid
         let empty_hs = HashSet::default();
+        let mut chain_info = ChainInfo::default();
         let mut t = TapiEngine::default();
         let bit = 0;
         let wip = BitVotesCounter {
@@ -812,7 +831,7 @@ mod tests {
         assert_eq!(t.bit_tapi_counter.info[bit].clone().unwrap().votes, 0);
 
         // Vote "yes" to all the 32 bits, even though there is only 1 active wip (bit 0)
-        t.update_bit_counter(u32::MAX, 10_001, 10_001, &empty_hs);
+        t.update_bit_counter(u32::MAX, 10_001, 10_001, &empty_hs, 45, &mut chain_info);
         // This is a valid block and a valid vote
         assert_eq!(t.bit_tapi_counter.info[bit].clone().unwrap().votes, 1);
     }
