@@ -41,7 +41,7 @@ use crate::{
     get_environment, get_protocol_version, get_protocol_version_activation_epoch,
     get_protocol_version_period,
     proto::{
-        versioning::{ProtocolVersion, Versioned, VersionedHashable},
+        versioning::{ProtocolInfo, ProtocolVersion, Versioned, VersionedHashable},
         ProtobufConvert,
     },
     staking::prelude::*,
@@ -88,6 +88,10 @@ pub struct ChainInfo {
 
     /// Checkpoint and VRF hash of the highest block in the blockchain
     pub highest_vrf_output: CheckpointVRF,
+
+    /// Keeps track of protocol versions and their related data (e.g. activation epoch)
+    #[serde(default)]
+    pub protocol: ProtocolInfo,
 }
 
 /// State machine for the synchronization status of a Witnet node

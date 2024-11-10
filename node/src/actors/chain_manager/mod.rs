@@ -1041,16 +1041,28 @@ impl ChainManager {
                     let activation_delay = self
                         .consensus_constants_wit2
                         .get_wit2_activation_delay_epochs();
+                    let checkpoint_period =
+                        self.consensus_constants_wit2.get_checkpoints_period_wit2();
                     if stakes.total_staked() >= Wit::from(min_total_stake) {
+                        // Register the 2_0 protocol into global state
                         register_protocol_version(
                             ProtocolVersion::V2_0,
                             block_epoch + activation_delay,
-                            20,
+                            checkpoint_period,
                         );
+                        // Register the 2_0 protocol into chain state (namely, chain info) so that
+                        // the scheduled activation data eventually gets persisted into storage.
+                        chain_info.protocol.register(
+                            block_epoch + activation_delay,
+                            ProtocolVersion::V2_0,
+                            checkpoint_period,
+                        );
+
                         if let Some(epoch_constants) = &mut self.epoch_constants {
-                            match epoch_constants
-                                .set_values_for_wit2(20, block_epoch + activation_delay)
-                            {
+                            match epoch_constants.set_values_for_wit2(
+                                checkpoint_period,
+                                block_epoch + activation_delay,
+                            ) {
                                 Ok(_) => (),
                                 Err(_) => panic!("Could not set wit/2 checkpoint variables"),
                             };

@@ -24,7 +24,7 @@ use crate::{
     types::Message,
 };
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct ProtocolInfo {
     pub current_version: ProtocolVersion,
     pub all_versions: VersionsMap,
@@ -39,7 +39,7 @@ impl ProtocolInfo {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct VersionsMap {
     efv: HashMap<ProtocolVersion, Epoch>,
     vfe: BTreeMap<Epoch, ProtocolVersion>,
@@ -66,6 +66,15 @@ impl VersionsMap {
             Some(epoch) => *epoch,
             None => Epoch::MAX,
         }
+    }
+}
+
+impl IntoIterator for VersionsMap {
+    type Item = (ProtocolVersion, Epoch);
+    type IntoIter = std::collections::hash_map::IntoIter<ProtocolVersion, Epoch>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.efv.into_iter()
     }
 }
 

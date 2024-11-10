@@ -137,7 +137,7 @@ pub fn get_protocol_version(epoch: Option<Epoch>) -> ProtocolVersion {
     }
 }
 
-/// Let the protocol versions controller know about the a protocol version, and its activation epoch.
+/// Let the protocol versions controller know about a protocol version, and its activation epoch.
 pub fn register_protocol_version(
     protocol_version: ProtocolVersion,
     epoch: Epoch,
@@ -154,9 +154,15 @@ pub fn register_protocol_version(
 
 /// Set the protocol version that we are running.
 pub fn set_protocol_version(protocol_version: ProtocolVersion) {
+    log::debug!("Setting current protocol version to {protocol_version}");
     // The lock can only become poisoned when a writer panics.
     let mut protocol = PROTOCOL.write().unwrap();
     protocol.current_version = protocol_version;
+}
+
+pub fn load_protocol_info(info: ProtocolInfo) {
+    let mut protocol_info = PROTOCOL.write().unwrap();
+    *protocol_info = info;
 }
 
 /// Refresh the protocol version, i.e. derive the current version from the current epoch, and update `current_version`

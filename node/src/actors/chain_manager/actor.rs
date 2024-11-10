@@ -12,7 +12,7 @@ use witnet_data_structures::{
         GenesisBlockInfo, PublicKeyHash, ReputationEngine, StateMachine, SuperBlock,
     },
     data_request::DataRequestPool,
-    get_environment,
+    get_environment, load_protocol_info, refresh_protocol_version,
     staking::prelude::*,
     superblock::SuperBlockState,
     types::LastBeacon,
@@ -171,7 +171,7 @@ impl ChainManager {
                         actix::fut::ok(result)
                     })
             })
-            .map_ok(move |(chain_state_from_storage, config), _act, _ctx| {
+            .map_ok(move |(chain_state_from_storage, config), act, _ctx| {
                 // Get environment and consensus_constants parameters from config
                 let environment = config.environment;
                 let consensus_constants = &config.consensus_constants;
@@ -191,6 +191,16 @@ impl ChainManager {
                         if environment == chain_info_from_storage.environment {
                             if consensus_constants == &chain_info_from_storage.consensus_constants {
                                 log::debug!("ChainInfo successfully obtained from storage");
+
+                                // Load protocol info into global state (overwrites whatever was set
+                                // through configuration). If possible, derives the current protocol
+                                // version from that info and the current epoch. This essentially
+                                // allows a node to catch up with a new protocol version if the
+                                // transition happened while it was down.                                
+                                load_protocol_info(chain_info_from_storage.protocol.clone());
+                                if let Some(epoch) = act.current_epoch {
+                                    refresh_protocol_version(epoch);
+                                }
 
                                 chain_state_from_storage
                             } else {
@@ -248,6 +258,7 @@ impl ChainManager {
                                 checkpoint: 0,
                                 hash_prev_vrf: hash_prev_block,
                             },
+                            ..ChainInfo::default()
                         };
 
                         let bootstrap_committee = chain_info
