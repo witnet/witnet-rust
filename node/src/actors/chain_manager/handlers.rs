@@ -13,8 +13,8 @@ use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE;
 use witnet_data_structures::{
     capabilities::Capability,
     chain::{
-        tapi::ActiveWips, Block, ChainState, CheckpointBeacon, DataRequestInfo, Epoch, Hash,
-        Hashable, NodeStats, PublicKeyHash, SuperBlockVote, SupplyInfo, ValueTransferOutput,
+        tapi::ActiveWips, Block, ChainInfo, ChainState, CheckpointBeacon, DataRequestInfo, Epoch,
+        Hash, Hashable, NodeStats, PublicKeyHash, SuperBlockVote, SupplyInfo, ValueTransferOutput,
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
     proto::versioning::ProtocolVersion,
@@ -37,11 +37,11 @@ use crate::{
             AddTransaction, Broadcast, BuildDrt, BuildStake, BuildUnstake, BuildVtt,
             EpochNotification, EstimatePriority, GetBalance, GetBalanceTarget, GetBlocksEpochRange,
             GetDataRequestInfo, GetHighestCheckpointBeacon, GetMemoryTransaction, GetMempool,
-            GetMempoolResult, GetNodeStats, GetReputation, GetReputationResult, GetSignalingInfo,
-            GetState, GetSuperBlockVotes, GetSupplyInfo, GetUtxoInfo, IsConfirmedBlock,
-            PeersBeacons, QueryStake, ReputationStats, Rewind, SendLastBeacon, SessionUnitResult,
-            SetLastBeacon, SetPeersLimits, SignalingInfo, SnapshotExport, SnapshotImport,
-            TryMineBlock,
+            GetMempoolResult, GetNodeStats, GetProtocolInfo, GetReputation, GetReputationResult,
+            GetSignalingInfo, GetState, GetSuperBlockVotes, GetSupplyInfo, GetUtxoInfo,
+            IsConfirmedBlock, PeersBeacons, QueryStake, ReputationStats, Rewind, SendLastBeacon,
+            SessionUnitResult, SetLastBeacon, SetPeersLimits, SignalingInfo, SnapshotExport,
+            SnapshotImport, TryMineBlock,
         },
         sessions_manager::SessionsManager,
     },
@@ -2076,6 +2076,19 @@ impl Handler<EstimatePriority> for ChainManager {
                 Ok(self.priority_engine.estimate_priority(seconds_per_epoch)?)
             }
             current_state => Err(ChainManagerError::NotSynced { current_state }.into()),
+        }
+    }
+}
+
+impl Handler<GetProtocolInfo> for ChainManager {
+    type Result = <GetProtocolInfo as Message>::Result;
+
+    fn handle(&mut self, _msg: GetProtocolInfo, _ctx: &mut Self::Context) -> Self::Result {
+        let chain_info = &self.chain_state.chain_info;
+
+        match chain_info {
+            None => Ok(None),
+            Some(ChainInfo { protocol, .. }) => Ok(Some(protocol.clone())),
         }
     }
 }

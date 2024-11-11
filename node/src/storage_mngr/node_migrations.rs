@@ -1,5 +1,6 @@
 use witnet_data_structures::{
     chain::{tapi::TapiEngine, ChainState},
+    proto::versioning::{ProtocolInfo, ProtocolVersion},
     staking::stakes::StakesTracker,
     utxo_pool::UtxoWriteBatch,
 };

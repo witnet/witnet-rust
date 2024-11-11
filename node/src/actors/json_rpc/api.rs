@@ -45,8 +45,8 @@ use crate::{
             ClearPeers, DropAllPeers, EstimatePriority, GetBalance, GetBalanceTarget,
             GetBlocksEpochRange, GetConsolidatedPeers, GetDataRequestInfo, GetEpoch,
             GetHighestCheckpointBeacon, GetItemBlock, GetItemSuperblock, GetItemTransaction,
-            GetKnownPeers, GetMemoryTransaction, GetMempool, GetNodeStats, GetReputation,
-            GetSignalingInfo, GetState, GetSupplyInfo, GetUtxoInfo, InitializePeers,
+            GetKnownPeers, GetMemoryTransaction, GetMempool, GetNodeStats, GetProtocolInfo,
+            GetReputation, GetSignalingInfo, GetState, GetSupplyInfo, GetUtxoInfo, InitializePeers,
             IsConfirmedBlock, QueryStake, QueryStakesParams, Rewind, SnapshotExport,
             SnapshotImport, StakeAuthorization,
         },
@@ -141,6 +141,7 @@ pub fn attach_regular_methods<H>(
         Box::pin(signaling_info())
     });
     server.add_actix_method(system, "priority", |_params: Params| Box::pin(priority()));
+    server.add_actix_method(system, "protocol", |_params: Params| Box::pin(protocol()));
     server.add_actix_method(system, "queryStakes", |params: Params| {
         Box::pin(query_stakes(params.parse()))
     });
@@ -1941,6 +1942,17 @@ pub async fn priority() -> JsonRpcResult {
         .map_err(internal_error_s)?;
 
     serde_json::to_value(estimate).map_err(internal_error_s)
+}
+
+/// Get information about protocol versions and which version is currently being enforced.
+pub async fn protocol() -> JsonRpcResult {
+    let chain_manager_addr = ChainManager::from_registry();
+    let response = chain_manager_addr.send(GetProtocolInfo {}).await;
+    let protocol_info = response
+        .map_err(internal_error_s)?
+        .map_err(internal_error_s)?;
+
+    serde_json::to_value(protocol_info).map_err(internal_error_s)
 }
 
 /// Parameters of snapshot_export

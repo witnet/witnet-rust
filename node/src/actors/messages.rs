@@ -26,6 +26,7 @@ use witnet_data_structures::{
         SuperBlock, SuperBlockVote, SupplyInfo, ValueTransferOutput,
     },
     fee::{deserialize_fee_backwards_compatible, Fee},
+    proto::versioning::ProtocolInfo,
     radon_report::RadonReport,
     staking::prelude::*,
     transaction::{
@@ -1450,6 +1451,14 @@ pub struct EstimatePriority;
 
 impl Message for EstimatePriority {
     type Result = Result<PrioritiesEstimate, failure::Error>;
+}
+
+/// Message for fetching protocol information.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct GetProtocolInfo;
+
+impl Message for crate::actors::messages::GetProtocolInfo {
+    type Result = Result<Option<ProtocolInfo>, failure::Error>;
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]

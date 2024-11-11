@@ -269,6 +269,7 @@ pub fn exec_cmd(
         Command::Rewind { node, epoch } => rpc::rewind(node.unwrap_or(default_jsonrpc), epoch),
         Command::SignalingInfo { node } => rpc::signaling_info(node.unwrap_or(default_jsonrpc)),
         Command::Priority { node, json } => rpc::priority(node.unwrap_or(default_jsonrpc), json),
+        Command::ProtocolInfo { node } => rpc::get_protocol(node.unwrap_or(default_jsonrpc)),
         Command::Stake {
             node,
             value,
@@ -498,6 +499,16 @@ pub enum Command {
         /// Print all the reputation?
         #[structopt(long = "all", conflicts_with = "address")]
         all: bool,
+    },
+    #[structopt(
+        name = "protocolInfo",
+        alias = "protocol",
+        about = "Get information about the protocol versions known to a node, and which protocol version is being currently enforced"
+    )]
+    ProtocolInfo {
+        /// Socket address of the Witnet node to query
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
     },
     #[structopt(name = "output", about = "Find an output of a transaction")]
     Output {

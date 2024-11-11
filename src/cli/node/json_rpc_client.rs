@@ -32,7 +32,10 @@ use witnet_data_structures::{
     },
     fee::Fee,
     get_environment,
-    proto::ProtobufConvert,
+    proto::{
+        versioning::{ProtocolInfo, ProtocolVersion},
+        ProtobufConvert,
+    },
     transaction::{
         DRTransaction, StakeTransaction, Transaction, UnstakeTransaction, VTTransaction,
     },
@@ -1675,6 +1678,33 @@ pub fn get_node_stats(addr: SocketAddr) -> Result<(), failure::Error> {
     } else {
         println!("The node is waiting for epoch 0");
     }
+
+    Ok(())
+}
+
+pub fn get_protocol(addr: SocketAddr) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
+    let request = r#"{"jsonrpc": "2.0","method": "protocol", "id": "1"}"#;
+    let response = send_request(&mut stream, request)?;
+    let protocol_info: Option<ProtocolInfo> = parse_response(&response)?;
+
+    let version = if let Some(ProtocolInfo {
+        current_version, ..
+    }) = protocol_info
+    {
+        current_version.to_string()
+    } else {
+        format!(
+            "unknown (assumed to be {}, but it could be older)",
+            ProtocolVersion::V1_7
+        )
+    };
+
+    println!(
+        "Protocol Info:\n\
+     - Current protocol version: {}",
+        version
+    );
 
     Ok(())
 }
