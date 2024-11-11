@@ -1,9 +1,6 @@
 name: Bridge
 
 on:
-  workflow_run:
-    workflows: ["Release Tag"]
-    types: [completed]
   workflow_dispatch:
     inputs:
       force:
@@ -49,7 +46,7 @@ jobs:
       - name: Set Version
         run: |
           echo VERNUM=$(sed -nE 's/version\s?=\s?"([0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9\.]+)?)"/\1/p' ./bridges/centralized-ethereum/Cargo.toml | head -1) >> $GITHUB_ENV
-      
+
       - name: Login to Docker hub Registry
         uses: docker/login-action@v3
         with:
@@ -66,7 +63,7 @@ jobs:
           docker build -t witnet/witnet-centralized-ethereum-bridge:latest -f ./docker/bridge/Dockerfile .
           docker push witnet/witnet-centralized-ethereum-bridge:latest
         if: env.prerelease == 'false'
-          
+
 
   Failure:
     runs-on: ubuntu-latest

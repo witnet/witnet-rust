@@ -1,7 +1,7 @@
 name: Build Binaries
 description: "Builds Linux Binaries"
 
-Inputs:
+inputs:
   target:
     description: Build target architecture
     required: true
