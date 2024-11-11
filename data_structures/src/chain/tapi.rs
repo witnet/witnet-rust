@@ -184,7 +184,7 @@ impl TapiEngine {
                                 // Register the 1_8 protocol into chain state (namely, chain info) so that
                                 // the scheduled activation data eventually gets persisted into storage.
                                 chain_info.protocol.register(
-                                    block_epoch + 11,
+                                    block_epoch + 21,
                                     ProtocolVersion::V1_8,
                                     checkpoints_period,
                                 );
