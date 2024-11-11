@@ -183,7 +183,7 @@ impl Message for SetDrState {
 pub struct CountDrsPerState;
 
 impl Message for CountDrsPerState {
-    type Result = Result<(u64, u64, u64, u64), ()>;
+    type Result = Result<(u32, u32, u32, u32), ()>;
 }
 
 impl Handler<SetDrInfoBridge> for DrDatabase {
@@ -282,11 +282,11 @@ impl Handler<SetDrState> for DrDatabase {
 }
 
 impl Handler<CountDrsPerState> for DrDatabase {
-    type Result = Result<(u64, u64, u64, u64), ()>;
+    type Result = Result<(u32, u32, u32, u32), ()>;
 
     fn handle(&mut self, _msg: CountDrsPerState, _ctx: &mut Self::Context) -> Self::Result {
         Ok(self.dr.iter().fold(
-            (0u64, 0u64, 0u64, 0u64),
+            (0u32, 0u32, 0u32, 0u32),
             |(mut drs_new, mut drs_pending, mut drs_finished, mut drs_dismissed),
              (_dr_id, dr_info)| {
                 match dr_info.dr_state {

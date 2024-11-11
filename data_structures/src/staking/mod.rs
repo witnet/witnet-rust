@@ -12,11 +12,11 @@ pub mod stakes;
 /// Module re-exporting virtually every submodule on a single level to ease importing of everything
 /// staking-related.
 pub mod prelude {
-    pub use crate::capabilities::*;
     pub use super::errors::*;
     pub use super::helpers::*;
     pub use super::stake::*;
     pub use super::stakes::*;
+    pub use crate::capabilities::*;
 }
 
 #[cfg(test)]

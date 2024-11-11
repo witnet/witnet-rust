@@ -6,6 +6,7 @@ use actix::prelude::*;
 use chrono::{NaiveTime, Timelike, Utc};
 use core::fmt;
 use std::{
+    convert::TryFrom,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -34,7 +35,7 @@ pub struct WatchDog {
     /// WitOracle bridge contract
     pub eth_contract: Option<Arc<Contract<web3::transports::Http>>>,
     /// Polling period for global status
-    pub polling_rate_minutes: u64,
+    pub polling_rate_minutes: u32,
     /// Instant at which the actor is created
     pub start_ts: Option<Instant>,
     /// Eth balance upon first metric report:
@@ -42,7 +43,7 @@ pub struct WatchDog {
     /// Wit balance upon last refund
     pub start_wit_balance: Option<f64>,
     /// Past data request cumulative counters:
-    pub drs_history: Option<(u64, u64, u64)>,
+    pub drs_history: Option<(u32, u32, u32)>,
 }
 
 impl Drop for WatchDog {
@@ -129,7 +130,7 @@ impl WatchDog {
         &mut self,
         eth_balance: Option<f64>,
         wit_balance: Option<f64>,
-        drs_history: Option<(u64, u64, u64)>,
+        drs_history: Option<(u32, u32, u32)>,
         ctx: &mut Context<Self>,
     ) {
         if self.start_eth_balance.is_none() && eth_balance.is_some() {
@@ -154,7 +155,8 @@ impl WatchDog {
         let eth_account = self.eth_account;
         let eth_contract = self.eth_contract.clone().unwrap();
         let eth_contract_address = eth_contract.address();
-        let running_secs = self.start_ts.unwrap().elapsed().as_secs();
+        let running_secs =
+            u32::try_from(self.start_ts.unwrap().elapsed().as_secs()).unwrap_or_default();
         let mut drs_history = drs_history.unwrap_or_default();
 
         let fut = async move {
@@ -172,9 +174,10 @@ impl WatchDog {
                 drs_new + drs_pending
             ));
 
-            drs_history = if drs_history != (0u64, 0u64, 0u64) {
-                let daily_queries =
-                    ((total_queries - drs_history.2) as f64 / running_secs as f64) * 86400_f64;
+            drs_history = if drs_history != (0u32, 0u32, 0u32) {
+                let daily_queries = (f64::from(total_queries - drs_history.2)
+                    / f64::from(running_secs))
+                    * 86400_f64;
                 metrics.push_str(&format!("\"drsDailyQueries\": {:.1}, ", daily_queries));
 
                 let last_dismissed = drs_dismissed - drs_history.1;
@@ -268,7 +271,7 @@ impl WatchDog {
                 }
                 if let Some(start_eth_balance) = start_eth_balance {
                     let eth_hourly_earnings =
-                        ((eth_balance - start_eth_balance) / running_secs as f64) * 3600_f64;
+                        ((eth_balance - start_eth_balance) / f64::from(running_secs)) * 3600_f64;
                     metrics.push_str(&format!(
                         "\"evmHourlyEarnings\": {:.5}, ",
                         eth_hourly_earnings
@@ -301,13 +304,17 @@ impl WatchDog {
                     let wit_balance = wit_balance.unwrap();
                     metrics.push_str(&format!("\"witBalance\": {:.5}, ", wit_balance));
                     if let Some(start_wit_balance) = start_wit_balance {
-                        let wit_hourly_expenditure =
-                            ((start_wit_balance - wit_balance) / running_secs as f64) * 3600_f64;
+                        let wit_hourly_expenditure = ((start_wit_balance - wit_balance)
+                            / f64::from(running_secs))
+                            * 3600_f64;
                         metrics.push_str(&format!(
                             "\"witHourlyExpenditure\": {:.1}, ",
                             wit_hourly_expenditure
                         ));
-                        if wit_hourly_expenditure > 0.0 && wit_balance / wit_hourly_expenditure < 72.0 && status == WatchDogStatus::UpAndRunning {
+                        if wit_hourly_expenditure > 0.0
+                            && wit_balance / wit_hourly_expenditure < 72.0
+                            && status == WatchDogStatus::UpAndRunning
+                        {
                             status = WatchDogStatus::WitBalanceLow;
                         }
                     }
@@ -338,7 +345,7 @@ impl WatchDog {
         ctx.spawn(fut.into_actor(self).then(
             move |(eth_balance, wit_balance, drs_history), act, ctx| {
                 let time_now = Utc::now().time();
-                let period_minutes = act.polling_rate_minutes as u32;
+                let period_minutes = act.polling_rate_minutes;
                 let time_next_minute =
                     period_minutes * (time_now.minute().div_euclid(period_minutes) + 1);
                 let time_next = if time_next_minute >= 60 {
@@ -351,10 +358,10 @@ impl WatchDog {
                     if let Some(num_nanosecs) = num_nanosecs {
                         Duration::from_nanos(num_nanosecs.unsigned_abs())
                     } else {
-                        Duration::from_secs((period_minutes * 60) as u64)
+                        Duration::from_secs(u64::from(period_minutes * 60))
                     }
                 } else {
-                    Duration::from_secs((period_minutes * 60) as u64)
+                    Duration::from_secs(u64::from(period_minutes * 60))
                 };
                 // Schedule next iteration only when finished,
                 // as to avoid multiple tasks running in parallel
