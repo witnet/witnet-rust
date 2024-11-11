@@ -43,7 +43,7 @@ PUBLIC_ADDR_DISCOVERY=${PUBLIC_ADDR_DISCOVERY:-"true"}
 LOG_LEVEL=${LOG_LEVEL:-"info"}
 
 # Run the migrator (e.g. move RocksDB data from "./witnet" into "./witnet/storage")
-./migrator.sh
+./migrator.sh $@
 
 # Change directory into the file system root so that all paths are absolute when using "docker exec"
 cd /
@@ -52,11 +52,12 @@ cd /
 while true; do
     # Run the public address detector if enabled
     if [[ "$PUBLIC_ADDR_DISCOVERY" == "true" ]]; then
-        /tmp/ip_detector.sh
+        /tmp/ip_detector.sh $@
     fi
 
     # Run the node itself, using configuration from the default directory and passing down any arguments that may be
     # appended when running "docker run"
-    RUST_LOG=witnet=$LOG_LEVEL /tmp/witnet-raw -c "$CONFIG_FILE" "$COMMAND" || echo "$ERROR_BANNER"
+    echo "Running as 'RUST_LOG=witnet=$LOG_LEVEL /tmp/witnet-raw -c \"$CONFIG_FILE\" $COMMAND'"
+    RUST_LOG=witnet=$LOG_LEVEL /tmp/witnet-raw -c "$CONFIG_FILE" $COMMAND || echo "$ERROR_BANNER"
     sleep 30
 done
