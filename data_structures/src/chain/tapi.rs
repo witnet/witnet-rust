@@ -169,22 +169,31 @@ impl TapiEngine {
                     if is_bit_n_activated(v, n) {
                         bit_counter.votes += 1;
                     }
+                    log::debug!(
+                        "Counting signals for TAPI bit {}. Counted {}/{} signals ({}%)",
+                        n,
+                        bit_counter.votes,
+                        bit_counter.period,
+                        (bit_counter.votes * 100) / bit_counter.period
+                    );
                     if (epoch_to_update - bit_counter.init) % bit_counter.period == 0 {
                         if (bit_counter.votes * 100) / bit_counter.period >= 80 {
                             // An offset of 21 is added to ensure that the activation of the WIP is
                             // achieved with consolidated blocks
+                            let scheduled_epoch = block_epoch + 21;
                             self.wip_activation
-                                .insert(bit_counter.wip.clone(), block_epoch + 21);
+                                .insert(bit_counter.wip.clone(), scheduled_epoch);
                             if bit_counter.wip == "WIP0028" {
+                                log::info!("WIP0028 has passed. Protocol V1_8 will be scheduled for epoch {}", scheduled_epoch);
                                 register_protocol_version(
                                     ProtocolVersion::V1_8,
-                                    block_epoch + 21,
+                                    scheduled_epoch,
                                     checkpoints_period,
                                 );
                                 // Register the 1_8 protocol into chain state (namely, chain info) so that
                                 // the scheduled activation data eventually gets persisted into storage.
                                 chain_info.protocol.register(
-                                    block_epoch + 11,
+                                    scheduled_epoch,
                                     ProtocolVersion::V1_8,
                                     checkpoints_period,
                                 );
@@ -229,6 +238,17 @@ impl TapiEngine {
                 for (k, v) in test_wip_info() {
                     self.wip_activation.insert(k, v);
                 }
+
+                // Hardcoded information about WIPs in vote processing
+                let wip_0028 = BitVotesCounter {
+                    votes: 0,
+                    period: TWELVE_HOURS,
+                    wip: "WIP0028".to_string(),
+                    init: 0,
+                    end: u32::MAX,
+                    bit: 9,
+                };
+                voting_wips[9] = Some(wip_0028);
             }
         };
 

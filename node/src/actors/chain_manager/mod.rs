@@ -1044,16 +1044,18 @@ impl ChainManager {
                     let checkpoint_period =
                         self.consensus_constants_wit2.get_checkpoints_period_wit2();
                     if stakes.total_staked() >= Wit::from(min_total_stake) {
+                        let scheduled_epoch = block_epoch + activation_delay;
+                        log::info!("The stake threshold for activating protocol V2_0 has been met. Protocol V2_0 will be scheduled for epoch {}", scheduled_epoch);
                         // Register the 2_0 protocol into global state
                         register_protocol_version(
                             ProtocolVersion::V2_0,
-                            block_epoch + activation_delay,
+                            scheduled_epoch,
                             checkpoint_period,
                         );
                         // Register the 2_0 protocol into chain state (namely, chain info) so that
                         // the scheduled activation data eventually gets persisted into storage.
                         chain_info.protocol.register(
-                            block_epoch + activation_delay,
+                            scheduled_epoch,
                             ProtocolVersion::V2_0,
                             checkpoint_period,
                         );
@@ -3549,22 +3551,47 @@ fn show_info_dr(data_request_pool: &DataRequestPool, block: &Block) {
             }
         });
 
+    // Generate a string enumerating the TAPI bits that are enabled in this block's header
+    let tapi = if block.block_header.signals == 0 {
+        String::from("No TAPI signaling bits")
+    } else {
+        let signals = (0..32)
+            .filter_map(|i| {
+                let mask = 1 << i;
+                if block.block_header.signals & mask != 0 {
+                    Some(i.to_string())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+
+        format!(
+            "{}: {}",
+            Purple.bold().paint("TAPI signaling bits"),
+            signals
+        )
+    };
+
+    log::debug!("{}", tapi);
+
     if info.is_empty() {
         log::info!(
             "{} Block {} consolidated for epoch #{} {}",
             Purple.bold().paint("[Chain]"),
             Purple.bold().paint(block_hash.to_string()),
             Purple.bold().paint(block_epoch.to_string()),
-            White.paint("with no data requests".to_string()),
+            White.paint("with no data requests".to_string())
         );
     } else {
         log::info!(
-            "{} Block {} consolidated for epoch #{}\n{}{}",
+            "{} Block {} consolidated for epoch #{} {}\n{}",
             Purple.bold().paint("[Chain]"),
             Purple.bold().paint(block_hash.to_string()),
             Purple.bold().paint(block_epoch.to_string()),
             White.bold().paint("Data Requests: "),
-            White.bold().paint(info),
+            White.bold().paint(info)
         );
     }
 }

@@ -171,7 +171,7 @@ impl ChainManager {
                         actix::fut::ok(result)
                     })
             })
-            .map_ok(move |(chain_state_from_storage, config), act, _ctx| {
+            .map_ok(move |(chain_state_from_storage, config), _act, _ctx| {
                 // Get environment and consensus_constants parameters from config
                 let environment = config.environment;
                 let consensus_constants = &config.consensus_constants;
@@ -196,10 +196,10 @@ impl ChainManager {
                                 // through configuration). If possible, derives the current protocol
                                 // version from that info and the current epoch. This essentially
                                 // allows a node to catch up with a new protocol version if the
-                                // transition happened while it was down.                                
+                                // transition happened while it was down.
                                 load_protocol_info(chain_info_from_storage.protocol.clone());
-                                if let Some(epoch) = act.current_epoch {
-                                    refresh_protocol_version(epoch);
+                                if let Some(ChainInfo { highest_block_checkpoint, .. }) = chain_state_from_storage.chain_info {
+                                    refresh_protocol_version(highest_block_checkpoint.checkpoint);
                                 }
 
                                 chain_state_from_storage

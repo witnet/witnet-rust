@@ -143,7 +143,7 @@ pub fn register_protocol_version(
     epoch: Epoch,
     checkpoint_period: u16,
 ) {
-    log::debug!(
+    log::info!(
         "Registering protocol version {protocol_version}, which enters into force at epoch {epoch}"
     );
     // This unwrap is safe as long as the lock is not poisoned.
@@ -154,13 +154,14 @@ pub fn register_protocol_version(
 
 /// Set the protocol version that we are running.
 pub fn set_protocol_version(protocol_version: ProtocolVersion) {
-    log::debug!("Setting current protocol version to {protocol_version}");
+    log::info!("Setting current protocol version to {protocol_version}");
     // The lock can only become poisoned when a writer panics.
     let mut protocol = PROTOCOL.write().unwrap();
     protocol.current_version = protocol_version;
 }
 
 pub fn load_protocol_info(info: ProtocolInfo) {
+    log::info!("Loading protocol versions data in bulk: {:?}", info);
     let mut protocol_info = PROTOCOL.write().unwrap();
     *protocol_info = info;
 }
