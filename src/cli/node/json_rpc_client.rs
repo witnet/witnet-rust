@@ -2249,7 +2249,7 @@ fn prompt_user_for_stake_confirmation(data: &BuildStakeResponse) -> Result<bool,
     println!("║    cannot be transferred or spent. They can only be unstaked and eventually  ║");
     println!("║    spent by the withdrawer address above.                                    ║");
     println!("║                                                                              ║");
-    println!("║    Stake amount: {} {: <44}║", value, "Wit coins");
+    println!("║    Stake amount: {} {: <42}║", value, "Wit coins");
     println!("╚══════════════════════════════════════════════════════════════════════════════╝");
 
     // This is where we prompt the user for typing the desired priority tier from the options
