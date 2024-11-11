@@ -1,6 +1,6 @@
 use witnet_data_structures::{
     chain::{tapi::TapiEngine, ChainState},
-    proto::versioning::{ProtocolInfo, ProtocolVersion},
+    proto::versioning::ProtocolInfo,
     staking::stakes::StakesTracker,
     utxo_pool::UtxoWriteBatch,
 };
@@ -62,13 +62,18 @@ fn migrate_chain_state_v3_to_v4(old_chain_state_bytes: &[u8]) -> Vec<u8> {
     let db_version: u32 = 4;
     let db_version_bytes = db_version.to_le_bytes();
 
+    // FIXME: the protocol info migration is not 100% correct, for reasons unknown.
     // Extra fields in ChainState v4:
+    let protocol_info = ProtocolInfo::default();
+    let protocol_info_bytes = serialize(&protocol_info).unwrap();
     let stakes = StakesTracker::default();
-    let stakes_bytes = bincode::serialize(&stakes).unwrap();
+    let stakes_bytes = serialize(&stakes).unwrap();
 
     [
         &db_version_bytes,
-        &old_chain_state_bytes[4..],
+        &old_chain_state_bytes[4..5],
+        &protocol_info_bytes,
+        &old_chain_state_bytes[5..],
         &stakes_bytes,
     ]
     .concat()
@@ -76,7 +81,10 @@ fn migrate_chain_state_v3_to_v4(old_chain_state_bytes: &[u8]) -> Vec<u8> {
 
 fn migrate_chain_state(mut bytes: Vec<u8>) -> Result<ChainState, failure::Error> {
     loop {
-        match check_chain_state_version(&bytes) {
+        let version = check_chain_state_version(&bytes);
+        log::debug!("Chain state version as read from storage is {:?}", version);
+
+        match version {
             Ok(0) => {
                 // Migrate from v0 to v2
                 bytes = migrate_chain_state_v0_to_v2(&bytes);
