@@ -126,7 +126,7 @@ jobs:
 
   Build_macOs:
     needs: [macos_helper]
-    runs-on: macos-latest
+    runs-on: macos-12
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -287,7 +287,7 @@ jobs:
       # Build Docker images (Latest & TAG)
       - name: Build TAG
         run: docker buildx build -f docker/witnet-rust/Dockerfile --progress=plain --build-arg WITNET_VERSION=${{github.ref_name}} --platform linux/amd64,linux/arm64,linux/arm/v7 --tag witnet/witnet-rust:${{github.ref_name}} docker/witnet-rust --push --no-cache
-      
+
       - name: Check Pre-release
         run: |
           TAG=${{ github.ref_name }}
