@@ -1,6 +1,6 @@
 use crate::{
     chain::{ChainInfo, Environment, Epoch, PublicKeyHash},
-    register_protocol_version, ProtocolVersion,
+    get_environment, register_protocol_version, ProtocolVersion,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -212,14 +212,29 @@ impl TapiEngine {
                 }
 
                 // Hardcoded information about WIPs in vote processing
-                let wip_0028 = BitVotesCounter {
-                    votes: 0,
-                    period: TWO_WEEKS,
-                    wip: "WIP0028".to_string(),
-                    // Start signaling on December 14 at 9am UTC
-                    init: 2922240,
-                    end: u32::MAX,
-                    bit: 9,
+                let wip_0028 = match get_environment() {
+                    Environment::Development => {
+                        BitVotesCounter {
+                            votes: 0,
+                            period: 1024,
+                            wip: "WIP0028".to_string(),
+                            // Start signaling when bootstrapping the network
+                            init: 0,
+                            end: u32::MAX,
+                            bit: 9,
+                        }
+                    }
+                    _ => {
+                        BitVotesCounter {
+                            votes: 0,
+                            period: TWO_WEEKS,
+                            wip: "WIP0028".to_string(),
+                            // Start signaling on December 14 at 9am UTC
+                            init: 2922240,
+                            end: u32::MAX,
+                            bit: 9,
+                        }
+                    }
                 };
                 voting_wips[9] = Some(wip_0028);
             }
