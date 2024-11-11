@@ -5,7 +5,8 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
-const TWO_WEEKS: u32 = 26880;
+const TWELVE_HOURS: u32 = 960;
+const TWO_WEEKS: u32 = 26_880;
 
 /// Committee for superblock indices 750-1344
 const FIRST_EMERGENCY_COMMITTEE: [&str; 7] = [

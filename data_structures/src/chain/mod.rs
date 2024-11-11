@@ -291,12 +291,8 @@ impl ConsensusConstantsWit2 {
     /// Minimum amount of nanoWits which need to be staked before wit/2 activation
     pub fn get_wit2_minimum_total_stake_nanowits(self) -> u64 {
         match get_environment() {
-            Environment::Development => {
-                30_000_000_000_000_000
-            },
-            _ => {
-                300_000_000_000_000_000
-            }
+            Environment::Development => 30_000_000_000_000_000,
+            _ => 300_000_000_000_000_000,
         }
     }
 
@@ -305,7 +301,7 @@ impl ConsensusConstantsWit2 {
         match get_environment() {
             Environment::Development => {
                 1_080 // 6 hours
-            },
+            }
             _ => {
                 13_440 // 1 week
             }
@@ -345,7 +341,7 @@ impl ConsensusConstantsWit2 {
             match get_environment() {
                 Environment::Development => {
                     3_600 // 1 hour
-                },
+                }
                 _ => {
                     1_209_600 // 2 weeks
                 }
@@ -359,7 +355,14 @@ impl ConsensusConstantsWit2 {
     /// left in stake by an `UnstakeTransaction`.
     pub fn get_validator_min_stake_nanowits(self, epoch: Epoch) -> u64 {
         if get_protocol_version(Some(epoch)) > ProtocolVersion::V1_7 {
-            10_000_000_000_000
+            match get_environment() {
+                Environment::Development => {
+                    1_000_000_000 // 1 Wit
+                }
+                _ => {
+                    10_000_000_000_000 // 10,000 Wit
+                }
+            }
         } else {
             0
         }
@@ -367,7 +370,7 @@ impl ConsensusConstantsWit2 {
 
     /// Maximum amount of nanoWits that a `StakeTransaction` can add (and can be staked on a single validator).
     pub fn get_validator_max_stake_nanowits(self, epoch: Epoch) -> u64 {
-        if get_protocol_version(Some(epoch)) > ProtocolVersion::V2_0 {
+        if get_protocol_version(Some(epoch)) > ProtocolVersion::V1_7 {
             10_000_000_000_000_000
         } else {
             0
