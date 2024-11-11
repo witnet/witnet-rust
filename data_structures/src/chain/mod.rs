@@ -291,12 +291,26 @@ impl ConsensusConstantsWit2 {
 
     /// Minimum amount of nanoWits which need to be staked before wit/2 activation
     pub fn get_wit2_minimum_total_stake_nanowits(self) -> u64 {
-        300_000_000_000_000_000
+        match get_environment() {
+            Environment::Development => {
+                30_000_000_000_000_000
+            },
+            _ => {
+                300_000_000_000_000_000
+            }
+        }
     }
 
     /// Number of epochs before wit/2 activates after enough Wit have been staked
     pub fn get_wit2_activation_delay_epochs(self) -> u32 {
-        26_880
+        match get_environment() {
+            Environment::Development => {
+                1_080 // 6 hours
+            },
+            _ => {
+                13_440 // 1 week
+            }
+        }
     }
 
     /// Replication factor for data request solving
@@ -329,7 +343,14 @@ impl ConsensusConstantsWit2 {
     /// Unstake transactions are only spendable after below specified time lock expires
     pub fn get_unstaking_delay_seconds(self, epoch: Epoch) -> u64 {
         if get_protocol_version(Some(epoch)) >= ProtocolVersion::V2_0 {
-            1_209_600
+            match get_environment() {
+                Environment::Development => {
+                    3_600 // 1 hour
+                },
+                _ => {
+                    1_209_600 // 2 weeks
+                }
+            }
         } else {
             0
         }
