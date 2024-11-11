@@ -1,5 +1,10 @@
 #!/bin/bash
 
+WITNET_FOLDER="/.witnet"
+CONFIG_FILE_FROM_CMD=$(echo "$@" | sed -E 's/(.*-c\s*)?(.*\.toml)?.*/\2/')
+CONFIG_FILE=${CONFIG_FILE_FROM_CMD:-$WITNET_FOLDER/config/witnet.toml}
+COMMAND=$(echo "$@" | sed -E 's/(.*-c\s*)?(.*\.toml)?//')
+
 ERROR_BANNER="
 
  ██████╗██████╗  █████╗ ███████╗██╗  ██╗██╗
@@ -52,6 +57,6 @@ while true; do
 
     # Run the node itself, using configuration from the default directory and passing down any arguments that may be
     # appended when running "docker run"
-    RUST_LOG=witnet=$LOG_LEVEL /tmp/witnet-raw -c /.witnet/config/witnet.toml "$@" || echo "$ERROR_BANNER"
+    RUST_LOG=witnet=$LOG_LEVEL /tmp/witnet-raw -c "$CONFIG_FILE" "$COMMAND" || echo "$ERROR_BANNER"
     sleep 30
 done
