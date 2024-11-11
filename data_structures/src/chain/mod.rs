@@ -355,14 +355,7 @@ impl ConsensusConstantsWit2 {
     /// left in stake by an `UnstakeTransaction`.
     pub fn get_validator_min_stake_nanowits(self, epoch: Epoch) -> u64 {
         if get_protocol_version(Some(epoch)) > ProtocolVersion::V1_7 {
-            match get_environment() {
-                Environment::Development => {
-                    1_000_000_000 // 1 Wit
-                }
-                _ => {
-                    10_000_000_000_000 // 10,000 Wit
-                }
-            }
+            10_000_000_000_000 // 10,000 Wit
         } else {
             0
         }
