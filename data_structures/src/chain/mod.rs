@@ -74,6 +74,9 @@ pub trait Hashable {
 /// Data structure holding critical information about the chain state and protocol constants
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Default)]
 pub struct ChainInfo {
+    /// Keeps track of protocol versions and their related data (e.g. activation epoch)
+    pub protocol: ProtocolInfo,
+
     /// Blockchain valid environment
     pub environment: Environment,
 
@@ -88,10 +91,6 @@ pub struct ChainInfo {
 
     /// Checkpoint and VRF hash of the highest block in the blockchain
     pub highest_vrf_output: CheckpointVRF,
-
-    /// Keeps track of protocol versions and their related data (e.g. activation epoch)
-    #[serde(default)]
-    pub protocol: ProtocolInfo,
 }
 
 /// State machine for the synchronization status of a Witnet node
