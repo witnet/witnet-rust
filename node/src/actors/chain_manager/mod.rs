@@ -71,7 +71,7 @@ use witnet_data_structures::{
     },
     data_request::DataRequestPool,
     get_environment, get_protocol_version, get_protocol_version_activation_epoch,
-    proto::versioning::ProtocolVersion,
+    proto::versioning::{ProtocolVersion, VersionedHashable},
     radon_error::RadonError,
     radon_report::{RadonReport, ReportContext},
     register_protocol_version,
@@ -705,7 +705,7 @@ impl ChainManager {
 
             let mut transaction_visitor = PriorityVisitor::default();
 
-            let protocol_version = get_protocol_version(self.current_epoch);
+            let protocol_version = get_protocol_version(Some(block.block_header.beacon.checkpoint));
             let utxo_diff = process_validations(
                 &block,
                 self.current_epoch.unwrap_or_default(),
@@ -978,8 +978,8 @@ impl ChainManager {
                 ref mut stakes,
                 ..
             } => {
-                let block_hash = block.hash();
                 let block_epoch = block.block_header.beacon.checkpoint;
+                let block_hash = block.versioned_hash(get_protocol_version(Some(block_epoch)));
                 let block_signals = block.block_header.signals;
                 let validator_count = stakes.validator_count();
 
