@@ -4,6 +4,8 @@ use witnet_data_structures::{
     chain::{
         Block, Epoch, Hash, Hashable, InventoryEntry, InventoryItem, PointerToBlock, SuperBlock,
     },
+    get_protocol_version,
+    proto::versioning::VersionedHashable,
     transaction::Transaction,
 };
 
@@ -42,7 +44,9 @@ impl InventoryManager {
 
             match item {
                 StoreInventoryItem::Block(block) => {
-                    let block_hash = block.hash();
+                    let block_hash = block.versioned_hash(get_protocol_version(Some(
+                        block.block_header.beacon.checkpoint,
+                    )));
                     let key = match block_hash {
                         Hash::SHA256(h) => h.to_vec(),
                     };
