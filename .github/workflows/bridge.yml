@@ -1,38 +1,145 @@
 name: Bridge
 
 on:
-  workflow_dispatch:
-    inputs:
-      force:
-        description: 'Force execution of this action'
-        type: boolean
-        required: false
-        default: true
+  push:
+    tags:
+      - '*-bridge*'
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  Bridge:
+#?####################################################################################################?#
+#?                                                                                                    ?#
+#?                                        Build Helper Images                                         ?#
+#?                                                                                                    ?#
+#?####################################################################################################?#
+  aarch64:
     runs-on: ubuntu-latest
-    environment: tags
-    if: ${{ github.event.workflow_run.conclusion == 'success' || inputs.force }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Protobuf
-        run: |
-          sudo apt install -y protobuf-compiler
-          protoc --version
+      - name: Building Docker Image
+        uses: ./.github/actions/build-helper
+        with:
+          imagename: aarch64-unknown-linux-gnu
 
-      - name: Build witnet-centralized-ethereum-bridge
-        run: |
-          cargo build -p witnet-centralized-ethereum-bridge --release
+  x86_64:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Move file to outside docker ignored
+      - name: Building Docker Image
+        uses: ./.github/actions/build-helper
+        with:
+          imagename: x86_64-unknown-linux-gnu
+
+#?####################################################################################################?#
+#?                                                                                                    ?#
+#?                                        Build Releases                                              ?#
+#?                                                                                                    ?#
+#?####################################################################################################?#
+
+  Build_aarch64:
+    needs: [aarch64]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Building aarch64 Binary
+        uses: ./.github/actions/build-bridge
+        with:
+          target: aarch64-unknown-linux-gnu
+
+      - name: see path
+        run: cd target && tree
+
+      - name: Upload Build
+        uses: actions/upload-artifact@v4
+        with:
+          name: aarch64-release
+          path: |
+            target/aarch64-unknown-linux-gnu/release/witnet-centralized-ethereum-bridge
+
+  Build_x86_64:
+    needs: [x86_64]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Building x86_64 Binary
+        uses: ./.github/actions/build-bridge
+        with:
+          target: x86_64-unknown-linux-gnu
+
+      - name: see path
+        run: cd target && tree
+
+      - name: Upload Build
+        uses: actions/upload-artifact@v4
+        with:
+          name: x86_64-release
+          path: |
+            target/x86_64-unknown-linux-gnu/release/witnet-centralized-ethereum-bridge
+
+
+#?####################################################################################################?#
+#?                                                                                                    ?#
+#?                                        Sign & Publish                                              ?#
+#?                                                                                                    ?#
+#?####################################################################################################?#
+  Publish:
+    needs: [Build_aarch64, Build_x86_64]
+    runs-on: ubuntu-latest
+    environment: tags
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Docker Container Registry
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Download aarch64 Build
+        uses: actions/download-artifact@v4
+        with:
+          name: aarch64-release
+          path: all-releases/aarch64/
+
+      - name: Download x86_64 Build
+        uses: actions/download-artifact@v4
+        with:
+          name: x86_64-release
+          path: all-releases/x86_64/
+
+      - name: Prepare aarch64
         run: |
-          cp target/release/witnet-centralized-ethereum-bridge ./
+          chmod +x ./all-releases/aarch64/witnet-centralized-ethereum-bridge
+          mv all-releases/aarch64/witnet-centralized-ethereum-bridge docker/bridge/witnet-centralized-ethereum-bridge-aarch64-unknown-linux-gnu
+
+      - name: Prepare x86_64
+        run: |
+          chmod +x ./all-releases/x86_64/witnet-centralized-ethereum-bridge
+          mv all-releases/x86_64/witnet-centralized-ethereum-bridge docker/bridge/witnet-centralized-ethereum-bridge-x86_64-unknown-linux-gnu
+
+      - name: List binaries
+        run: tree docker
+
+      - name: Build Base
+        run: |
+          docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+          docker buildx create --name multiarch --driver docker-container --use
+          docker buildx inspect --bootstrap
+
+      # Build Docker images (Latest & TAG)
+      - name: Build TAG
+        run: docker buildx build -f docker/bridge/Dockerfile --progress=plain --platform linux/amd64,linux/arm64 --tag witnet/witnet-centralized-ethereum-bridge:${{github.ref_name}} docker/bridge
 
       - name: Check Pre-release
         run: |
@@ -41,32 +148,7 @@ jobs:
             echo "prerelease=true" >> $GITHUB_ENV
           else
             echo "prerelease=false" >> $GITHUB_ENV
-          fi
 
-      - name: Set Version
-        run: |
-          echo VERNUM=$(sed -nE 's/version\s?=\s?"([0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9\.]+)?)"/\1/p' ./bridges/centralized-ethereum/Cargo.toml | head -1) >> $GITHUB_ENV
-
-      - name: Login to Docker hub Registry
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Build & Push Tag Image
-        run: |
-          docker build -t witnet/witnet-centralized-ethereum-bridge:"$VERNUM" -f ./docker/bridge/Dockerfile .
-          docker push witnet/witnet-centralized-ethereum-bridge:"$VERNUM"
-
-      - name: Build & Push Latest if not Pre-Release
-        run: |
-          docker build -t witnet/witnet-centralized-ethereum-bridge:latest -f ./docker/bridge/Dockerfile .
-          docker push witnet/witnet-centralized-ethereum-bridge:latest
+      - name: Build Latest if not Pre-Release
         if: env.prerelease == 'false'
-
-
-  Failure:
-    runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
-    steps:
-      - run: echo '(Release Tag) workflow failed, EXITING!!!!' && exit 1
+        run: docker buildx build -f docker/bridge/Dockerfile --progress=plain --platform linux/amd64,linux/arm64 --tag witnet/witnet-centralized-ethereum-bridge:latest docker/bridge --push --no-cache
