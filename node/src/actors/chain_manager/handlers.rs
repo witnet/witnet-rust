@@ -17,6 +17,7 @@ use witnet_data_structures::{
         Hash, Hashable, NodeStats, PublicKeyHash, SuperBlockVote, SupplyInfo, ValueTransferOutput,
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
+    get_protocol_version,
     proto::versioning::ProtocolVersion,
     staking::{errors::StakesError, prelude::StakeKey},
     transaction::{
@@ -131,6 +132,11 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
         self.peers_beacons_received = false;
         // The best candidate must be cleared on every epoch
         let best_candidate = self.best_candidate.take();
+
+        // Make sure that the protocol info in the chain state is kept up to date
+        if let Some(ChainInfo { protocol, .. }) = &mut self.chain_state.chain_info {
+            protocol.current_version = get_protocol_version(self.current_epoch);
+        }
 
         match self.sm_state {
             StateMachine::WaitingConsensus => {
