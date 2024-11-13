@@ -62,27 +62,20 @@ fn migrate_chain_state_v3_to_v4(old_chain_state_bytes: &[u8]) -> Vec<u8> {
     let db_version: u32 = 4;
     let db_version_bytes = db_version.to_le_bytes();
 
-    // This little trick makes sure that we don't run a migration on a v4 chain state that was
-    // incorrectly tagged as v3 in the context of a development release, by checking if the bytes
-    // match a pattern where the environment enum is stored at a certain position
-    if old_chain_state_bytes[5..9] == [0x02, 0x00, 0x00, 0x00] {
-        // Extra fields in ChainState v4:
-        let protocol_info = ProtocolInfo::default();
-        let protocol_info_bytes = serialize(&protocol_info).unwrap();
-        let stakes = StakesTracker::default();
-        let stakes_bytes = serialize(&stakes).unwrap();
+    // Extra fields in ChainState v4:
+    let protocol_info = ProtocolInfo::default();
+    let protocol_info_bytes = serialize(&protocol_info).unwrap();
+    let stakes = StakesTracker::default();
+    let stakes_bytes = serialize(&stakes).unwrap();
 
-        [
-            &db_version_bytes,
-            &old_chain_state_bytes[4..5],
-            &protocol_info_bytes,
-            &old_chain_state_bytes[5..],
-            &stakes_bytes,
-        ]
-        .concat()
-    } else {
-        [&db_version_bytes, &old_chain_state_bytes[4..]].concat()
-    }
+    [
+        &db_version_bytes,
+        &old_chain_state_bytes[4..5],
+        &protocol_info_bytes,
+        &old_chain_state_bytes[5..],
+        &stakes_bytes,
+    ]
+    .concat()
 }
 
 fn migrate_chain_state(mut bytes: Vec<u8>) -> Result<ChainState, failure::Error> {
