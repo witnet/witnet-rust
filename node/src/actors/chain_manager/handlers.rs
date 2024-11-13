@@ -19,6 +19,7 @@ use witnet_data_structures::{
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
     get_protocol_version,
     proto::versioning::ProtocolVersion,
+    refresh_protocol_version,
     staking::{errors::StakesError, prelude::StakeKey},
     transaction::{
         DRTransaction, StakeTransaction, Transaction, UnstakeTransaction, VTTransaction,
@@ -136,6 +137,11 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
         // Make sure that the protocol info in the chain state is kept up to date
         if let Some(ChainInfo { protocol, .. }) = &mut self.chain_state.chain_info {
             protocol.current_version = get_protocol_version(self.current_epoch);
+        }
+
+        // Update the global protocol version state if necessary
+        if get_protocol_version(self.current_epoch) != get_protocol_version(None) {
+            refresh_protocol_version(current_epoch);
         }
 
         match self.sm_state {
