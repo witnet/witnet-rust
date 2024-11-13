@@ -134,13 +134,14 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
         // The best candidate must be cleared on every epoch
         let best_candidate = self.best_candidate.take();
 
-        // Make sure that the protocol info in the chain state is kept up to date
+        // Make sure that the protocol version in the chain state is kept up to date
+        let expected_protocol_version = get_protocol_version(self.current_epoch);
         if let Some(ChainInfo { protocol, .. }) = &mut self.chain_state.chain_info {
-            protocol.current_version = get_protocol_version(self.current_epoch);
+            protocol.current_version = expected_protocol_version;
         }
-
-        // Update the global protocol version state if necessary
-        if get_protocol_version(self.current_epoch) != get_protocol_version(None) {
+        // Also update the global protocol version state if necessary
+        let current_protocol_version = get_protocol_version(None);
+        if expected_protocol_version != current_protocol_version {
             refresh_protocol_version(current_epoch);
         }
 
