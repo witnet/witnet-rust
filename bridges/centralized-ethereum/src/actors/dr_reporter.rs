@@ -697,7 +697,7 @@ mod tests {
         };
         assert_eq!(
             parse_batch_report_error_log(&wrb_contract_abi, log_posted_result),
-            Some((U256::from(7000), String::from("not in Posted status"),))
+            Some((U256::from(7_000), String::from("not in Posted status"),))
         );
     }
 
