@@ -1,8 +1,8 @@
 use std::{cmp::Ordering, convert::TryFrom, io::Error, net::SocketAddr};
 
 use actix::{
-    io::WriteHandler, ActorContext, ActorFutureExt, ActorTryFutureExt, Context,
-    ContextFutureSpawner, Handler, StreamHandler, SystemService, WrapFuture,
+    ActorContext, ActorFutureExt, ActorTryFutureExt, Context, ContextFutureSpawner,
+    Handler, io::WriteHandler, StreamHandler, SystemService, WrapFuture,
 };
 use bytes::BytesMut;
 use failure::Fail;
@@ -749,6 +749,7 @@ fn inventory_process_block(session: &mut Session, _ctx: &mut Context<Session>, b
             // that uses a newer version.
             session.blocks_timestamp = 0;
             session.requested_blocks.clear();
+
         }
     } else {
         // If this is not a requested block, assume it is a candidate
