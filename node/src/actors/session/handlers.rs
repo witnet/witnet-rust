@@ -11,10 +11,10 @@ use futures::future::Either;
 use witnet_data_structures::{
     builders::from_address,
     chain::{
-        Block, CheckpointBeacon, Epoch, Hashable, InventoryEntry, InventoryItem, SuperBlock,
-        SuperBlockVote,
+        Block, CheckpointBeacon, Epoch, InventoryEntry, InventoryItem, SuperBlock, SuperBlockVote,
     },
-    proto::versioning::Versioned,
+    get_protocol_version,
+    proto::versioning::{Versioned, VersionedHashable},
     transaction::Transaction,
     types::{
         Address, Command, InventoryAnnouncement, InventoryRequest, LastBeacon,
@@ -674,9 +674,37 @@ fn peer_discovery_peers(
 fn inventory_process_block(session: &mut Session, _ctx: &mut Context<Session>, block: Block) {
     // Get ChainManager address
     let chain_manager_addr = ChainManager::from_registry();
-    let block_hash = block.hash();
+    let current_protocol = get_protocol_version(Some(block.block_header.beacon.checkpoint));
+    let current_block_hash = block.versioned_hash(current_protocol);
 
-    if session.requested_block_hashes.contains(&block_hash) {
+    // This quickly checks if the hash of the received block matches a former inventory request.
+    // If it doesn't, it will retry with the next protocol version, just in case a protocol version
+    // change happened in the middle of a synchronization chunk.
+    // Otherwise, treat the block as a block candidate.
+    let block_hash = if session.requested_block_hashes.contains(&current_block_hash) {
+        Some(current_block_hash)
+    } else {
+        let upcoming_protocol = current_protocol.next();
+
+        // Optimize for the case where there's no upcoming protocol to avoid a redundant and
+        // potentially costly hash operation.
+        if upcoming_protocol > current_protocol {
+            let upcoming_block_hash = block.versioned_hash(upcoming_protocol);
+
+            if session
+                .requested_block_hashes
+                .contains(&upcoming_block_hash)
+            {
+                Some(upcoming_block_hash)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    };
+
+    if let Some(block_hash) = block_hash {
         // Add block to requested_blocks
         session.requested_blocks.insert(block_hash, block);
 
@@ -684,8 +712,8 @@ fn inventory_process_block(session: &mut Session, _ctx: &mut Context<Session>, b
             let mut blocks_vector = Vec::with_capacity(session.requested_blocks.len());
             // Iterate over requested block hashes ordered by epoch
             // TODO: We assume that the received InventoryAnnouncement message returns the list of
-            // block hashes ordered by epoch.
-            // If that is not the case, we can sort blocks_vector by block.block_header.checkpoint
+            //  block hashes ordered by epoch.
+            //  If that is not the case, we can sort blocks_vector by block.block_header.checkpoint
             for hash in session.requested_block_hashes.drain(..) {
                 if let Some(block) = session.requested_blocks.remove(&hash) {
                     blocks_vector.push(block);
@@ -706,9 +734,13 @@ fn inventory_process_block(session: &mut Session, _ctx: &mut Context<Session>, b
             });
 
             // Clear requested block structures
+            // Although `requested_block_hashes` is cleared by using drain(..) above, the `.clear()`
+            // is still needed because of corner cases, and also for the event of a protocol upgrade
+            // happening in the middle of a synchronization chunk, where we may be pushing a hash
+            // that is using an old version of the protocol, but draining using a different hash
+            // that uses a newer version.
             session.blocks_timestamp = 0;
             session.requested_blocks.clear();
-            // requested_block_hashes is cleared by using drain(..) above
         }
     } else {
         // If this is not a requested block, assume it is a candidate

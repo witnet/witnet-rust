@@ -104,6 +104,13 @@ impl ProtocolVersion {
     pub fn from_epoch(epoch: Epoch) -> Self {
         get_protocol_version(Some(epoch))
     }
+
+    pub fn next(&self) -> Self {
+        match self {
+            ProtocolVersion::V1_7 => ProtocolVersion::V1_8,
+            _ => ProtocolVersion::V2_0,
+        }
+    }
 }
 
 impl PartialOrd for ProtocolVersion {
