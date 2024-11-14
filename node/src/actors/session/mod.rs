@@ -1,4 +1,4 @@
-use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+use std::{collections::VecDeque, net::SocketAddr, sync::Arc};
 
 use actix::{io::FramedWrite, SystemService};
 
@@ -79,10 +79,10 @@ pub struct Session {
     last_beacon: LastBeacon,
 
     /// Requested block hashes vector
-    requested_block_hashes: Vec<Hash>,
+    requested_block_hashes: VecDeque<Hash>,
 
-    /// HashMap with requested blocks
-    requested_blocks: HashMap<Hash, Block>,
+    /// Vec with requested blocks
+    requested_blocks: Vec<Block>,
 
     /// Timestamp for requested blocks
     blocks_timestamp: i64,
@@ -132,8 +132,8 @@ impl Session {
             magic_number,
             current_epoch,
             last_beacon,
-            requested_block_hashes: vec![],
-            requested_blocks: HashMap::new(),
+            requested_block_hashes: VecDeque::new(),
+            requested_blocks: vec![],
             blocks_timestamp: 0,
             config,
             expected_peers_msg: 0,
