@@ -1,9 +1,11 @@
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 use actix::{io::FramedWrite, SystemService};
-
 use ansi_term::Color::Green;
+use bytes::BytesMut;
+use tokio::net::tcp::OwnedWriteHalf;
 
+use indexmap::IndexSet;
 use witnet_config::config::Config;
 use witnet_data_structures::{
     chain::{Block, CheckpointBeacon, Epoch, Hash},
@@ -18,8 +20,6 @@ use crate::actors::{
     peers_manager::PeersManager,
     sessions_manager::SessionsManager,
 };
-use bytes::BytesMut;
-use tokio::net::tcp::OwnedWriteHalf;
 
 mod actor;
 
@@ -79,7 +79,7 @@ pub struct Session {
     last_beacon: LastBeacon,
 
     /// Requested block hashes vector
-    requested_block_hashes: Vec<Hash>,
+    requested_block_hashes: IndexSet<Hash>,
 
     /// HashMap with requested blocks
     requested_blocks: HashMap<Hash, Block>,
@@ -132,7 +132,7 @@ impl Session {
             magic_number,
             current_epoch,
             last_beacon,
-            requested_block_hashes: vec![],
+            requested_block_hashes: Default::default(),
             requested_blocks: HashMap::new(),
             blocks_timestamp: 0,
             config,

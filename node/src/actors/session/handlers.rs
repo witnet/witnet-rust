@@ -709,23 +709,27 @@ fn inventory_process_block(session: &mut Session, _ctx: &mut Context<Session>, b
         session.requested_blocks.insert(block_hash, block);
 
         if session.requested_blocks.len() == session.requested_block_hashes.len() {
-            let mut blocks_vector = Vec::with_capacity(session.requested_blocks.len());
             // Iterate over requested block hashes ordered by epoch
             // TODO: We assume that the received InventoryAnnouncement message returns the list of
             //  block hashes ordered by epoch.
             //  If that is not the case, we can sort blocks_vector by block.block_header.checkpoint
-            for hash in session.requested_block_hashes.drain(..) {
-                if let Some(block) = session.requested_blocks.remove(&hash) {
-                    blocks_vector.push(block);
-                } else {
-                    // Assuming that we always clear requested_blocks after mutating
-                    // requested_block_hashes, this branch should be unreachable.
-                    // But if it happens, immediately exit the for loop and send an empty AddBlocks
-                    // message to ChainManager.
-                    log::warn!("Unexpected missing block: {}", hash);
-                    break;
-                }
-            }
+            let blocks_vector = session
+                .requested_block_hashes
+                .drain(..)
+                .map_while(|hash| {
+                    if let Some(block) = session.requested_blocks.remove(&hash) {
+                        Some(block)
+                    } else {
+                        // Assuming that we always clear requested_blocks after mutating
+                        // requested_block_hashes, this branch should be unreachable.
+                        // But if it happens, immediately exit the iterator and send an empty AddBlocks
+                        // message to ChainManager.
+                        log::warn!("Unexpected missing block: {}", hash);
+
+                        None
+                    }
+                })
+                .collect();
 
             // Send a message to the ChainManager to try to add a new block
             chain_manager_addr.do_send(AddBlocks {
