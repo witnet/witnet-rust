@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumIter, EnumString};
 
 use crate::{
-    chain::{Epoch, Hash},
+    chain::{ConsensusConstants, Epoch, Hash},
     get_protocol_version,
     proto::{
         schema::witnet::{
@@ -43,6 +43,75 @@ impl ProtocolInfo {
         self.all_versions.clear();
         self.all_checkpoints_periods.clear();
     }
+
+    /// Convenience method for deriving the activation timestamp for any given protocol version.
+    pub fn derive_activation_timestamp(
+        &self,
+        version: ProtocolVersion,
+        consensus_constants: &ConsensusConstants,
+    ) -> Option<i64> {
+        if version == ProtocolVersion::MIN {
+            Some(consensus_constants.checkpoint_zero_timestamp)
+        } else {
+            let previous_version = version.prev();
+            let previous_version_activation_timestamp =
+                self.derive_activation_timestamp(previous_version, &consensus_constants);
+            let previous_version_checkpoint_period =
+                u32::from(if previous_version == ProtocolVersion::MIN {
+                    consensus_constants.checkpoints_period
+                } else {
+                    *self.all_checkpoints_periods.get(&previous_version)?
+                });
+            let previous_version_span_epochs = u32::from(
+                self.all_versions
+                    .try_get_activation_epoch(version)?
+                    .saturating_sub(
+                        self.all_versions
+                            .try_get_activation_epoch(previous_version)
+                            .unwrap_or(0),
+                    ),
+            );
+            let previous_version_span_seconds =
+                i64::from(previous_version_span_epochs * previous_version_checkpoint_period);
+
+            Some(previous_version_activation_timestamp? + previous_version_span_seconds)
+        }
+    }
+}
+
+#[test]
+fn test_activation_timestamp_derivation() {
+    let mut protocols = ProtocolInfo::default();
+    protocols.register(100, ProtocolVersion::V1_8, 30);
+    protocols.register(200, ProtocolVersion::V2_0, 15);
+
+    let consensus_constants = ConsensusConstants {
+        checkpoint_zero_timestamp: 10_000,
+        checkpoints_period: 45,
+        ..Default::default()
+    };
+
+    assert_eq!(
+        protocols.derive_activation_timestamp(ProtocolVersion::V1_7, &consensus_constants),
+        Some(10_000)
+    );
+    assert_eq!(
+        protocols.derive_activation_timestamp(ProtocolVersion::V1_8, &consensus_constants),
+        Some(14_500)
+    );
+    assert_eq!(
+        protocols.derive_activation_timestamp(ProtocolVersion::V2_0, &consensus_constants),
+        Some(17_500)
+    );
+
+    // Try again but pretending that a certain protocol version still has an unknown activation date
+    let mut protocols = ProtocolInfo::default();
+    protocols.register(100, ProtocolVersion::V1_8, 30);
+
+    assert_eq!(
+        protocols.derive_activation_timestamp(ProtocolVersion::V2_0, &consensus_constants),
+        None
+    );
 }
 
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
@@ -67,9 +136,14 @@ impl VersionsMap {
             .unwrap_or_default()
     }
 
+    #[inline]
+    pub fn try_get_activation_epoch(&self, version: ProtocolVersion) -> Option<Epoch> {
+        self.efv.get(&version).cloned()
+    }
+
     pub fn get_activation_epoch(&self, version: ProtocolVersion) -> Epoch {
-        match self.efv.get(&version) {
-            Some(epoch) => *epoch,
+        match self.try_get_activation_epoch(version) {
+            Some(epoch) => epoch,
             None => Epoch::MAX,
         }
     }
@@ -120,6 +194,8 @@ pub enum ProtocolVersion {
 
 impl ProtocolVersion {
     #[inline]
+    pub const MIN: Self = ProtocolVersion::V1_7;
+    pub const MAX: Self = ProtocolVersion::V2_0;
     pub fn guess() -> Self {
         Self::from_epoch_opt(None)
     }
@@ -138,6 +214,13 @@ impl ProtocolVersion {
         match self {
             ProtocolVersion::V1_7 => ProtocolVersion::V1_8,
             _ => ProtocolVersion::V2_0,
+        }
+    }
+
+    pub fn prev(&self) -> Self {
+        match self {
+            ProtocolVersion::V2_0 => ProtocolVersion::V1_8,
+            _ => ProtocolVersion::V1_7,
         }
     }
 }
