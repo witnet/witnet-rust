@@ -49,11 +49,7 @@ use itertools::Itertools;
 use rand::Rng;
 
 use witnet_config::{
-    config::Tapi,
-    defaults::{
-        PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO,
-        PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE,
-    },
+    config::Tapi, defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO,
 };
 use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::{
@@ -1764,11 +1760,9 @@ impl ChainManager {
                 block_epoch: current_epoch,
             };
             let protocol_version = ProtocolVersion::from_epoch(current_epoch);
-            let collateral_age = if active_wips.wip0027() {
-                PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE
-            } else {
-                chain_info.consensus_constants.collateral_age
-            };
+            let collateral_age = self
+                .consensus_constants_wit2
+                .get_collateral_age(&active_wips);
             let required_reward_collateral_ratio =
                 PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
             let max_rounds = chain_info.consensus_constants.extra_rounds + 1;
