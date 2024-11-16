@@ -2,8 +2,8 @@ environment = "development"
 
 # Setting the environment to testnet allows us to define some consensus constants
 [consensus_constants]
-# Set the bootstrap time to 13/11/2024 15:00 UTC
-checkpoint_zero_timestamp = 1731510000
+# Set the bootstrap time to 17/11/2024 20:00 UTC
+checkpoint_zero_timestamp = 1731873600
 # Genesis block hash
 genesis_hash = "5aaafb853ce897c1431ee5babc5533650d37c4fab44045bde9c74a3fff8c080e"
 # Fix the bootstrap committee
