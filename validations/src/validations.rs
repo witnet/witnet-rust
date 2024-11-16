@@ -203,7 +203,7 @@ pub fn validate_commit_collateral(
         // Special requirement for facilitating the 2.0 transition.
         // Every committer is required to have a total balance of at least 100 wits.
         // This works independently from the minimum collateral requirement.
-        if epoch > 2_245_000 {
+        if protocol_version < ProtocolVersion::V2_0 && epoch > 2_245_000 {
             let committer = vt_output.pkh;
             let mut balance = 0;
             utxo_diff.get_utxo_set().visit_with_pkh(
