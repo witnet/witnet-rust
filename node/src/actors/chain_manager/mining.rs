@@ -16,7 +16,6 @@ use actix::{
 use ansi_term::Color::{White, Yellow};
 use futures::future::{try_join_all, FutureExt};
 
-use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE;
 use witnet_data_structures::{
     chain::{
         tapi::{after_second_hard_fork, ActiveWips},
@@ -356,10 +355,8 @@ impl ChainManager {
                 .data_request_state(&dr_pointer)
                 .map(|dr_state| (dr_pointer, dr_state.clone()))
         }) {
-            let (collateral_age, checkpoint_period, max_rounds) = match &self.chain_state.chain_info
-            {
+            let (checkpoint_period, max_rounds) = match &self.chain_state.chain_info {
                 Some(x) => (
-                    x.consensus_constants.collateral_age,
                     // Unwraps should be safe if we have a chain_info object
                     self.epoch_constants
                         .unwrap()
@@ -385,11 +382,9 @@ impl ChainManager {
                 active_wips: self.chain_state.tapi_engine.wip_activation.clone(),
                 block_epoch: current_epoch,
             };
-            let collateral_age = if active_wips.wip0027() {
-                PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE
-            } else {
-                collateral_age
-            };
+            let collateral_age = self
+                .consensus_constants_wit2
+                .get_collateral_age(&active_wips);
             let (target_hash, probability) = if protocol_version >= V2_0 {
                 let (eligibility, target_hash, probability) = self
                     .chain_state
