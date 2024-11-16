@@ -491,10 +491,6 @@ pub trait Defaults {
 // TODO: move this into ConsensusConstants
 pub const PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO: u64 = 125;
 
-/// Modified value of callateral_age after WIP0027 (1 week)
-// TODO: modify the value directly in ConsensusConstants
-pub const PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE: u32 = 13440;
-
 /// Struct that will implement all the development defaults
 pub struct Development;
 

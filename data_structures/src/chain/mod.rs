@@ -32,7 +32,10 @@ use witnet_protected::Protected;
 use witnet_reputation::{ActiveReputationSet, TotalReputationSet};
 
 use crate::{
-    chain::{tapi::TapiEngine, Signature::Secp256k1},
+    chain::{
+        tapi::{ActiveWips, TapiEngine},
+        Signature::Secp256k1,
+    },
     data_request::{calculate_reward_collateral_ratio, DataRequestPool},
     error::{
         DataRequestError, EpochCalculationError, OutputPointerParseError, Secp256k1ConversionError,
@@ -376,6 +379,19 @@ impl ConsensusConstantsWit2 {
             50_000_000_000
         } else {
             0
+        }
+    }
+
+    /// Get the minimum age of a UTXO before it can be used for collateral (during V1.7 and V1.8)
+    pub fn get_collateral_age(self, active_wips: &ActiveWips) -> u32 {
+        if get_environment() == Environment::Mainnet {
+            if active_wips.wip0027() {
+                13440 // 1 week
+            } else {
+                1000 // ~ 12 hours, default from mainnet genesis
+            }
+        } else {
+            80 // 1 hour
         }
     }
 }

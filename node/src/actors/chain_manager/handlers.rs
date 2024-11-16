@@ -9,7 +9,6 @@ use std::{
 use actix::{prelude::*, ActorFutureExt, WrapFuture};
 use futures::future::Either;
 
-use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE;
 use witnet_data_structures::{
     capabilities::Capability,
     chain::{
@@ -1778,11 +1777,9 @@ impl Handler<GetUtxoInfo> for ChainManager {
             active_wips: self.chain_state.tapi_engine.wip_activation.clone(),
             block_epoch: self.current_epoch.unwrap(),
         };
-        let collateral_age = if active_wips.wip0027() {
-            PSEUDO_CONSENSUS_CONSTANTS_WIP0027_COLLATERAL_AGE
-        } else {
-            chain_info.consensus_constants.collateral_age
-        };
+        let collateral_age = self
+            .consensus_constants_wit2
+            .get_collateral_age(&active_wips);
         let block_number_limit = self
             .chain_state
             .block_number()
