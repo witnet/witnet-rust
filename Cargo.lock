@@ -417,9 +417,9 @@ dependencies = [
 
 [[package]]
 name = "bstr"
-version = "1.10.0"
+version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "40723b8fb387abc38f4f4a37c09073622e41dd12327033091ef8950659e6dc0c"
+checksum = "1a68f1f47cdf0ec8ee4b941b2eee2a80cb796db73118c0dd09ac63fbe405be22"
 dependencies = [
  "memchr",
  "serde",
@@ -505,9 +505,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.2.0"
+version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1aeb932158bd710538c73702db6945cb68a8fb08c519e6e12706b94263b36db8"
+checksum = "fd9de9f2205d5ef3fd67e685b0df337994ddd4495e2a28d185500d0e1edfea47"
 dependencies = [
  "jobserver",
  "libc",
@@ -2203,9 +2203,9 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
 name = "libc"
-version = "0.2.162"
+version = "0.2.164"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "18d287de67fe55fd7e1581fe933d965a5a9477b38e949cfa9f8574ef01506398"
+checksum = "433bfe06b8c75da9b2e3fbea6e5329ff87748f0b144ef75306e674c3f6f7c13f"
 
 [[package]]
 name = "libloading"
@@ -5501,7 +5501,7 @@ dependencies = [
 
 [[package]]
 name = "witnet"
-version = "2.0.0-rc.1"
+version = "2.0.0-rc.2"
 dependencies = [
  "ansi_term",
  "bytecount",
@@ -5549,7 +5549,7 @@ dependencies = [
 
 [[package]]
 name = "witnet-centralized-ethereum-bridge"
-version = "2.0.0-rc.1"
+version = "2.0.0-rc.2"
 dependencies = [
  "actix",
  "async-jsonrpc-client",
@@ -5615,7 +5615,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_data_structures"
-version = "2.0.0-rc.1"
+version = "2.0.0-rc.2"
 dependencies = [
  "bech32",
  "bencher",
@@ -5682,7 +5682,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_node"
-version = "2.0.0-rc.1"
+version = "2.0.0-rc.2"
 dependencies = [
  "actix",
  "ansi_term",
@@ -5790,7 +5790,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_toolkit"
-version = "2.0.0-rc.1"
+version = "2.0.0-rc.2"
 dependencies = [
  "failure",
  "hex",
@@ -5835,7 +5835,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_wallet"
-version = "2.0.0-rc.1"
+version = "2.0.0-rc.2"
 dependencies = [
  "actix",
  "async-jsonrpc-client",
