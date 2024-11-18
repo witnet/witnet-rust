@@ -88,7 +88,7 @@ fn verify_signatures_test(
 ) -> Result<(), failure::Error> {
     let vrf = &mut VrfCtx::secp256k1().unwrap();
 
-    verify_signatures(signatures_to_verify, vrf).map(|_| ())
+    verify_signatures(signatures_to_verify, vrf, ProtocolVersion::V1_7).map(|_| ())
 }
 
 fn sign_tx<H: VersionedHashable>(
@@ -3609,7 +3609,9 @@ fn commitment_dr_in_reveal_stage() {
     let cs = sign_tx(PRIV_KEY_1, &cb, None);
     let c_tx = CommitTransaction::new(cb, vec![cs]);
 
-    dr_pool.process_commit(&c_tx, &block_hash).unwrap();
+    dr_pool
+        .process_commit(&c_tx, dr_epoch, &block_hash)
+        .unwrap();
     dr_pool.update_data_request_stages(None, Some(dr_epoch));
     let mut signatures_to_verify = vec![];
 
@@ -4192,7 +4194,7 @@ fn dr_pool_with_dr_in_reveal_stage() -> (DataRequestPool, Hash) {
         .process_data_request(&dr_transaction, epoch, &Hash::default())
         .unwrap();
     dr_pool.update_data_request_stages(None, Some(epoch));
-    dr_pool.process_commit(&c_tx, &block_hash).unwrap();
+    dr_pool.process_commit(&c_tx, epoch, &block_hash).unwrap();
     dr_pool.update_data_request_stages(None, Some(epoch));
 
     (dr_pool, dr_pointer)
@@ -4460,7 +4462,7 @@ fn reveal_valid_commitment() {
 
     // Include CommitTransaction in DataRequestPool
     dr_pool
-        .process_commit(&commit_transaction, &fake_block_hash)
+        .process_commit(&commit_transaction, epoch, &fake_block_hash)
         .unwrap();
     dr_pool.update_data_request_stages(None, Some(epoch));
 
@@ -4486,7 +4488,7 @@ fn reveal_valid_commitment() {
 
     // Include RevealTransaction in DataRequestPool
     dr_pool
-        .process_reveal(&reveal_transaction, &fake_block_hash)
+        .process_reveal(&reveal_transaction, epoch, &fake_block_hash)
         .unwrap();
     dr_pool.update_data_request_stages(None, Some(epoch));
 
@@ -4631,7 +4633,7 @@ fn include_commits(
 
     let fake_block_hash = Hash::SHA256([1; 32]);
     for commit in commits.iter().take(commits_count) {
-        dr_pool.process_commit(commit, &fake_block_hash).unwrap();
+        dr_pool.process_commit(commit, 0, &fake_block_hash).unwrap();
     }
     dr_pool.update_data_request_stages(None, None);
 }
@@ -4645,7 +4647,7 @@ fn include_reveals(
 
     let fake_block_hash = Hash::SHA256([2; 32]);
     for reveal in reveals.iter().take(reveals_count) {
-        dr_pool.process_reveal(reveal, &fake_block_hash).unwrap();
+        dr_pool.process_reveal(reveal, 0, &fake_block_hash).unwrap();
     }
     dr_pool.update_data_request_stages(None, None);
 }
@@ -5110,7 +5112,7 @@ fn tally_dr_not_tally_stage() {
     );
 
     dr_pool
-        .process_commit(&commit_transaction, &fake_block_hash)
+        .process_commit(&commit_transaction, epoch, &fake_block_hash)
         .unwrap();
     dr_pool.update_data_request_stages(None, Some(epoch));
     let x = validate_tally_transaction(
@@ -5127,7 +5129,7 @@ fn tally_dr_not_tally_stage() {
     );
 
     dr_pool
-        .process_reveal(&reveal_transaction, &fake_block_hash)
+        .process_reveal(&reveal_transaction, epoch, &fake_block_hash)
         .unwrap();
     dr_pool.update_data_request_stages(None, Some(epoch));
     let x = validate_tally_transaction(
@@ -10228,10 +10230,10 @@ fn block_duplicated_reveals() {
 
     // Include CommitTransaction in DataRequestPool
     dr_pool
-        .process_commit(&commit_transaction, &last_block_hash)
+        .process_commit(&commit_transaction, dr_epoch, &last_block_hash)
         .unwrap();
     dr_pool
-        .process_commit(&commit_transaction2, &last_block_hash)
+        .process_commit(&commit_transaction2, dr_epoch, &last_block_hash)
         .unwrap();
     dr_pool.update_data_request_stages(None, Some(dr_epoch));
 

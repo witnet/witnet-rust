@@ -1537,6 +1537,7 @@ impl ChainManager {
 
     fn add_temp_superblock_votes(&mut self, ctx: &mut Context<Self>) {
         let consensus_constants = self.consensus_constants();
+        let protocol = ProtocolVersion::from_epoch_opt(self.current_epoch);
 
         let superblock_period = u32::from(consensus_constants.superblock_period);
 
@@ -1548,9 +1549,12 @@ impl ChainManager {
             }
 
             // Validate secp256k1 signature
-            signature_mngr::verify_signatures(vec![SignaturesToVerify::SuperBlockVote {
-                superblock_vote: superblock_vote.clone(),
-            }])
+            signature_mngr::verify_signatures(
+                vec![SignaturesToVerify::SuperBlockVote {
+                    superblock_vote: superblock_vote.clone(),
+                }],
+                protocol,
+            )
             .map(|res| {
                 res.map_err(|e| {
                     log::error!("Verify superblock vote signature: {}", e);
@@ -1581,6 +1585,7 @@ impl ChainManager {
             self.sm_state
         );
         let consensus_constants = self.consensus_constants();
+        let protocol = ProtocolVersion::from_epoch_opt(self.current_epoch);
 
         let superblock_period = u32::from(consensus_constants.superblock_period);
 
@@ -1594,9 +1599,12 @@ impl ChainManager {
         }
 
         // Validate secp256k1 signature
-        signature_mngr::verify_signatures(vec![SignaturesToVerify::SuperBlockVote {
-            superblock_vote: superblock_vote.clone(),
-        }])
+        signature_mngr::verify_signatures(
+            vec![SignaturesToVerify::SuperBlockVote {
+                superblock_vote: superblock_vote.clone(),
+            }],
+            protocol,
+        )
         .into_actor(self)
         .map_err(|e, _act, _ctx| {
             log::error!("Verify superblock vote signature: {}", e);
@@ -1792,8 +1800,8 @@ impl ChainManager {
                 &self.consensus_constants_wit2,
             ))
             .into_actor(self)
-            .and_then(|fee, act, _ctx| {
-                signature_mngr::verify_signatures(signatures_to_verify)
+            .and_then(move |fee, act, _ctx| {
+                signature_mngr::verify_signatures(signatures_to_verify, protocol_version)
                     .map(move |res| res.map(|()| fee))
                     .into_actor(act)
             })
@@ -2323,11 +2331,11 @@ impl ChainManager {
             replication_factor,
         );
 
-        let fut = async {
+        let fut = async move {
             // Short-circuit if validation failed
             res?;
 
-            signature_mngr::verify_signatures(signatures_to_verify).await
+            signature_mngr::verify_signatures(signatures_to_verify, protocol_version).await
         }
         .into_actor(self)
         .and_then(move |(), act, _ctx| {
@@ -2348,11 +2356,11 @@ impl ChainManager {
                 &act.chain_state.stakes,
                 protocol_version,
             );
-            async {
+            async move {
                 // Short-circuit if validation failed
                 let diff = res?;
 
-                signature_mngr::verify_signatures(signatures_to_verify)
+                signature_mngr::verify_signatures(signatures_to_verify, protocol_version)
                     .await
                     .map(|()| diff)
             }
@@ -3111,8 +3119,8 @@ pub fn process_validations(
             protocol_version,
             replication_factor,
         )?;
-        log::debug!("Verifying {} block signatures", signatures_to_verify.len());
-        verify_signatures(signatures_to_verify, vrf_ctx)?;
+        log::trace!("Verifying {} block signatures", signatures_to_verify.len());
+        verify_signatures(signatures_to_verify, vrf_ctx, protocol_version)?;
     }
 
     let mut signatures_to_verify = vec![];
@@ -3134,11 +3142,11 @@ pub fn process_validations(
     )?;
 
     if !resynchronizing {
-        log::debug!(
-            "Verifying {} transactions signatures",
+        log::trace!(
+            "Verifying {} transaction signatures",
             signatures_to_verify.len()
         );
-        verify_signatures(signatures_to_verify, vrf_ctx)?;
+        verify_signatures(signatures_to_verify, vrf_ctx, protocol_version)?;
     }
 
     Ok(utxo_dif)
@@ -3217,6 +3225,9 @@ fn update_pools(
     state_machine: StateMachine,
 ) -> ReputationInfo {
     let mut rep_info = ReputationInfo::new();
+    let epoch = block.block_header.beacon.checkpoint;
+    let protocol = ProtocolVersion::from_epoch(epoch);
+    let block_hash = block.versioned_hash(protocol);
 
     let mut data_requests_with_too_many_witnesses = HashSet::<Hash>::new();
     for ta_tx in &block.txns.tally_txns {
@@ -3233,7 +3244,7 @@ fn update_pools(
         rep_info.update(ta_tx, data_request_pool, own_pkh, node_stats);
 
         // IMPORTANT: Update the data request pool after updating reputation info
-        if let Err(e) = data_request_pool.process_tally(ta_tx, &block.hash()) {
+        if let Err(e) = data_request_pool.process_tally(ta_tx, &block_hash) {
             log::error!("Error processing tally transaction:\n{}", e);
         }
 
@@ -3245,15 +3256,16 @@ fn update_pools(
     }
 
     for dr_tx in &block.txns.data_request_txns {
-        if data_requests_with_too_many_witnesses.contains(&dr_tx.hash()) {
-            log::debug!("Skipping data request {} as it was already processed with a TooManyWitnesses error", dr_tx.hash());
+        let dr_hash = dr_tx.versioned_hash(protocol);
+        if data_requests_with_too_many_witnesses.contains(&dr_hash) {
+            log::debug!("Skipping data request {} as it was already processed with a TooManyWitnesses error", dr_hash);
             transactions_pool.dr_remove(dr_tx);
             continue;
         }
         if let Err(e) = data_request_pool.process_data_request(
             dr_tx,
             block.block_header.beacon.checkpoint,
-            &block.hash(),
+            &block_hash,
         ) {
             log::error!("Error processing data request transaction:\n{}", e);
         } else {
@@ -3262,7 +3274,7 @@ fn update_pools(
     }
 
     for co_tx in &block.txns.commit_txns {
-        if let Err(e) = data_request_pool.process_commit(co_tx, &block.hash()) {
+        if let Err(e) = data_request_pool.process_commit(co_tx, epoch, &block_hash) {
             log::error!("Error processing commit transaction:\n{}", e);
         } else {
             if co_tx.body.proof.proof.pkh() == own_pkh {
@@ -3279,10 +3291,11 @@ fn update_pools(
     }
 
     for re_tx in &block.txns.reveal_txns {
-        if let Err(e) = data_request_pool.process_reveal(re_tx, &block.hash()) {
+        if let Err(e) = data_request_pool.process_reveal(re_tx, epoch, &block_hash) {
             log::error!("Error processing reveal transaction:\n{}", e);
         }
-        transactions_pool.remove_one_reveal(&re_tx.body.dr_pointer, &re_tx.body.pkh, &re_tx.hash());
+        let re_hash = re_tx.versioned_hash(protocol);
+        transactions_pool.remove_one_reveal(&re_tx.body.dr_pointer, &re_tx.body.pkh, &re_hash);
     }
 
     for st_tx in &block.txns.stake_txns {
@@ -3785,6 +3798,7 @@ mod tests {
     fn test_rep_info_update() {
         let mut rep_info = ReputationInfo::default();
         let mut dr_pool = DataRequestPool::default();
+        let epoch = 0;
 
         let pk1 = PublicKey {
             compressed: 0,
@@ -3849,12 +3863,22 @@ mod tests {
         dr_pool
             .add_data_request(1, dr_tx, &Hash::default())
             .unwrap();
-        dr_pool.process_commit(&co_tx, &Hash::default()).unwrap();
-        dr_pool.process_commit(&co_tx2, &Hash::default()).unwrap();
-        dr_pool.process_commit(&co_tx3, &Hash::default()).unwrap();
+        dr_pool
+            .process_commit(&co_tx, epoch, &Hash::default())
+            .unwrap();
+        dr_pool
+            .process_commit(&co_tx2, epoch, &Hash::default())
+            .unwrap();
+        dr_pool
+            .process_commit(&co_tx3, epoch, &Hash::default())
+            .unwrap();
         dr_pool.update_data_request_stages(None, None);
-        dr_pool.process_reveal(&re_tx1, &Hash::default()).unwrap();
-        dr_pool.process_reveal(&re_tx2, &Hash::default()).unwrap();
+        dr_pool
+            .process_reveal(&re_tx1, epoch, &Hash::default())
+            .unwrap();
+        dr_pool
+            .process_reveal(&re_tx2, epoch, &Hash::default())
+            .unwrap();
 
         rep_info.update(
             &ta_tx,

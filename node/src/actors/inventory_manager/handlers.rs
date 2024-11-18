@@ -40,7 +40,7 @@ impl InventoryManager {
 
         let total = msg.items.len();
         for (i, item) in msg.items.into_iter().enumerate() {
-            log::debug!("Adding item {} out of {}", i, total);
+            log::trace!("Adding item {} out of {}", i, total);
 
             match item {
                 StoreInventoryItem::Block(block) => {

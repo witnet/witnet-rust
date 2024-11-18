@@ -3,19 +3,14 @@
 //! This module provides a Signature Manager, which, after being
 //! initialized with a key, can be used repeatedly to sign data with
 //! that key.
+use std::path::Path;
+
 use actix::prelude::*;
 use failure::bail;
 use futures::Future;
 use futures_util::FutureExt;
-
-use crate::{
-    actors::storage_keys::{BN256_SECRET_KEY, MASTER_KEY},
-    config_mngr, storage_mngr,
-    utils::{stop_system_if_panicking, FlattenResult},
-};
-
 use rand::{thread_rng, Rng};
-use std::path::Path;
+
 use witnet_crypto::{
     key::{ExtendedPK, ExtendedSK, MasterKeyGen},
     mnemonic::MnemonicGen,
@@ -26,12 +21,19 @@ use witnet_data_structures::{
         Bn256KeyedSignature, Bn256PublicKey, Bn256SecretKey, ExtendedSecretKey, Hash, Hashable,
         KeyedSignature, PublicKey, PublicKeyHash, SecretKey, Signature, SignaturesToVerify,
     },
+    proto::versioning::ProtocolVersion,
     transaction::MemoizedHashable,
     vrf::{VrfCtx, VrfMessage, VrfProof},
 };
 use witnet_futures_utils::TryFutureExt2;
 use witnet_protected::ProtectedString;
 use witnet_validations::validations;
+
+use crate::{
+    actors::storage_keys::{BN256_SECRET_KEY, MASTER_KEY},
+    config_mngr, storage_mngr,
+    utils::{stop_system_if_panicking, FlattenResult},
+};
 
 /// Sign a transaction using this node's private key.
 /// This function assumes that all the inputs have the same public key hash:
@@ -143,9 +145,14 @@ pub async fn vrf_prove(message: VrfMessage) -> Result<(VrfProof, Hash), failure:
 }
 
 /// Verify signatures async
-pub async fn verify_signatures(message: Vec<SignaturesToVerify>) -> Result<(), failure::Error> {
+pub async fn verify_signatures(
+    message: Vec<SignaturesToVerify>,
+    protocol: ProtocolVersion,
+) -> Result<(), failure::Error> {
     let addr = SignatureManagerAdapter::from_registry();
-    addr.send(VerifySignatures(message)).flatten_err().await
+    addr.send(VerifySignatures(message, protocol))
+        .flatten_err()
+        .await
 }
 
 #[derive(Debug, Default)]
@@ -187,7 +194,7 @@ struct GetBn256KeyPair;
 
 struct VrfProve(VrfMessage);
 
-struct VerifySignatures(Vec<SignaturesToVerify>);
+struct VerifySignatures(Vec<SignaturesToVerify>, ProtocolVersion);
 
 async fn persist_master_key(master_key: ExtendedSK) -> Result<(), failure::Error> {
     let master_key = ExtendedSecretKey::from(master_key);
@@ -461,8 +468,13 @@ impl Handler<VrfProve> for SignatureManager {
 impl Handler<VerifySignatures> for SignatureManager {
     type Result = <VerifySignatures as Message>::Result;
 
-    fn handle(&mut self, msg: VerifySignatures, _ctx: &mut Self::Context) -> Self::Result {
-        validations::verify_signatures(msg.0, self.vrf_ctx.as_mut().unwrap()).map(|_| ())
+    fn handle(
+        &mut self,
+        VerifySignatures(signatures, protocol): VerifySignatures,
+        _ctx: &mut Self::Context,
+    ) -> Self::Result {
+        validations::verify_signatures(signatures, self.vrf_ctx.as_mut().unwrap(), protocol)
+            .map(|_| ())
     }
 }
 

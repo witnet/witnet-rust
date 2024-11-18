@@ -6,7 +6,7 @@ use std::{
 use failure::{Error, Fail};
 use protobuf::Message as _;
 use serde::{Deserialize, Serialize};
-use strum_macros::{Display, EnumString};
+use strum_macros::{Display, EnumIter, EnumString};
 
 use crate::{
     chain::{Epoch, Hash},
@@ -83,7 +83,18 @@ impl IntoIterator for VersionsMap {
 /// IMPORTANT NOTE: when adding new versions here in the future, make sure to also add them in
 ///  `impl PartialOrd for ProtocolVersion`.
 #[derive(
-    Clone, Copy, Debug, Default, Deserialize, Display, EnumString, Eq, Hash, PartialEq, Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    Deserialize,
+    Display,
+    EnumString,
+    Eq,
+    Hash,
+    PartialEq,
+    Serialize,
+    EnumIter,
 )]
 pub enum ProtocolVersion {
     /// The original Witnet protocol.
@@ -97,12 +108,19 @@ pub enum ProtocolVersion {
 }
 
 impl ProtocolVersion {
+    #[inline]
     pub fn guess() -> Self {
-        get_protocol_version(None)
+        Self::from_epoch_opt(None)
     }
 
+    #[inline]
     pub fn from_epoch(epoch: Epoch) -> Self {
-        get_protocol_version(Some(epoch))
+        Self::from_epoch_opt(Some(epoch))
+    }
+
+    #[inline]
+    pub fn from_epoch_opt(epoch: Option<Epoch>) -> Self {
+        get_protocol_version(epoch)
     }
 
     pub fn next(&self) -> Self {

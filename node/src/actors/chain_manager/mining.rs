@@ -469,9 +469,9 @@ impl ChainManager {
             // distinguish eligibility for stake entries belonging to multiple withdrawers but
             // operated by a single validator acting as a delegatee.
             let vrf_message = if protocol_version >= V2_0 {
-                VrfMessage::data_request_v1(dr_vrf_input, dr_pointer)
-            } else {
                 VrfMessage::data_request_v2(dr_vrf_input, dr_pointer, first_withdrawer_address)
+            } else {
+                VrfMessage::data_request_v1(dr_vrf_input, dr_pointer)
             };
 
             signature_mngr::vrf_prove(vrf_message)
@@ -1349,14 +1349,13 @@ pub fn build_block(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-    use std::convert::TryInto;
+    use std::{collections::HashMap, convert::TryInto};
 
     use witnet_crypto::secp256k1::{
         PublicKey as Secp256k1_PublicKey, SecretKey as Secp256k1_SecretKey,
     };
     use witnet_crypto::signature::{sign, verify};
-    use witnet_data_structures::{chain::*, transaction::*, vrf::VrfCtx};
+    use witnet_data_structures::{chain::*, strum::IntoEnumIterator, transaction::*, vrf::VrfCtx};
     use witnet_protected::Protected;
     use witnet_validations::validations::validate_block_signature;
 
@@ -1530,7 +1529,10 @@ mod tests {
         // Validate block signature
         let mut signatures_to_verify = vec![];
         assert!(validate_block_signature(&block, &mut signatures_to_verify).is_ok());
-        assert!(verify_signatures(signatures_to_verify, vrf).is_ok());
+
+        for protocol in ProtocolVersion::iter() {
+            assert!(verify_signatures(signatures_to_verify.clone(), vrf, protocol).is_ok());
+        }
     }
 
     static MILLION_TX_OUTPUT: &str =

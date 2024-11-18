@@ -4799,13 +4799,14 @@ impl EpochConstants {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SignaturesToVerify {
     VrfDr {
         proof: DataRequestEligibilityClaim,
         vrf_input: CheckpointVRF,
         dr_hash: Hash,
         target_hash: Hash,
+        withdrawer: Option<PublicKeyHash>,
     },
     VrfBlock {
         proof: BlockEligibilityClaim,

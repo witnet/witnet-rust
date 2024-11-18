@@ -17,6 +17,8 @@ use std::sync::RwLock;
 
 use lazy_static::lazy_static;
 
+pub use strum;
+
 use crate::{
     chain::{Environment, Epoch},
     proto::versioning::{ProtocolInfo, ProtocolVersion},

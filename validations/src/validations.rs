@@ -695,11 +695,10 @@ pub fn validate_commit_transaction(
     }
 
     let dr_output = &dr_state.data_request;
-
     let proof_pkh = co_tx.body.proof.proof.pkh();
 
     // Check if the commit transaction is from an eligible validator
-    let target_hash_wit2 = if protocol_version >= ProtocolVersion::V2_0 {
+    let (target_hash_wit2, withdrawer) = if protocol_version >= ProtocolVersion::V2_0 {
         match stakes.witnessing_eligibility(
             proof_pkh,
             epoch,
@@ -715,12 +714,19 @@ pub fn validate_commit_transaction(
                     .into());
                 }
 
-                target_hash
+                // Retrieve all stake entries in which we are the validator
+                let stake_entries = stakes
+                    .query_stakes(QueryStakesKey::Validator(proof_pkh))
+                    .unwrap_or_default();
+                // Retrieve the withdrawer address of the first stake entry in which we are the validator
+                let withdrawer = stake_entries.first().map(|stake| stake.key.withdrawer);
+
+                (target_hash, withdrawer)
             }
             Err(e) => return Err(e.into()),
         }
     } else {
-        Hash::min()
+        (Hash::min(), None)
     };
 
     // Commitment's output is only for change propose, so it only has to be one output and the
@@ -812,6 +818,7 @@ pub fn validate_commit_transaction(
         vrf_input,
         co_tx.body.dr_pointer,
         target_hash,
+        withdrawer,
     );
 
     // The commit fee here is the fee to include one commit
@@ -1632,12 +1639,14 @@ pub fn add_dr_vrf_signature_to_verify(
     vrf_input: CheckpointVRF,
     dr_hash: Hash,
     target_hash: Hash,
+    withdrawer: Option<PublicKeyHash>,
 ) {
     signatures_to_verify.push(SignaturesToVerify::VrfDr {
         proof: proof.clone(),
         vrf_input,
         dr_hash,
         target_hash,
+        withdrawer,
     })
 }
 
@@ -2729,6 +2738,7 @@ pub fn compare_block_candidates(
 pub fn verify_signatures(
     signatures_to_verify: Vec<SignaturesToVerify>,
     vrf: &mut VrfCtx,
+    protocol: ProtocolVersion,
 ) -> Result<Vec<Hash>, failure::Error> {
     let mut vrf_hashes = vec![];
     for signature in signatures_to_verify {
@@ -2755,10 +2765,15 @@ pub fn verify_signatures(
                 vrf_input,
                 dr_hash,
                 target_hash,
+                withdrawer,
             } => {
-                let vrf_hash = proof
-                    .verify(vrf, vrf_input, dr_hash)
-                    .map_err(|_| TransactionError::InvalidDataRequestPoe)?;
+                let vrf_hash = if protocol >= ProtocolVersion::V2_0 {
+                    proof.verify_v2(vrf, vrf_input, dr_hash, withdrawer)
+                } else {
+                    proof.verify_v1(vrf, vrf_input, dr_hash)
+                }
+                .map_err(|_| TransactionError::InvalidDataRequestPoe)?;
+
                 if vrf_hash > target_hash {
                     return Err(TransactionError::DataRequestEligibilityDoesNotMeetTarget {
                         vrf_hash,

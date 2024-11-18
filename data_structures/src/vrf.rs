@@ -217,20 +217,41 @@ impl DataRequestEligibilityClaim {
     }
 
     /// Verify a data request eligibility claim for a given vrf message and data request hash
-    pub fn verify(
+    pub fn verify_v1(
         &self,
         vrf: &mut VrfCtx,
         vrf_input: CheckpointVRF,
         dr_hash: Hash,
     ) -> Result<Hash, failure::Error> {
-        self.proof
-            .verify(vrf, &VrfMessage::data_request_v1(vrf_input, dr_hash))
-            .map(|v| {
-                let mut sha256 = [0; 32];
-                sha256.copy_from_slice(&v);
+        let vrf_mesage = VrfMessage::data_request_v1(vrf_input, dr_hash);
 
-                Hash::SHA256(sha256)
-            })
+        self.verify_message(vrf, vrf_mesage)
+    }
+
+    /// Verify a data request eligibility claim for a given vrf message and data request hash
+    pub fn verify_v2(
+        &self,
+        vrf: &mut VrfCtx,
+        vrf_input: CheckpointVRF,
+        dr_hash: Hash,
+        first_withdrawer: Option<PublicKeyHash>,
+    ) -> Result<Hash, failure::Error> {
+        let vrf_mesage = VrfMessage::data_request_v2(vrf_input, dr_hash, first_withdrawer);
+
+        self.verify_message(vrf, vrf_mesage)
+    }
+
+    pub fn verify_message(
+        &self,
+        vrf: &mut VrfCtx,
+        vrf_message: VrfMessage,
+    ) -> Result<Hash, failure::Error> {
+        self.proof.verify(vrf, &vrf_message).map(|v| {
+            let mut sha256 = [0; 32];
+            sha256.copy_from_slice(&v);
+
+            Hash::SHA256(sha256)
+        })
     }
 }
 
@@ -302,19 +323,32 @@ mod tests {
             .unwrap();
         let proof =
             DataRequestEligibilityClaim::create(vrf, &secret_key, vrf_input, dr_pointer).unwrap();
-        assert!(proof.verify(vrf, vrf_input, dr_pointer).is_ok());
+        assert!(proof.verify_v1(vrf, vrf_input, dr_pointer).is_ok());
 
         // Changing the beacon should invalidate the vrf proof
         let vrf_input2 = CheckpointVRF {
             checkpoint: 1,
             ..vrf_input
         };
-        assert!(proof.verify(vrf, vrf_input2, dr_pointer).is_err());
+        assert!(proof.verify_v1(vrf, vrf_input2, dr_pointer).is_err());
 
         // Changing the dr_hash should invalidate the vrf proof
         let dr_pointer2 = "2222222222222222222222222222222222222222222222222222222222222223"
             .parse()
             .unwrap();
-        assert!(proof.verify(vrf, vrf_input, dr_pointer2).is_err());
+        assert!(proof.verify_v1(vrf, vrf_input, dr_pointer2).is_err());
+    }
+
+    #[test]
+    pub fn vrf_message_versions() {
+        let vrf_input = CheckpointVRF::default();
+        let dr_hash = Hash::default();
+        let withdrawer = PublicKeyHash::default();
+
+        let VrfMessage(v1_bytes) = VrfMessage::data_request_v1(vrf_input, dr_hash);
+        let VrfMessage(v2_bytes) =
+            VrfMessage::data_request_v2(vrf_input, dr_hash, Some(withdrawer));
+
+        assert_eq!(v1_bytes, v2_bytes[..(v2_bytes.len() - 24)]);
     }
 }

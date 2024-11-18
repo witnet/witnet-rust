@@ -47,7 +47,7 @@ pub enum TransactionError {
     OutputNotFound { output: OutputPointer },
     #[fail(display = "Data Request not found: {}", hash)]
     DataRequestNotFound { hash: Hash },
-    #[fail(display = "Commit transaction has a invalid Proof of Eligibility")]
+    #[fail(display = "Commit transaction has an invalid Proof of Eligibility")]
     InvalidDataRequestPoe,
     #[fail(
         display = "Validator {} is not eligible to commit to a data request",

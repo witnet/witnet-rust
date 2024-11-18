@@ -4,21 +4,20 @@ use std::{
 };
 
 use itertools::izip;
-
 use serde::{Deserialize, Serialize};
 
-use crate::proto::versioning::ProtocolVersion;
+use witnet_crypto::hash::calculate_sha256;
+
 use crate::{
     chain::{
         tapi::ActiveWips, DataRequestInfo, DataRequestOutput, DataRequestStage, DataRequestState,
         Epoch, Hash, Hashable, PublicKeyHash, ValueTransferOutput,
     },
     error::{DataRequestError, TransactionError},
-    get_protocol_version,
+    proto::versioning::{ProtocolVersion, VersionedHashable},
     radon_report::{RadonReport, Stage, TypeLike},
     transaction::{CommitTransaction, DRTransaction, RevealTransaction, TallyTransaction},
 };
-use witnet_crypto::hash::calculate_sha256;
 
 /// Pool of active data requests
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -137,7 +136,7 @@ impl DataRequestPool {
         data_request: DRTransaction,
         block_hash: &Hash,
     ) -> Result<(), failure::Error> {
-        let dr_hash = data_request.hash();
+        let dr_hash = data_request.versioned_hash(ProtocolVersion::from_epoch(epoch));
         if data_request.signatures.is_empty() {
             return Err(TransactionError::SignatureNotFound.into());
         }
@@ -157,11 +156,13 @@ impl DataRequestPool {
     /// Add a commit to the corresponding data request
     fn add_commit(
         &mut self,
+        epoch: Epoch,
         pkh: PublicKeyHash,
         commit: CommitTransaction,
         block_hash: &Hash,
     ) -> Result<(), failure::Error> {
-        let tx_hash = commit.hash();
+        let tx_hash = commit.versioned_hash(ProtocolVersion::from_epoch(epoch));
+        log::debug!("Adding commit tx {}: {:?}", tx_hash, commit);
         // For a commit output, we need to get the corresponding data request input
         let dr_pointer = commit.body.dr_pointer;
 
@@ -182,11 +183,12 @@ impl DataRequestPool {
     /// Add a reveal transaction
     fn add_reveal(
         &mut self,
+        epoch: Epoch,
         pkh: PublicKeyHash,
         reveal: RevealTransaction,
         block_hash: &Hash,
     ) -> Result<(), failure::Error> {
-        let tx_hash = reveal.hash();
+        let tx_hash = reveal.versioned_hash(ProtocolVersion::from_epoch(epoch));
         // For a commit output, we need to get the corresponding data request input
         let dr_pointer = reveal.body.dr_pointer;
         // The data request must be from a previous block, and must not be timelocked.
@@ -338,20 +340,22 @@ impl DataRequestPool {
     pub fn process_commit(
         &mut self,
         commit_transaction: &CommitTransaction,
+        epoch: Epoch,
         block_hash: &Hash,
     ) -> Result<(), failure::Error> {
         let pkh = PublicKeyHash::from_public_key(&commit_transaction.signatures[0].public_key);
-        self.add_commit(pkh, commit_transaction.clone(), block_hash)
+        self.add_commit(epoch, pkh, commit_transaction.clone(), block_hash)
     }
 
     /// New reveals are added to their respective data requests, updating the stage to tally
     pub fn process_reveal(
         &mut self,
         reveal_transaction: &RevealTransaction,
+        epoch: Epoch,
         block_hash: &Hash,
     ) -> Result<(), failure::Error> {
         let pkh = PublicKeyHash::from_public_key(&reveal_transaction.signatures[0].public_key);
-        self.add_reveal(pkh, reveal_transaction.clone(), block_hash)
+        self.add_reveal(epoch, pkh, reveal_transaction.clone(), block_hash)
     }
 
     /// New data requests are inserted and wait for commitments
@@ -554,7 +558,7 @@ pub fn data_request_has_too_many_witnesses(
     validator_count: usize,
     epoch: Option<Epoch>,
 ) -> bool {
-    if get_protocol_version(epoch) < ProtocolVersion::V2_0 {
+    if ProtocolVersion::from_epoch_opt(epoch) < ProtocolVersion::V2_0 {
         false
     } else {
         usize::from(dr_output.witnesses) > validator_count / 4
@@ -917,7 +921,7 @@ mod tests {
             vec![KeyedSignature::default()],
         );
 
-        p.process_commit(&commit_transaction, &fake_block_hash)
+        p.process_commit(&commit_transaction, epoch, &fake_block_hash)
             .unwrap();
 
         // And we can also get all the commit pointers from the data request
@@ -967,7 +971,7 @@ mod tests {
             vec![KeyedSignature::default()],
         );
 
-        p.process_reveal(&reveal_transaction, &fake_block_hash)
+        p.process_reveal(&reveal_transaction, 0, &fake_block_hash)
             .unwrap();
 
         assert_eq!(
@@ -1048,7 +1052,7 @@ mod tests {
 
     #[test]
     fn test_from_reveal_to_tally_3_stages_uncompleted() {
-        let (_epoch, fake_block_hash, mut p, dr_pointer) = add_data_requests_with_3_reveal_stages();
+        let (epoch, fake_block_hash, mut p, dr_pointer) = add_data_requests_with_3_reveal_stages();
 
         let commit_transaction = CommitTransaction::new(
             CommitTransactionBody::without_collateral(
@@ -1075,9 +1079,9 @@ mod tests {
             }],
         );
 
-        p.process_commit(&commit_transaction, &fake_block_hash)
+        p.process_commit(&commit_transaction, epoch, &fake_block_hash)
             .unwrap();
-        p.process_commit(&commit_transaction2, &fake_block_hash)
+        p.process_commit(&commit_transaction2, epoch, &fake_block_hash)
             .unwrap();
 
         // Update stages
@@ -1098,7 +1102,7 @@ mod tests {
             vec![KeyedSignature::default()],
         );
 
-        p.process_reveal(&reveal_transaction, &fake_block_hash)
+        p.process_reveal(&reveal_transaction, 0, &fake_block_hash)
             .unwrap();
 
         // Update stages
@@ -1139,7 +1143,7 @@ mod tests {
 
     #[test]
     fn test_from_reveal_to_tally_3_stages_completed() {
-        let (_epoch, fake_block_hash, mut p, dr_pointer) = add_data_requests_with_3_reveal_stages();
+        let (epoch, fake_block_hash, mut p, dr_pointer) = add_data_requests_with_3_reveal_stages();
 
         let commit_transaction = CommitTransaction::new(
             CommitTransactionBody::without_collateral(
@@ -1166,9 +1170,9 @@ mod tests {
             }],
         );
 
-        p.process_commit(&commit_transaction, &fake_block_hash)
+        p.process_commit(&commit_transaction, epoch, &fake_block_hash)
             .unwrap();
-        p.process_commit(&commit_transaction2, &fake_block_hash)
+        p.process_commit(&commit_transaction2, epoch, &fake_block_hash)
             .unwrap();
 
         // Update stages
@@ -1189,7 +1193,7 @@ mod tests {
             vec![KeyedSignature::default()],
         );
 
-        p.process_reveal(&reveal_transaction, &fake_block_hash)
+        p.process_reveal(&reveal_transaction, epoch, &fake_block_hash)
             .unwrap();
 
         // Update stages
@@ -1211,7 +1215,7 @@ mod tests {
                 public_key: pk2,
             }],
         );
-        p.process_reveal(&reveal_transaction2, &fake_block_hash)
+        p.process_reveal(&reveal_transaction2, epoch, &fake_block_hash)
             .unwrap();
 
         // Update stages
@@ -1225,7 +1229,7 @@ mod tests {
 
     #[test]
     fn test_from_reveal_to_tally_3_stages_zero_reveals() {
-        let (_epoch, fake_block_hash, mut p, dr_pointer) = add_data_requests_with_3_reveal_stages();
+        let (epoch, fake_block_hash, mut p, dr_pointer) = add_data_requests_with_3_reveal_stages();
 
         let commit_transaction = CommitTransaction::new(
             CommitTransactionBody::without_collateral(
@@ -1252,9 +1256,9 @@ mod tests {
             }],
         );
 
-        p.process_commit(&commit_transaction, &fake_block_hash)
+        p.process_commit(&commit_transaction, epoch, &fake_block_hash)
             .unwrap();
-        p.process_commit(&commit_transaction2, &fake_block_hash)
+        p.process_commit(&commit_transaction2, epoch, &fake_block_hash)
             .unwrap();
 
         // Update stages
@@ -1315,7 +1319,7 @@ mod tests {
     #[test]
     fn my_claims() {
         // Test the `add_own_reveal` function
-        let (_epoch, fake_block_hash, mut p, dr_pointer) = add_data_requests();
+        let (epoch, fake_block_hash, mut p, dr_pointer) = add_data_requests();
 
         let commit_transaction = CommitTransaction::new(
             CommitTransactionBody::without_collateral(
@@ -1340,7 +1344,7 @@ mod tests {
             Some(&reveal_transaction)
         );
 
-        p.process_commit(&commit_transaction, &fake_block_hash)
+        p.process_commit(&commit_transaction, epoch, &fake_block_hash)
             .unwrap();
 
         // Still in commit stage until we update
