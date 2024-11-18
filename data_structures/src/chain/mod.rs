@@ -42,7 +42,6 @@ use crate::{
         TransactionError,
     },
     get_environment, get_protocol_version, get_protocol_version_activation_epoch,
-    get_protocol_version_period,
     proto::{
         versioning::{ProtocolInfo, ProtocolVersion, Versioned, VersionedHashable},
         ProtobufConvert,
@@ -288,7 +287,7 @@ impl ConsensusConstantsWit2 {
 
     /// Seconds between the start of an epoch and the start of the next one in wit/2
     pub fn get_checkpoints_period_wit2(self) -> u16 {
-        get_protocol_version_period(ProtocolVersion::V2_0)
+        20
     }
 
     /// Minimum amount of nanoWits which need to be staked before wit/2 activation
