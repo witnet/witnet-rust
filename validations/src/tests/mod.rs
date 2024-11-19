@@ -28,6 +28,7 @@ use witnet_data_structures::{
         helpers::StakeKey,
         stakes::{process_stake_transactions, StakesTracker},
     },
+    strum::IntoEnumIterator,
     transaction::*,
     transaction_factory::transaction_outputs_sum,
     utxo_pool::{UnspentOutputsPool, UtxoDiff},
@@ -9406,93 +9407,97 @@ static LAST_VRF_INPUT: &str = "4da71b67e7e50ae4ad06a71e505244f8b490da55fc58c5038
 
 #[test]
 fn block_signatures() {
-    let mut b = Block::new(Default::default(), Default::default(), Default::default());
-    // Add valid vrf proof
-    let vrf = &mut VrfCtx::secp256k1().unwrap();
-    let secret_key = SecretKey {
-        bytes: Protected::from(PRIV_KEY_1.to_vec()),
-    };
+    for protocol in ProtocolVersion::iter() {
+        register_protocol_version(protocol, 0, 45);
 
-    let last_vrf_input = LAST_VRF_INPUT.parse().unwrap();
-    let vrf_input = CheckpointVRF {
-        hash_prev_vrf: last_vrf_input,
-        checkpoint: 0,
-    };
+        let mut b = Block::new(Default::default(), Default::default(), Default::default());
+        // Add valid vrf proof
+        let vrf = &mut VrfCtx::secp256k1().unwrap();
+        let secret_key = SecretKey {
+            bytes: Protected::from(PRIV_KEY_1.to_vec()),
+        };
 
-    b.block_header.proof = BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap();
+        let last_vrf_input = LAST_VRF_INPUT.parse().unwrap();
+        let vrf_input = CheckpointVRF {
+            hash_prev_vrf: last_vrf_input,
+            checkpoint: 0,
+        };
 
-    let hashable = b;
-    let f = |mut b: Block, ks| -> Result<_, failure::Error> {
-        b.block_sig = ks;
-        let mut signatures_to_verify = vec![];
-        validate_block_signature(&b, &mut signatures_to_verify)?;
-        verify_signatures_test(signatures_to_verify)?;
-        Ok(())
-    };
+        b.block_header.proof = BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap();
 
-    let ks = sign_tx(PRIV_KEY_1, &hashable, None);
-    let hash = hashable.hash();
+        let hashable = b;
+        let f = |mut b: Block, ks| -> Result<_, failure::Error> {
+            b.block_sig = ks;
+            let mut signatures_to_verify = vec![];
+            validate_block_signature(&b, &mut signatures_to_verify)?;
+            verify_signatures_test(signatures_to_verify)?;
+            Ok(())
+        };
 
-    // Replace the signature with default (all zeros)
-    let ks_default = KeyedSignature::default();
-    let signature_pkh = ks_default.public_key.pkh();
-    let x = f(hashable.clone(), ks_default);
-    assert_eq!(
-        x.unwrap_err().downcast::<BlockError>().unwrap(),
-        BlockError::PublicKeyHashMismatch {
-            proof_pkh: MY_PKH_1.parse().unwrap(),
-            signature_pkh,
+        let ks = sign_tx(PRIV_KEY_1, &hashable, Some(protocol));
+        let hash = hashable.versioned_hash(protocol);
+
+        // Replace the signature with default (all zeros)
+        let ks_default = KeyedSignature::default();
+        let signature_pkh = ks_default.public_key.pkh();
+        let x = f(hashable.clone(), ks_default);
+        assert_eq!(
+            x.unwrap_err().downcast::<BlockError>().unwrap(),
+            BlockError::PublicKeyHashMismatch {
+                proof_pkh: MY_PKH_1.parse().unwrap(),
+                signature_pkh,
+            }
+        );
+
+        // Replace the signature with an empty vector
+        let mut ks_empty = ks.clone();
+        match ks_empty.signature {
+            Signature::Secp256k1(ref mut x) => x.der = vec![],
         }
-    );
+        let x = f(hashable.clone(), ks_empty);
+        assert_eq!(
+            x.unwrap_err()
+                .downcast::<Secp256k1ConversionError>()
+                .unwrap(),
+            Secp256k1ConversionError::FailSignatureConversion
+        );
 
-    // Replace the signature with an empty vector
-    let mut ks_empty = ks.clone();
-    match ks_empty.signature {
-        Signature::Secp256k1(ref mut x) => x.der = vec![],
+        // Flip one bit in the signature
+        let mut ks_wrong = ks.clone();
+        match ks_wrong.signature {
+            Signature::Secp256k1(ref mut x) => x.der[10] ^= 0x1,
+        }
+        let x = f(hashable.clone(), ks_wrong);
+        assert_eq!(
+            x.unwrap_err().downcast::<BlockError>().unwrap(),
+            BlockError::VerifySignatureFail { hash }
+        );
+
+        // Flip one bit in the public key of the signature
+        let mut ks_bad_pk = ks;
+        ks_bad_pk.public_key.bytes[13] ^= 0x01;
+        let signature_pkh = ks_bad_pk.public_key.pkh();
+        let x = f(hashable.clone(), ks_bad_pk);
+        assert_eq!(
+            x.unwrap_err().downcast::<BlockError>().unwrap(),
+            BlockError::PublicKeyHashMismatch {
+                proof_pkh: MY_PKH_1.parse().unwrap(),
+                signature_pkh,
+            }
+        );
+
+        // Sign transaction with a different public key
+        let ks_different_pk = sign_tx(PRIV_KEY_2, &hashable, None);
+        let signature_pkh = ks_different_pk.public_key.pkh();
+        let x = f(hashable, ks_different_pk);
+        assert_eq!(
+            x.unwrap_err().downcast::<BlockError>().unwrap(),
+            BlockError::PublicKeyHashMismatch {
+                proof_pkh: MY_PKH_1.parse().unwrap(),
+                signature_pkh,
+            }
+        );
     }
-    let x = f(hashable.clone(), ks_empty);
-    assert_eq!(
-        x.unwrap_err()
-            .downcast::<Secp256k1ConversionError>()
-            .unwrap(),
-        Secp256k1ConversionError::FailSignatureConversion
-    );
-
-    // Flip one bit in the signature
-    let mut ks_wrong = ks.clone();
-    match ks_wrong.signature {
-        Signature::Secp256k1(ref mut x) => x.der[10] ^= 0x1,
-    }
-    let x = f(hashable.clone(), ks_wrong);
-    assert_eq!(
-        x.unwrap_err().downcast::<BlockError>().unwrap(),
-        BlockError::VerifySignatureFail { hash }
-    );
-
-    // Flip one bit in the public key of the signature
-    let mut ks_bad_pk = ks;
-    ks_bad_pk.public_key.bytes[13] ^= 0x01;
-    let signature_pkh = ks_bad_pk.public_key.pkh();
-    let x = f(hashable.clone(), ks_bad_pk);
-    assert_eq!(
-        x.unwrap_err().downcast::<BlockError>().unwrap(),
-        BlockError::PublicKeyHashMismatch {
-            proof_pkh: MY_PKH_1.parse().unwrap(),
-            signature_pkh,
-        }
-    );
-
-    // Sign transaction with a different public key
-    let ks_different_pk = sign_tx(PRIV_KEY_2, &hashable, None);
-    let signature_pkh = ks_different_pk.public_key.pkh();
-    let x = f(hashable, ks_different_pk);
-    assert_eq!(
-        x.unwrap_err().downcast::<BlockError>().unwrap(),
-        BlockError::PublicKeyHashMismatch {
-            proof_pkh: MY_PKH_1.parse().unwrap(),
-            signature_pkh,
-        }
-    );
 }
 
 static ONE_WIT_OUTPUT: &str = "0f0f000000000000000000000000000000000000000000000000000000000000:0";
