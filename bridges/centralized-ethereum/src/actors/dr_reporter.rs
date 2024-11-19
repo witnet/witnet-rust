@@ -102,7 +102,7 @@ pub struct Report {
     /// Data Request's unique query id as known by the WitnetOracle contract
     pub dr_id: DrId,
     /// Timestamp at which the reported result was actually generated
-    pub dr_timestamp: u64,
+    pub dr_timestamp: i64,
     /// Hash of the Data Request Transaction in the Witnet blockchain
     pub dr_tx_hash: Hash,
     /// Hash of the Data Request Tally Transaction in the Witnet blockchain
