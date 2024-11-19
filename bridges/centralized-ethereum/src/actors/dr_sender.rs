@@ -189,7 +189,7 @@ impl DrSender {
 
                         dr_reporter_msgs.push(Report {
                             dr_id,
-                            dr_timestamp: u64::from_ne_bytes(get_timestamp().to_ne_bytes()),
+                            dr_timestamp: i64::from_ne_bytes(get_timestamp().to_ne_bytes()),
                             dr_tx_hash: zero_hash,
                             dr_tally_tx_hash: zero_hash,
                             result,
