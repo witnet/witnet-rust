@@ -1431,7 +1431,6 @@ mod tests {
     static LAST_VRF_INPUT: &str =
         "4da71b67e7e50ae4ad06a71e505244f8b490da55fc58c50386c908f7146d2239";
 
-    #[ignore]
     #[test]
     fn build_signed_empty_block() {
         // Initialize transaction_pool with 1 transaction
@@ -1498,7 +1497,7 @@ mod tests {
         );
 
         // Create a KeyedSignature
-        let Hash::SHA256(data) = block_header.hash();
+        let Hash::SHA256(data) = block_header.versioned_hash(get_protocol_version(Some(0)));
         let secret_key =
             Secp256k1_SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
         let public_key = Secp256k1_PublicKey::from_secret_key_global(&secret_key);

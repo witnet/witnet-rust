@@ -16,6 +16,7 @@ use witnet_data_structures::{
         tapi::{all_wips_active, current_active_wips, ActiveWips, TapiEngine, FIRST_HARD_FORK},
         *,
     },
+    clear_protocol_info,
     data_request::{
         calculate_tally_change, calculate_witness_reward, create_tally, DataRequestPool,
     },
@@ -290,22 +291,36 @@ fn mint_mismatched_reward() {
         time_lock: 0,
     };
     let mint_tx = MintTransaction::new(epoch, vec![output]);
-    let x = validate_mint_transaction(
-        &mint_tx,
-        total_fees,
-        epoch,
-        INITIAL_BLOCK_REWARD,
-        HALVING_PERIOD,
-    );
-    // Error: block reward mismatch
-    assert_eq!(
-        x.unwrap_err().downcast::<BlockError>().unwrap(),
-        BlockError::MismatchedMintValue {
-            mint_value: 100,
-            fees_value: 100,
-            reward_value: reward,
+
+    for protocol in ProtocolVersion::iter() {
+        register_protocol_version(protocol, 0, 45);
+
+        let x = validate_mint_transaction(
+            &mint_tx,
+            total_fees,
+            epoch,
+            INITIAL_BLOCK_REWARD,
+            HALVING_PERIOD,
+        );
+        if protocol >= ProtocolVersion::V2_0 {
+            // Error: mint transactions should be empty under V2.0
+            assert_eq!(
+                x.unwrap_err().downcast::<BlockError>().unwrap(),
+                BlockError::InvalidMintTransaction {}
+            );
+        } else {
+            // Error: block reward mismatch
+            assert_eq!(
+                x.unwrap_err().downcast::<BlockError>().unwrap(),
+                BlockError::MismatchedMintValue {
+                    mint_value: 100,
+                    fees_value: 100,
+                    reward_value: reward,
+                }
+            );
         }
-    );
+    }
+    clear_protocol_info();
 }
 
 #[test]
@@ -358,18 +373,32 @@ fn mint_multiple_split() {
         time_lock: 0,
     };
     let mint_tx = MintTransaction::new(epoch, vec![output1, output2, output3]);
-    let x = validate_mint_transaction(
-        &mint_tx,
-        total_fees,
-        epoch,
-        INITIAL_BLOCK_REWARD,
-        HALVING_PERIOD,
-    );
-    // Error: Mint outputs smaller than collateral minimum
-    assert_eq!(
-        x.unwrap_err().downcast::<BlockError>().unwrap(),
-        BlockError::TooSplitMint
-    );
+
+    for protocol in ProtocolVersion::iter() {
+        register_protocol_version(protocol, 0, 45);
+
+        let x = validate_mint_transaction(
+            &mint_tx,
+            total_fees,
+            epoch,
+            INITIAL_BLOCK_REWARD,
+            HALVING_PERIOD,
+        );
+        if protocol >= ProtocolVersion::V2_0 {
+            // Error: mint transactions should be empty under V2.0
+            assert_eq!(
+                x.unwrap_err().downcast::<BlockError>().unwrap(),
+                BlockError::InvalidMintTransaction {}
+            );
+        } else {
+            // Error: Mint outputs smaller than collateral minimum
+            assert_eq!(
+                x.unwrap_err().downcast::<BlockError>().unwrap(),
+                BlockError::TooSplitMint
+            );
+        }
+    }
+    clear_protocol_info();
 }
 
 #[test]
@@ -388,14 +417,29 @@ fn mint_split_valid() {
         time_lock: 0,
     };
     let mint_tx = MintTransaction::new(epoch, vec![output1, output2]);
-    let x = validate_mint_transaction(
-        &mint_tx,
-        total_fees,
-        epoch,
-        INITIAL_BLOCK_REWARD,
-        HALVING_PERIOD,
-    );
-    x.unwrap();
+
+    for protocol in ProtocolVersion::iter() {
+        register_protocol_version(protocol, 0, 45);
+
+        let x = validate_mint_transaction(
+            &mint_tx,
+            total_fees,
+            epoch,
+            INITIAL_BLOCK_REWARD,
+            HALVING_PERIOD,
+        );
+        if protocol >= ProtocolVersion::V2_0 {
+            // Error: mint transactions should be empty under V2.0
+            assert_eq!(
+                x.unwrap_err().downcast::<BlockError>().unwrap(),
+                BlockError::InvalidMintTransaction {}
+            );
+        } else {
+            // Mint should be valid in V1.7 and V1.8
+            x.unwrap();
+        }
+    }
+    clear_protocol_info();
 }
 
 #[test]
@@ -409,14 +453,29 @@ fn mint_valid() {
         time_lock: 0,
     };
     let mint_tx = MintTransaction::new(epoch, vec![output]);
-    let x = validate_mint_transaction(
-        &mint_tx,
-        total_fees,
-        epoch,
-        INITIAL_BLOCK_REWARD,
-        HALVING_PERIOD,
-    );
-    x.unwrap();
+
+    for protocol in ProtocolVersion::iter() {
+        register_protocol_version(protocol, 0, 45);
+
+        let x = validate_mint_transaction(
+            &mint_tx,
+            total_fees,
+            epoch,
+            INITIAL_BLOCK_REWARD,
+            HALVING_PERIOD,
+        );
+        if protocol >= ProtocolVersion::V2_0 {
+            // Error: mint transactions should be empty under V2.0
+            assert_eq!(
+                x.unwrap_err().downcast::<BlockError>().unwrap(),
+                BlockError::InvalidMintTransaction {}
+            );
+        } else {
+            // Mint should be valid in V1.7 and V1.8
+            x.unwrap();
+        }
+    }
+    clear_protocol_info();
 }
 
 #[test]
@@ -8847,8 +8906,6 @@ fn setup_stakes_tracker(
     key_1: [u8; 32],
     key_2: [u8; 32],
 ) -> (PublicKeyHash, PublicKeyHash, StakesTracker) {
-    register_protocol_version(ProtocolVersion::V2_0, 20000, 10);
-
     let validator_sk =
         Secp256k1_SecretKey::from_slice(&key_1).expect("32 bytes, within curve order");
     let withdrawer_sk =
@@ -8884,6 +8941,7 @@ fn st_not_allowed() {
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
     let stakes = Default::default();
 
+    clear_protocol_info();
     register_protocol_version(ProtocolVersion::V1_8, 10000, 10);
 
     // Try to create a stake tx with no inputs
@@ -8908,6 +8966,7 @@ fn st_not_allowed() {
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::NoStakeTransactionsAllowed {}
     );
+    clear_protocol_info();
 }
 
 #[test]
@@ -8917,8 +8976,6 @@ fn st_no_inputs() {
     let utxo_diff = UtxoDiff::new(&utxo_set, block_number);
     let stakes = Default::default();
 
-    register_protocol_version(ProtocolVersion::V1_8, 10000, 10);
-
     // Try to create a stake tx with no inputs
     let st_output = StakeOutput {
         value: MIN_STAKE_NANOWITS + 1,
@@ -8927,22 +8984,35 @@ fn st_no_inputs() {
 
     let st_body = StakeTransactionBody::new(vec![], st_output, None);
     let st_tx = StakeTransaction::new(st_body, vec![]);
-    let x = validate_stake_transaction(
-        &st_tx,
-        &utxo_diff,
-        Epoch::from(10000_u32),
-        EpochConstants::default(),
-        &mut vec![],
-        &stakes,
-        MIN_STAKE_NANOWITS,
-        MAX_STAKE_NANOWITS,
-    );
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::NoInputs {
-            tx_hash: st_tx.hash(),
+
+    for protocol in ProtocolVersion::iter() {
+        register_protocol_version(protocol, 0, 10);
+
+        let x = validate_stake_transaction(
+            &st_tx,
+            &utxo_diff,
+            Epoch::default(),
+            EpochConstants::default(),
+            &mut vec![],
+            &stakes,
+            MIN_STAKE_NANOWITS,
+            MAX_STAKE_NANOWITS,
+        );
+        if protocol == ProtocolVersion::V1_7 {
+            assert_eq!(
+                x.unwrap_err().downcast::<TransactionError>().unwrap(),
+                TransactionError::NoStakeTransactionsAllowed {}
+            );
+        } else {
+            assert_eq!(
+                x.unwrap_err().downcast::<TransactionError>().unwrap(),
+                TransactionError::NoInputs {
+                    tx_hash: st_tx.hash(),
+                }
+            );
         }
-    );
+    }
+    clear_protocol_info();
 }
 
 #[test]
@@ -8958,8 +9028,6 @@ fn st_one_input_but_no_signature() {
     );
     let stakes = Default::default();
 
-    register_protocol_version(ProtocolVersion::V1_8, 10000, 10);
-
     // No signatures but 1 input
     let stake_output = StakeOutput {
         value: MIN_STAKE_NANOWITS + 1,
@@ -8968,23 +9036,36 @@ fn st_one_input_but_no_signature() {
 
     let stake_tx_body = StakeTransactionBody::new(vec![vti], stake_output, None);
     let stake_tx = StakeTransaction::new(stake_tx_body, vec![]);
-    let x = validate_stake_transaction(
-        &stake_tx,
-        &utxo_diff,
-        Epoch::from(10000_u32),
-        EpochConstants::default(),
-        &mut signatures_to_verify,
-        &stakes,
-        MIN_STAKE_NANOWITS,
-        MAX_STAKE_NANOWITS,
-    );
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::MismatchingSignaturesNumber {
-            signatures_n: 0,
-            inputs_n: 1,
+
+    for protocol in ProtocolVersion::iter() {
+        register_protocol_version(protocol, 0, 10);
+
+        let x = validate_stake_transaction(
+            &stake_tx,
+            &utxo_diff,
+            Epoch::default(),
+            EpochConstants::default(),
+            &mut signatures_to_verify,
+            &stakes,
+            MIN_STAKE_NANOWITS,
+            MAX_STAKE_NANOWITS,
+        );
+        if protocol == ProtocolVersion::V1_7 {
+            assert_eq!(
+                x.unwrap_err().downcast::<TransactionError>().unwrap(),
+                TransactionError::NoStakeTransactionsAllowed {}
+            );
+        } else {
+            assert_eq!(
+                x.unwrap_err().downcast::<TransactionError>().unwrap(),
+                TransactionError::MismatchingSignaturesNumber {
+                    signatures_n: 0,
+                    inputs_n: 1,
+                }
+            );
         }
-    );
+    }
+    clear_protocol_info();
 }
 
 #[test]
@@ -9000,8 +9081,6 @@ fn st_below_min_stake() {
     );
     let stakes = Default::default();
 
-    register_protocol_version(ProtocolVersion::V1_8, 10000, 10);
-
     // No signatures but 1 input
     let stake_output = StakeOutput {
         value: 1,
@@ -9010,29 +9089,40 @@ fn st_below_min_stake() {
 
     let stake_tx_body = StakeTransactionBody::new(vec![vti], stake_output, None);
     let stake_tx = StakeTransaction::new(stake_tx_body, vec![]);
-    let x = validate_stake_transaction(
-        &stake_tx,
-        &utxo_diff,
-        Epoch::from(10000_u32),
-        EpochConstants::default(),
-        &mut signatures_to_verify,
-        &stakes,
-        MIN_STAKE_NANOWITS,
-        MAX_STAKE_NANOWITS,
-    );
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::StakeBelowMinimum {
-            min_stake: MIN_STAKE_NANOWITS,
-            stake: 1
+
+    for protocol in ProtocolVersion::iter() {
+        register_protocol_version(protocol, 0, 10);
+
+        let x = validate_stake_transaction(
+            &stake_tx,
+            &utxo_diff,
+            Epoch::default(),
+            EpochConstants::default(),
+            &mut signatures_to_verify,
+            &stakes,
+            MIN_STAKE_NANOWITS,
+            MAX_STAKE_NANOWITS,
+        );
+        if protocol == ProtocolVersion::V1_7 {
+            assert_eq!(
+                x.unwrap_err().downcast::<TransactionError>().unwrap(),
+                TransactionError::NoStakeTransactionsAllowed {}
+            );
+        } else {
+            assert_eq!(
+                x.unwrap_err().downcast::<TransactionError>().unwrap(),
+                TransactionError::StakeBelowMinimum {
+                    min_stake: MIN_STAKE_NANOWITS,
+                    stake: 1
+                }
+            );
         }
-    );
+    }
+    clear_protocol_info();
 }
 
 #[test]
 fn st_above_max_stake() {
-    register_protocol_version(ProtocolVersion::V1_8, 10000, 10);
-
     // Setup stakes tracker with a (validator, validator) pair
     let (validator_pkh, withdrawer_pkh, stakes) =
         setup_stakes_tracker(MAX_STAKE_NANOWITS, PRIV_KEY_1, PRIV_KEY_2);
@@ -9054,23 +9144,36 @@ fn st_above_max_stake() {
     };
     let stake_tx_body = StakeTransactionBody::new(vec![vti], stake_output, None);
     let stake_tx = StakeTransaction::new(stake_tx_body, vec![]);
-    let x = validate_stake_transaction(
-        &stake_tx,
-        &utxo_diff,
-        Epoch::from(10000_u32),
-        EpochConstants::default(),
-        &mut signatures_to_verify,
-        &stakes,
-        MIN_STAKE_NANOWITS,
-        MAX_STAKE_NANOWITS,
-    );
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::StakeAboveMaximum {
-            max_stake: MAX_STAKE_NANOWITS,
-            stake: MAX_STAKE_NANOWITS + 1,
+
+    for protocol in ProtocolVersion::iter() {
+        register_protocol_version(protocol, 0, 10);
+
+        let x = validate_stake_transaction(
+            &stake_tx,
+            &utxo_diff,
+            Epoch::default(),
+            EpochConstants::default(),
+            &mut signatures_to_verify,
+            &stakes,
+            MIN_STAKE_NANOWITS,
+            MAX_STAKE_NANOWITS,
+        );
+        if protocol == ProtocolVersion::V1_7 {
+            assert_eq!(
+                x.unwrap_err().downcast::<TransactionError>().unwrap(),
+                TransactionError::NoStakeTransactionsAllowed {}
+            );
+        } else {
+            assert_eq!(
+                x.unwrap_err().downcast::<TransactionError>().unwrap(),
+                TransactionError::StakeAboveMaximum {
+                    max_stake: MAX_STAKE_NANOWITS,
+                    stake: MAX_STAKE_NANOWITS + 1,
+                }
+            );
         }
-    );
+    }
+    clear_protocol_info();
 
     // The stake transaction will fail because the sum of its value and the amount which is
     // already staked is above MAX_STAKE_NANOWITS
@@ -9081,23 +9184,36 @@ fn st_above_max_stake() {
     };
     let stake_tx_body = StakeTransactionBody::new(vec![vti], stake_output, None);
     let stake_tx = StakeTransaction::new(stake_tx_body, vec![]);
-    let x = validate_stake_transaction(
-        &stake_tx,
-        &utxo_diff,
-        Epoch::from(10000_u32),
-        EpochConstants::default(),
-        &mut signatures_to_verify,
-        &stakes,
-        MIN_STAKE_NANOWITS,
-        MAX_STAKE_NANOWITS,
-    );
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::StakeAboveMaximum {
-            max_stake: MAX_STAKE_NANOWITS,
-            stake: MAX_STAKE_NANOWITS + MIN_STAKE_NANOWITS,
+
+    for protocol in ProtocolVersion::iter() {
+        register_protocol_version(protocol, 0, 10);
+
+        let x = validate_stake_transaction(
+            &stake_tx,
+            &utxo_diff,
+            Epoch::from(10000_u32),
+            EpochConstants::default(),
+            &mut signatures_to_verify,
+            &stakes,
+            MIN_STAKE_NANOWITS,
+            MAX_STAKE_NANOWITS,
+        );
+        if protocol == ProtocolVersion::V1_7 {
+            assert_eq!(
+                x.unwrap_err().downcast::<TransactionError>().unwrap(),
+                TransactionError::NoStakeTransactionsAllowed {}
+            );
+        } else {
+            assert_eq!(
+                x.unwrap_err().downcast::<TransactionError>().unwrap(),
+                TransactionError::StakeAboveMaximum {
+                    max_stake: MAX_STAKE_NANOWITS,
+                    stake: MAX_STAKE_NANOWITS + MIN_STAKE_NANOWITS,
+                }
+            );
         }
-    );
+    }
+    clear_protocol_info();
 }
 
 #[test]
@@ -9115,14 +9231,27 @@ fn unstake_success() {
     // Sign with the validator private key instead of the withdrawer private key
     let signature = sign_tx(PRIV_KEY_1, &unstake_tx_body, None);
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
-    let x = validate_unstake_transaction(
-        &unstake_tx,
-        Epoch::from(20001_u32),
-        &stakes,
-        MIN_STAKE_NANOWITS,
-        UNSTAKING_DELAY_SECONDS,
-    );
-    assert!(x.is_ok());
+
+    for protocol in ProtocolVersion::iter() {
+        register_protocol_version(protocol, 0, 10);
+
+        let x = validate_unstake_transaction(
+            &unstake_tx,
+            Epoch::from(20001_u32),
+            &stakes,
+            MIN_STAKE_NANOWITS,
+            UNSTAKING_DELAY_SECONDS,
+        );
+        if protocol >= ProtocolVersion::V2_0 {
+            assert!(x.is_ok());
+        } else {
+            assert_eq!(
+                x.unwrap_err().downcast::<TransactionError>().unwrap(),
+                TransactionError::NoUnstakeTransactionsAllowed {}
+            );
+        }
+    }
+    clear_protocol_info();
 
     // Setup stakes tracker with a (validator, withdrawer) pair
     let (validator_pkh, withdrawer_pkh, stakes) =
@@ -9138,14 +9267,27 @@ fn unstake_success() {
     // Sign with the validator private key instead of the withdrawer private key
     let signature = sign_tx(PRIV_KEY_2, &unstake_tx_body, None);
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
-    let x = validate_unstake_transaction(
-        &unstake_tx,
-        Epoch::from(20001_u32),
-        &stakes,
-        MIN_STAKE_NANOWITS,
-        UNSTAKING_DELAY_SECONDS,
-    );
-    assert!(x.is_ok());
+
+    for protocol in ProtocolVersion::iter() {
+        register_protocol_version(protocol, 0, 10);
+
+        let x = validate_unstake_transaction(
+            &unstake_tx,
+            Epoch::from(20001_u32),
+            &stakes,
+            MIN_STAKE_NANOWITS,
+            UNSTAKING_DELAY_SECONDS,
+        );
+        if protocol >= ProtocolVersion::V2_0 {
+            assert!(x.is_ok());
+        } else {
+            assert_eq!(
+                x.unwrap_err().downcast::<TransactionError>().unwrap(),
+                TransactionError::NoUnstakeTransactionsAllowed {}
+            );
+        }
+    }
+    clear_protocol_info();
 
     // Note that we did not process above unstake transaction, so the stakes structure did not change
     // Try unstaking the full balance
@@ -9158,19 +9300,32 @@ fn unstake_success() {
     // Sign with the validator private key instead of the withdrawer private key
     let signature = sign_tx(PRIV_KEY_2, &unstake_tx_body, None);
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
-    let x = validate_unstake_transaction(
-        &unstake_tx,
-        Epoch::from(20001_u32),
-        &stakes,
-        MIN_STAKE_NANOWITS,
-        UNSTAKING_DELAY_SECONDS,
-    );
-    assert!(x.is_ok());
+
+    for protocol in ProtocolVersion::iter() {
+        register_protocol_version(protocol, 0, 10);
+
+        let x = validate_unstake_transaction(
+            &unstake_tx,
+            Epoch::from(20001_u32),
+            &stakes,
+            MIN_STAKE_NANOWITS,
+            UNSTAKING_DELAY_SECONDS,
+        );
+        if protocol >= ProtocolVersion::V2_0 {
+            assert!(x.is_ok());
+        } else {
+            assert_eq!(
+                x.unwrap_err().downcast::<TransactionError>().unwrap(),
+                TransactionError::NoUnstakeTransactionsAllowed {}
+            );
+        }
+    }
+    clear_protocol_info();
 }
 
 #[test]
 fn unstake_not_allowed() {
-    register_protocol_version(ProtocolVersion::V2_0, 20000, 10);
+    register_protocol_version(ProtocolVersion::V2_0, 1, 10);
 
     let stakes = StakesTracker::default();
     let vto = ValueTransferOutput {
@@ -9191,6 +9346,7 @@ fn unstake_not_allowed() {
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
         TransactionError::NoUnstakeTransactionsAllowed {}
     );
+    clear_protocol_info();
 }
 
 #[test]
@@ -9207,20 +9363,33 @@ fn unstake_more_than_staked() {
     let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 1);
     let signature = sign_tx(PRIV_KEY_2, &unstake_tx_body, None);
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
-    let x = validate_unstake_transaction(
-        &unstake_tx,
-        Epoch::from(20001_u32),
-        &stakes,
-        MIN_STAKE_NANOWITS,
-        UNSTAKING_DELAY_SECONDS,
-    );
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::UnstakingMoreThanStaked {
-            unstake: MIN_STAKE_NANOWITS + 1,
-            stake: MIN_STAKE_NANOWITS
+
+    for protocol in ProtocolVersion::iter() {
+        register_protocol_version(protocol, 0, 10);
+
+        let x = validate_unstake_transaction(
+            &unstake_tx,
+            Epoch::default(),
+            &stakes,
+            MIN_STAKE_NANOWITS,
+            UNSTAKING_DELAY_SECONDS,
+        );
+        if protocol >= ProtocolVersion::V2_0 {
+            assert_eq!(
+                x.unwrap_err().downcast::<TransactionError>().unwrap(),
+                TransactionError::UnstakingMoreThanStaked {
+                    unstake: MIN_STAKE_NANOWITS + 1,
+                    stake: MIN_STAKE_NANOWITS
+                }
+            );
+        } else {
+            assert_eq!(
+                x.unwrap_err().downcast::<TransactionError>().unwrap(),
+                TransactionError::NoUnstakeTransactionsAllowed {}
+            );
         }
-    );
+    }
+    clear_protocol_info();
 
     // Unstaking what was staked, but adding a 1 nanowit fee resulting in unstaking too much
     let vto = ValueTransferOutput {
@@ -9231,20 +9400,33 @@ fn unstake_more_than_staked() {
     let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 1, 1);
     let signature = sign_tx(PRIV_KEY_2, &unstake_tx_body, None);
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
-    let x = validate_unstake_transaction(
-        &unstake_tx,
-        Epoch::from(20001_u32),
-        &stakes,
-        MIN_STAKE_NANOWITS,
-        UNSTAKING_DELAY_SECONDS,
-    );
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::UnstakingMoreThanStaked {
-            unstake: MIN_STAKE_NANOWITS + 1,
-            stake: MIN_STAKE_NANOWITS
+
+    for protocol in ProtocolVersion::iter() {
+        register_protocol_version(protocol, 0, 10);
+
+        let x = validate_unstake_transaction(
+            &unstake_tx,
+            Epoch::default(),
+            &stakes,
+            MIN_STAKE_NANOWITS,
+            UNSTAKING_DELAY_SECONDS,
+        );
+        if protocol >= ProtocolVersion::V2_0 {
+            assert_eq!(
+                x.unwrap_err().downcast::<TransactionError>().unwrap(),
+                TransactionError::UnstakingMoreThanStaked {
+                    unstake: MIN_STAKE_NANOWITS + 1,
+                    stake: MIN_STAKE_NANOWITS
+                }
+            );
+        } else {
+            assert_eq!(
+                x.unwrap_err().downcast::<TransactionError>().unwrap(),
+                TransactionError::NoUnstakeTransactionsAllowed {}
+            );
         }
-    );
+    }
+    clear_protocol_info();
 }
 
 #[test]
@@ -9260,20 +9442,33 @@ fn unstake_invalid_nonce() {
     let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 0);
     let signature = sign_tx(PRIV_KEY_2, &unstake_tx_body, None);
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
-    let x = validate_unstake_transaction(
-        &unstake_tx,
-        Epoch::from(20001_u32),
-        &stakes,
-        MIN_STAKE_NANOWITS,
-        UNSTAKING_DELAY_SECONDS,
-    );
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::UnstakeInvalidNonce {
-            used: 0,
-            current: 1
+
+    for protocol in ProtocolVersion::iter() {
+        register_protocol_version(protocol, 0, 10);
+
+        let x = validate_unstake_transaction(
+            &unstake_tx,
+            Epoch::from(20001_u32),
+            &stakes,
+            MIN_STAKE_NANOWITS,
+            UNSTAKING_DELAY_SECONDS,
+        );
+        if protocol >= ProtocolVersion::V2_0 {
+            assert_eq!(
+                x.unwrap_err().downcast::<TransactionError>().unwrap(),
+                TransactionError::UnstakeInvalidNonce {
+                    used: 0,
+                    current: 1
+                }
+            );
+        } else {
+            assert_eq!(
+                x.unwrap_err().downcast::<TransactionError>().unwrap(),
+                TransactionError::NoUnstakeTransactionsAllowed {}
+            );
         }
-    );
+    }
+    clear_protocol_info();
 }
 
 #[test]
@@ -9290,20 +9485,33 @@ fn unstake_wrong_withdrawer() {
     // Sign with the validator private key instead of the withdrawer private key
     let signature = sign_tx(PRIV_KEY_1, &unstake_tx_body, None);
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
-    let x = validate_unstake_transaction(
-        &unstake_tx,
-        Epoch::from(20001_u32),
-        &stakes,
-        MIN_STAKE_NANOWITS,
-        UNSTAKING_DELAY_SECONDS,
-    );
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::NoStakeFound {
-            validator: validator_pkh,
-            withdrawer: validator_pkh,
+
+    for protocol in ProtocolVersion::iter() {
+        register_protocol_version(protocol, 0, 10);
+
+        let x = validate_unstake_transaction(
+            &unstake_tx,
+            Epoch::from(20001_u32),
+            &stakes,
+            MIN_STAKE_NANOWITS,
+            UNSTAKING_DELAY_SECONDS,
+        );
+        if protocol >= ProtocolVersion::V2_0 {
+            assert_eq!(
+                x.unwrap_err().downcast::<TransactionError>().unwrap(),
+                TransactionError::NoStakeFound {
+                    validator: validator_pkh,
+                    withdrawer: validator_pkh,
+                }
+            );
+        } else {
+            assert_eq!(
+                x.unwrap_err().downcast::<TransactionError>().unwrap(),
+                TransactionError::NoUnstakeTransactionsAllowed {}
+            );
         }
-    );
+    }
+    clear_protocol_info();
 }
 
 #[test]
@@ -9319,20 +9527,33 @@ fn unstake_below_stake_minimum() {
     let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 1);
     let signature = sign_tx(PRIV_KEY_2, &unstake_tx_body, None);
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
-    let x = validate_unstake_transaction(
-        &unstake_tx,
-        Epoch::from(20001_u32),
-        &stakes,
-        MIN_STAKE_NANOWITS,
-        UNSTAKING_DELAY_SECONDS,
-    );
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::StakeBelowMinimum {
-            min_stake: MIN_STAKE_NANOWITS,
-            stake: MIN_STAKE_NANOWITS + 1000,
+
+    for protocol in ProtocolVersion::iter() {
+        register_protocol_version(protocol, 0, 10);
+
+        let x = validate_unstake_transaction(
+            &unstake_tx,
+            Epoch::from(20001_u32),
+            &stakes,
+            MIN_STAKE_NANOWITS,
+            UNSTAKING_DELAY_SECONDS,
+        );
+        if protocol >= ProtocolVersion::V2_0 {
+            assert_eq!(
+                x.unwrap_err().downcast::<TransactionError>().unwrap(),
+                TransactionError::StakeBelowMinimum {
+                    min_stake: MIN_STAKE_NANOWITS,
+                    stake: MIN_STAKE_NANOWITS + 1000,
+                }
+            );
+        } else {
+            assert_eq!(
+                x.unwrap_err().downcast::<TransactionError>().unwrap(),
+                TransactionError::NoUnstakeTransactionsAllowed {}
+            );
         }
-    );
+    }
+    clear_protocol_info();
 }
 
 #[test]
@@ -9348,20 +9569,33 @@ fn unstake_timelock() {
     let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 1);
     let signature = sign_tx(PRIV_KEY_2, &unstake_tx_body, None);
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
-    let x = validate_unstake_transaction(
-        &unstake_tx,
-        Epoch::from(20001_u32),
-        &stakes,
-        MIN_STAKE_NANOWITS,
-        UNSTAKING_DELAY_SECONDS,
-    );
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::InvalidUnstakeTimelock {
-            time_lock: unstake_tx.body.withdrawal.time_lock,
-            unstaking_delay_seconds: UNSTAKING_DELAY_SECONDS,
+
+    for protocol in ProtocolVersion::iter() {
+        register_protocol_version(protocol, 0, 10);
+
+        let x = validate_unstake_transaction(
+            &unstake_tx,
+            Epoch::from(20001_u32),
+            &stakes,
+            MIN_STAKE_NANOWITS,
+            UNSTAKING_DELAY_SECONDS,
+        );
+        if protocol >= ProtocolVersion::V2_0 {
+            assert_eq!(
+                x.unwrap_err().downcast::<TransactionError>().unwrap(),
+                TransactionError::InvalidUnstakeTimelock {
+                    time_lock: unstake_tx.body.withdrawal.time_lock,
+                    unstaking_delay_seconds: UNSTAKING_DELAY_SECONDS,
+                }
+            );
+        } else {
+            assert_eq!(
+                x.unwrap_err().downcast::<TransactionError>().unwrap(),
+                TransactionError::NoUnstakeTransactionsAllowed {}
+            );
         }
-    );
+    }
+    clear_protocol_info();
 }
 
 #[test]
@@ -9377,30 +9611,56 @@ fn unstake_signature() {
     let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 1);
     let signature = sign_tx(PRIV_KEY_2, &unstake_tx_body, None);
     let mut unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
-    let x = validate_unstake_transaction(
-        &unstake_tx,
-        Epoch::from(20001_u32),
-        &stakes,
-        MIN_STAKE_NANOWITS,
-        UNSTAKING_DELAY_SECONDS,
-    );
-    assert!(x.is_ok());
+
+    for protocol in ProtocolVersion::iter() {
+        register_protocol_version(protocol, 0, 10);
+
+        let x = validate_unstake_transaction(
+            &unstake_tx,
+            Epoch::from(20001_u32),
+            &stakes,
+            MIN_STAKE_NANOWITS,
+            UNSTAKING_DELAY_SECONDS,
+        );
+        if protocol >= ProtocolVersion::V2_0 {
+            assert!(x.is_ok());
+        } else {
+            assert_eq!(
+                x.unwrap_err().downcast::<TransactionError>().unwrap(),
+                TransactionError::NoUnstakeTransactionsAllowed {}
+            );
+        }
+    }
+    clear_protocol_info();
 
     unstake_tx.body.withdrawal.value = 999;
-    let x = validate_unstake_transaction(
-        &unstake_tx,
-        Epoch::from(20001_u32),
-        &stakes,
-        MIN_STAKE_NANOWITS,
-        UNSTAKING_DELAY_SECONDS,
-    );
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::VerifyTransactionSignatureFail {
-            hash: unstake_tx.hash(),
-            msg: "signature failed verification".to_string(),
+
+    for protocol in ProtocolVersion::iter() {
+        register_protocol_version(protocol, 0, 10);
+
+        let x = validate_unstake_transaction(
+            &unstake_tx,
+            Epoch::from(20001_u32),
+            &stakes,
+            MIN_STAKE_NANOWITS,
+            UNSTAKING_DELAY_SECONDS,
+        );
+        if protocol >= ProtocolVersion::V2_0 {
+            assert_eq!(
+                x.unwrap_err().downcast::<TransactionError>().unwrap(),
+                TransactionError::VerifyTransactionSignatureFail {
+                    hash: unstake_tx.hash(),
+                    msg: "signature failed verification".to_string(),
+                }
+            );
+        } else {
+            assert_eq!(
+                x.unwrap_err().downcast::<TransactionError>().unwrap(),
+                TransactionError::NoUnstakeTransactionsAllowed {}
+            );
         }
-    );
+    }
+    clear_protocol_info();
 }
 
 static LAST_VRF_INPUT: &str = "4da71b67e7e50ae4ad06a71e505244f8b490da55fc58c50386c908f7146d2239";
@@ -9498,6 +9758,7 @@ fn block_signatures() {
             }
         );
     }
+    clear_protocol_info();
 }
 
 static ONE_WIT_OUTPUT: &str = "0f0f000000000000000000000000000000000000000000000000000000000000:0";

@@ -37,6 +37,12 @@ impl ProtocolInfo {
         self.all_checkpoints_periods
             .insert(version, checkpoint_period);
     }
+
+    pub fn clear_versions(&mut self) {
+        self.current_version = ProtocolVersion::default();
+        self.all_versions.clear();
+        self.all_checkpoints_periods.clear();
+    }
 }
 
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
@@ -66,6 +72,11 @@ impl VersionsMap {
             Some(epoch) => *epoch,
             None => Epoch::MAX,
         }
+    }
+
+    pub fn clear(&mut self) {
+        self.efv.clear();
+        self.vfe.clear();
     }
 }
 

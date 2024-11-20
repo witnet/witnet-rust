@@ -168,6 +168,12 @@ pub fn load_protocol_info(info: ProtocolInfo) {
     *protocol_info = info;
 }
 
+pub fn clear_protocol_info() {
+    log::info!("Clearing all protocol versions");
+    let mut protocol_info = PROTOCOL.write().unwrap();
+    protocol_info.clear_versions();
+}
+
 /// Refresh the protocol version, i.e. derive the current version from the current epoch, and update `current_version`
 /// accordingly.
 pub fn refresh_protocol_version(current_epoch: Epoch) {
