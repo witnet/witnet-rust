@@ -127,7 +127,7 @@ jobs:
 
   Build_macOs:
     needs: [macos_helper]
-    runs-on: macos-12
+    runs-on: macos-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
