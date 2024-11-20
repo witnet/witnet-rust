@@ -135,8 +135,16 @@ jobs:
       - name: Install Protobuf
         run: brew install protobuf
 
-      - name: Building Macos Binary
-        run: MACOSX_DEPLOYMENT_TARGET=10.14 OPENSSL_STATIC=1 OPENSSL_DIR="/usr/local/opt/openssl" cargo build --release -p witnet -p witnet_toolkit
+      - name: Compile openssl 1.0.2p from source
+        run: sh ./docker/cross-compilation/openssl-macos.sh
+
+      - name: Build Macos Binary
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "10.14"
+          OPENSSL_STATIC: "1"
+          OPENSSL_DIR: "/usr/local/openssl"
+        run: |
+          cargo build --release -p witnet -p witnet_toolkit
 
       - name: Upload Build
         uses: actions/upload-artifact@v4
