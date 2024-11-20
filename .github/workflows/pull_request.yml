@@ -83,8 +83,9 @@ jobs:
       - name: Clippy
         run: just clippy
 
+      # Run cargo tests single threaded as concurrent tests could fail due to changes in the global ProtocolVersion
       - name: Test
-        run: cargo test --all --verbose
+        run: cargo test --all --verbose -- --test-threads=1
 
       # This is used to ensure that Cargo.lock is up to date
       - name: Check for unstaged files
