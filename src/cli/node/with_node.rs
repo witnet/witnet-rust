@@ -833,7 +833,7 @@ pub enum Command {
         #[structopt(short = "w", long = "withdrawer")]
         withdrawer: Option<String>,
     },
-    #[structopt(name = "stake", about = "Create an unstake transaction")]
+    #[structopt(name = "unstake", about = "Create an unstake transaction")]
     Unstake {
         /// Socket address of the Witnet node to query
         #[structopt(short = "n", long = "node")]
