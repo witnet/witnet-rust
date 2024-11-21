@@ -771,6 +771,8 @@ impl ChainManager {
             block_epoch,
         };
 
+        let validator_count = self.chain_state.stakes.validator_count();
+
         let dr_reveals = data_request_pool
             .get_all_reveals(&active_wips)
             .into_iter()
@@ -826,6 +828,12 @@ impl ChainManager {
 
                         let rad_manager_addr = RadManager::from_registry();
 
+                        let too_many_witnesses = data_request_has_too_many_witnesses(
+                            &dr_state.data_request,
+                            validator_count,
+                            Some(block_epoch),
+                        );
+
                         // The result of `RunTally` will be published as tally
                         let tally_result = rad_manager_addr
                             .send(RunTally {
@@ -834,7 +842,7 @@ impl ChainManager {
                                 script: dr_state.data_request.data_request.tally.clone(),
                                 commits_count,
                                 active_wips: active_wips_inside_move.clone(),
-                                too_many_witnesses: false,
+                                too_many_witnesses,
                             })
                             .await
                             .unwrap_or_else(|e| {
