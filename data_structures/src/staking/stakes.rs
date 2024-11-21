@@ -343,7 +343,7 @@ where
             .get_mut(&validator)
             .ok_or(StakesError::ValidatorNotFound { validator })?;
         stakes.iter_mut().for_each(|stake| {
-            let old_epoch = stake.value.write().unwrap().epochs.get(capability);
+            let old_epoch = stake.value.read().unwrap().epochs.get(capability);
             let update_epoch = (current_epoch - old_epoch) / Epoch::from(reset_factor);
             stake
                 .value
