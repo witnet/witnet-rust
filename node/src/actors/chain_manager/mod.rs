@@ -1072,8 +1072,6 @@ impl ChainManager {
 
                 // Reset the coin age of the miner for all staked coins
                 if ProtocolVersion::from_epoch(block_epoch) == ProtocolVersion::V2_0 {
-                    let _ = stakes.reset_age(miner_pkh, Capability::Mining, current_epoch, 1);
-
                     let minimum_stakeable = self
                         .consensus_constants_wit2
                         .get_validator_min_stake_nanowits(block_epoch);
@@ -1081,15 +1079,16 @@ impl ChainManager {
                     let mut total_commit_reward = 0;
                     for co_tx in &block.txns.commit_txns {
                         let commit_pkh = co_tx.body.proof.proof.pkh();
-                        // Reset witnessing power
-                        let _ =
-                            stakes.reset_age(commit_pkh, Capability::Witnessing, current_epoch, 1);
-
                         total_commit_reward += if let Some(dr_output) = self
                             .chain_state
                             .data_request_pool
                             .get_dr_output(&co_tx.body.dr_pointer)
                         {
+                            log::debug!(
+                                "Reserving {} wit collateral from {}",
+                                Wit::from(dr_output.collateral),
+                                commit_pkh,
+                            );
                             // Subtract collateral from staked balance
                             let _ = stakes.reserve_collateral(
                                 commit_pkh,
@@ -1104,6 +1103,11 @@ impl ChainManager {
                     }
                     // Add commit reward
                     if total_commit_reward > 0 {
+                        log::debug!(
+                            "Rewarding {} with {} wit for including commits",
+                            miner_pkh,
+                            Wit::from(total_commit_reward),
+                        );
                         let _ = stakes.add_reward(
                             miner_pkh,
                             Wit::from(total_commit_reward),
@@ -1126,6 +1130,11 @@ impl ChainManager {
                     }
                     // Add reveal reward
                     if total_reveal_reward > 0 {
+                        log::debug!(
+                            "Rewarding {} with {} wit for including reveals",
+                            miner_pkh,
+                            Wit::from(total_reveal_reward),
+                        );
                         let _ = stakes.add_reward(
                             miner_pkh,
                             Wit::from(total_reveal_reward),
@@ -1159,7 +1168,7 @@ impl ChainManager {
                             .collect();
                         for honest_pkh in honest_pkhs {
                             log::debug!(
-                                "Rewarding {} for {} wit for data request {}",
+                                "Refunding and rewarding {} for {} wit for solving data request {}",
                                 honest_pkh,
                                 collateral + reward,
                                 ta_tx.dr_pointer
@@ -1174,7 +1183,7 @@ impl ChainManager {
                         // Refund errored validators
                         for error_pkh in &ta_tx.error_committers {
                             log::debug!(
-                                "Refunding {} for {} wit because it revealed an error for data request {}",
+                                "Refunding {} with {} wit because it revealed an error for data request {}",
                                 error_pkh,
                                 collateral,
                                 ta_tx.dr_pointer
@@ -1182,32 +1191,9 @@ impl ChainManager {
                             let _ =
                                 stakes.add_reward(*error_pkh, Wit::from(collateral), block_epoch);
                         }
-
-                        // Slash lieing validators
-                        // Collateral was already reserved, so not returning it results in losing it
-                        // Reset the age for witnessing power to 10 epochs in the future
-                        let liar_pkhs: Vec<PublicKeyHash> = ta_tx
-                            .out_of_consensus
-                            .iter()
-                            .filter(|&pkh| !ta_tx.error_committers.contains(pkh))
-                            .cloned()
-                            .collect();
-                        for liar_pkh in &liar_pkhs {
-                            log::debug!(
-                                "Slashing {} for {} wit because it revealed a lie for data request {}",
-                                liar_pkh,
-                                collateral,
-                                ta_tx.dr_pointer
-                            );
-                            let _ = stakes.reset_age(
-                                *liar_pkh,
-                                Capability::Witnessing,
-                                block_epoch + 10,
-                                1,
-                            );
-                        }
                     }
 
+                    // Add all transaction fees plus the block reward
                     let epoch_constants = self.epoch_constants.unwrap();
                     let utxo_diff_wit2 =
                         UtxoDiff::new(&self.chain_state.unspent_outputs_pool, block_epoch);
@@ -1247,11 +1233,65 @@ impl ChainManager {
                     let block_reward = self
                         .consensus_constants_wit2
                         .get_validator_block_reward(block_epoch);
+
+                    log::debug!(
+                        "Rewarding {} with {} wit transaction fees and {} wit block reward for proposing a block",
+                        miner_pkh,
+                        Wit::from(transaction_fees),
+                        Wit::from(block_reward),
+                    );
                     let _ = stakes.add_reward(
                         miner_pkh,
-                        Wit::from(block_reward) + Wit::from(transaction_fees),
+                        Wit::from(transaction_fees) + Wit::from(block_reward),
                         block_epoch,
                     );
+
+                    // IMPORTANT: Always perform age resets after adding rewards
+
+                    // Reset mining power for miner
+                    log::debug!(
+                        "Resetting mining age for {} to {}",
+                        miner_pkh,
+                        current_epoch,
+                    );
+                    let _ = stakes.reset_age(miner_pkh, Capability::Mining, current_epoch, 1);
+
+                    // Reset witnessing power
+                    for co_tx in &block.txns.commit_txns {
+                        let commit_pkh = co_tx.body.proof.proof.pkh();
+                        log::debug!(
+                            "Resetting witnessing age for {} to {}",
+                            commit_pkh,
+                            current_epoch,
+                        );
+                        let _ =
+                            stakes.reset_age(commit_pkh, Capability::Witnessing, current_epoch, 1);
+                    }
+
+                    // Slash lieing validators
+                    // Collateral was already reserved, so not returning it results in losing it
+                    // Reset the age for witnessing power to 10 epochs in the future
+                    for ta_tx in &block.txns.tally_txns {
+                        let liar_pkhs: Vec<PublicKeyHash> = ta_tx
+                            .out_of_consensus
+                            .iter()
+                            .filter(|&pkh| !ta_tx.error_committers.contains(pkh))
+                            .cloned()
+                            .collect();
+                        for liar_pkh in &liar_pkhs {
+                            log::debug!(
+                                "Slashing {} because it revealed a lie for data request {}",
+                                liar_pkh,
+                                ta_tx.dr_pointer,
+                            );
+                            let _ = stakes.reset_age(
+                                *liar_pkh,
+                                Capability::Witnessing,
+                                block_epoch + 10,
+                                1,
+                            );
+                        }
+                    }
                 }
 
                 let rep_info = update_pools(
