@@ -268,7 +268,14 @@ where
 
                 (address.clone(), power)
             })
-            .sorted_by_key(|(_, power)| *power)
+            .sorted_by(|(address_1, power_1), (address_2, power_2)| {
+                // Equal power, compare the addresses to achieve deterministic ordering
+                if power_1 == power_2 {
+                    address_1.cmp(address_2)
+                } else {
+                    power_1.cmp(power_2)
+                }
+            })
             .rev()
     }
 
