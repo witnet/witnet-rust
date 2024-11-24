@@ -950,23 +950,6 @@ impl ChainManager {
             }
         };
 
-        let current_epoch = if let Some(epoch) = self.current_epoch {
-            epoch
-        } else {
-            // If there is no epoch set, it's because the chain is yet to be bootstrapped, or because of a data race
-            match self.chain_state.chain_info.as_ref() {
-                // If the chain is yet to be bootstrapped (the block we are processing is the genesis block), set the epoch to zero
-                Some(chain_info) if chain_info.consensus_constants.genesis_hash == block.hash() => {
-                    0
-                }
-                // In case of data race, shortcut the function
-                _ => {
-                    log::error!("Current epoch not loaded in ChainManager");
-                    return;
-                }
-            }
-        };
-
         match self.chain_state {
             ChainState {
                 chain_info: Some(ref mut chain_info),
@@ -1203,7 +1186,7 @@ impl ChainManager {
                         transaction_fees += vt_transaction_fee(
                             vt_tx,
                             &utxo_diff_wit2,
-                            current_epoch,
+                            block_epoch,
                             epoch_constants,
                         )
                         .unwrap_or_default();
@@ -1212,7 +1195,7 @@ impl ChainManager {
                         transaction_fees += dr_transaction_fee(
                             dr_tx,
                             &utxo_diff_wit2,
-                            current_epoch,
+                            block_epoch,
                             epoch_constants,
                         )
                         .unwrap_or_default();
@@ -1221,7 +1204,7 @@ impl ChainManager {
                         transaction_fees += st_transaction_fee(
                             st_tx,
                             &utxo_diff_wit2,
-                            current_epoch,
+                            block_epoch,
                             epoch_constants,
                         )
                         .unwrap_or_default();
@@ -1252,9 +1235,9 @@ impl ChainManager {
                     log::debug!(
                         "Resetting mining age for {} to {}",
                         miner_pkh,
-                        current_epoch,
+                        block_epoch + 1,
                     );
-                    let _ = stakes.reset_age(miner_pkh, Capability::Mining, current_epoch, 1);
+                    let _ = stakes.reset_age(miner_pkh, Capability::Mining, block_epoch + 1, 1);
 
                     // Reset witnessing power
                     for co_tx in &block.txns.commit_txns {
@@ -1262,10 +1245,14 @@ impl ChainManager {
                         log::debug!(
                             "Resetting witnessing age for {} to {}",
                             commit_pkh,
-                            current_epoch,
+                            block_epoch + 1,
                         );
-                        let _ =
-                            stakes.reset_age(commit_pkh, Capability::Witnessing, current_epoch, 1);
+                        let _ = stakes.reset_age(
+                            commit_pkh,
+                            Capability::Witnessing,
+                            block_epoch + 1,
+                            1,
+                        );
                     }
 
                     // Slash lieing validators
@@ -1325,7 +1312,7 @@ impl ChainManager {
 
                         let minimum_stakeable = self
                             .consensus_constants_wit2
-                            .get_validator_min_stake_nanowits(current_epoch);
+                            .get_validator_min_stake_nanowits(block_epoch);
 
                         let _ = process_stake_transactions(
                             stakes,
@@ -1341,7 +1328,7 @@ impl ChainManager {
 
                         let minimum_stakeable = self
                             .consensus_constants_wit2
-                            .get_validator_min_stake_nanowits(current_epoch);
+                            .get_validator_min_stake_nanowits(block_epoch);
 
                         let _ = process_unstake_transactions(
                             stakes,
@@ -1381,7 +1368,7 @@ impl ChainManager {
                         let reveals = self
                             .chain_state
                             .data_request_pool
-                            .update_data_request_stages(Some(validator_count), Some(current_epoch));
+                            .update_data_request_stages(Some(validator_count), Some(block_epoch));
 
                         for reveal in reveals {
                             // Send AddTransaction message to self
@@ -1407,7 +1394,7 @@ impl ChainManager {
                         let reveals = self
                             .chain_state
                             .data_request_pool
-                            .update_data_request_stages(Some(validator_count), Some(current_epoch));
+                            .update_data_request_stages(Some(validator_count), Some(block_epoch));
 
                         for reveal in reveals {
                             // Send AddTransaction message to self
@@ -1433,7 +1420,7 @@ impl ChainManager {
                         let reveals = self
                             .chain_state
                             .data_request_pool
-                            .update_data_request_stages(Some(validator_count), Some(current_epoch));
+                            .update_data_request_stages(Some(validator_count), Some(block_epoch));
 
                         show_info_dr(&self.chain_state.data_request_pool, &block);
 
