@@ -1295,16 +1295,18 @@ impl ChainManager {
 
                 // Do not update reputation or stakes when consolidating genesis block
                 if block_hash != chain_info.consensus_constants.genesis_hash {
-                    update_reputation(
-                        reputation_engine,
-                        &mut self.chain_state.alt_keys,
-                        &chain_info.consensus_constants,
-                        miner_pkh,
-                        rep_info,
-                        log_level,
-                        block_epoch,
-                        self.own_pkh.unwrap_or_default(),
-                    );
+                    if ProtocolVersion::from_epoch(block_epoch) < ProtocolVersion::V2_0 {
+                        update_reputation(
+                            reputation_engine,
+                            &mut self.chain_state.alt_keys,
+                            &chain_info.consensus_constants,
+                            miner_pkh,
+                            rep_info,
+                            log_level,
+                            block_epoch,
+                            self.own_pkh.unwrap_or_default(),
+                        );
+                    }
 
                     let stake_txns_count = block.txns.stake_txns.len();
                     if stake_txns_count > 0 {
