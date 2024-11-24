@@ -27,7 +27,7 @@ use witnet_data_structures::{
         data_request_has_too_many_witnesses, DataRequestPool,
     },
     error::{BlockError, DataRequestError, TransactionError},
-    get_protocol_version,
+    get_protocol_version, get_protocol_version_activation_epoch,
     proto::versioning::{ProtocolVersion, VersionedHashable},
     radon_report::{RadonReport, ReportContext},
     staking::prelude::{Power, QueryStakesKey, StakeKey, StakesTracker},
@@ -1040,8 +1040,8 @@ pub fn calculate_liars_and_errors_count_from_tally(tally_tx: &TallyTransaction) 
 /// Function to validate a tally transaction
 pub fn validate_tally_transaction<'a>(
     ta_tx: &'a TallyTransaction,
-    dr_pool: &DataRequestPool,
-    collateral_minimum: u64,
+    dr_pool: &mut DataRequestPool,
+    consensus_constants: &ConsensusConstants,
     active_wips: &ActiveWips,
     validator_count: Option<usize>,
     epoch: Option<Epoch>,
@@ -1049,9 +1049,21 @@ pub fn validate_tally_transaction<'a>(
     let validator_count =
         validator_count.unwrap_or(witnet_data_structures::DEFAULT_VALIDATOR_COUNT_FOR_TESTS);
     let too_many_witnesses;
-    if let Some(dr_state) = dr_pool.data_request_state(&ta_tx.dr_pointer) {
+    if let Some(dr_state) = dr_pool.data_request_state_mutable(&ta_tx.dr_pointer) {
         too_many_witnesses =
             data_request_has_too_many_witnesses(&dr_state.data_request, validator_count, epoch);
+
+        // Update the data request once at the epoch where V2.0 activates
+        // This handles the edge case where a data request which was already included still needs to be
+        // updated in consolidate_block, but is was short-circuited to the tally stage when V2.0 activates
+        // because it requested too many witnesses
+        if too_many_witnesses {
+            if let Some(epoch) = epoch {
+                if get_protocol_version_activation_epoch(ProtocolVersion::V2_0) == epoch {
+                    dr_state.update_stage(consensus_constants.extra_rounds, too_many_witnesses);
+                }
+            }
+        }
     } else {
         return Err(TransactionError::DataRequestNotFound {
             hash: ta_tx.dr_pointer,
@@ -1061,7 +1073,7 @@ pub fn validate_tally_transaction<'a>(
     let (expected_ta_tx, dr_state) = create_expected_tally_transaction(
         ta_tx,
         dr_pool,
-        collateral_minimum,
+        consensus_constants.collateral_minimum,
         active_wips,
         too_many_witnesses,
         epoch,
@@ -1138,7 +1150,7 @@ pub fn validate_tally_transaction<'a>(
     );
 
     let collateral = if dr_state.data_request.collateral == 0 {
-        collateral_minimum
+        consensus_constants.collateral_minimum
     } else {
         dr_state.data_request.collateral
     };
@@ -2092,7 +2104,7 @@ pub fn validate_block_transactions(
         let (outputs, fee) = validate_tally_transaction(
             transaction,
             dr_pool,
-            consensus_constants.collateral_minimum,
+            consensus_constants,
             active_wips,
             Some(stakes.validator_count()),
             Some(epoch),

@@ -74,6 +74,34 @@ static DEFAULT_INPUT_VALUE: u64 = 2 * ONE_WIT;
 // Block epoch used in tally tests
 const E: Epoch = LAST_EPOCH_WITH_WIP_ACTIVATED;
 
+const CONSENSUS_CONSTANTS_FOR_TALLY: ConsensusConstants = ConsensusConstants {
+    checkpoint_zero_timestamp: 0,
+    collateral_minimum: 1_000_000_000,
+    bootstrapping_committee: vec![],
+    collateral_age: 1,
+    superblock_period: 0,
+    mining_backup_factor: 8,
+    bootstrap_hash: Hash::SHA256([1; 32]),
+    genesis_hash: Hash::SHA256([1; 32]),
+    max_dr_weight: MAX_DR_WEIGHT,
+    activity_period: 0,
+    reputation_expire_alpha_diff: 0,
+    reputation_issuance: 0,
+    reputation_issuance_stop: 0,
+    max_vt_weight: MAX_VT_WEIGHT,
+    checkpoints_period: 0,
+    reputation_penalization_factor: 0.0,
+    mining_replication_factor: 0,
+    extra_rounds: 0,
+    minimum_difficulty: 2,
+    epochs_with_minimum_difficulty: 0,
+    superblock_signing_committee_size: 100,
+    superblock_committee_decreasing_period: 100,
+    superblock_committee_decreasing_step: 5,
+    initial_block_reward: INITIAL_BLOCK_REWARD,
+    halving_period: HALVING_PERIOD,
+};
+
 // This should only be used in tests
 fn active_wips_from_mainnet(block_epoch: Epoch) -> ActiveWips {
     let mut tapi_engine = TapiEngine::default();
@@ -5144,8 +5172,8 @@ fn tally_dr_not_tally_stage() {
     let mut dr_pool = DataRequestPool::default();
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
         None,
         Some(epoch),
@@ -5160,8 +5188,8 @@ fn tally_dr_not_tally_stage() {
     dr_pool.update_data_request_stages(None, Some(epoch));
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
         None,
         Some(epoch),
@@ -5177,8 +5205,8 @@ fn tally_dr_not_tally_stage() {
     dr_pool.update_data_request_stages(None, Some(epoch));
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
         None,
         Some(epoch),
@@ -5194,8 +5222,8 @@ fn tally_dr_not_tally_stage() {
     dr_pool.update_data_request_stages(None, Some(epoch));
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
         None,
         Some(epoch),
@@ -5210,7 +5238,7 @@ fn tally_invalid_consensus() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
     let dr_output = example_data_request_output(5, DEFAULT_WITNESS_REWARD, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, change, reward) =
+    let (mut dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage(
             dr_output,
             5,
@@ -5272,8 +5300,8 @@ fn tally_invalid_consensus() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
         None,
         None,
@@ -5290,7 +5318,7 @@ fn tally_invalid_consensus() {
 #[test]
 fn tally_valid_1_reveal_5_commits() {
     let collateral = DEFAULT_COLLATERAL;
-    let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test(5, vec![vec![0]]);
+    let (pkhs, dr_pkh, dr_pointer, mut dr_pool) = generic_tally_test(5, vec![vec![0]]);
     let change = 5 * DEFAULT_WITNESS_REWARD + 4 * 20;
 
     let tally_value = RadonReport::from_result(
@@ -5345,8 +5373,8 @@ fn tally_valid_1_reveal_5_commits() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
         None,
         None,
@@ -5483,7 +5511,7 @@ fn generic_tally_test_inner(
 #[test]
 fn tally_valid_1_reveal_5_commits_invalid_value() {
     let collateral = DEFAULT_COLLATERAL;
-    let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test(5, vec![vec![0]]);
+    let (pkhs, dr_pkh, dr_pointer, mut dr_pool) = generic_tally_test(5, vec![vec![0]]);
     let change = 5 * DEFAULT_WITNESS_REWARD + 4 * 20;
 
     let tally_value = RadonReport::from_result(
@@ -5538,8 +5566,8 @@ fn tally_valid_1_reveal_5_commits_invalid_value() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
         None,
         None,
@@ -5557,7 +5585,7 @@ fn tally_valid_1_reveal_5_commits_invalid_value() {
 #[test]
 fn tally_valid_1_reveal_5_commits_with_absurd_timelock() {
     let collateral = DEFAULT_COLLATERAL;
-    let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test(5, vec![vec![0]]);
+    let (pkhs, dr_pkh, dr_pointer, mut dr_pool) = generic_tally_test(5, vec![vec![0]]);
     let change = 5 * DEFAULT_WITNESS_REWARD + 4 * 20;
 
     let tally_value = RadonReport::from_result(
@@ -5612,8 +5640,8 @@ fn tally_valid_1_reveal_5_commits_with_absurd_timelock() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
         None,
         None,
@@ -5634,7 +5662,7 @@ fn tally_valid() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
     let dr_output = example_data_request_output(5, DEFAULT_WITNESS_REWARD, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
+    let (mut dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage(
             dr_output,
             5,
@@ -5693,8 +5721,8 @@ fn tally_valid() {
 
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
         None,
         None,
@@ -5709,7 +5737,7 @@ fn tally_too_many_outputs() {
     let reveal_value = vec![0x00];
     let active_wips = current_active_wips();
     let dr_output = example_data_request_output(5, DEFAULT_WITNESS_REWARD, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
+    let (mut dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage(
             dr_output,
             5,
@@ -5756,8 +5784,8 @@ fn tally_too_many_outputs() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
         None,
         None,
@@ -5778,7 +5806,7 @@ fn tally_too_less_outputs() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
     let dr_output = example_data_request_output(2, DEFAULT_WITNESS_REWARD, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, _change, reward) =
+    let (mut dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage(
             dr_output,
             2,
@@ -5803,8 +5831,8 @@ fn tally_too_less_outputs() {
         TallyTransaction::new(dr_pointer, tally_value, vec![vt0], slashed, error_witnesses);
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
         None,
         None,
@@ -5825,7 +5853,7 @@ fn tally_invalid_change() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
     let dr_output = example_data_request_output(5, DEFAULT_WITNESS_REWARD, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
+    let (mut dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage(
             dr_output,
             5,
@@ -5883,8 +5911,8 @@ fn tally_invalid_change() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
         None,
         None,
@@ -5905,7 +5933,7 @@ fn tally_double_reward() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
     let dr_output = example_data_request_output(2, DEFAULT_WITNESS_REWARD, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, _change, reward) =
+    let (mut dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage(
             dr_output,
             2,
@@ -5939,8 +5967,8 @@ fn tally_double_reward() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
         None,
         None,
@@ -5958,7 +5986,7 @@ fn tally_reveal_not_found() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
     let dr_output = example_data_request_output(2, DEFAULT_WITNESS_REWARD, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, _change, reward) =
+    let (mut dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage(
             dr_output,
             2,
@@ -5992,8 +6020,8 @@ fn tally_reveal_not_found() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
         None,
         None,
@@ -6011,7 +6039,7 @@ fn tally_invalid_reward() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
     let dr_output = example_data_request_output(2, DEFAULT_WITNESS_REWARD, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, change, reward) =
+    let (mut dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage(
             dr_output,
             2,
@@ -6046,8 +6074,8 @@ fn tally_invalid_reward() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
         None,
         None,
@@ -6068,7 +6096,7 @@ fn tally_valid_2_reveals() {
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
     let dr_output = example_data_request_output(2, DEFAULT_WITNESS_REWARD, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, change, reward) =
+    let (mut dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage(
             dr_output,
             2,
@@ -6103,8 +6131,8 @@ fn tally_valid_2_reveals() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
         None,
         None,
@@ -6122,7 +6150,7 @@ fn tally_valid_3_reveals_dr_liar() {
 
     // Create a DataRequestPool with 3 reveals (one of them is a lie from the data requester)
     let dr_output = example_data_request_output_with_mode_filter(3, DEFAULT_WITNESS_REWARD, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
+    let (mut dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage_with_dr_liar(
             dr_output,
             3,
@@ -6171,8 +6199,8 @@ fn tally_valid_3_reveals_dr_liar() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
         None,
         None,
@@ -6190,7 +6218,7 @@ fn tally_valid_3_reveals_dr_liar_invalid() {
 
     // Create a DataRequestPool with 3 reveals (one of them is a lie from the data requester)
     let dr_output = example_data_request_output_with_mode_filter(3, DEFAULT_WITNESS_REWARD, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, _change, reward) =
+    let (mut dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage_with_dr_liar(
             dr_output,
             3,
@@ -6239,8 +6267,8 @@ fn tally_valid_3_reveals_dr_liar_invalid() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
         None,
         None,
@@ -6265,7 +6293,7 @@ fn tally_valid_5_reveals_1_liar_1_error() {
 
     // Create a DataRequestPool with 5 reveals (one of them is a lie and another is an error)
     let dr_output = example_data_request_output_with_mode_filter(5, DEFAULT_WITNESS_REWARD, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
+    let (mut dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage_with_errors(
             dr_output,
             5,
@@ -6327,8 +6355,8 @@ fn tally_valid_5_reveals_1_liar_1_error() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
         None,
         None,
@@ -6345,7 +6373,7 @@ fn tally_valid_3_reveals_1_error() {
 
     // Create a DataRequestPool with 3 reveals (one of them is a lie from the data requester)
     let dr_output = example_data_request_output_with_mode_filter(3, DEFAULT_WITNESS_REWARD, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
+    let (mut dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage_with_errors(
             dr_output,
             3,
@@ -6391,8 +6419,8 @@ fn tally_valid_3_reveals_1_error() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
         None,
         None,
@@ -6409,7 +6437,7 @@ fn tally_valid_3_reveals_1_error_invalid_reward() {
 
     // Create a DataRequestPool with 3 reveals (one of them is a lie from the data requester)
     let dr_output = example_data_request_output_with_mode_filter(3, DEFAULT_WITNESS_REWARD, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
+    let (mut dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage_with_errors(
             dr_output,
             3,
@@ -6455,8 +6483,8 @@ fn tally_valid_3_reveals_1_error_invalid_reward() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
         None,
         None,
@@ -6479,7 +6507,7 @@ fn tally_valid_3_reveals_mark_all_as_error() {
 
     // Create a DataRequestPool with 3 reveals (one of them is a lie from the data requester)
     let dr_output = example_data_request_output_with_mode_filter(3, DEFAULT_WITNESS_REWARD, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
+    let (mut dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage_with_errors(
             dr_output,
             3,
@@ -6525,8 +6553,8 @@ fn tally_valid_3_reveals_mark_all_as_error() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
         None,
         None,
@@ -6550,7 +6578,7 @@ fn tally_dishonest_reward() {
 
     // Create a DataRequestPool with 3 reveals (one of them is a lie from the data requester)
     let dr_output = example_data_request_output_with_mode_filter(3, DEFAULT_WITNESS_REWARD, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, _change, reward) =
+    let (mut dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage_with_dr_liar(
             dr_output,
             3,
@@ -6598,8 +6626,8 @@ fn tally_dishonest_reward() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
         None,
         None,
@@ -6626,7 +6654,7 @@ fn create_tally_validation_dr_liar() {
 
     // Create a DataRequestPool with 3 reveals (one of them is a lie from the data requester)
     let dr_output = example_data_request_output_with_mode_filter(3, DEFAULT_WITNESS_REWARD, 20);
-    let (dr_pool, dr_pointer, rewarded, _slashed, _error_witnesses, dr_pkh, _change, reward) =
+    let (mut dr_pool, dr_pointer, rewarded, _slashed, _error_witnesses, dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage_with_dr_liar(
             dr_output.clone(),
             3,
@@ -6687,8 +6715,8 @@ fn create_tally_validation_dr_liar() {
 
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
         None,
         None,
@@ -6717,7 +6745,7 @@ fn create_tally_validation_5_reveals_1_liar_1_error() {
 
     // Create a DataRequestPool with 5 reveals (one lie and one error)
     let dr_output = example_data_request_output_with_mode_filter(5, DEFAULT_WITNESS_REWARD, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, _change, reward) =
+    let (mut dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage_with_errors(
             dr_output.clone(),
             5,
@@ -6797,8 +6825,8 @@ fn create_tally_validation_5_reveals_1_liar_1_error() {
 
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
         None,
         None,
@@ -6817,7 +6845,7 @@ fn create_tally_validation_4_commits_2_reveals() {
 
     // Create a DataRequestPool with 4 commits and 2 reveals
     let dr_output = example_data_request_output_with_mode_filter(4, DEFAULT_WITNESS_REWARD, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, _error_witnesses, dr_pkh, _change, reward) =
+    let (mut dr_pool, dr_pointer, rewarded, slashed, _error_witnesses, dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage(
             dr_output.clone(),
             4,
@@ -6874,8 +6902,8 @@ fn create_tally_validation_4_commits_2_reveals() {
 
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
         None,
         None,
@@ -6888,7 +6916,7 @@ fn create_tally_validation_4_commits_2_reveals() {
 fn tally_valid_zero_commits() {
     let active_wips = current_active_wips();
     let dr_output = example_data_request_output(5, DEFAULT_WITNESS_REWARD, 20);
-    let (dr_pool, dr_pointer, _rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
+    let (mut dr_pool, dr_pointer, _rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output, 0, 0, 0, vec![], vec![], active_wips.clone());
     assert_eq!(reward, 0);
 
@@ -6909,8 +6937,8 @@ fn tally_valid_zero_commits() {
         TallyTransaction::new(dr_pointer, tally_value, vec![vt0], slashed, error_witnesses);
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
         None,
         None,
@@ -6923,7 +6951,7 @@ fn tally_valid_zero_commits() {
 fn create_tally_validation_zero_commits() {
     let active_wips = current_active_wips();
     let dr_output = example_data_request_output(5, DEFAULT_WITNESS_REWARD, 20);
-    let (dr_pool, dr_pointer, _rewarded, _slashed, _error_witnesses, dr_pkh, _change, reward) =
+    let (mut dr_pool, dr_pointer, _rewarded, _slashed, _error_witnesses, dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage(
             dr_output.clone(),
             0,
@@ -6956,8 +6984,8 @@ fn create_tally_validation_zero_commits() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
         None,
         None,
@@ -6970,7 +6998,7 @@ fn create_tally_validation_zero_commits() {
 fn tally_invalid_zero_commits() {
     let active_wips = current_active_wips();
     let dr_output = example_data_request_output(5, DEFAULT_WITNESS_REWARD, 20);
-    let (dr_pool, dr_pointer, _rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
+    let (mut dr_pool, dr_pointer, _rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage(dr_output, 0, 0, 0, vec![], vec![], active_wips.clone());
     assert_eq!(reward, 0);
 
@@ -7001,8 +7029,8 @@ fn tally_invalid_zero_commits() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
         None,
         None,
@@ -7021,7 +7049,7 @@ fn tally_invalid_zero_commits() {
 fn tally_valid_zero_reveals() {
     let active_wips = current_active_wips();
     let dr_output = example_data_request_output(5, DEFAULT_WITNESS_REWARD, 20);
-    let (dr_pool, dr_pointer, _rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
+    let (mut dr_pool, dr_pointer, _rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage(
             dr_output.clone(),
             5,
@@ -7083,8 +7111,8 @@ fn tally_valid_zero_reveals() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
         None,
         None,
@@ -7097,7 +7125,7 @@ fn tally_valid_zero_reveals() {
 fn create_tally_validation_zero_reveals() {
     let active_wips = current_active_wips();
     let dr_output = example_data_request_output(5, DEFAULT_WITNESS_REWARD, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, _change, reward) =
+    let (mut dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage(
             dr_output.clone(),
             5,
@@ -7138,8 +7166,8 @@ fn create_tally_validation_zero_reveals() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
         None,
         None,
@@ -7153,7 +7181,7 @@ fn create_tally_validation_zero_reveals_zero_collateral() {
     let active_wips = current_active_wips();
     let mut dr_output = example_data_request_output(5, DEFAULT_WITNESS_REWARD, 20);
     dr_output.collateral = 0;
-    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, _change, reward) =
+    let (mut dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, _change, reward) =
         dr_pool_with_dr_in_tally_stage(
             dr_output.clone(),
             5,
@@ -7194,8 +7222,8 @@ fn create_tally_validation_zero_reveals_zero_collateral() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
         None,
         None,
@@ -7388,7 +7416,8 @@ fn tally_valid_4_reveals_all_liars() {
     let collateral = DEFAULT_COLLATERAL;
     let reveals = vec![vec![24, 60], vec![24, 60], vec![24, 61], vec![24, 47]];
     let stddev_cbor = vec![249, 0, 0];
-    let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
+    let (pkhs, dr_pkh, dr_pointer, mut dr_pool) =
+        generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
     let change = DEFAULT_WITNESS_REWARD * 4;
 
     // Tally value: insufficient consensus
@@ -7429,8 +7458,8 @@ fn tally_valid_4_reveals_all_liars() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
         None,
         None,
@@ -7442,7 +7471,7 @@ fn tally_valid_4_reveals_all_liars() {
 #[test]
 fn tally_valid_4_reveals_all_liars_attacker_pkh() {
     let collateral = DEFAULT_COLLATERAL;
-    let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_stddev_dr(
+    let (pkhs, dr_pkh, dr_pointer, mut dr_pool) = generic_tally_test_stddev_dr(
         4,
         vec![vec![24, 60], vec![24, 60], vec![24, 61], vec![24, 47]],
         vec![249, 0, 0],
@@ -7488,8 +7517,8 @@ fn tally_valid_4_reveals_all_liars_attacker_pkh() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
         None,
         None,
@@ -7506,7 +7535,7 @@ fn tally_valid_4_reveals_all_liars_attacker_pkh() {
 fn tally_valid_4_reveals_2_liars_2_true() {
     let collateral = DEFAULT_COLLATERAL;
     let stddev_cbor = vec![249, 0x39, 0]; // 0.625
-    let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_stddev_dr(
+    let (pkhs, dr_pkh, dr_pointer, mut dr_pool) = generic_tally_test_stddev_dr(
         4,
         vec![vec![24, 60], vec![24, 60], vec![24, 61], vec![24, 47]],
         stddev_cbor,
@@ -7551,8 +7580,8 @@ fn tally_valid_4_reveals_2_liars_2_true() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
         None,
         None,
@@ -7571,7 +7600,8 @@ fn tally_valid_4_reveals_2_errors_2_true() {
         vec![216, 39, 129, 0],
         vec![216, 39, 129, 0],
     ];
-    let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
+    let (pkhs, dr_pkh, dr_pointer, mut dr_pool) =
+        generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
     let change = DEFAULT_WITNESS_REWARD * 4;
 
     // Tally value: insufficient consensus
@@ -7612,8 +7642,8 @@ fn tally_valid_4_reveals_2_errors_2_true() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
         None,
         None,
@@ -7626,7 +7656,7 @@ fn tally_valid_4_reveals_2_errors_2_true() {
 fn tally_valid_4_reveals_1_liar_2_true() {
     let collateral = DEFAULT_COLLATERAL;
     let stddev_cbor = vec![249, 0x39, 0]; // 0.625
-    let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_stddev_dr(
+    let (pkhs, dr_pkh, dr_pointer, mut dr_pool) = generic_tally_test_stddev_dr(
         4,
         vec![vec![24, 60], vec![24, 60], vec![24, 61]],
         stddev_cbor,
@@ -7671,8 +7701,8 @@ fn tally_valid_4_reveals_1_liar_2_true() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
         None,
         None,
@@ -7690,7 +7720,8 @@ fn tally_valid_4_reveals_invalid_script_arg() {
     // Invalid argument for DeviationStandard filter (invalid CBOR):
     let stddev_cbor = vec![0x3F];
     let reveals = vec![vec![24, 60], vec![24, 60], vec![24, 61], vec![24, 47]];
-    let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
+    let (pkhs, dr_pkh, dr_pointer, mut dr_pool) =
+        generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
     let change = DEFAULT_WITNESS_REWARD * 4;
 
     // TODO: serialize tally value from RadError to make this test more clear
@@ -7734,8 +7765,8 @@ fn tally_valid_4_reveals_invalid_script_arg() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
         None,
         None,
@@ -7753,7 +7784,8 @@ fn tally_valid_3_reveals_1_no_reveal_invalid_script_arg() {
     // Invalid argument for DeviationStandard filter (invalid CBOR):
     let stddev_cbor = vec![0x3F];
     let reveals = vec![vec![24, 60], vec![24, 60], vec![24, 61]];
-    let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
+    let (pkhs, dr_pkh, dr_pointer, mut dr_pool) =
+        generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
     let change = DEFAULT_WITNESS_REWARD * 4 + 10;
 
     // TODO: serialize tally value from RadError to make this test more clear
@@ -7797,8 +7829,8 @@ fn tally_valid_3_reveals_1_no_reveal_invalid_script_arg() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
         None,
         None,
@@ -7817,7 +7849,7 @@ fn tally_valid_4_reveals_majority_of_errors() {
         vec![216, 39, 129, 24, 49],
         vec![216, 39, 129, 24, 49],
     ];
-    let (pkhs, _dr_pkh, dr_pointer, dr_pool) =
+    let (pkhs, _dr_pkh, dr_pointer, mut dr_pool) =
         generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
     let reward = DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL;
 
@@ -7852,8 +7884,8 @@ fn tally_valid_4_reveals_majority_of_errors() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
         None,
         None,
@@ -7871,7 +7903,8 @@ fn tally_valid_3_reveals_1_no_reveal_majority_of_errors() {
         vec![216, 39, 129, 24, 49],
         vec![216, 39, 129, 24, 49],
     ];
-    let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
+    let (pkhs, dr_pkh, dr_pointer, mut dr_pool) =
+        generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
     let active_wips = current_active_wips();
     let (reward, change) = if active_wips.wip0023() {
         (
@@ -7916,8 +7949,8 @@ fn tally_valid_3_reveals_1_no_reveal_majority_of_errors() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
         None,
         None,
@@ -7932,7 +7965,8 @@ fn tally_valid_2_reveals_2_no_reveals_majority_of_errors_insufficient_consensus(
     let stddev_cbor = vec![249, 0, 0]; // 0.0
                                        // RetrieveTimeout
     let reveals = vec![vec![216, 39, 129, 24, 49], vec![216, 39, 129, 24, 49]];
-    let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
+    let (pkhs, dr_pkh, dr_pointer, mut dr_pool) =
+        generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
     let change = DEFAULT_WITNESS_REWARD * 4 + 10 * 2;
 
     // TODO: serialize tally value from RadError to make this test more clear
@@ -7973,8 +8007,8 @@ fn tally_valid_2_reveals_2_no_reveals_majority_of_errors_insufficient_consensus(
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
         None,
         None,
@@ -7995,7 +8029,8 @@ fn tally_valid_4_reveals_majority_of_errors_insufficient_consensus() {
         vec![216, 39, 129, 24, 64], // Overflow
         vec![216, 39, 129, 24, 65], // Underflow
     ];
-    let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
+    let (pkhs, dr_pkh, dr_pointer, mut dr_pool) =
+        generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
     let change = DEFAULT_WITNESS_REWARD * 4;
 
     // TODO: serialize tally value from RadError to make this test more clear
@@ -8036,8 +8071,8 @@ fn tally_valid_4_reveals_majority_of_errors_insufficient_consensus() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
         None,
         None,
@@ -8057,7 +8092,8 @@ fn tally_valid_3_reveals_1_no_reveal_majority_of_errors_insufficient_consensus()
         vec![216, 39, 129, 24, 49],
         vec![216, 39, 129, 24, 64], // Overflow
     ];
-    let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
+    let (pkhs, dr_pkh, dr_pointer, mut dr_pool) =
+        generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
     let change = DEFAULT_WITNESS_REWARD * 4 + 10;
 
     // TODO: serialize tally value from RadError to make this test more clear
@@ -8098,8 +8134,8 @@ fn tally_valid_3_reveals_1_no_reveal_majority_of_errors_insufficient_consensus()
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
         None,
         None,
@@ -8129,7 +8165,7 @@ fn tally_valid_rng() {
         )),
     ];
     let reveals = reveals.into_iter().map(|x| x.encode().unwrap()).collect();
-    let (pkhs, _dr_pkh, dr_pointer, dr_pool) = generic_tally_test_rng(4, reveals);
+    let (pkhs, _dr_pkh, dr_pointer, mut dr_pool) = generic_tally_test_rng(4, reveals);
     let reward = DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL;
 
     let tally_value = RadonTypes::from(RadonBytes::from(
@@ -8166,8 +8202,8 @@ fn tally_valid_rng() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
         None,
         None,
@@ -8185,7 +8221,7 @@ fn tally_valid_rng_wrong_bytes_len() {
         RadonTypes::from(RadonBytes::from(hex::decode("4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8affffffffffffffffffffffff").unwrap())),
     ];
     let reveals = reveals.into_iter().map(|x| x.encode().unwrap()).collect();
-    let (pkhs, _dr_pkh, dr_pointer, dr_pool) = generic_tally_test_rng(4, reveals);
+    let (pkhs, _dr_pkh, dr_pointer, mut dr_pool) = generic_tally_test_rng(4, reveals);
     let reward = DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL;
 
     let tally_value = RadonTypes::from(RadonBytes::from(
@@ -8222,8 +8258,8 @@ fn tally_valid_rng_wrong_bytes_len() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
         None,
         None,
@@ -8256,7 +8292,7 @@ fn tally_valid_rng_one_error() {
         ),
     ];
     let reveals = reveals.into_iter().map(|x| x.encode().unwrap()).collect();
-    let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_rng(4, reveals);
+    let (pkhs, dr_pkh, dr_pointer, mut dr_pool) = generic_tally_test_rng(4, reveals);
     let collateral = DEFAULT_COLLATERAL;
     let reward = collateral + DEFAULT_WITNESS_REWARD;
     let change = DEFAULT_WITNESS_REWARD;
@@ -8300,8 +8336,8 @@ fn tally_valid_rng_one_error() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
         None,
         None,
@@ -8343,7 +8379,7 @@ fn tally_valid_rng_all_errors() {
         ),
     ];
     let reveals = reveals.into_iter().map(|x| x.encode().unwrap()).collect();
-    let (pkhs, _dr_pkh, dr_pointer, dr_pool) = generic_tally_test_rng(4, reveals);
+    let (pkhs, _dr_pkh, dr_pointer, mut dr_pool) = generic_tally_test_rng(4, reveals);
     let collateral = DEFAULT_COLLATERAL;
     let reward = collateral + DEFAULT_WITNESS_REWARD;
 
@@ -8385,8 +8421,8 @@ fn tally_valid_rng_all_errors() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
         None,
         None,
@@ -8413,7 +8449,7 @@ fn tally_valid_rng_one_invalid_type() {
         RadonTypes::from(RadonInteger::from(4)),
     ];
     let reveals = reveals.into_iter().map(|x| x.encode().unwrap()).collect();
-    let (pkhs, dr_pkh, dr_pointer, dr_pool) = generic_tally_test_rng(4, reveals);
+    let (pkhs, dr_pkh, dr_pointer, mut dr_pool) = generic_tally_test_rng(4, reveals);
     let collateral = DEFAULT_COLLATERAL;
     let active_wips = current_active_wips();
     let reward = if active_wips.wip0023() {
@@ -8457,8 +8493,8 @@ fn tally_valid_rng_one_invalid_type() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
         None,
         None,
@@ -8476,7 +8512,7 @@ fn tally_valid_rng_all_invalid_type() {
         RadonTypes::from(RadonInteger::from(4)),
     ];
     let reveals = reveals.into_iter().map(|x| x.encode().unwrap()).collect();
-    let (pkhs, _dr_pkh, dr_pointer, dr_pool) = generic_tally_test_rng(4, reveals);
+    let (pkhs, _dr_pkh, dr_pointer, mut dr_pool) = generic_tally_test_rng(4, reveals);
     let collateral = DEFAULT_COLLATERAL;
     let reward = collateral + DEFAULT_WITNESS_REWARD;
 
@@ -8514,8 +8550,8 @@ fn tally_valid_rng_all_invalid_type() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
         None,
         None,
@@ -8541,7 +8577,7 @@ fn tally_unserializable_value() {
     // Reveal value: negative(18446744073709551361)
     let reveal_value = vec![59, 255, 255, 255, 255, 255, 255, 255, 0];
     let dr_output = example_data_request_output_average_mean_reducer(2, DEFAULT_WITNESS_REWARD, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, change, reward) =
+    let (mut dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage(
             dr_output,
             2,
@@ -8576,8 +8612,8 @@ fn tally_unserializable_value() {
     );
     let x = validate_tally_transaction(
         &tally_transaction,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
         None,
         None,
@@ -8596,7 +8632,7 @@ fn tally_unhandled_intercept_with_message() {
         216, 39, 130, 24, 255, 0x66, b'H', b'e', b'l', b'l', b'o', b'!',
     ];
     let dr_output = example_data_request_output(2, DEFAULT_WITNESS_REWARD, 20);
-    let (dr_pool, dr_pointer, _rewarded, slashed, error_witnesses, _dr_pkh, change, reward) =
+    let (mut dr_pool, dr_pointer, _rewarded, slashed, error_witnesses, _dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_all_errors(dr_output, 2, 2, reveal_value.clone());
     // You earn your reward, and get your collateral back
     assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
@@ -8639,8 +8675,8 @@ fn tally_unhandled_intercept_with_message() {
     // tally_transaction_with_message is valid, tally_transaction_no_message is invalid
     let x = validate_tally_transaction(
         &tally_transaction_with_message,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
         None,
         None,
@@ -8649,8 +8685,8 @@ fn tally_unhandled_intercept_with_message() {
     x.unwrap();
     let x = validate_tally_transaction(
         &tally_transaction_no_message,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
         None,
         None,
@@ -8673,8 +8709,8 @@ fn tally_unhandled_intercept_with_message() {
     // tally_transaction_with_message is invalid, tally_transaction_no_message is valid
     let x = validate_tally_transaction(
         &tally_transaction_with_message,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
         None,
         None,
@@ -8689,8 +8725,8 @@ fn tally_unhandled_intercept_with_message() {
     );
     let x = validate_tally_transaction(
         &tally_transaction_no_message,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
         None,
         None,
@@ -8711,7 +8747,7 @@ fn tally_unhandled_intercept_mode_tie_has_no_message() {
     let reveal_value_2 = vec![0x02];
     let reveal_values = vec![reveal_value_1, reveal_value_2];
     let dr_output = example_data_request_output(2, DEFAULT_WITNESS_REWARD, 20);
-    let (dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, change, reward) =
+    let (mut dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage_different_reveals(
             dr_output,
             2,
@@ -8770,8 +8806,8 @@ fn tally_unhandled_intercept_mode_tie_has_no_message() {
     // tally_transaction_with_message is valid, tally_transaction_no_message is invalid
     let x = validate_tally_transaction(
         &tally_transaction_with_message,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
         None,
         None,
@@ -8780,8 +8816,8 @@ fn tally_unhandled_intercept_mode_tie_has_no_message() {
     x.unwrap();
     let x = validate_tally_transaction(
         &tally_transaction_no_message,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
         None,
         None,
@@ -8804,8 +8840,8 @@ fn tally_unhandled_intercept_mode_tie_has_no_message() {
     // tally_transaction_with_message is invalid, tally_transaction_no_message is valid
     let x = validate_tally_transaction(
         &tally_transaction_with_message,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
         None,
         None,
@@ -8820,8 +8856,8 @@ fn tally_unhandled_intercept_mode_tie_has_no_message() {
     );
     let x = validate_tally_transaction(
         &tally_transaction_no_message,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
         None,
         None,
@@ -8835,7 +8871,7 @@ fn tally_error_encode_reveal_wip() {
     // Reveal value (EncodeReveal error): 39([97])
     let reveal_value = vec![216, 39, 129, 24, 97];
     let dr_output = example_data_request_output(2, DEFAULT_WITNESS_REWARD, 20);
-    let (dr_pool, dr_pointer, _rewarded, slashed, error_witnesses, _dr_pkh, change, reward) =
+    let (mut dr_pool, dr_pointer, _rewarded, slashed, error_witnesses, _dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_all_errors(dr_output, 2, 2, reveal_value);
     // You earn your reward, and get your collateral back
     assert_eq!(reward, DEFAULT_WITNESS_REWARD + DEFAULT_COLLATERAL);
@@ -8870,8 +8906,8 @@ fn tally_error_encode_reveal_wip() {
     // Before WIP-0026:
     let x = validate_tally_transaction(
         &tally_transaction_error_encode_reveal,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
         None,
         None,
@@ -8891,8 +8927,8 @@ fn tally_error_encode_reveal_wip() {
     // After WIP-0026:
     let x = validate_tally_transaction(
         &tally_transaction_error_encode_reveal,
-        &dr_pool,
-        ONE_WIT,
+        &mut dr_pool,
+        &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
         None,
         None,
