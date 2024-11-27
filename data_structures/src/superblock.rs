@@ -18,7 +18,19 @@ use crate::{
     },
     get_environment,
     proto::versioning::{ProtocolVersion, VersionedHashable},
+    Environment,
 };
+
+/// TODO: Committee for superblock indices during the bootstrapping of wit/2
+const WIT2_BOOTSTRAP_COMMITTEE: [&str; 0] = [];
+
+/// Committee for superblock indices during the bootstrapping of wit/2
+const WIT2_BOOTSTRAP_COMMITTEE_TEST: [&str; 4] = [
+    "twit1f0am8c97q2ygkz3q6jyd2x29s8zaxqlxcqltxx",
+    "twit1pc8jzqph4t0md02e6fgwgsw26yll20p98c3pgh",
+    "twit1mseplfttj5vvm8r7d5pn5je9dd02el4hw4w4cp",
+    "twit1najvm34rta4vnkpfax8kk0vhpntg5lgdz8wc33",
+];
 
 /// Possible result of SuperBlockState::add_vote
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -449,6 +461,29 @@ impl SuperBlockState {
                 } else {
                     signing_committee
                 };
+
+            // Override superblock signing committee during the bootstrapping of wit/2
+            self.signing_committee = match get_environment() {
+                Environment::Mainnet => {
+                    // wit/2 activates at 2_922_240 + 14 x 1_920 (TAPI delay) + 7 x 1_920 (instant activation delay) = 2_962_560
+                    // disabling the activation committee at 299_712 implies we add an extra 8 weeks worth of time (8 x 4320)
+                    // to inplement a decentralized superblock committee selection mechanism. Note that any delay in activating
+                    // wit/2 will essentially be subtracted from the extra 8 weeks,
+                    if (292_224..299_712).contains(&superblock_index) {
+                        WIT2_BOOTSTRAP_COMMITTEE
+                            .iter()
+                            .map(|address| address.parse().expect("Malformed signing committee"))
+                            .collect()
+                    } else {
+                        self.signing_committee.clone()
+                    }
+                }
+                Environment::Testnet => WIT2_BOOTSTRAP_COMMITTEE_TEST
+                    .iter()
+                    .map(|address| address.parse().expect("Malformed signing committee"))
+                    .collect(),
+                _ => self.signing_committee.clone(),
+            };
 
             sb
         } else {

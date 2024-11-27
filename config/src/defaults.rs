@@ -535,8 +535,32 @@ impl Defaults for Testnet {
         Duration::from_secs(15)
     }
 
+    fn connections_reject_sybil_inbounds(&self) -> bool {
+        false
+    }
+
+    /// First superblocks signing committee
+    fn consensus_constants_bootstrapping_committee(&self) -> Vec<String> {
+        vec![
+            "twit1f0am8c97q2ygkz3q6jyd2x29s8zaxqlxcqltxx".to_string(),
+            "twit1pc8jzqph4t0md02e6fgwgsw26yll20p98c3pgh".to_string(),
+            "twit1mseplfttj5vvm8r7d5pn5je9dd02el4hw4w4cp".to_string(),
+            "twit1najvm34rta4vnkpfax8kk0vhpntg5lgdz8wc33".to_string(),
+        ]
+    }
+
     fn consensus_constants_checkpoint_zero_timestamp(&self) -> i64 {
-        // Wednesday, 23-Sept-2020, 09:00 UTC
-        1_600_851_600
+        // Thursday, 28-Nov-2024, 20:00 UTC
+        1_732_824_000
+    }
+
+    fn consensus_constants_genesis_hash(&self) -> Hash {
+        "5aaafb853ce897c1431ee5babc5533650d37c4fab44045bde9c74a3fff8c080e"
+            .parse()
+            .unwrap()
+    }
+
+    fn consensus_constants_minimum_difficulty(&self) -> u32 {
+        0
     }
 }

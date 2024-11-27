@@ -455,7 +455,10 @@ pub fn in_emergency_period(
                 })
                 .collect(),
         )
-    } else if Environment::Mainnet == environment && superblock_index > 224_300 {
+    } else if Environment::Mainnet == environment
+        && superblock_index > 224_300
+        && superblock_index < 292_224
+    {
         Some(
             FOURTH_EMERGENCY_COMMITTEE
                 .iter()
