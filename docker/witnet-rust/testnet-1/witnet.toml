@@ -1,16 +1,4 @@
-environment = "development"
-
-# Setting the environment to testnet allows us to define some consensus constants
-[consensus_constants]
-# Set the bootstrap time to 21/11/2024 20:00 UTC
-checkpoint_zero_timestamp = 1732219200
-# Genesis block hash
-genesis_hash = "5aaafb853ce897c1431ee5babc5533650d37c4fab44045bde9c74a3fff8c080e"
-# Fix the bootstrap committee
-bootstrapping_committee = ["twit1f0am8c97q2ygkz3q6jyd2x29s8zaxqlxcqltxx", "twit1pc8jzqph4t0md02e6fgwgsw26yll20p98c3pgh", "twit1mseplfttj5vvm8r7d5pn5je9dd02el4hw4w4cp", "twit1najvm34rta4vnkpfax8kk0vhpntg5lgdz8wc33"]
-# Make sure we can properly mine the first couple of block
-minimum_difficulty = 0
-epochs_with_minimum_difficulty = 1024
+environment = "testnet"
 
 [connections]
 # Server address tells what local interface and port the Witnet node server should bind to.
