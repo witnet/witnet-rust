@@ -323,6 +323,28 @@ where
             // No need to keep the entry if the stake has gone to zero
             if final_coins.is_zero() {
                 by_address_entry.remove();
+                if let Some(ref mut stakes) = self.by_validator.get_mut(&key.validator) {
+                    stakes.remove(
+                        stakes
+                            .iter()
+                            .position(|stake| stake.read_value().coins == 0.into())
+                            .unwrap(),
+                    );
+                    if stakes.is_empty() {
+                        self.by_validator.remove(&key.validator);
+                    }
+                }
+                if let Some(ref mut stakes) = self.by_withdrawer.get_mut(&key.withdrawer) {
+                    stakes.remove(
+                        stakes
+                            .iter()
+                            .position(|stake| stake.read_value().coins == 0.into())
+                            .unwrap(),
+                    );
+                    if stakes.is_empty() {
+                        self.by_withdrawer.remove(&key.withdrawer);
+                    }
+                }
                 self.by_coins.remove(&CoinsAndAddresses {
                     coins: initial_coins,
                     addresses: key,
