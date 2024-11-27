@@ -201,13 +201,13 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                                     .rank(Capability::Mining, previous_epoch)
                                     .take(replication_factor.into())
                                     .collect();
-                                for (i, (stake_key, _)) in rank_subset.into_iter().enumerate() {
+                                for (i, (validator, _)) in rank_subset.into_iter().enumerate() {
                                     log::warn!(
                                         "Slashed the power of {} as it did not propose a block",
-                                        stake_key.validator
+                                        validator
                                     );
                                     let _ = stakes.reset_age(
-                                        stake_key.validator,
+                                        validator,
                                         Capability::Mining,
                                         msg.checkpoint,
                                         // This should never fail
