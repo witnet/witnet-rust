@@ -10,10 +10,13 @@ use crate::{
         SuperBlockVote,
     },
     error::BuildersError,
+    get_protocol_version_activation_epoch, get_protocol_version_period,
+    proto::versioning::ProtocolVersion,
+    strum::IntoEnumIterator,
     transaction::Transaction,
     types::{
         Address, Command, GetPeers, InventoryAnnouncement, InventoryRequest, IpAddress, LastBeacon,
-        Message, Peers, Verack, Version,
+        Message, Peers, ProtocolVersion as ProtocolVersionType, Verack, Version,
     },
 };
 
@@ -59,6 +62,15 @@ impl Message {
         beacon: LastBeacon,
     ) -> Message {
         let addr = sender_addr.map(to_address);
+
+        let mut protocol_versions = vec![];
+        for protocol in ProtocolVersion::iter() {
+            protocol_versions.push(ProtocolVersionType {
+                version: protocol.into(),
+                activation_epoch: get_protocol_version_activation_epoch(protocol),
+                checkpoint_period: get_protocol_version_period(protocol),
+            });
+        }
         Message::build_message(
             magic,
             Command::Version(Version {
@@ -70,6 +82,7 @@ impl Message {
                 user_agent: user_agent(),
                 nonce: random_nonce(),
                 beacon,
+                protocol_versions,
             }),
         )
     }

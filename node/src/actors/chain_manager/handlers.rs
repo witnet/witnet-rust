@@ -41,8 +41,8 @@ use crate::{
             GetMempoolResult, GetNodeStats, GetProtocolInfo, GetReputation, GetReputationResult,
             GetSignalingInfo, GetState, GetSuperBlockVotes, GetSupplyInfo, GetUtxoInfo,
             IsConfirmedBlock, PeersBeacons, QueryStake, ReputationStats, Rewind, SendLastBeacon,
-            SessionUnitResult, SetLastBeacon, SetPeersLimits, SignalingInfo, SnapshotExport,
-            SnapshotImport, TryMineBlock,
+            SendProtocolVersions, SessionUnitResult, SetEpochConstants, SetLastBeacon,
+            SetPeersLimits, SignalingInfo, SnapshotExport, SnapshotImport, TryMineBlock,
         },
         sessions_manager::SessionsManager,
     },
@@ -2132,6 +2132,51 @@ impl Handler<SnapshotImport> for ChainManager {
         Box::pin(fut)
     }
 }
+
+impl Handler<SetEpochConstants> for ChainManager {
+    type Result = ();
+
+    fn handle(&mut self, msg: SetEpochConstants, _ctx: &mut Context<Self>) -> Self::Result {
+        log::debug!("Received new epoch constants: {:?}", msg.epoch_constants);
+        self.epoch_constants = Some(msg.epoch_constants);
+
+        let previous_epoch = self.current_epoch.unwrap();
+        self.current_epoch = match msg.epoch_constants.epoch_at(get_timestamp()) {
+            Ok(epoch) => Some(epoch),
+            Err(_) => panic!("Could not recalculate current epoch"),
+        };
+        log::debug!(
+            "Updating current epoch from {} to {}",
+            previous_epoch,
+            self.current_epoch.unwrap()
+        );
+    }
+}
+
+impl Handler<SendProtocolVersions> for ChainManager {
+    type Result = ();
+
+    fn handle(&mut self, msg: SendProtocolVersions, _ctx: &mut Context<Self>) {
+        if let Some(ref mut chain_info) = &mut self.chain_state.chain_info {
+            log::debug!("Setting protocol versions info in Chain Manager");
+            for protocol in msg.protocol_versions {
+                if chain_info
+                    .protocol
+                    .all_versions
+                    .get_activation_epoch(protocol.version.into())
+                    == u32::MAX
+                {
+                    chain_info.protocol.register(
+                        protocol.activation_epoch,
+                        protocol.version.into(),
+                        protocol.checkpoint_period,
+                    );
+                }
+            }
+        }
+    }
+}
+
 #[derive(Debug, Eq, PartialEq)]
 pub enum BlockBatches<T> {
     TargetNotReached(Vec<T>),

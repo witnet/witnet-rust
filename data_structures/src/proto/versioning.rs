@@ -21,7 +21,7 @@ use crate::{
         },
         ProtobufConvert,
     },
-    types::Message,
+    types::{Message, ProtocolVersionName},
 };
 
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
@@ -164,6 +164,16 @@ impl PartialOrd for ProtocolVersion {
                 unreachable!()
             }
         })
+    }
+}
+
+impl From<ProtocolVersionName> for ProtocolVersion {
+    fn from(version: ProtocolVersionName) -> Self {
+        match version {
+            ProtocolVersionName::V1_7(_) => ProtocolVersion::V1_7,
+            ProtocolVersionName::V1_8(_) => ProtocolVersion::V1_8,
+            ProtocolVersionName::V2_0(_) => ProtocolVersion::V2_0,
+        }
     }
 }
 

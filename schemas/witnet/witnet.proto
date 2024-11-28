@@ -46,6 +46,20 @@ message Message {
     Command kind = 2;
 }
 
+message ProtocolVersionName {
+    oneof kind {
+        bool V1_7 = 1;
+        bool V1_8 = 2;
+        bool V2_0 = 3;
+    }
+}
+
+message ProtocolVersion {
+    ProtocolVersionName version = 1;
+    uint32 activation_epoch = 2;
+    uint32 checkpoint_period = 3;
+}
+
 message Version {
     uint32 version = 1;
     int64 timestamp = 2;
@@ -55,6 +69,7 @@ message Version {
     string user_agent = 6;
     fixed64 nonce = 7;
     LastBeacon beacon = 8;
+    repeated ProtocolVersion protocol_versions = 9;
 }
 
 message Verack {
