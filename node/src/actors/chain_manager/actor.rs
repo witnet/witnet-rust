@@ -12,7 +12,9 @@ use witnet_data_structures::{
         GenesisBlockInfo, PublicKeyHash, ReputationEngine, StateMachine, SuperBlock,
     },
     data_request::DataRequestPool,
-    get_environment, load_protocol_info, refresh_protocol_version,
+    get_environment, get_protocol_version_activation_epoch, initialize_default, load_protocol_info,
+    proto::versioning::ProtocolVersion,
+    refresh_protocol_version,
     staking::prelude::*,
     superblock::SuperBlockState,
     types::LastBeacon,
@@ -365,6 +367,13 @@ impl ChainManager {
                 // info and the current epoch. This essentially allows a node to catch up with
                 // a new protocol version if the transition happened while it was down.
                 load_protocol_info(chain_info.protocol.clone());
+                // If the protocol info we loaded above originates from a default initialization
+                // of chain info, the default protocol versions are not registered yet. We cannot
+                // use the Default trait to fix this because we do not have access to the required
+                // checkpoint period from consensus constants in the data structures module.
+                if get_protocol_version_activation_epoch(ProtocolVersion::default()) == u32::MAX {
+                    initialize_default(consensus_constants.checkpoints_period);
+                }
                 refresh_protocol_version(chain_info.highest_block_checkpoint.checkpoint);
 
                 // If hash_prev_block is the bootstrap hash, create and consolidate genesis block.

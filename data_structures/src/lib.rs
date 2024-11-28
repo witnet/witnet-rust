@@ -168,6 +168,10 @@ pub fn load_protocol_info(info: ProtocolInfo) {
     *protocol_info = info;
 }
 
+pub fn initialize_default(default_checkpoint_period: u16) {
+    register_protocol_version(ProtocolVersion::default(), 0, default_checkpoint_period);
+}
+
 pub fn clear_protocol_info() {
     log::info!("Clearing all protocol versions");
     let mut protocol_info = PROTOCOL.write().unwrap();
