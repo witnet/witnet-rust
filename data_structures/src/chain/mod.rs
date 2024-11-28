@@ -293,7 +293,7 @@ impl ConsensusConstantsWit2 {
     /// Minimum amount of nanoWits which need to be staked before wit/2 activation
     pub fn get_wit2_minimum_total_stake_nanowits(self) -> u64 {
         match get_environment() {
-            Environment::Development => 30_000_000_000_000_000,
+            Environment::Development | Environment::Testnet => 30_000_000_000_000_000,
             _ => 300_000_000_000_000_000,
         }
     }
@@ -301,7 +301,7 @@ impl ConsensusConstantsWit2 {
     /// Number of epochs before wit/2 activates after enough Wit have been staked
     pub fn get_wit2_activation_delay_epochs(self) -> u32 {
         match get_environment() {
-            Environment::Development => {
+            Environment::Development | Environment::Testnet => {
                 480 // 6 hours
             }
             _ => {
@@ -341,7 +341,7 @@ impl ConsensusConstantsWit2 {
     pub fn get_unstaking_delay_seconds(self, epoch: Epoch) -> u64 {
         if get_protocol_version(Some(epoch)) >= ProtocolVersion::V2_0 {
             match get_environment() {
-                Environment::Development => {
+                Environment::Development | Environment::Testnet => {
                     3_600 // 1 hour
                 }
                 _ => {
