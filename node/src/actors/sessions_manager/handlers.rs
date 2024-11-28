@@ -19,7 +19,8 @@ use crate::actors::{
         AddConsolidatedPeer, AddPeers, Anycast, Broadcast, Consolidate, Create, DropAllPeers,
         DropOutboundPeers, EpochNotification, GetConsolidatedPeers, LogMessage, NumSessions,
         NumSessionsResult, PeerBeacon, Register, RemoveAddressesFromTried, SessionsUnitResult,
-        SetLastBeacon, SetPeersLimits, SetSuperBlockTargetBeacon, TryMineBlock, Unregister,
+        SetEpochConstants, SetLastBeacon, SetPeersLimits, SetSuperBlockTargetBeacon, TryMineBlock,
+        Unregister,
     },
     peers_manager::PeersManager,
     session::Session,
@@ -533,5 +534,18 @@ impl Handler<DropAllPeers> for SessionsManager {
 
     fn handle(&mut self, _msg: DropAllPeers, _ctx: &mut Context<Self>) -> Self::Result {
         self.drop_all_peers();
+    }
+}
+
+impl Handler<SetEpochConstants> for SessionsManager {
+    type Result = ();
+
+    fn handle(&mut self, msg: SetEpochConstants, _ctx: &mut Context<Self>) -> Self::Result {
+        self.epoch_constants = Some(msg.epoch_constants);
+
+        self.current_epoch = msg
+            .epoch_constants
+            .epoch_at(get_timestamp())
+            .unwrap_or_default();
     }
 }

@@ -689,6 +689,17 @@ impl Message for SnapshotImport {
     type Result = Result<CheckpointBeacon, ImportError>;
 }
 
+/// Set the EpochConstants
+#[derive(Clone, Debug)]
+pub struct SetEpochConstants {
+    /// Current epoch constants
+    pub epoch_constants: EpochConstants,
+}
+
+impl Message for SetEpochConstants {
+    type Result = ();
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////
 // MESSAGES FROM CONNECTIONS MANAGER
 ////////////////////////////////////////////////////////////////////////////////////////

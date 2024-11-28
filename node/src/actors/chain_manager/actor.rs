@@ -8,11 +8,12 @@ use itertools::Itertools;
 use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
 use witnet_data_structures::{
     chain::{
-        Block, ChainImport, ChainInfo, ChainState, CheckpointBeacon, CheckpointVRF,
+        Block, ChainImport, ChainInfo, ChainState, CheckpointBeacon, CheckpointVRF, EpochConstants,
         GenesisBlockInfo, PublicKeyHash, ReputationEngine, StateMachine, SuperBlock,
     },
     data_request::DataRequestPool,
-    get_environment, get_protocol_version_activation_epoch, initialize_default, load_protocol_info,
+    get_environment, get_protocol_version_activation_epoch, get_protocol_version_period,
+    initialize_default, load_protocol_info,
     proto::versioning::ProtocolVersion,
     refresh_protocol_version,
     staking::prelude::*,
@@ -31,8 +32,8 @@ use crate::{
         epoch_manager::{EpochManager, EpochManagerError::CheckpointZeroInTheFuture},
         inventory_manager::InventoryManager,
         messages::{
-            AddBlocks, GetEpoch, GetEpochConstants, SetLastBeacon, SnapshotExport,
-            StoreInventoryItem, Subscribe,
+            AddBlocks, GetEpoch, GetEpochConstants, SetEpochConstants, SetLastBeacon,
+            SnapshotExport, StoreInventoryItem, Subscribe,
         },
         sessions_manager::SessionsManager,
         storage_keys,
@@ -375,6 +376,34 @@ impl ChainManager {
                     initialize_default(consensus_constants.checkpoints_period);
                 }
                 refresh_protocol_version(chain_info.highest_block_checkpoint.checkpoint);
+
+                // We may need to update the epoch constants in both the sessions and epoch manager to
+                // correctly calculate the current epoch after wit/2 is activated while the configuration
+                // has not been updated yet.
+                let activation_epoch_wit2 = get_protocol_version_activation_epoch(ProtocolVersion::V2_0);
+                if activation_epoch_wit2 != u32::MAX {
+                    let checkpoint_zero_timestamp_wit2 = config.consensus_constants.checkpoint_zero_timestamp
+                        + i64::from(get_protocol_version_activation_epoch(ProtocolVersion::V2_0))
+                            * i64::from(config.consensus_constants.checkpoints_period);
+
+                    SessionsManager::from_registry().do_send(SetEpochConstants {
+                        epoch_constants: EpochConstants {
+                            checkpoint_zero_timestamp: config.consensus_constants.checkpoint_zero_timestamp,
+                            checkpoints_period: config.consensus_constants.checkpoints_period,
+                            checkpoint_zero_timestamp_wit2,
+                            checkpoints_period_wit2: get_protocol_version_period(ProtocolVersion::V2_0),
+                        },
+                    });
+
+                    EpochManager::from_registry().do_send(SetEpochConstants {
+                        epoch_constants: EpochConstants {
+                            checkpoint_zero_timestamp: config.consensus_constants.checkpoint_zero_timestamp,
+                            checkpoints_period: config.consensus_constants.checkpoints_period,
+                            checkpoint_zero_timestamp_wit2,
+                            checkpoints_period_wit2: get_protocol_version_period(ProtocolVersion::V2_0),
+                        },
+                    });
+                }
 
                 // If hash_prev_block is the bootstrap hash, create and consolidate genesis block.
                 // Consolidating the genesis block is not needed if the chain state has been reset
