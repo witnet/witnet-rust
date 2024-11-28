@@ -1,12 +1,15 @@
-use actix::Handler;
+use actix::{Context, Handler};
 
 use witnet_data_structures::chain::Epoch;
 
 use super::EpochManager;
 use crate::actors::{
     epoch_manager::{EpochConstants, EpochManagerError},
-    messages::{EpochResult, GetEpoch, GetEpochConstants, SubscribeAll, SubscribeEpoch},
+    messages::{
+        EpochResult, GetEpoch, GetEpochConstants, SetEpochConstants, SubscribeAll, SubscribeEpoch,
+    },
 };
+use witnet_util::timestamp::get_timestamp;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // ACTOR MESSAGE HANDLERS
@@ -70,5 +73,31 @@ impl Handler<GetEpochConstants> for EpochManager {
     /// checkpoint_zero_timestamp and checkpoints_period constants never change
     fn handle(&mut self, _msg: GetEpochConstants, _ctx: &mut Self::Context) -> Self::Result {
         self.constants
+    }
+}
+
+impl Handler<SetEpochConstants> for EpochManager {
+    type Result = ();
+
+    fn handle(&mut self, msg: SetEpochConstants, _ctx: &mut Context<Self>) -> Self::Result {
+        // Check if the epoch calculated with the current version of the epoch constants
+        // and the last_checked_epoch are different and if they are, subtract that difference
+        // from the new last_checked_epoch.
+        let current_time = get_timestamp();
+        let epoch_before_update = msg
+            .epoch_constants
+            .epoch_at(current_time)
+            .unwrap_or_default();
+        let epoch_diff =
+            epoch_before_update.saturating_sub(self.last_checked_epoch.unwrap_or_default());
+
+        self.constants = Some(msg.epoch_constants);
+
+        self.last_checked_epoch = Some(
+            msg.epoch_constants
+                .epoch_at(current_time)
+                .unwrap_or_default()
+                .saturating_sub(epoch_diff),
+        );
     }
 }
