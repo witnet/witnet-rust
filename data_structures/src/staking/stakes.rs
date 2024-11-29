@@ -81,14 +81,6 @@ where
     /// A listing of all the stake entries, indexed by withdrawer.
     by_withdrawer:
         BTreeMap<Address, Vec<SyncStakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>>>,
-    /// A listing of all the stake entries, indexed by their coins and address.
-    ///
-    /// Because this uses a compound key to prevent duplicates, if we want to know which addresses
-    /// have staked a particular amount, we just need to run a range lookup on the tree.
-    by_coins: BTreeMap<
-        CoinsAndAddresses<Coins, Address>,
-        SyncStakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>,
-    >,
 }
 
 impl<const UNIT: u8, Address, Coins, Epoch, Nonce, Power>
@@ -174,7 +166,6 @@ where
             .add_stake(coins, epoch, minimum_stakeable)?;
 
         // Update all indexes if needed (only when the stake entry didn't exist before)
-        index_coins(&mut self.by_coins, key.clone(), stake.clone());
         if !stake_found {
             index_addresses(
                 &mut self.by_validator,
@@ -308,16 +299,11 @@ where
         let key = key.into();
 
         if let Entry::Occupied(mut by_address_entry) = self.by_key.entry(key.clone()) {
-            let (initial_coins, final_coins) = {
+            // Reduce the amount of stake
+            let final_coins = {
                 let mut stake = by_address_entry.get_mut().value.write()?;
 
-                // Check the former amount of stake
-                let initial_coins = stake.coins;
-
-                // Reduce the amount of stake
-                let final_coins = stake.remove_stake(coins, minimum_stakeable)?;
-
-                (initial_coins, final_coins)
+                stake.remove_stake(coins, minimum_stakeable)?
             };
 
             // No need to keep the entry if the stake has gone to zero
@@ -345,10 +331,6 @@ where
                         self.by_withdrawer.remove(&key.withdrawer);
                     }
                 }
-                self.by_coins.remove(&CoinsAndAddresses {
-                    coins: initial_coins,
-                    addresses: key,
-                });
             }
 
             Ok(final_coins)
@@ -466,10 +448,8 @@ where
     pub fn reindex(&mut self) {
         self.by_validator.clear();
         self.by_withdrawer.clear();
-        self.by_coins.clear();
 
         for (key, stake) in &self.by_key {
-            index_coins(&mut self.by_coins, key.clone(), stake.clone());
             index_addresses(
                 &mut self.by_validator,
                 &mut self.by_withdrawer,
@@ -596,34 +576,6 @@ pub type StakesTracker = Stakes<WIT_DECIMAL_PLACES, PublicKeyHash, Wit, Epoch, u
 
 /// The default concrete type for testing stakes in unit tests.
 pub type StakesTester = Stakes<0, String, u64, u64, u64, u64>;
-
-/// Update the position of the staker in a `by_coins` index.
-/// If this stake entry was not indexed by coins, this will add it to the index.
-///
-/// This function was made static instead of adding it to `impl Stakes` because of limitations
-#[allow(clippy::type_complexity)]
-pub fn index_coins<const UNIT: u8, Address, Coins, Epoch, Nonce, Power>(
-    by_coins: &mut BTreeMap<
-        CoinsAndAddresses<Coins, Address>,
-        SyncStakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>,
-    >,
-    key: StakeKey<Address>,
-    stake: SyncStakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>,
-) where
-    Address: Clone + Default + Ord,
-    Coins: Copy + Default + Ord,
-    Epoch: Clone + Default,
-    Nonce: Clone + Default,
-    Power: Clone + Default,
-{
-    let coins_and_addresses = CoinsAndAddresses {
-        coins: stake.value.read().unwrap().coins,
-        addresses: key.clone(),
-    };
-
-    by_coins.remove(&coins_and_addresses);
-    by_coins.insert(coins_and_addresses.clone(), stake.clone());
-}
 
 /// Upsert a stake entry into those indexes that allow querying by validator or withdrawer.
 #[allow(clippy::type_complexity)]
