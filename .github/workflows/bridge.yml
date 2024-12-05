@@ -3,7 +3,7 @@ name: Bridge
 on:
   push:
     tags:
-      - '*-bridge*'
+      - '*_bridge*'
 
 env:
   CARGO_TERM_COLOR: always
@@ -140,13 +140,13 @@ jobs:
       # Build Docker images (Latest & TAG)
       - name: Build TAG
         run: |
-          PRUNED_TAG=$(echo "${{github.ref_name}}" | sed 's/-bridge//')
+          PRUNED_TAG=$(echo "${{github.ref_name}}" | sed 's/_bridge//')
           docker buildx build -f docker/bridge/Dockerfile --progress=plain --platform linux/amd64,linux/arm64 --tag witnet/witnet-centralized-ethereum-bridge:$PRUNED_TAG docker/bridge
 
       - name: Check Pre-release
         run: |
           TAG=${{ github.ref_name }}
-          if [[ "$TAG" =~ -rc ]]; then
+          if [[ "$TAG" =~ rc ]]; then
             echo "prerelease=true" >> $GITHUB_ENV
           else
             echo "prerelease=false" >> $GITHUB_ENV
