@@ -141,7 +141,7 @@ jobs:
       - name: Build TAG
         run: |
           PRUNED_TAG=$(echo "${{github.ref_name}}" | sed 's/_bridge//')
-          docker buildx build -f docker/bridge/Dockerfile --progress=plain --platform linux/amd64,linux/arm64 --tag witnet/witnet-centralized-ethereum-bridge:$PRUNED_TAG docker/bridge
+          docker buildx build -f docker/bridge/Dockerfile --progress=plain --platform linux/amd64,linux/arm64 --tag witnet/witnet-centralized-ethereum-bridge:$PRUNED_TAG docker/bridge --push --no-cache
 
       - name: Check Pre-release
         run: |
