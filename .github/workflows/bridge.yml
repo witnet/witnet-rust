@@ -150,6 +150,7 @@ jobs:
             echo "prerelease=true" >> $GITHUB_ENV
           else
             echo "prerelease=false" >> $GITHUB_ENV
+          fi
 
       - name: Build Latest if not Pre-Release
         if: env.prerelease == 'false'
