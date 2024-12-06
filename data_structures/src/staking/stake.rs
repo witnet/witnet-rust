@@ -117,7 +117,6 @@ where
 
     /// Construct a Stake entry from a number of coins and a capability map. This is only useful for
     /// tests.
-    #[cfg(test)]
     pub fn from_parts(coins: Coins, epochs: CapabilityMap<Epoch>, nonce: Nonce) -> Self {
         Self {
             coins,

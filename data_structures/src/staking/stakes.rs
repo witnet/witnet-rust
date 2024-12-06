@@ -74,12 +74,13 @@ where
     Power: Clone,
 {
     /// A listing of all the stake entries, indexed by their stake key.
-    pub(crate) by_key:
+    pub by_key:
         BTreeMap<StakeKey<Address>, SyncStakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>>,
     /// A listing of all the stake entries, indexed by validator.
-    by_validator: BTreeMap<Address, Vec<SyncStakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>>>,
+    pub by_validator:
+        BTreeMap<Address, Vec<SyncStakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>>>,
     /// A listing of all the stake entries, indexed by withdrawer.
-    by_withdrawer:
+    pub by_withdrawer:
         BTreeMap<Address, Vec<SyncStakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>>>,
 }
 

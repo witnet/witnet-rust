@@ -28,7 +28,7 @@
 use std::path::PathBuf;
 use std::{
     cmp::{max, min, Ordering},
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{BTreeMap, HashMap, HashSet, VecDeque},
     convert::TryFrom,
     future,
     net::SocketAddr,
@@ -445,18 +445,19 @@ impl ChainManager {
         &mut self,
         superblock_index: Option<u32>,
     ) -> ResponseActFuture<Self, Result<(), ()>> {
-        let previous_chain_state = if let Some(superblock_index) = superblock_index {
-            let chain_state_snapshot = self.chain_state_snapshot.restore(superblock_index);
+        let (previous_chain_state, previous_stakes_tracker) =
+            if let Some(superblock_index) = superblock_index {
+                let chain_state_snapshot = self.chain_state_snapshot.restore(superblock_index);
 
-            if chain_state_snapshot.is_none() {
-                return Box::pin(actix::fut::ok(()));
-            }
+                if chain_state_snapshot.is_none() {
+                    return Box::pin(actix::fut::ok(()));
+                }
 
-            chain_state_snapshot.unwrap()
-        } else {
-            // None case is used to persist chain_state during synchronization
-            self.chain_state.clone()
-        };
+                chain_state_snapshot.unwrap()
+            } else {
+                // None case is used to persist chain_state during synchronization
+                (self.chain_state.clone(), self.chain_state.stakes.clone())
+            };
 
         // When updating the chain state, we need to update the highest superblock checkpoint.
         // This is the highest superblock that obtained a majority of votes and we do not want to
@@ -467,6 +468,7 @@ impl ChainManager {
                 ..previous_chain_state.chain_info.as_ref().unwrap().clone()
             }),
             superblock_state: self.chain_state.superblock_state.clone(),
+            stakes: previous_stakes_tracker,
             ..previous_chain_state
         };
 
@@ -2987,6 +2989,11 @@ struct ChainStateSnapshot {
     // When the superblock with index n is consolidated by the ChainManager,
     // the state snapshot with superblock index n should be irreversibly persisted into the storage
     previous_chain_state: Option<(ChainState, u32)>,
+    // Track the previous state of the stakes tracker
+    previous_stakes_tracker: Option<(
+        BTreeMap<(PublicKeyHash, PublicKeyHash), (Wit, Vec<Epoch>, u64)>,
+        u32,
+    )>,
     // The ChainState at this superblock index is already persisted in the storage
     // Used to detect code that tries to persist old state
     highest_persisted_superblock: u32,
@@ -3029,6 +3036,7 @@ impl ChainStateSnapshot {
                             superblock_index
                         );
                         *prev_chain_state = state.clone();
+                        self.create_stakes_tracker_snapshot(superblock_index, state);
 
                         true
                     } else {
@@ -3044,21 +3052,42 @@ impl ChainStateSnapshot {
                     "Overwriting old chain state snapshot, it was superblock #{}",
                     prev_super_epoch
                 );
+                self.create_stakes_tracker_snapshot(superblock_index, state);
                 self.previous_chain_state = Some((state.clone(), superblock_index));
 
                 true
             }
         } else {
+            self.create_stakes_tracker_snapshot(superblock_index, state);
             self.previous_chain_state = Some((state.clone(), superblock_index));
 
             true
         }
     }
 
+    fn create_stakes_tracker_snapshot(&mut self, superblock_index: u32, state: &ChainState) {
+        let mut by_key: BTreeMap<(PublicKeyHash, PublicKeyHash), (Wit, Vec<Epoch>, u64)> =
+            Default::default();
+
+        for (stake_key, stake) in state.stakes.by_key.iter() {
+            let stake = stake.value.read().unwrap();
+            let mut capabilities = vec![];
+            for capability in ALL_CAPABILITIES {
+                capabilities.push(stake.epochs.get(capability));
+            }
+            by_key.insert(
+                (stake_key.validator.clone(), stake_key.withdrawer.clone()),
+                (stake.coins.clone(), capabilities, stake.nonce.clone()),
+            );
+        }
+
+        self.previous_stakes_tracker = Some((by_key, superblock_index));
+    }
+
     // Returns None if this super_epoch was already consolidated before
     // Returns Some(chain_state) if this super_epoch can be consolidated
     // It is assumed that the caller will persist the chain_state
-    fn restore(&mut self, super_epoch: u32) -> Option<ChainState> {
+    fn restore(&mut self, super_epoch: u32) -> Option<(ChainState, StakesTracker)> {
         if super_epoch == 0 {
             // The superblock with index 0 is always consolidated, no need to persist it to storage
             // This is because the superblock 0 does not include any blocks, it is the bootstrap
@@ -3089,23 +3118,68 @@ impl ChainStateSnapshot {
 
             // Replace self.previous_chain_state with None to prevent consolidating the same chain
             // state more than once
-            if let Some((chain_state, prev_super_epoch)) = self.previous_chain_state.take() {
+            let chain_state = if let Some((chain_state, prev_super_epoch)) =
+                self.previous_chain_state.take()
+            {
                 if prev_super_epoch != super_epoch {
                     panic!("Cannot persist chain state. There is no snapshot for superblock #{}. The current snapshot is for superblock #{}", super_epoch, prev_super_epoch);
                 }
 
                 self.highest_persisted_superblock = super_epoch;
 
-                Some(chain_state)
+                chain_state
             } else {
                 panic!("Cannot persist chain state. There is no snapshot for superblock #{}. The highest persisted superblock is #{}", super_epoch, self.highest_persisted_superblock);
-            }
+            };
+
+            let stakes_tracker = if let Some((prev_stakes_tracker, prev_super_epoch)) =
+                self.previous_stakes_tracker.take()
+            {
+                if prev_super_epoch != super_epoch {
+                    panic!("Cannot persist chain state. There is no snapshot for superblock #{}. The current snapshot is for superblock #{}", super_epoch, prev_super_epoch);
+                }
+
+                let mut stakes_entries: BTreeMap<
+                    StakeKey<PublicKeyHash>,
+                    SyncStakeEntry<WIT_DECIMAL_PLACES, PublicKeyHash, Wit, Epoch, u64, u64>,
+                > = Default::default();
+                for (stake_key, stake) in prev_stakes_tracker.iter() {
+                    let stake_key = StakeKey {
+                        validator: stake_key.0.clone(),
+                        withdrawer: stake_key.1.clone(),
+                    };
+                    let mut epochs: CapabilityMap<Epoch> = Default::default();
+                    for (i, capability) in ALL_CAPABILITIES.into_iter().enumerate() {
+                        epochs.update(capability, *stake.1.get(i).unwrap());
+                    }
+                    stakes_entries.insert(
+                        stake_key.clone(),
+                        SyncStakeEntry::from(StakeEntry {
+                            key: stake_key,
+                            value: Stake::from_parts(stake.0, epochs, stake.2),
+                        }),
+                    );
+                }
+
+                let mut stakes = Stakes {
+                    by_key: stakes_entries,
+                    ..Default::default()
+                };
+                stakes.reindex();
+
+                stakes
+            } else {
+                panic!("Cannot persist chain state. There is no snapshot for superblock #{}. The highest persisted superblock is #{}", super_epoch, self.highest_persisted_superblock);
+            };
+
+            Some((chain_state, stakes_tracker))
         }
     }
 
     // Remove the taken snapshot
     fn clear(&mut self) {
         self.previous_chain_state = None;
+        self.previous_stakes_tracker = None;
     }
 }
 
@@ -4600,5 +4674,96 @@ mod tests {
             // Transaction is added to the pool
             assert_eq!(chain_manager.transactions_pool.vt_len(), 1);
         });
+    }
+
+    #[test]
+    fn test_stakes_tracker_snapshot() {
+        let mut stakes = StakesTracker::default();
+
+        let pkh_1 = pkh(&PRIV_KEY_1);
+        let pkh_2 = pkh(&PRIV_KEY_2);
+        let staker_1 = StakeKey {
+            validator: pkh_1,
+            withdrawer: pkh_1,
+        };
+        let staker_2 = StakeKey {
+            validator: pkh_2,
+            withdrawer: pkh_2,
+        };
+        let _ = stakes.add_stake(staker_1, 100_000_000_000.into(), 100, 1_000_000_000.into());
+        let _ = stakes.add_stake(staker_2, 200_000_000_000.into(), 200, 1_000_000_000.into());
+
+        let mut chain_manager = ChainManager::default();
+        chain_manager.chain_state.chain_info = Some(ChainInfo {
+            environment: Environment::default(),
+            consensus_constants: consensus_constants_from_partial(
+                &PartialConsensusConstants::default(),
+                &Testnet,
+            ),
+            highest_block_checkpoint: CheckpointBeacon::default(),
+            highest_superblock_checkpoint: CheckpointBeacon {
+                checkpoint: 0,
+                hash_prev_block: Hash::SHA256([1; 32]),
+            },
+            highest_vrf_output: CheckpointVRF::default(),
+            protocol: ProtocolInfo::default(),
+        });
+        chain_manager.chain_state.stakes = stakes;
+
+        let mut snapshot = ChainStateSnapshot::default();
+        snapshot.take(1, &chain_manager.chain_state);
+
+        assert_eq!(
+            snapshot
+                .previous_chain_state
+                .as_ref()
+                .unwrap()
+                .0
+                .stakes
+                .query_power(pkh_1, Capability::Mining, 300),
+            Ok(20_000)
+        );
+
+        let _ = chain_manager
+            .chain_state
+            .stakes
+            .reset_age(pkh_1, Capability::Mining, 300, 1);
+
+        assert_eq!(
+            chain_manager
+                .chain_state
+                .stakes
+                .query_power(pkh_1, Capability::Mining, 300),
+            Ok(0)
+        );
+
+        // Snapshot should not have changed, but it did
+        assert_ne!(
+            snapshot
+                .previous_chain_state
+                .as_ref()
+                .unwrap()
+                .0
+                .stakes
+                .query_power(pkh_1, Capability::Mining, 300),
+            Ok(20_000)
+        );
+        assert_eq!(
+            snapshot
+                .previous_chain_state
+                .as_ref()
+                .unwrap()
+                .0
+                .stakes
+                .query_power(pkh_1, Capability::Mining, 300),
+            Ok(0)
+        );
+
+        // Use the duplicated stakes tracker in the snapshot struct
+        let (_, previous_stakes_tracker) = snapshot.restore(1).unwrap();
+        assert_eq!(
+            previous_stakes_tracker.query_power(pkh_1, Capability::Mining, 300),
+            Ok(20_000)
+        );
     }
 }
