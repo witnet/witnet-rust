@@ -4601,4 +4601,83 @@ mod tests {
             assert_eq!(chain_manager.transactions_pool.vt_len(), 1);
         });
     }
+
+    #[test]
+    fn test_stakes_tracker_snapshot() {
+        let mut stakes = StakesTracker::default();
+
+        let pkh_1 = pkh(&PRIV_KEY_1);
+        stakes
+            .add_stake(
+                StakeKey {
+                    validator: pkh_1,
+                    withdrawer: pkh_1,
+                },
+                100_000_000_000.into(),
+                100,
+                1_000_000_000.into(),
+            )
+            .unwrap();
+
+        let mut chain_manager = ChainManager::default();
+        chain_manager.chain_state.chain_info = Some(ChainInfo {
+            environment: Environment::default(),
+            consensus_constants: consensus_constants_from_partial(
+                &PartialConsensusConstants::default(),
+                &Testnet,
+            ),
+            highest_block_checkpoint: CheckpointBeacon::default(),
+            highest_superblock_checkpoint: CheckpointBeacon {
+                checkpoint: 0,
+                hash_prev_block: Hash::SHA256([1; 32]),
+            },
+            highest_vrf_output: CheckpointVRF::default(),
+            protocol: ProtocolInfo::default(),
+        });
+        chain_manager.chain_state.stakes = stakes;
+
+        // Take a snapshot
+        let mut snapshot = ChainStateSnapshot::default();
+        snapshot.take(1, &chain_manager.chain_state);
+
+        // Check staker power
+        assert_eq!(
+            snapshot
+                .previous_chain_state
+                .as_ref()
+                .unwrap()
+                .0
+                .stakes
+                .query_power(pkh_1, Capability::Mining, 300),
+            Ok(20_000)
+        );
+
+        // Reset capability age of staker
+        chain_manager
+            .chain_state
+            .stakes
+            .reset_age(pkh_1, Capability::Mining, 300, 1)
+            .unwrap();
+
+        // Check its power is zero
+        assert_eq!(
+            chain_manager
+                .chain_state
+                .stakes
+                .query_power(pkh_1, Capability::Mining, 300),
+            Ok(0)
+        );
+
+        // Power in the snapshotted stakes tracker should not have changed
+        assert_eq!(
+            snapshot
+                .previous_chain_state
+                .as_ref()
+                .unwrap()
+                .0
+                .stakes
+                .query_power(pkh_1, Capability::Mining, 300),
+            Ok(20_000)
+        );
+    }
 }
