@@ -65,6 +65,9 @@ pub struct EpochManager {
 
     /// Last epoch that was checked by the epoch monitor process
     last_checked_epoch: Option<Epoch>,
+
+    /// Last spawned future
+    last_future: SpawnHandle,
 }
 
 impl Drop for EpochManager {
@@ -203,13 +206,13 @@ impl EpochManager {
         )
     }
     /// Method to monitor checkpoints and execute some actions on each
-    fn checkpoint_monitor(&self, ctx: &mut Context<Self>, time_to_next_checkpoint: Duration) {
+    fn checkpoint_monitor(&mut self, ctx: &mut Context<Self>, time_to_next_checkpoint: Duration) {
         // Wait until next checkpoint to execute the periodic function
         log::debug!(
             "Checkpoint monitor: time to next checkpoint: {:?}",
             time_to_next_checkpoint
         );
-        ctx.run_later(time_to_next_checkpoint, move |act, ctx| {
+        self.last_future = ctx.run_later(time_to_next_checkpoint, move |act, ctx| {
             let current_epoch = act.current_epoch();
             log::debug!(
                 "Current epoch {:?}. Last checked epoch {:?}",

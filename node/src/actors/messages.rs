@@ -34,7 +34,7 @@ use witnet_data_structures::{
         UnstakeTransaction, VTTransaction,
     },
     transaction_factory::NodeBalance,
-    types::LastBeacon,
+    types::{LastBeacon, ProtocolVersion},
     utxo_pool::{UtxoInfo, UtxoSelectionStrategy},
     wit::Wit,
 };
@@ -1470,6 +1470,19 @@ pub struct GetProtocolInfo;
 
 impl Message for crate::actors::messages::GetProtocolInfo {
     type Result = Result<Option<ProtocolInfo>, failure::Error>;
+}
+
+/// Message indicating the last beacon received from a peer
+#[derive(Clone, Debug)]
+pub struct SendProtocolVersions {
+    /// Socket address which identifies the peer
+    pub address: SocketAddr,
+    /// Protocol versions received from peer
+    pub protocol_versions: Vec<ProtocolVersion>,
+}
+
+impl Message for SendProtocolVersions {
+    type Result = ();
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
