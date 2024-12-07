@@ -3793,8 +3793,6 @@ pub struct DataRequestInfo {
     pub current_reveal_round: u16,
     /// Current stage, or None if finished
     pub current_stage: Option<DataRequestStage>,
-    /// Too many witnesses requested
-    pub too_many_witnesses: bool,
 }
 
 impl Default for DataRequestInfo {
@@ -3808,7 +3806,6 @@ impl Default for DataRequestInfo {
             current_commit_round: 0,
             current_reveal_round: 0,
             current_stage: Some(DataRequestStage::COMMIT),
-            too_many_witnesses: false,
         }
     }
 }
@@ -3898,10 +3895,6 @@ impl DataRequestState {
         } else {
             Err(DataRequestError::NotTallyStage.into())
         }
-    }
-
-    pub fn set_too_many_witnesses(&mut self) {
-        self.info.too_many_witnesses = true;
     }
 
     /// Advance to the next stage.
