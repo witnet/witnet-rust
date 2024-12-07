@@ -3,6 +3,8 @@ use std::{
     fmt::{Debug, Display},
     iter::Sum,
     ops::{Add, AddAssign, Div, Mul, Rem, Sub},
+    rc::Rc,
+    sync::RwLock,
 };
 
 use itertools::Itertools;
@@ -64,7 +66,7 @@ where
 /// This structure holds indexes of stake entries. Because the entries themselves are reference
 /// counted and write-locked, we can have as many indexes here as we need at a negligible cost.
 #[allow(clippy::type_complexity)]
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Debug, Default, PartialEq)]
 pub struct Stakes<const UNIT: u8, Address, Coins, Epoch, Nonce, Power>
 where
     Address: Clone + Default + Ord,
@@ -81,6 +83,78 @@ where
     /// A listing of all the stake entries, indexed by withdrawer.
     by_withdrawer:
         BTreeMap<Address, Vec<SyncStakeEntry<UNIT, Address, Coins, Epoch, Nonce, Power>>>,
+}
+
+impl<const UNIT: u8, Address, Coins, Epoch, Nonce, Power> Clone
+    for Stakes<UNIT, Address, Coins, Epoch, Nonce, Power>
+where
+    Address: Clone + Debug + Default + Ord + Send + Serialize + Sync + Display + 'static,
+    Coins: Copy
+        + Default
+        + Ord
+        + From<u64>
+        + Into<u64>
+        + num_traits::Zero
+        + Add<Output = Coins>
+        + Sub<Output = Coins>
+        + Mul
+        + Mul<Epoch, Output = Power>
+        + Debug
+        + Send
+        + Sync
+        + Display
+        + Serialize
+        + Sum
+        + Div<Output = Coins>
+        + Rem<Output = Coins>
+        + PrecisionLoss,
+    Epoch: Copy
+        + Default
+        + Saturating
+        + Sub<Output = Epoch>
+        + From<u32>
+        + Debug
+        + Display
+        + Send
+        + Serialize
+        + Sync
+        + Add<Output = Epoch>
+        + Div<Output = Epoch>,
+    Nonce: AddAssign
+        + Copy
+        + Debug
+        + Default
+        + Display
+        + From<u32>
+        + Saturating
+        + Send
+        + Serialize
+        + Sync,
+    Power: Copy
+        + Default
+        + Ord
+        + Add<Output = Power>
+        + Div<Output = Power>
+        + Serialize
+        + Sum
+        + Display,
+    u64: From<Coins> + From<Power>,
+{
+    fn clone(&self) -> Self {
+        let mut stakes = Stakes::default();
+        for (stake_key, stake) in &self.by_key {
+            stakes.by_key.insert(
+                stake_key.clone(),
+                SyncStakeEntry {
+                    key: Rc::new(RwLock::new(stake_key.clone())),
+                    value: Rc::new(RwLock::new(stake.value.read().unwrap().clone())),
+                },
+            );
+        }
+        stakes.reindex();
+
+        stakes
+    }
 }
 
 impl<const UNIT: u8, Address, Coins, Epoch, Nonce, Power>
@@ -1348,5 +1422,54 @@ mod tests {
             .unwrap();
         assert_eq!(stakes.query_nonce(alice_charlie), Ok(1));
         assert_eq!(stakes.query_nonce(bob_david), Ok(3));
+    }
+
+    #[test]
+    fn test_stakes_cloneability() {
+        // First, lets create a setup with a few stakers
+        let mut stakes = StakesTester::default();
+        let alice = "Alice";
+        let bob = "Bob";
+        let charlie = "Charlie";
+        let david = "David";
+
+        // Add some stake and verify the power
+        stakes
+            .add_stake((alice, charlie), 10, 0, MIN_STAKE_NANOWITS)
+            .unwrap();
+        stakes
+            .add_stake((bob, david), 20, 10, MIN_STAKE_NANOWITS)
+            .unwrap();
+        assert_eq!(stakes.query_power(alice, Capability::Mining, 30), Ok(300));
+        assert_eq!(stakes.query_power(bob, Capability::Mining, 30), Ok(400));
+
+        // Clone the stakes structure and verify the power
+        let cloned_stakes = stakes.clone();
+        assert_eq!(
+            cloned_stakes.query_power(alice, Capability::Mining, 30),
+            Ok(300)
+        );
+        assert_eq!(
+            cloned_stakes.query_power(bob, Capability::Mining, 30),
+            Ok(400)
+        );
+
+        // Reset age and verify power
+        stakes.reset_age(alice, Capability::Mining, 25, 1).unwrap();
+        stakes.reset_age(bob, Capability::Mining, 30, 1).unwrap();
+
+        // Power of validators in stakes should have changed
+        assert_eq!(stakes.query_power(alice, Capability::Mining, 30), Ok(50));
+        assert_eq!(stakes.query_power(bob, Capability::Mining, 30), Ok(0));
+
+        // Power of validators in cloned_stakes should have changed
+        assert_eq!(
+            cloned_stakes.query_power(alice, Capability::Mining, 30),
+            Ok(300)
+        );
+        assert_eq!(
+            cloned_stakes.query_power(bob, Capability::Mining, 30),
+            Ok(400)
+        );
     }
 }
