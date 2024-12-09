@@ -313,33 +313,32 @@ where
             .sum())
     }
 
-    /// For a given capability, obtain the full list of stakers ordered by their power in that
-    /// capability.
+    /// For a given capability, obtain the full list of positive stake entries reversely ordered by their power.
     /// TODO: we may memoize the rank by keeping the last one in a non-serializable field in `Self` that keeps a boxed
-    ///  iterator, so that this method doesn't have to sort multiple times if we are calling the `rank` method several
-    ///  times in the same epoch.
-    pub fn rank(
+    ///       iterator, so that this method doesn't have to sort multiple times if we are calling the `rank` method
+    ///       several times in the same epoch.
+    pub fn by_rank(
         &self,
         capability: Capability,
         current_epoch: Epoch,
-    ) -> impl Iterator<Item = (Address, Power)> + '_ {
-        self.by_validator
+    ) -> impl Iterator<Item = (StakeKey<Address>, Power)> + '_ {
+        self.by_key
             .iter()
-            .map(move |(address, stakes)| {
-                let power = stakes
-                    .first()
-                    .unwrap()
-                    .read_value()
-                    .power(capability, current_epoch);
-
-                (address.clone(), power)
+            .filter(|(_, sync_entry)| {
+                sync_entry.read_value().epochs.get(capability) <= current_epoch
             })
-            .sorted_by(|(address_1, power_1), (address_2, power_2)| {
-                // Equal power, compare the addresses to achieve deterministic ordering
+            .map(move |(key, entry)| {
+                (key.clone(), entry.read_value().power(capability, current_epoch))
+            })
+            .sorted_by(|(key_1, power_1), (key_2, power_2)| {
                 if power_1 == power_2 {
-                    address_1.cmp(address_2)
+                    if key_1.validator == key_2.validator {
+                        key_1.withdrawer.cmp(&key_2.withdrawer)
+                    } else {
+                        key_1.validator.cmp(&key_2.validator)
+                    }
                 } else {
-                    power_1.cmp(power_2)
+                    power_1.cmp(&power_2)
                 }
             })
             .rev()
@@ -909,7 +908,7 @@ mod tests {
     #[test]
     fn test_stakes_initialization() {
         let stakes = StakesTester::default();
-        let ranking = stakes.rank(Capability::Mining, 0).collect::<Vec<_>>();
+        let ranking = stakes.by_rank(Capability::Mining, 0).collect::<Vec<_>>();
         assert_eq!(ranking, Vec::default());
     }
 
@@ -1087,19 +1086,19 @@ mod tests {
             Ok(2_100)
         );
         assert_eq!(
-            stakes.rank(Capability::Mining, 100).collect::<Vec<_>>(),
+            stakes.by_rank(Capability::Mining, 100).collect::<Vec<_>>(),
             [
-                (charlie.into(), 2100),
-                (bob.into(), 1600),
+                (charlie_erin.into(), 2100),
+                (bob_david.into(), 1600),
                 (alice.into(), 1000)
             ]
         );
         assert_eq!(
-            stakes.rank(Capability::Witnessing, 100).collect::<Vec<_>>(),
+            stakes.by_rank(Capability::Witnessing, 100).collect::<Vec<_>>(),
             [
-                (charlie.into(), 2100),
-                (bob.into(), 1600),
-                (alice.into(), 1000)
+                (charlie_erin.into(), 2100),
+                (bob_david.into(), 1600),
+                (alice_charlie.into(), 1000)
             ]
         );
 
@@ -1126,19 +1125,19 @@ mod tests {
             Ok(2_130)
         );
         assert_eq!(
-            stakes.rank(Capability::Mining, 101).collect::<Vec<_>>(),
+            stakes.by_rank(Capability::Mining, 101).collect::<Vec<_>>(),
             [
-                (bob.into(), 1_620),
-                (alice.into(), 1_010),
-                (charlie.into(), 0)
+                (bob_david.into(), 1_620),
+                (alice_charlie.into(), 1_010),
+                (charlie_erin.into(), 0)
             ]
         );
         assert_eq!(
-            stakes.rank(Capability::Witnessing, 101).collect::<Vec<_>>(),
+            stakes.by_rank(Capability::Witnessing, 101).collect::<Vec<_>>(),
             [
-                (charlie.into(), 2_130),
-                (bob.into(), 1_620),
-                (alice.into(), 1_010)
+                (charlie_erin.into(), 2_130),
+                (bob_david.into(), 1_620),
+                (alice_charlie.into(), 1_010)
             ]
         );
 
@@ -1167,19 +1166,19 @@ mod tests {
             Ok(8_100)
         );
         assert_eq!(
-            stakes.rank(Capability::Mining, 300).collect::<Vec<_>>(),
+            stakes.by_rank(Capability::Mining, 300).collect::<Vec<_>>(),
             [
-                (charlie.into(), 5_970),
-                (bob.into(), 5_600),
-                (alice.into(), 3_000)
+                (charlie_erin.into(), 5_970),
+                (bob_david.into(), 5_600),
+                (alice_charlie.into(), 3_000)
             ]
         );
         assert_eq!(
-            stakes.rank(Capability::Witnessing, 300).collect::<Vec<_>>(),
+            stakes.by_rank(Capability::Witnessing, 300).collect::<Vec<_>>(),
             [
-                (charlie.into(), 8_100),
-                (bob.into(), 5_600),
-                (alice.into(), 3_000)
+                (charlie_erin.into(), 8_100),
+                (bob_david.into(), 5_600),
+                (alice_charlie.into(), 3_000)
             ]
         );
     }
@@ -1222,10 +1221,10 @@ mod tests {
         //      charlie_david:  30 * (90 - 20) = 2100
         //      david_erin:     40 * (90 - 30) = 2400
         //      erin_alice:     50 * (90 - 40) = 2500
-        let rank_subset: Vec<_> = stakes.rank(Capability::Mining, 90).take(4).collect();
+        let rank_subset: Vec<_> = stakes.by_rank(Capability::Mining, 90).take(4).collect();
         for (i, (validator, _)) in rank_subset.into_iter().enumerate() {
             let _ = stakes.reset_age(
-                validator,
+                validator.validator,
                 Capability::Mining,
                 90,
                 (i + 1).try_into().unwrap(),
