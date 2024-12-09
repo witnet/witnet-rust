@@ -240,7 +240,7 @@ where
             ));
         }
 
-        let mut rank = self.rank(Capability::Witnessing, epoch);
+        let mut rank = self.by_rank(Capability::Witnessing, epoch);
         let (_, max_power) = rank.next().unwrap_or_default();
 
         // Requirement no. 2 from the WIP:
