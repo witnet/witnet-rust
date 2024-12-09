@@ -10,14 +10,12 @@ use actix::{prelude::*, ActorFutureExt, WrapFuture};
 use futures::future::Either;
 
 use witnet_data_structures::{
-    capabilities::Capability,
     chain::{
         tapi::ActiveWips, Block, ChainInfo, ChainState, CheckpointBeacon, DataRequestInfo, Epoch,
         Hash, Hashable, NodeStats, PublicKeyHash, SuperBlockVote, SupplyInfo, ValueTransferOutput,
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
     get_protocol_version,
-    proto::versioning::ProtocolVersion,
     refresh_protocol_version,
     staking::{errors::StakesError, prelude::StakeKey},
     transaction::{
@@ -167,7 +165,6 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                 match self.chain_state {
                     ChainState {
                         reputation_engine: Some(_),
-                        ref mut stakes,
                         ..
                     } => {
                         if self.epoch_constants.is_none() || self.vrf_ctx.is_none() {
@@ -186,35 +183,6 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                         {
                             // Persist block and update ChainState
                             self.consolidate_block(ctx, block, utxo_diff, priorities, false);
-                        } else if msg.checkpoint > 0 {
-                            let previous_epoch = msg.checkpoint - 1;
-                            log::warn!(
-                                "There was no valid block candidate to consolidate for epoch {}",
-                                previous_epoch
-                            );
-                            if ProtocolVersion::from_epoch(previous_epoch) == ProtocolVersion::V2_0
-                            {
-                                let replication_factor = self
-                                    .consensus_constants_wit2
-                                    .get_replication_factor(previous_epoch);
-                                let rank_subset: Vec<_> = stakes
-                                    .rank(Capability::Mining, previous_epoch)
-                                    .take(replication_factor.into())
-                                    .collect();
-                                for (i, (validator, _)) in rank_subset.into_iter().enumerate() {
-                                    log::warn!(
-                                        "Slashed the power of {} as it did not propose a block",
-                                        validator
-                                    );
-                                    let _ = stakes.reset_age(
-                                        validator,
-                                        Capability::Mining,
-                                        msg.checkpoint,
-                                        // This should never fail
-                                        (i + 1).try_into().unwrap(),
-                                    );
-                                }
-                            }
                         }
 
                         // Send last beacon on block consolidation

@@ -1231,13 +1231,8 @@ impl ChainManager {
 
                     // IMPORTANT: Always perform age resets after adding rewards
 
-                    // Reset mining power for miner
-                    log::debug!(
-                        "Resetting mining age for {} to {}",
-                        miner_pkh,
-                        block_epoch + 1,
-                    );
-                    let _ = stakes.reset_age(miner_pkh, Capability::Mining, block_epoch + 1, 1);
+                    // Reset mining power to block proposer, and higher ranked eligible candidates:
+                    let _ = stakes.reset_mining_age(miner_pkh, block_epoch);
 
                     // Reset witnessing power
                     for co_tx in &block.txns.commit_txns {
@@ -2345,7 +2340,7 @@ impl ChainManager {
         let protocol_version = ProtocolVersion::from_epoch(block.block_header.beacon.checkpoint);
         let replication_factor = self
             .consensus_constants_wit2
-            .get_replication_factor(block.block_header.beacon.checkpoint);
+            .get_replication_factor(current_epoch, chain_beacon.checkpoint);
         let res = validate_block(
             &block,
             current_epoch,
@@ -3132,7 +3127,7 @@ pub fn process_validations(
     stakes: &StakesTracker,
     protocol_version: ProtocolVersion,
 ) -> Result<Diff, failure::Error> {
-    let replication_factor = consensus_constants_wit2.get_replication_factor(current_epoch);
+    let replication_factor = consensus_constants_wit2.get_replication_factor(current_epoch, chain_beacon.checkpoint);
     if !resynchronizing {
         let mut signatures_to_verify = vec![];
         validate_block(

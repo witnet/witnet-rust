@@ -117,7 +117,8 @@ where
         + Serialize
         + Sync
         + Add<Output = Epoch>
-        + Div<Output = Epoch>,
+        + Div<Output = Epoch>
+        + PartialOrd,
     Nonce: AddAssign
         + Copy
         + Debug
@@ -197,8 +198,8 @@ where
         capability: Capability,
         epoch: Epoch,
         strategy: CensusStrategy,
-    ) -> Box<dyn Iterator<Item = Address> + '_> {
-        let iterator = self.rank(capability, epoch).map(|(address, _)| address);
+    ) -> Box<dyn Iterator<Item = StakeKey<Address>> + '_> {
+        let iterator = self.by_rank(capability, epoch).map(|(address, _)| address);
 
         match strategy {
             CensusStrategy::All => Box::new(iterator),
@@ -238,33 +239,32 @@ where
             .sum())
     }
 
-    /// For a given capability, obtain the full list of stakers ordered by their power in that
-    /// capability.
+    /// For a given capability, obtain the full list of positive stake entries reversely ordered by their power.
     /// TODO: we may memoize the rank by keeping the last one in a non-serializable field in `Self` that keeps a boxed
-    ///  iterator, so that this method doesn't have to sort multiple times if we are calling the `rank` method several
-    ///  times in the same epoch.
-    pub fn rank(
+    ///       iterator, so that this method doesn't have to sort multiple times if we are calling the `rank` method 
+    ///       several times in the same epoch.
+    pub fn by_rank(
         &self,
         capability: Capability,
         current_epoch: Epoch,
-    ) -> impl Iterator<Item = (Address, Power)> + '_ {
-        self.by_validator
+    ) -> impl Iterator<Item = (StakeKey<Address>, Power)> + '_ {
+        self.by_key
             .iter()
-            .map(move |(address, stakes)| {
-                let power = stakes
-                    .first()
-                    .unwrap()
-                    .read_value()
-                    .power(capability, current_epoch);
-
-                (address.clone(), power)
+            .filter(|(_, sync_entry)| {
+                sync_entry.read_value().epochs.get(capability) <= current_epoch
             })
-            .sorted_by(|(address_1, power_1), (address_2, power_2)| {
-                // Equal power, compare the addresses to achieve deterministic ordering
+            .map(move |(key, entry)| {
+                (key.clone(), entry.read_value().power(capability, current_epoch))
+            })
+            .sorted_by(|(key_1, power_1), (key_2, power_2)| {
                 if power_1 == power_2 {
-                    address_1.cmp(address_2)
+                    if key_1.validator == key_2.validator {
+                        key_1.withdrawer.cmp(&key_2.withdrawer)
+                    } else {
+                        key_1.validator.cmp(&key_2.validator)
+                    }
                 } else {
-                    power_1.cmp(power_2)
+                    power_1.cmp(&power_2)
                 }
             })
             .rev()
@@ -337,6 +337,50 @@ where
         } else {
             Err(StakesError::EntryNotFound { key })
         }
+    }
+
+    /// First, order stake entries by mining power rank, as to find first occurance for given validator.
+    /// Once found, update the entry's mining epoch on that stake entry and all others with a better mining rank.
+    /// The better the rank, the more in the future will the entry's next mining epoch be set to.
+    pub fn reset_mining_age<ISK>(
+        &mut self,
+        validator: ISK,
+        current_epoch: Epoch
+    ) -> StakesResult<(), Address, Coins, Epoch>
+    where
+        ISK: Into<Address>,
+    {
+        let validator = validator.into();
+
+        // order mining stake entries by rank, as for given current_epoch:
+        let mut by_rank = self.by_rank(Capability::Mining, current_epoch);
+        
+        // locate first entry whose validator matches the one searched for:
+        let winner_rank = by_rank.position(move |(key, _)| key.validator == validator);
+        
+        if let Some(winner_rank) = winner_rank {
+            let stakers: Vec<StakeKey<Address>> = by_rank
+                .take(winner_rank + 1)
+                .map(|(key, _)| key)
+                .collect();
+            // proportionally reset coin age on located entry and all those with a better mining rank:
+            let mut index: usize = 0;
+            stakers.iter().for_each(|key| {
+                let stake_entry = self.by_key.get_mut(key);
+                if let Some(stake_entry) = stake_entry {
+                    let penalty_epochs = Epoch::from((1 + winner_rank - index) as u32);
+                    log::debug!("Delaying {} as block candidate during +{} epochs", key, penalty_epochs);
+                    stake_entry
+                        .value
+                        .write()
+                        .unwrap()
+                        .reset_age(Capability::Mining, current_epoch + penalty_epochs);
+                }
+                index += 1;
+            });
+        }
+
+        Ok(())
     }
 
     /// Set the epoch for a certain address and capability. Most normally, the epoch is the current
@@ -635,7 +679,8 @@ where
         + Serialize
         + Sync
         + Add<Output = Epoch>
-        + Div<Output = Epoch>,
+        + Div<Output = Epoch>
+        + PartialOrd,
     Nonce: AddAssign
         + Copy
         + Debug
@@ -696,7 +741,8 @@ where
         + Serialize
         + Sync
         + Add<Output = Epoch>
-        + Div<Output = Epoch>,
+        + Div<Output = Epoch>
+        + PartialOrd,
     Nonce: AddAssign
         + Copy
         + Debug
@@ -755,7 +801,8 @@ where
         + Sync
         + Display
         + Add<Output = Epoch>
-        + Div<Output = Epoch>,
+        + Div<Output = Epoch>
+        + PartialOrd,
     Nonce: AddAssign
         + Copy
         + Debug
@@ -798,7 +845,8 @@ where
         + Sync
         + Display
         + Add<Output = Epoch>
-        + Div<Output = Epoch>,
+        + Div<Output = Epoch>
+        + PartialOrd,
     Nonce: AddAssign
         + Copy
         + Debug
@@ -830,7 +878,7 @@ mod tests {
     #[test]
     fn test_stakes_initialization() {
         let stakes = StakesTester::default();
-        let ranking = stakes.rank(Capability::Mining, 0).collect::<Vec<_>>();
+        let ranking = stakes.by_rank(Capability::Mining, 0).collect::<Vec<_>>();
         assert_eq!(ranking, Vec::default());
     }
 
@@ -1008,19 +1056,19 @@ mod tests {
             Ok(2_100)
         );
         assert_eq!(
-            stakes.rank(Capability::Mining, 100).collect::<Vec<_>>(),
+            stakes.by_rank(Capability::Mining, 100).collect::<Vec<_>>(),
             [
-                (charlie.into(), 2100),
-                (bob.into(), 1600),
+                (charlie_erin.into(), 2100),
+                (bob_david.into(), 1600),
                 (alice.into(), 1000)
             ]
         );
         assert_eq!(
-            stakes.rank(Capability::Witnessing, 100).collect::<Vec<_>>(),
+            stakes.by_rank(Capability::Witnessing, 100).collect::<Vec<_>>(),
             [
-                (charlie.into(), 2100),
-                (bob.into(), 1600),
-                (alice.into(), 1000)
+                (charlie_erin.into(), 2100),
+                (bob_david.into(), 1600),
+                (alice_charlie.into(), 1000)
             ]
         );
 
@@ -1047,19 +1095,19 @@ mod tests {
             Ok(2_130)
         );
         assert_eq!(
-            stakes.rank(Capability::Mining, 101).collect::<Vec<_>>(),
+            stakes.by_rank(Capability::Mining, 101).collect::<Vec<_>>(),
             [
-                (bob.into(), 1_620),
-                (alice.into(), 1_010),
-                (charlie.into(), 0)
+                (bob_david.into(), 1_620),
+                (alice_charlie.into(), 1_010),
+                (charlie_erin.into(), 0)
             ]
         );
         assert_eq!(
-            stakes.rank(Capability::Witnessing, 101).collect::<Vec<_>>(),
+            stakes.by_rank(Capability::Witnessing, 101).collect::<Vec<_>>(),
             [
-                (charlie.into(), 2_130),
-                (bob.into(), 1_620),
-                (alice.into(), 1_010)
+                (charlie_erin.into(), 2_130),
+                (bob_david.into(), 1_620),
+                (alice_charlie.into(), 1_010)
             ]
         );
 
@@ -1088,19 +1136,19 @@ mod tests {
             Ok(8_100)
         );
         assert_eq!(
-            stakes.rank(Capability::Mining, 300).collect::<Vec<_>>(),
+            stakes.by_rank(Capability::Mining, 300).collect::<Vec<_>>(),
             [
-                (charlie.into(), 5_970),
-                (bob.into(), 5_600),
-                (alice.into(), 3_000)
+                (charlie_erin.into(), 5_970),
+                (bob_david.into(), 5_600),
+                (alice_charlie.into(), 3_000)
             ]
         );
         assert_eq!(
-            stakes.rank(Capability::Witnessing, 300).collect::<Vec<_>>(),
+            stakes.by_rank(Capability::Witnessing, 300).collect::<Vec<_>>(),
             [
-                (charlie.into(), 8_100),
-                (bob.into(), 5_600),
-                (alice.into(), 3_000)
+                (charlie_erin.into(), 8_100),
+                (bob_david.into(), 5_600),
+                (alice_charlie.into(), 3_000)
             ]
         );
     }
@@ -1143,10 +1191,10 @@ mod tests {
         //      charlie_david:  30 * (90 - 20) = 2100
         //      david_erin:     40 * (90 - 30) = 2400
         //      erin_alice:     50 * (90 - 40) = 2500
-        let rank_subset: Vec<_> = stakes.rank(Capability::Mining, 90).take(4).collect();
+        let rank_subset: Vec<_> = stakes.by_rank(Capability::Mining, 90).take(4).collect();
         for (i, (validator, _)) in rank_subset.into_iter().enumerate() {
             let _ = stakes.reset_age(
-                validator,
+                validator.validator,
                 Capability::Mining,
                 90,
                 (i + 1).try_into().unwrap(),
