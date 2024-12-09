@@ -272,8 +272,8 @@ where
         capability: Capability,
         epoch: Epoch,
         strategy: CensusStrategy,
-    ) -> Box<dyn Iterator<Item = Address> + '_> {
-        let iterator = self.rank(capability, epoch).map(|(address, _)| address);
+    ) -> Box<dyn Iterator<Item = StakeKey<Address>> + '_> {
+        let iterator = self.by_rank(capability, epoch).map(|(address, _)| address);
 
         match strategy {
             CensusStrategy::All => Box::new(iterator),
