@@ -158,8 +158,8 @@ where
     }
 
     /// Set the epoch for a certain capability. Most normally, the epoch is the current epoch.
-    pub fn reset_age(&mut self, capability: Capability, current_epoch: Epoch) {
-        self.epochs.update(capability, current_epoch);
+    pub fn reset_age(&mut self, capability: Capability, reset_epoch: Epoch) {
+        self.epochs.update(capability, reset_epoch);
     }
 }
 

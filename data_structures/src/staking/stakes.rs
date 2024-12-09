@@ -413,6 +413,50 @@ where
         }
     }
 
+    /// First, order stake entries by mining power rank, as to find first occurance for given validator.
+    /// Once found, update the entry's mining epoch on that stake entry and all others with a better mining rank.
+    /// The better the rank, the more in the future will the entry's next mining epoch be set to.
+    pub fn reset_mining_age<ISK>(
+        &mut self,
+        validator: ISK,
+        current_epoch: Epoch
+    ) -> StakesResult<(), Address, Coins, Epoch>
+    where
+        ISK: Into<Address>,
+    {
+        let validator = validator.into();
+
+        // order mining stake entries by rank, as for given current_epoch:
+        let mut by_rank = self.by_rank(Capability::Mining, current_epoch);
+        
+        // locate first entry whose validator matches the one searched for:
+        let winner_rank = by_rank.position(move |(key, _)| key.validator == validator);
+        
+        if let Some(winner_rank) = winner_rank {
+            let stakers: Vec<StakeKey<Address>> = by_rank
+                .take(winner_rank + 1)
+                .map(|(key, _)| key)
+                .collect();
+            // proportionally reset coin age on located entry and all those with a better mining rank:
+            let mut index: usize = 0;
+            stakers.iter().for_each(|key| {
+                let stake_entry = self.by_key.get_mut(key);
+                if let Some(stake_entry) = stake_entry {
+                    let penalty_epochs = Epoch::from((1 + winner_rank - index) as u32);
+                    log::debug!("Delaying {} as block candidate during +{} epochs", key, penalty_epochs);
+                    stake_entry
+                        .value
+                        .write()
+                        .unwrap()
+                        .reset_age(Capability::Mining, current_epoch + penalty_epochs);
+                }
+                index += 1;
+            });
+        }
+
+        Ok(())
+    }
+
     /// Set the epoch for a certain address and capability. Most normally, the epoch is the current
     /// epoch.
     pub fn reset_age<ISK>(
