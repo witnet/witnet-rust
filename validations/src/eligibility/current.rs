@@ -173,38 +173,25 @@ where
     where
         ISK: Into<Address>,
     {
-        let power = match self.query_power(validator, Capability::Mining, epoch) {
-            Ok(p) => p,
-            Err(e) => {
-                // Early exit if the stake key does not exist
-                return match e {
-                    StakesError::ValidatorNotFound { .. } => {
-                        Ok(IneligibilityReason::NotStaking.into())
-                    }
-                    e => Err(e),
-                };
-            }
+        let validator: Address = validator.into();
+
+        // Cap replication factor to 2/3rds of total stake entries count
+        let max_replication_factor = u16::try_from((((self.stakes_count() * 2) as f64) / 3.0) as u32).unwrap_or(u16::MAX);
+        let replication_factor = if replication_factor > max_replication_factor {
+            max_replication_factor
+        } else {
+            replication_factor
         };
 
-        // Validators with power 0 should not be eligible to mine a block
-        if power == Power::from(0) {
-            return Ok(IneligibilityReason::InsufficientPower.into());
-        }
-
-        // Requirement no. 2 from the WIP:
-        //  "the mining power of the block proposer is in the `rf / stakers`th quantile among the mining powers of all
-        //  the stakers"
-        // TODO: verify if defaulting to 0 makes sense
-        let mut rank = self.rank(Capability::Mining, epoch);
-        let (_, threshold) = rank
-            .nth((replication_factor - 1).into())
-            .unwrap_or_default();
-        if power < threshold {
-            return Ok(IneligibilityReason::InsufficientPower.into());
-        }
-
-        // If all the requirements are met, we can deem it as eligible
-        Ok(Eligible::Yes)
+        Ok(
+            match self.by_rank(Capability::Mining, epoch)
+                .take(replication_factor as usize)
+                .find(|(key, _)| key.validator == validator)
+            {
+                Some(_) => Eligible::Yes,
+                None => IneligibilityReason::InsufficientPower.into()
+            }
+        )
     }
 
     fn witnessing_eligibility<ISK>(
