@@ -121,7 +121,7 @@ impl ChainManager {
         let target_hash = if protocol_version == V2_0 {
             let replication_factor = self
                 .consensus_constants_wit2
-                .get_replication_factor(current_epoch);
+                .get_replication_factor(current_epoch, chain_info.highest_block_checkpoint.checkpoint);
             let eligibility = self
                 .chain_state
                 .stakes
