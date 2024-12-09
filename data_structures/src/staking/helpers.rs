@@ -365,7 +365,8 @@ where
         + Sub<Output = Epoch>
         + Sync
         + Add<Output = Epoch>
-        + Div<Output = Epoch>,
+        + Div<Output = Epoch>
+        + PartialOrd,
     Nonce: AddAssign
         + Copy
         + Debug
@@ -448,7 +449,8 @@ where
         + Sub<Output = Epoch>
         + Sync
         + Add<Output = Epoch>
-        + Div<Output = Epoch>,
+        + Div<Output = Epoch>
+        + PartialOrd,
     Nonce: AddAssign
         + Copy
         + Debug
