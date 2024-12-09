@@ -117,7 +117,8 @@ where
         + Serialize
         + Sync
         + Add<Output = Epoch>
-        + Div<Output = Epoch>,
+        + Div<Output = Epoch>
+        + PartialOrd,
     Nonce: AddAssign
         + Copy
         + Debug
@@ -635,7 +636,8 @@ where
         + Serialize
         + Sync
         + Add<Output = Epoch>
-        + Div<Output = Epoch>,
+        + Div<Output = Epoch>
+        + PartialOrd,
     Nonce: AddAssign
         + Copy
         + Debug
@@ -696,7 +698,8 @@ where
         + Serialize
         + Sync
         + Add<Output = Epoch>
-        + Div<Output = Epoch>,
+        + Div<Output = Epoch>
+        + PartialOrd,
     Nonce: AddAssign
         + Copy
         + Debug
@@ -755,7 +758,8 @@ where
         + Sync
         + Display
         + Add<Output = Epoch>
-        + Div<Output = Epoch>,
+        + Div<Output = Epoch>
+        + PartialOrd,
     Nonce: AddAssign
         + Copy
         + Debug
@@ -798,7 +802,8 @@ where
         + Sync
         + Display
         + Add<Output = Epoch>
-        + Div<Output = Epoch>,
+        + Div<Output = Epoch>
+        + PartialOrd,
     Nonce: AddAssign
         + Copy
         + Debug

@@ -138,6 +138,7 @@ where
         + Sync
         + Send
         + Serialize
+        + PartialOrd
         + 'static,
     Nonce: Copy
         + Debug
