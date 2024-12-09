@@ -311,9 +311,14 @@ impl ConsensusConstantsWit2 {
     }
 
     /// Replication factor for data request solving
-    pub fn get_replication_factor(self, epoch: Epoch) -> u16 {
+    pub fn get_replication_factor(self, epoch: Epoch, prev_epoch: Epoch) -> u16 {
         if get_protocol_version(Some(epoch)) >= ProtocolVersion::V2_0 {
-            4
+            // linearly increasing replication factor
+            return if epoch >= prev_epoch {
+                u16::try_from(12 * (epoch - prev_epoch)).unwrap_or(u16::MAX)
+            } else {
+                0
+            }
         } else {
             0
         }
