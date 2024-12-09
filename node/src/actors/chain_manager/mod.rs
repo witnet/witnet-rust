@@ -1231,13 +1231,8 @@ impl ChainManager {
 
                     // IMPORTANT: Always perform age resets after adding rewards
 
-                    // Reset mining power for miner
-                    log::debug!(
-                        "Resetting mining age for {} to {}",
-                        miner_pkh,
-                        block_epoch + 1,
-                    );
-                    let _ = stakes.reset_age(miner_pkh, Capability::Mining, block_epoch + 1, 1);
+                    // Reset mining power to block proposer, and higher ranked eligible candidates:
+                    let _ = stakes.reset_mining_age(miner_pkh, block_epoch);
 
                     // Reset witnessing power
                     for co_tx in &block.txns.commit_txns {
