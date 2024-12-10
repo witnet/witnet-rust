@@ -310,7 +310,8 @@ where
             .map(|stake| stake.read_value().power(capability, epoch))
             .collect::<Vec<Power>>()
             .into_iter()
-            .sum())
+            .max()
+            .unwrap_or_default())
     }
 
     /// For a given capability, obtain the full list of positive stake entries reversely ordered by their power.
