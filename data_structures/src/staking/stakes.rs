@@ -430,7 +430,7 @@ where
         let mut by_rank = self.by_rank(Capability::Mining, current_epoch);
 
         // locate first entry whose validator matches the one searched for:
-        let winner_rank = by_rank.position(move |(key, _)| key.validator == validator);
+        let winner_rank = by_rank.position(|(key, _)| key.validator == validator);
 
         if let Some(winner_rank) = winner_rank {
             let stakers: Vec<StakeKey<Address>> = by_rank
@@ -443,7 +443,7 @@ where
                 let stake_entry = self.by_key.get_mut(key);
                 if let Some(stake_entry) = stake_entry {
                     let penalty_epochs = Epoch::from((1 + winner_rank - index) as u32);
-                    log::debug!("Delaying {} as block candidate during +{} epochs", key, penalty_epochs);
+                    log::debug!("Disabling mining power of {} during +{} epochs", key, penalty_epochs);
                     stake_entry
                         .value
                         .write()
