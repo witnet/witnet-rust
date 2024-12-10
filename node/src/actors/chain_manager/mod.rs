@@ -2325,6 +2325,7 @@ impl ChainManager {
     pub fn future_process_validations(
         &mut self,
         block: Block,
+        previous_block_epoch: Epoch,
         current_epoch: Epoch,
         vrf_input: CheckpointVRF,
         chain_beacon: CheckpointBeacon,
@@ -2340,7 +2341,7 @@ impl ChainManager {
         let protocol_version = ProtocolVersion::from_epoch(block.block_header.beacon.checkpoint);
         let replication_factor = self
             .consensus_constants_wit2
-            .get_replication_factor(current_epoch, chain_beacon.checkpoint);
+            .get_replication_factor(block.block_header.beacon.checkpoint, previous_block_epoch);
         let res = validate_block(
             &block,
             current_epoch,
@@ -3127,7 +3128,7 @@ pub fn process_validations(
     stakes: &StakesTracker,
     protocol_version: ProtocolVersion,
 ) -> Result<Diff, failure::Error> {
-    let replication_factor = consensus_constants_wit2.get_replication_factor(current_epoch, chain_beacon.checkpoint);
+    let replication_factor = consensus_constants_wit2.get_replication_factor(block.block_header.beacon.checkpoint, chain_beacon.checkpoint);
     if !resynchronizing {
         let mut signatures_to_verify = vec![];
         validate_block(
