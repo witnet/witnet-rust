@@ -444,7 +444,10 @@ where
                 let stake_entry = self.by_key.get_mut(key);
                 if let Some(stake_entry) = stake_entry {
                     let penalty_epochs = Epoch::from((1 + winner_rank - index) as u32);
-                    log::debug!("Disabling mining power of {} during +{} epochs", key, penalty_epochs);
+                    log::info!(
+                        "Resetting and disabling mining power of {} (ranked as #{}) during +{} epochs",
+                        key, index + 1, penalty_epochs
+                    );
                     stake_entry
                         .value
                         .write()

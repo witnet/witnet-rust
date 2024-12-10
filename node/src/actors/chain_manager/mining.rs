@@ -110,6 +110,7 @@ impl ChainManager {
         let checkpoint_zero_timestamp = chain_info.consensus_constants.checkpoint_zero_timestamp;
         let halving_period = chain_info.consensus_constants.halving_period;
 
+        let previous_block_epoch = chain_info.highest_block_checkpoint.checkpoint;
         let mut beacon = chain_info.highest_block_checkpoint;
         let mut vrf_input = chain_info.highest_vrf_output;
         let protocol_version = get_protocol_version(self.current_epoch);
@@ -251,6 +252,7 @@ impl ChainManager {
             .and_then(move |block, act, _ctx| {
                 act.future_process_validations(
                     block.clone(),
+                    previous_block_epoch,
                     current_epoch,
                     vrf_input,
                     beacon,
