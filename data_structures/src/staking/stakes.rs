@@ -119,7 +119,8 @@ where
         + Serialize
         + Sync
         + Add<Output = Epoch>
-        + Div<Output = Epoch>,
+        + Div<Output = Epoch>
+        + PartialOrd,
     Nonce: AddAssign
         + Copy
         + Debug
@@ -191,8 +192,7 @@ where
         + Serialize
         + Sync
         + Add<Output = Epoch>
-        + Div<Output = Epoch>
-        + PartialOrd,
+        + Div<Output = Epoch>,
     Nonce: AddAssign
         + Copy
         + Debug
@@ -428,7 +428,6 @@ where
         let validator = validator.into();
 
         // order mining stake entries by rank, as for given current_epoch:
-        // let stakes_clone = self.clone();
         let by_rank = self.by_rank(Capability::Mining, current_epoch);
 
         // locate first entry whose validator matches the one searched for:
@@ -446,7 +445,7 @@ where
                 if let Some(stake_entry) = stake_entry {
                     let penalty_epochs = Epoch::from((1 + winner_rank - index) as u32);
                     log::debug!(
-                        "Resetting mining power of {} (ranked as #{}) during +{} epochs to {}",
+                        "Resetting mining power of {} (ranked as #{}) during +{} epochs until {}",
                         key,
                         index + 1,
                         penalty_epochs,
@@ -1484,6 +1483,55 @@ mod tests {
             .unwrap();
         assert_eq!(stakes.query_nonce(alice_charlie), Ok(1));
         assert_eq!(stakes.query_nonce(bob_david), Ok(3));
+    }
+
+    #[test]
+    fn test_stakes_cloneability() {
+        // First, lets create a setup with a few stakers
+        let mut stakes = StakesTester::default();
+        let alice = "Alice";
+        let bob = "Bob";
+        let charlie = "Charlie";
+        let david = "David";
+
+        // Add some stake and verify the power
+        stakes
+            .add_stake((alice, charlie), 10, 0, MIN_STAKE_NANOWITS)
+            .unwrap();
+        stakes
+            .add_stake((bob, david), 20, 10, MIN_STAKE_NANOWITS)
+            .unwrap();
+        assert_eq!(stakes.query_power(alice, Capability::Mining, 30), Ok(300));
+        assert_eq!(stakes.query_power(bob, Capability::Mining, 30), Ok(400));
+
+        // Clone the stakes structure and verify the power
+        let cloned_stakes = stakes.clone();
+        assert_eq!(
+            cloned_stakes.query_power(alice, Capability::Mining, 30),
+            Ok(300)
+        );
+        assert_eq!(
+            cloned_stakes.query_power(bob, Capability::Mining, 30),
+            Ok(400)
+        );
+
+        // Reset age and verify power
+        stakes.reset_age(alice, Capability::Mining, 25, 1).unwrap();
+        stakes.reset_age(bob, Capability::Mining, 30, 1).unwrap();
+
+        // Power of validators in stakes should have changed
+        assert_eq!(stakes.query_power(alice, Capability::Mining, 30), Ok(50));
+        assert_eq!(stakes.query_power(bob, Capability::Mining, 30), Ok(0));
+
+        // Power of validators in cloned_stakes should have changed
+        assert_eq!(
+            cloned_stakes.query_power(alice, Capability::Mining, 30),
+            Ok(300)
+        );
+        assert_eq!(
+            cloned_stakes.query_power(bob, Capability::Mining, 30),
+            Ok(400)
+        );
     }
 
     #[test]

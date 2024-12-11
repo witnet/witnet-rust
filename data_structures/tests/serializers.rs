@@ -310,6 +310,7 @@ fn message_version_to_bytes() {
             user_agent: "asdf".to_string(),
             nonce: 1,
             beacon,
+            protocol_versions: vec![],
         }),
         magic: 1,
     };
@@ -357,6 +358,7 @@ fn message_version_from_bytes() {
             user_agent: "asdf".to_string(),
             nonce: 1,
             beacon,
+            protocol_versions: vec![],
         }),
         magic: 1,
     };
@@ -404,6 +406,7 @@ fn message_version_encode_decode() {
             user_agent: "asdf".to_string(),
             nonce: 1,
             beacon,
+            protocol_versions: vec![],
         }),
         magic: 1,
     };
