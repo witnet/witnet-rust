@@ -339,7 +339,7 @@ where
                         key_1.validator.cmp(&key_2.validator)
                     }
                 } else {
-                    power_1.cmp(&power_2)
+                    power_1.cmp(power_2)
                 }
             })
             .rev()
@@ -439,11 +439,13 @@ where
             let stakers: Vec<StakeKey<Address>> =
                 by_rank.take(winner_rank + 1).map(|(key, _)| key).collect();
             // proportionally reset coin age on located entry and all those with a better mining rank:
-            let mut index: usize = 0;
-            stakers.iter().for_each(|key| {
+            for (index, key) in stakers.iter().enumerate() {
                 let stake_entry = self.by_key.get_mut(key);
                 if let Some(stake_entry) = stake_entry {
-                    let penalty_epochs = Epoch::from((1 + winner_rank - index) as u32);
+                    let penalty_epochs = Epoch::from(
+                        u32::try_from(1 + winner_rank - index)
+                            .expect("Validator ranks should not overflow u32"),
+                    );
                     log::debug!(
                         "Resetting mining power of {} (ranked as #{}) during +{} epochs until {}",
                         key,
@@ -457,8 +459,7 @@ where
                         .unwrap()
                         .reset_age(Capability::Mining, current_epoch + penalty_epochs);
                 }
-                index += 1;
-            });
+            }
         }
 
         Ok(())

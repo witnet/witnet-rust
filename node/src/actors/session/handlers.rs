@@ -858,7 +858,9 @@ fn recalculate_epoch(
     match wit2_protocol_version {
         Some(protocol) => {
             let seconds_to_wit2 = protocol.activation_epoch * u32::from(checkpoints_period);
-            let seconds_since_wit2 = time_since_genesis as u32 - seconds_to_wit2;
+            let seconds_since_wit2 = u32::try_from(time_since_genesis)
+                .expect("Time since genesis should fit in a u32")
+                - seconds_to_wit2;
             let epochs_since_wit2 = seconds_since_wit2 / u32::from(protocol.checkpoint_period);
 
             protocol.activation_epoch + epochs_since_wit2

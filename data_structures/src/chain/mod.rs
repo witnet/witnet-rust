@@ -314,11 +314,11 @@ impl ConsensusConstantsWit2 {
     pub fn get_replication_factor(self, epoch: Epoch, prev_epoch: Epoch) -> u16 {
         if get_protocol_version(Some(epoch)) >= ProtocolVersion::V2_0 {
             // linearly increasing replication factor
-            return if epoch >= prev_epoch {
+            if epoch >= prev_epoch {
                 4u16.saturating_mul(2u16.saturating_pow(epoch - prev_epoch))
             } else {
                 0
-            };
+            }
         } else {
             0
         }

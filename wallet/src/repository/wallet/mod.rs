@@ -65,7 +65,7 @@ pub struct WalletUtxos<'a> {
     pub selected_utxos: HashSet<model::OutPtr>,
 }
 
-impl<'a> OutputsCollection for WalletUtxos<'a> {
+impl OutputsCollection for WalletUtxos<'_> {
     fn sort_by(&self, strategy: &UtxoSelectionStrategy) -> Vec<OutputPointer> {
         let filter_utxos = |out_ptr: &model::OutPtr| {
             let pointer: OutputPointer = out_ptr.into();

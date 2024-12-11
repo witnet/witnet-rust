@@ -478,7 +478,7 @@ impl FromStr for GetBalanceTarget {
 
 struct GetBalanceTargetVisitor;
 
-impl<'de> serde::de::Visitor<'de> for GetBalanceTargetVisitor {
+impl serde::de::Visitor<'_> for GetBalanceTargetVisitor {
     type Value = GetBalanceTarget;
 
     fn expecting(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
@@ -668,7 +668,6 @@ impl Message for Rewind {
 }
 
 /** Commands for exporting and importing chain state snapshots **/
-
 /// Create and export a snapshot of the current chain state.
 pub struct SnapshotExport {
     /// The output path where the snapshot file should be written to.

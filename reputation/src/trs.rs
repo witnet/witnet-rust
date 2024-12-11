@@ -466,7 +466,7 @@ mod tests {
     }
     // Constant: lose a fixed amount of reputation (stopping at 0)
     fn cnst(x: u32) -> impl Fn(Reputation) -> Reputation {
-        move |Reputation(r)| Reputation(if r > x { r - x } else { 0 })
+        move |Reputation(r)| Reputation(r.saturating_sub(x))
     }
 
     #[test]
