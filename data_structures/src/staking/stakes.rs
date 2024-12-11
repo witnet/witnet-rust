@@ -322,12 +322,9 @@ where
         &self,
         capability: Capability,
         current_epoch: Epoch,
-    ) -> impl Iterator<Item = (StakeKey<Address>, Power)> + '_ {
+    ) -> impl Iterator<Item = (StakeKey<Address>, Power)> + Clone + '_ {
         self.by_key
             .iter()
-            .filter(|(_, sync_entry)| {
-                sync_entry.read_value().epochs.get(capability) <= current_epoch
-            })
             .map(move |(key, entry)| {
                 (key.clone(), entry.read_value().power(capability, current_epoch))
             })
@@ -428,10 +425,10 @@ where
         let validator = validator.into();
 
         // order mining stake entries by rank, as for given current_epoch:
-        let mut by_rank = self.by_rank(Capability::Mining, current_epoch);
+        let by_rank = self.by_rank(Capability::Mining, current_epoch);
 
         // locate first entry whose validator matches the one searched for:
-        let winner_rank = by_rank.position(|(key, _)| key.validator == validator);
+        let winner_rank = by_rank.clone().position(|(key, _)| key.validator == validator);
 
         if let Some(winner_rank) = winner_rank {
             let stakers: Vec<StakeKey<Address>> = by_rank
@@ -444,9 +441,9 @@ where
                 let stake_entry = self.by_key.get_mut(key);
                 if let Some(stake_entry) = stake_entry {
                     let penalty_epochs = Epoch::from((1 + winner_rank - index) as u32);
-                    log::info!(
-                        "Resetting and disabling mining power of {} (ranked as #{}) during +{} epochs",
-                        key, index + 1, penalty_epochs
+                    log::debug!(
+                        "Resetting mining power of {} (ranked as #{}) during +{} epochs until {}",
+                        key, index + 1, penalty_epochs, current_epoch + penalty_epochs
                     );
                     stake_entry
                         .value
@@ -1522,6 +1519,108 @@ mod tests {
         assert_eq!(
             cloned_stakes.query_power(bob, Capability::Mining, 30),
             Ok(400)
+        );
+    }
+
+    #[test]
+    fn test_reset_mining_age() {
+        // First, lets create a setup with a few stakers
+        let mut stakes = StakesTester::default();
+        let alice = "Alice";
+        let bob = "Bob";
+        let charlie = "Charlie";
+        let david = "David";
+
+        let alice_alice = (alice, alice);
+        let bob_alice = (bob, alice);
+        let charlie_charlie = (charlie, charlie);
+        let david_charlie = (david, charlie);
+
+        // Add some stake and verify the power
+        stakes
+            .add_stake(alice_alice, 10, 0, MIN_STAKE_NANOWITS)
+            .unwrap();
+        stakes
+            .add_stake(bob_alice, 20, 0, MIN_STAKE_NANOWITS)
+            .unwrap();
+        stakes
+            .add_stake(charlie_charlie, 30, 10, MIN_STAKE_NANOWITS)
+            .unwrap();
+        stakes
+            .add_stake(david_charlie, 40, 10, MIN_STAKE_NANOWITS)
+            .unwrap();
+        assert_eq!(
+            stakes.by_rank(Capability::Mining, 30).collect::<Vec<_>>(),
+            [
+                (david_charlie.into(), 800),
+                (charlie_charlie.into(), 600),
+                (bob_alice.into(), 600),
+                (alice_alice.into(), 300),
+            ]
+        );
+
+        stakes.reset_mining_age(david, 30).unwrap();
+
+        assert_eq!(
+            stakes.by_rank(Capability::Mining, 31).collect::<Vec<_>>(),
+            [
+                (charlie_charlie.into(), 630),
+                (bob_alice.into(), 620),
+                (alice_alice.into(), 310),
+                (david_charlie.into(), 0),
+            ]
+        );
+
+        assert_eq!(
+            stakes.by_rank(Capability::Mining, 50).collect::<Vec<_>>(),
+            [
+                (charlie_charlie.into(), 1_200),
+                (bob_alice.into(), 1_000),
+                (david_charlie.into(), 760),
+                (alice_alice.into(), 500),
+            ]
+        );
+
+        stakes.reset_mining_age(david, 50).unwrap();
+
+        assert_eq!(
+            stakes.by_rank(Capability::Mining, 51).collect::<Vec<_>>(),
+            [
+                (alice_alice.into(), 510),
+                (david_charlie.into(), 0),
+                (charlie_charlie.into(), 0),
+                (bob_alice.into(), 0),
+            ]
+        );
+
+        assert_eq!(
+            stakes.by_rank(Capability::Mining, 52).collect::<Vec<_>>(),
+            [
+                (alice_alice.into(), 520),
+                (david_charlie.into(), 40),
+                (charlie_charlie.into(), 0),
+                (bob_alice.into(), 0),
+            ]
+        );
+
+        assert_eq!(
+            stakes.by_rank(Capability::Mining, 53).collect::<Vec<_>>(),
+            [
+                (alice_alice.into(), 530),
+                (david_charlie.into(), 80),
+                (bob_alice.into(), 20),
+                (charlie_charlie.into(), 0),
+            ]
+        );
+
+        assert_eq!(
+            stakes.by_rank(Capability::Mining, 54).collect::<Vec<_>>(),
+            [
+                (alice_alice.into(), 540),
+                (david_charlie.into(), 120),
+                (bob_alice.into(), 40),
+                (charlie_charlie.into(), 30),
+            ]
         );
     }
 }
