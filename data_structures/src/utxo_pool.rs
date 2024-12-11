@@ -400,7 +400,7 @@ pub struct NodeUtxosRef<'a> {
     pub pkh: PublicKeyHash,
 }
 
-impl<'a> OutputsCollection for NodeUtxosRef<'a> {
+impl OutputsCollection for NodeUtxosRef<'_> {
     fn sort_by(&self, strategy: &UtxoSelectionStrategy) -> Vec<OutputPointer> {
         if !strategy.allows_from(&self.pkh) {
             return vec![];
@@ -470,7 +470,7 @@ impl NodeUtxos<'_> {
     }
 }
 
-impl<'a> OutputsCollection for NodeUtxos<'a> {
+impl OutputsCollection for NodeUtxos<'_> {
     fn sort_by(&self, strategy: &UtxoSelectionStrategy) -> Vec<OutputPointer> {
         self.as_ref().sort_by(strategy)
     }

@@ -65,7 +65,7 @@ impl fmt::Display for Command {
                         protocol.version, protocol.activation_epoch, protocol.checkpoint_period
                     ));
                 }
-                protocol_versions_str.push_str(")");
+                protocol_versions_str.push(')');
                 write!(
                     f,
                     "VERSION MESSAGE: version = {}, sender_address = {:?}, protocol_versions = {}",

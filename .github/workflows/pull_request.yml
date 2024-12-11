@@ -22,6 +22,7 @@ jobs:
         -D clippy::cast-precision-loss
         -D clippy::cast-sign-loss
         -D clippy::checked-conversions
+        -A non_local_definitions
         -A clippy::upper-case-acronyms
         -A clippy::uninlined-format-args
       ROCKSDB_INCLUDE_DIR: /usr/local/include

@@ -48,7 +48,7 @@ fn rank(b: &mut Bencher) {
     }
 
     b.iter(|| {
-        let rank = stakes.rank(Capability::Mining, i);
+        let rank = stakes.by_rank(Capability::Mining, i);
         let mut top = rank.take(usize::try_from(stakers / rf).unwrap());
         let _first = top.next();
         let _last = top.last();

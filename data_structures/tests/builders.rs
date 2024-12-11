@@ -137,6 +137,7 @@ fn builders_build_version() {
         user_agent: user_agent(),
         nonce: 1234,
         beacon: hardcoded_beacon.clone(),
+        protocol_versions: vec![],
     });
     let msg = Message {
         kind: version_cmd,

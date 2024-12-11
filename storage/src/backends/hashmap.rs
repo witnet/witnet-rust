@@ -58,7 +58,7 @@ struct DBIterator<'a, 'b> {
     skip: usize,
 }
 
-impl<'a, 'b> Iterator for DBIterator<'a, 'b> {
+impl Iterator for DBIterator<'_, '_> {
     type Item = (Vec<u8>, Vec<u8>);
 
     fn next(&mut self) -> Option<Self::Item> {

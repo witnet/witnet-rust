@@ -26,7 +26,7 @@ versions:
     cargo clippy -- --version
 
 # additional clippy lints
-export CLIPPY_LINTS := '-D warnings -D clippy::cast-lossless -D clippy::cast-possible-truncation -D clippy::cast-possible-wrap -D clippy::cast-precision-loss -D clippy::cast-sign-loss -D clippy::checked-conversions -A clippy::upper-case-acronyms -A clippy::uninlined-format-args -A renamed_and_removed_lints'
+export CLIPPY_LINTS := '-D warnings -D clippy::cast-lossless -D clippy::cast-possible-truncation -D clippy::cast-possible-wrap -D clippy::cast-precision-loss -D clippy::cast-sign-loss -D clippy::checked-conversions -A non_local_definitions -A clippy::upper-case-acronyms -A clippy::uninlined-format-args -A renamed_and_removed_lints'
 
 # run clippy
 clippy +flags="":
