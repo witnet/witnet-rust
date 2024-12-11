@@ -326,7 +326,10 @@ where
         self.by_key
             .iter()
             .map(move |(key, entry)| {
-                (key.clone(), entry.read_value().power(capability, current_epoch))
+                (
+                    key.clone(),
+                    entry.read_value().power(capability, current_epoch),
+                )
             })
             .sorted_by(|(key_1, power_1), (key_2, power_2)| {
                 if power_1 == power_2 {
@@ -417,7 +420,7 @@ where
     pub fn reset_mining_age<ISK>(
         &mut self,
         validator: ISK,
-        current_epoch: Epoch
+        current_epoch: Epoch,
     ) -> StakesResult<(), Address, Coins, Epoch>
     where
         ISK: Into<Address>,
@@ -427,15 +430,15 @@ where
         // order mining stake entries by rank, as for given current_epoch:
         // let stakes_clone = self.clone();
         let by_rank = self.by_rank(Capability::Mining, current_epoch);
-        
+
         // locate first entry whose validator matches the one searched for:
-        let winner_rank = by_rank.clone().position(|(key, _)| key.validator == validator);
-        
+        let winner_rank = by_rank
+            .clone()
+            .position(|(key, _)| key.validator == validator);
+
         if let Some(winner_rank) = winner_rank {
-            let stakers: Vec<StakeKey<Address>> = by_rank
-                .take(winner_rank + 1)
-                .map(|(key, _)| key)
-                .collect();
+            let stakers: Vec<StakeKey<Address>> =
+                by_rank.take(winner_rank + 1).map(|(key, _)| key).collect();
             // proportionally reset coin age on located entry and all those with a better mining rank:
             let mut index: usize = 0;
             stakers.iter().for_each(|key| {
@@ -444,7 +447,10 @@ where
                     let penalty_epochs = Epoch::from((1 + winner_rank - index) as u32);
                     log::debug!(
                         "Resetting mining power of {} (ranked as #{}) during +{} epochs to {}",
-                        key, index + 1, penalty_epochs, current_epoch + penalty_epochs
+                        key,
+                        index + 1,
+                        penalty_epochs,
+                        current_epoch + penalty_epochs
                     );
                     stake_entry
                         .value
@@ -1140,7 +1146,9 @@ mod tests {
             ]
         );
         assert_eq!(
-            stakes.by_rank(Capability::Witnessing, 100).collect::<Vec<_>>(),
+            stakes
+                .by_rank(Capability::Witnessing, 100)
+                .collect::<Vec<_>>(),
             [
                 (charlie_erin.into(), 2100),
                 (bob_david.into(), 1600),
@@ -1179,7 +1187,9 @@ mod tests {
             ]
         );
         assert_eq!(
-            stakes.by_rank(Capability::Witnessing, 101).collect::<Vec<_>>(),
+            stakes
+                .by_rank(Capability::Witnessing, 101)
+                .collect::<Vec<_>>(),
             [
                 (charlie_erin.into(), 2_130),
                 (bob_david.into(), 1_620),
@@ -1220,7 +1230,9 @@ mod tests {
             ]
         );
         assert_eq!(
-            stakes.by_rank(Capability::Witnessing, 300).collect::<Vec<_>>(),
+            stakes
+                .by_rank(Capability::Witnessing, 300)
+                .collect::<Vec<_>>(),
             [
                 (charlie_erin.into(), 8_100),
                 (bob_david.into(), 5_600),

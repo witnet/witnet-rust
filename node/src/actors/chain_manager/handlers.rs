@@ -15,8 +15,7 @@ use witnet_data_structures::{
         Hash, Hashable, NodeStats, PublicKeyHash, SuperBlockVote, SupplyInfo, ValueTransferOutput,
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
-    get_protocol_version,
-    refresh_protocol_version,
+    get_protocol_version, refresh_protocol_version,
     staking::{errors::StakesError, prelude::StakeKey},
     transaction::{
         DRTransaction, StakeTransaction, Transaction, UnstakeTransaction, VTTransaction,

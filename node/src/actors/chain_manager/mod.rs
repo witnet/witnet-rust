@@ -3128,7 +3128,10 @@ pub fn process_validations(
     stakes: &StakesTracker,
     protocol_version: ProtocolVersion,
 ) -> Result<Diff, failure::Error> {
-    let replication_factor = consensus_constants_wit2.get_replication_factor(block.block_header.beacon.checkpoint, chain_beacon.checkpoint);
+    let replication_factor = consensus_constants_wit2.get_replication_factor(
+        block.block_header.beacon.checkpoint,
+        chain_beacon.checkpoint,
+    );
     if !resynchronizing {
         let mut signatures_to_verify = vec![];
         validate_block(

@@ -318,7 +318,7 @@ impl ConsensusConstantsWit2 {
                 4u16.saturating_mul(2u16.saturating_pow(epoch - prev_epoch))
             } else {
                 0
-            }
+            };
         } else {
             0
         }

@@ -176,7 +176,8 @@ where
         let validator: Address = validator.into();
 
         // Cap replication factor to 2/3rds of total stake entries count
-        let max_replication_factor = u16::try_from((((self.stakes_count() * 2) as f64) / 3.0) as u32).unwrap_or(u16::MAX);
+        let max_replication_factor =
+            u16::try_from((((self.stakes_count() * 2) as f64) / 3.0) as u32).unwrap_or(u16::MAX);
         let replication_factor = if replication_factor > max_replication_factor {
             max_replication_factor
         } else {
@@ -184,13 +185,14 @@ where
         };
 
         Ok(
-            match self.by_rank(Capability::Mining, epoch)
+            match self
+                .by_rank(Capability::Mining, epoch)
                 .take(replication_factor as usize)
                 .find(|(key, _)| key.validator == validator)
             {
                 Some(_) => Eligible::Yes,
-                None => IneligibilityReason::InsufficientPower.into()
-            }
+                None => IneligibilityReason::InsufficientPower.into(),
+            },
         )
     }
 
