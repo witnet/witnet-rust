@@ -297,7 +297,8 @@ async fn get_dr_timestamp(
         .unwrap_or(consensus_constants.checkpoint_zero_timestamp);
     let protocol_activation_epoch = protocol_info
         .all_versions
-        .get_activation_epoch(protocol_version);
+        .try_get_activation_epoch(protocol_version)
+        .unwrap_or_default();
     let protocol_checkpoint_period = protocol_info
         .all_checkpoints_periods
         .get(&protocol_version)
