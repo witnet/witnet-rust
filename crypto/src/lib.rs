@@ -24,4 +24,5 @@ pub mod signature;
 pub use secp256k1;
 
 #[cfg(test)]
+/// Mnemonic test_vectors
 pub mod test_vectors;

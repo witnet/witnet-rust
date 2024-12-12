@@ -290,13 +290,13 @@ mod tests {
 
         assert_eq!(
             stakes.mining_eligibility(isk, 0, 4),
-            Ok(Eligible::No(IneligibilityReason::NotStaking))
+            Ok(Eligible::No(IneligibilityReason::InsufficientPower))
         );
         assert!(!stakes.mining_eligibility_bool(isk, 0, 4));
 
         assert_eq!(
             stakes.mining_eligibility(isk, 100, 4),
-            Ok(Eligible::No(IneligibilityReason::NotStaking))
+            Ok(Eligible::No(IneligibilityReason::InsufficientPower))
         );
         assert!(!stakes.mining_eligibility_bool(isk, 100, 4));
     }
@@ -304,10 +304,13 @@ mod tests {
     #[test]
     fn test_mining_eligibility_absolute_power() {
         let mut stakes = StakesTester::default();
-        let isk = "validator";
+        let isk = "validator_1";
 
         stakes
-            .add_stake(isk, 10_000_000_000, 0, MIN_STAKE_NANOWITS)
+            .add_stake(isk, 10_000_000_000_000, 0, MIN_STAKE_NANOWITS)
+            .unwrap();
+        stakes
+            .add_stake("validator_2", 10_000_000_000, 0, MIN_STAKE_NANOWITS)
             .unwrap();
 
         assert_eq!(

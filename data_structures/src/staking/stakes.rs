@@ -1141,7 +1141,7 @@ mod tests {
             [
                 (charlie_erin.into(), 2100),
                 (bob_david.into(), 1600),
-                (alice.into(), 1000)
+                (alice_charlie.into(), 1000)
             ]
         );
         assert_eq!(
