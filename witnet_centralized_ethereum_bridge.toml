@@ -53,7 +53,7 @@ witnet_dr_txs_timeout_ms = 600000
 witnet_jsonrpc_socket = "127.0.0.1:21338"
 
 # Running in the witnet testnet?
-witnet_testnet = false
+witnet_testnet = true
 
 # Bridge UTXO min value threshold
 witnet_utxo_min_value_threshold = 2_000_000_000
