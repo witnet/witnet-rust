@@ -2157,6 +2157,7 @@ pub fn validate_block_transactions(
     }
 
     let mut dr_weight: u32 = 0;
+    let mut too_many_witnesses_drs = HashSet::<Hash>::new();
     if active_wips.wip_0008() {
         // Calculate data request not solved weight
         let mut dr_pointers: HashSet<Hash> = dr_pool
@@ -2172,6 +2173,10 @@ pub fn validate_block_transactions(
                 dr_weight = dr_weight
                     .saturating_add(dro.weight())
                     .saturating_add(dro.extra_weight());
+
+                if data_request_has_too_many_witnesses(&dro, stakes.validator_count(), Some(epoch)) {
+                    too_many_witnesses_drs.insert(dr);
+                }
             }
         }
     }
@@ -2209,9 +2214,13 @@ pub fn validate_block_transactions(
         let Hash::SHA256(sha) = txn_hash;
         dr_mt.push(Sha256(sha));
 
-        // Update dr weight
+        // Update dr weight, but prevent double counting data requests with too many witnesses
         let weight = transaction.weight();
-        let acc_weight = dr_weight.saturating_add(weight);
+        let acc_weight = if too_many_witnesses_drs.contains(&txn_hash) {
+            dr_weight
+        } else {
+            dr_weight.saturating_add(weight)
+        };
         if acc_weight > consensus_constants.max_dr_weight {
             return Err(BlockError::TotalDataRequestWeightLimitExceeded {
                 weight: acc_weight,
