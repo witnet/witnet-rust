@@ -55,22 +55,21 @@ impl ProtocolInfo {
         } else {
             let previous_version = version.prev();
             let previous_version_activation_timestamp =
-                self.derive_activation_timestamp(previous_version, &consensus_constants);
+                self.derive_activation_timestamp(previous_version, consensus_constants);
             let previous_version_checkpoint_period =
                 u32::from(if previous_version == ProtocolVersion::MIN {
                     consensus_constants.checkpoints_period
                 } else {
                     *self.all_checkpoints_periods.get(&previous_version)?
                 });
-            let previous_version_span_epochs = u32::from(
-                self.all_versions
-                    .try_get_activation_epoch(version)?
-                    .saturating_sub(
-                        self.all_versions
-                            .try_get_activation_epoch(previous_version)
-                            .unwrap_or(0),
-                    ),
-            );
+            let previous_version_span_epochs = self
+                .all_versions
+                .try_get_activation_epoch(version)?
+                .saturating_sub(
+                    self.all_versions
+                        .try_get_activation_epoch(previous_version)
+                        .unwrap_or(0),
+                );
             let previous_version_span_seconds =
                 i64::from(previous_version_span_epochs * previous_version_checkpoint_period);
 
@@ -193,7 +192,6 @@ pub enum ProtocolVersion {
 }
 
 impl ProtocolVersion {
-    #[inline]
     pub const MIN: Self = ProtocolVersion::V1_7;
     pub const MAX: Self = ProtocolVersion::V2_0;
     pub fn guess() -> Self {

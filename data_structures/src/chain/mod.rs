@@ -3837,13 +3837,13 @@ impl DataRequestState {
         data_request: DataRequestOutput,
         pkh: PublicKeyHash,
         epoch: Epoch,
-        block_hash_dr_tx: &Hash,
+        block_hash_dr_tx: Option<Hash>,
     ) -> Self {
         let stage = DataRequestStage::COMMIT;
         let mut info = DataRequestInfo {
             ..DataRequestInfo::default()
         };
-        info.block_hash_dr_tx = Some(*block_hash_dr_tx);
+        info.block_hash_dr_tx = block_hash_dr_tx;
         info.current_stage = Some(stage);
 
         Self {
@@ -6212,9 +6212,7 @@ mod tests {
         );
         let dr_pointer = drt.hash();
         let mut dr_pool = DataRequestPool::default();
-        dr_pool
-            .add_data_request(0, drt, &Default::default())
-            .unwrap();
+        dr_pool.add_data_request(0, drt, None).unwrap();
 
         let c1 = Hash::SHA256([1; 32]);
         let t1 = Transaction::Commit(CommitTransaction {
@@ -6281,15 +6279,9 @@ mod tests {
         let dr_pointer3 = drt3.hash();
 
         let mut dr_pool = DataRequestPool::default();
-        dr_pool
-            .add_data_request(0, drt1, &Default::default())
-            .unwrap();
-        dr_pool
-            .add_data_request(0, drt2, &Default::default())
-            .unwrap();
-        dr_pool
-            .add_data_request(0, drt3, &Default::default())
-            .unwrap();
+        dr_pool.add_data_request(0, drt1, None).unwrap();
+        dr_pool.add_data_request(0, drt2, None).unwrap();
+        dr_pool.add_data_request(0, drt3, None).unwrap();
 
         let mut cb1 = CommitTransactionBody::without_collateral(
             dr_pointer1,
@@ -6372,9 +6364,7 @@ mod tests {
         );
         let dr_pointer = drt.hash();
         let mut dr_pool = DataRequestPool::default();
-        dr_pool
-            .add_data_request(0, drt, &Default::default())
-            .unwrap();
+        dr_pool.add_data_request(0, drt, None).unwrap();
 
         let c1 = Hash::SHA256([1; 32]);
         let t1 = Transaction::Commit(CommitTransaction {
@@ -6412,9 +6402,7 @@ mod tests {
         );
         let dr_pointer = drt.hash();
         let mut dr_pool = DataRequestPool::default();
-        dr_pool
-            .add_data_request(0, drt, &Default::default())
-            .unwrap();
+        dr_pool.add_data_request(0, drt, None).unwrap();
 
         let r1 = vec![1];
         let t1 = Transaction::Reveal(RevealTransaction {
@@ -6451,9 +6439,7 @@ mod tests {
         );
         let dr_pointer = drt.hash();
         let mut dr_pool = DataRequestPool::default();
-        dr_pool
-            .add_data_request(0, drt, &Default::default())
-            .unwrap();
+        dr_pool.add_data_request(0, drt, None).unwrap();
 
         let r1 = vec![1];
         let t1 = Transaction::Reveal(RevealTransaction {
@@ -6489,9 +6475,7 @@ mod tests {
         );
         let dr_pointer = drt.hash();
         let mut dr_pool = DataRequestPool::default();
-        dr_pool
-            .add_data_request(0, drt, &Default::default())
-            .unwrap();
+        dr_pool.add_data_request(0, drt, None).unwrap();
 
         let r1 = vec![1];
         let t1 = Transaction::Reveal(RevealTransaction {
@@ -6527,9 +6511,7 @@ mod tests {
         );
         let dr_pointer = drt.hash();
         let mut dr_pool = DataRequestPool::default();
-        dr_pool
-            .add_data_request(0, drt, &Default::default())
-            .unwrap();
+        dr_pool.add_data_request(0, drt, None).unwrap();
 
         let r1 = vec![1];
         let re_tx = RevealTransaction {

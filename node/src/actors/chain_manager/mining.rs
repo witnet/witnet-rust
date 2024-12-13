@@ -1106,7 +1106,7 @@ pub fn build_block(
                 log::debug!("Data request {} has too many witnesses", dr_tx.hash());
 
                 // Temporarily insert the data request into the dr_pool
-                if let Err(e) = dr_pool.process_data_request(dr_tx, epoch, &Hash::default()) {
+                if let Err(e) = dr_pool.process_data_request(dr_tx, epoch, None) {
                     log::error!("Error adding data request to the data request pool: {}", e);
                 }
                 if let Some(dr_state) = dr_pool.data_request_state_mutable(&dr_tx.hash()) {

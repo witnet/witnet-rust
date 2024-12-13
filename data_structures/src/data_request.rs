@@ -134,7 +134,7 @@ impl DataRequestPool {
         &mut self,
         epoch: Epoch,
         data_request: DRTransaction,
-        block_hash: &Hash,
+        block_hash: Option<Hash>,
     ) -> Result<(), failure::Error> {
         let dr_hash = data_request.versioned_hash(ProtocolVersion::from_epoch(epoch));
         if data_request.signatures.is_empty() {
@@ -364,7 +364,7 @@ impl DataRequestPool {
         &mut self,
         dr_transaction: &DRTransaction,
         epoch: Epoch,
-        block_hash: &Hash,
+        block_hash: Option<Hash>,
     ) -> Result<(), failure::Error> {
         // A data request output should have a valid value transfer input
         // Which we assume valid as it should have been already verified
@@ -819,7 +819,7 @@ mod tests {
         let dr_pointer = dr_transaction.hash();
 
         let mut p = DataRequestPool::default();
-        p.process_data_request(&dr_transaction, epoch, &fake_block_hash)
+        p.process_data_request(&dr_transaction, epoch, Some(fake_block_hash))
             .unwrap();
 
         assert!(p.waiting_for_reveal.is_empty());
@@ -854,7 +854,7 @@ mod tests {
         let dr_pointer = dr_transaction.hash();
 
         let mut p = DataRequestPool::new(2);
-        p.process_data_request(&dr_transaction, epoch, &fake_block_hash)
+        p.process_data_request(&dr_transaction, epoch, Some(fake_block_hash))
             .unwrap();
 
         assert!(p.waiting_for_reveal.is_empty());
@@ -889,7 +889,7 @@ mod tests {
         let dr_pointer = dr_transaction.hash();
 
         let mut p = DataRequestPool::new(2);
-        p.process_data_request(&dr_transaction, epoch, &fake_block_hash)
+        p.process_data_request(&dr_transaction, epoch, Some(fake_block_hash))
             .unwrap();
 
         assert!(p.waiting_for_reveal.is_empty());

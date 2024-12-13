@@ -3181,7 +3181,7 @@ fn test_commit_with_dr_and_utxo_set(
     assert_eq!(dr_hash, DR_HASH.parse().unwrap());
     let dr_epoch = 0;
     dr_pool
-        .process_data_request(&dr_transaction, dr_epoch, &Hash::default())
+        .process_data_request(&dr_transaction, dr_epoch, None)
         .unwrap();
 
     let mut signatures_to_verify = vec![];
@@ -3248,7 +3248,7 @@ fn test_commit_difficult_proof() {
     assert_eq!(dr_hash, DR_HASH.parse().unwrap());
     let dr_epoch = 0;
     dr_pool
-        .process_data_request(&dr_transaction, dr_epoch, &Hash::default())
+        .process_data_request(&dr_transaction, dr_epoch, None)
         .unwrap();
 
     // Insert valid proof
@@ -3343,7 +3343,7 @@ fn test_commit_with_collateral(
     assert_eq!(dr_hash, DR_HASH.parse().unwrap());
     let dr_epoch = 0;
     dr_pool
-        .process_data_request(&dr_transaction, dr_epoch, &Hash::default())
+        .process_data_request(&dr_transaction, dr_epoch, None)
         .unwrap();
 
     // Insert valid proof
@@ -3514,7 +3514,7 @@ fn commitment_no_signature() {
     assert_eq!(dr_hash, DR_HASH.parse().unwrap());
     let dr_epoch = 0;
     dr_pool
-        .process_data_request(&dr_transaction, dr_epoch, &Hash::default())
+        .process_data_request(&dr_transaction, dr_epoch, None)
         .unwrap();
 
     // Insert valid proof
@@ -3609,7 +3609,7 @@ fn commitment_invalid_proof() {
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_epoch = 0;
     dr_pool
-        .process_data_request(&dr_transaction, dr_epoch, &Hash::default())
+        .process_data_request(&dr_transaction, dr_epoch, None)
         .unwrap();
 
     // Sign commitment
@@ -3685,7 +3685,7 @@ fn commitment_dr_in_reveal_stage() {
     let dr_hash = dr_transaction.hash();
     let dr_epoch = 0;
     dr_pool
-        .process_data_request(&dr_transaction, dr_epoch, &Hash::default())
+        .process_data_request(&dr_transaction, dr_epoch, None)
         .unwrap();
     dr_pool.update_data_request_stages(None, Some(dr_epoch));
 
@@ -4073,7 +4073,7 @@ fn commitment_collateral_zero_is_minimum() {
         );
         let dr_epoch = 0;
         dr_pool
-            .process_data_request(&dr_transaction, dr_epoch, &Hash::default())
+            .process_data_request(&dr_transaction, dr_epoch, None)
             .unwrap();
 
         // Insert valid proof
@@ -4165,7 +4165,7 @@ fn commitment_timelock() {
         let dr_hash = dr_transaction.hash();
         let dr_epoch = 0;
         dr_pool
-            .process_data_request(&dr_transaction, dr_epoch, &Hash::default())
+            .process_data_request(&dr_transaction, dr_epoch, None)
             .unwrap();
 
         // Insert valid proof
@@ -4279,7 +4279,7 @@ fn dr_pool_with_dr_in_reveal_stage() -> (DataRequestPool, Hash) {
     let c_tx = CommitTransaction::new(cb, vec![cs]);
 
     dr_pool
-        .process_data_request(&dr_transaction, epoch, &Hash::default())
+        .process_data_request(&dr_transaction, epoch, None)
         .unwrap();
     dr_pool.update_data_request_stages(None, Some(epoch));
     dr_pool.process_commit(&c_tx, epoch, &block_hash).unwrap();
@@ -4390,7 +4390,7 @@ fn reveal_dr_in_commit_stage() {
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_pointer = dr_transaction.hash();
     dr_pool
-        .add_data_request(epoch, dr_transaction, &Hash::default())
+        .add_data_request(epoch, dr_transaction, None)
         .unwrap();
 
     let mut rb = RevealTransactionBody::default();
@@ -4523,7 +4523,7 @@ fn reveal_valid_commitment() {
 
     // Include DRTransaction in DataRequestPool
     dr_pool
-        .process_data_request(&dr_transaction, epoch, &Hash::default())
+        .process_data_request(&dr_transaction, epoch, None)
         .unwrap();
     dr_pool.update_data_request_stages(None, Some(epoch));
 
@@ -4828,7 +4828,7 @@ fn dr_pool_with_dr_in_tally_all_errors(
 
     // Include DRTransaction in DataRequestPool
     dr_pool
-        .process_data_request(&dr_transaction, epoch, &Hash::default())
+        .process_data_request(&dr_transaction, epoch, None)
         .unwrap();
     dr_pool.update_data_request_stages(None, Some(epoch));
 
@@ -4941,7 +4941,7 @@ fn dr_pool_with_dr_in_tally_stage_generic(
 
     // Include DRTransaction in DataRequestPool
     dr_pool
-        .process_data_request(&dr_transaction, epoch, &Hash::default())
+        .process_data_request(&dr_transaction, epoch, None)
         .unwrap();
     dr_pool.update_data_request_stages(None, Some(epoch));
 
@@ -5183,7 +5183,7 @@ fn tally_dr_not_tally_stage() {
         TransactionError::DataRequestNotFound { hash: dr_pointer },
     );
     dr_pool
-        .process_data_request(&dr_transaction, epoch, &Hash::default())
+        .process_data_request(&dr_transaction, epoch, None)
         .unwrap();
     dr_pool.update_data_request_stages(None, Some(epoch));
     let x = validate_tally_transaction(
@@ -5495,7 +5495,7 @@ fn generic_tally_test_inner(
 
     // Include DRTransaction in DataRequestPool
     dr_pool
-        .process_data_request(&dr_transaction, epoch, &Hash::default())
+        .process_data_request(&dr_transaction, epoch, None)
         .unwrap();
     dr_pool.update_data_request_stages(None, Some(epoch));
 
@@ -10379,7 +10379,7 @@ fn block_duplicated_commits() {
     let dr_hash = dr_transaction.hash();
     let dr_epoch = 0;
     dr_pool
-        .process_data_request(&dr_transaction, dr_epoch, &Hash::default())
+        .process_data_request(&dr_transaction, dr_epoch, None)
         .unwrap();
 
     // Insert valid proof
@@ -10474,7 +10474,7 @@ fn block_duplicated_reveals() {
     let dr_transaction = DRTransaction::new(dr_body, vec![drs]);
     let dr_hash = dr_transaction.hash();
     dr_pool
-        .process_data_request(&dr_transaction, dr_epoch, &Hash::default())
+        .process_data_request(&dr_transaction, dr_epoch, None)
         .unwrap();
 
     // Hack: get public key by signing an empty transaction
@@ -10656,7 +10656,7 @@ fn block_before_and_after_hard_fork() {
     let dr_epoch = 0;
     let protocol_version = ProtocolVersion::from_epoch(dr_epoch);
     dr_pool
-        .process_data_request(&dr_transaction, dr_epoch, &Hash::default())
+        .process_data_request(&dr_transaction, dr_epoch, None)
         .unwrap();
 
     let vto = ValueTransferOutput {
@@ -11845,7 +11845,7 @@ fn validate_commit_transactions_included_in_utxo_diff() {
         assert_eq!(dr_hash, DR_HASH.parse().unwrap());
         let dr_epoch = 0;
         dr_pool
-            .process_data_request(&dr_transaction, dr_epoch, &Hash::default())
+            .process_data_request(&dr_transaction, dr_epoch, None)
             .unwrap();
 
         let secret_key = SecretKey {

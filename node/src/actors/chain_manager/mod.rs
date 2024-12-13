@@ -3293,7 +3293,7 @@ fn update_pools(
         if let Err(e) = data_request_pool.process_data_request(
             dr_tx,
             block.block_header.beacon.checkpoint,
-            &block_hash,
+            Some(block_hash),
         ) {
             log::error!("Error processing data request transaction:\n{}", e);
         } else {
@@ -3888,9 +3888,7 @@ mod tests {
         ta_tx.out_of_consensus = vec![pk3.pkh()];
         ta_tx.error_committers = vec![pk2.pkh()];
 
-        dr_pool
-            .add_data_request(1, dr_tx, &Hash::default())
-            .unwrap();
+        dr_pool.add_data_request(1, dr_tx, None).unwrap();
         dr_pool
             .process_commit(&co_tx, epoch, &Hash::default())
             .unwrap();
