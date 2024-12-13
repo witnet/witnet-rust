@@ -31,7 +31,7 @@ use witnet_data_structures::{
         SupplyInfo, SyncStatus, ValueTransferOutput,
     },
     fee::Fee,
-    get_environment,
+    get_environment, get_protocol_version,
     proto::{
         versioning::{ProtocolInfo, ProtocolVersion},
         ProtobufConvert,
@@ -1328,6 +1328,7 @@ pub fn data_request_report(
     let response = send_request(&mut stream, &request)?;
     let transaction: GetTransactionOutput = parse_response(&response)?;
 
+    let data_request_transaction_epoch = transaction.block_epoch.clone();
     let data_request_transaction_block_hash = transaction.block_hash.clone();
     let transaction_block_hash = if transaction.block_hash == "pending" {
         None
@@ -1338,6 +1339,19 @@ pub fn data_request_report(
         dr_tx
     } else {
         bail!("This is not a data request transaction");
+    };
+
+    let request = r#"{"jsonrpc": "2.0","method": "protocol", "id": "1"}"#;
+    let response = send_request(&mut stream, request)?;
+    let protocol_info: Option<ProtocolInfo> = parse_response(&response)?;
+
+    let version_at_epoch = if let Some(info) = protocol_info {
+        match data_request_transaction_epoch {
+            Some(epoch) => info.all_versions.version_for_epoch(epoch),
+            None => ProtocolVersion::default(),
+        }
+    } else {
+        ProtocolVersion::default()
     };
 
     let mut dr_output = dr_tx.body.dr_output;
@@ -1448,12 +1462,16 @@ pub fn data_request_report(
                                     {
                                         format!("-{}", dr_output.collateral)
                                     } else {
-                                        let reward = tally
-                                            .outputs
-                                            .iter()
-                                            .find(|vto| vto.pkh == pkh)
-                                            .map(|vto| vto.value)
-                                            .unwrap();
+                                        let reward = if version_at_epoch >= ProtocolVersion::V2_0 {
+                                            dr_output.witness_reward + dr_output.collateral
+                                        } else {
+                                            tally
+                                                .outputs
+                                                .iter()
+                                                .find(|vto| vto.pkh == pkh)
+                                                .map(|vto| vto.value)
+                                                .unwrap()
+                                        };
 
                                         let reward = reward - dr_output.collateral;
 
