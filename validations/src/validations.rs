@@ -2067,20 +2067,24 @@ pub fn validate_block_transactions(
     }
     let re_hash_merkle_root = re_mt.root();
 
-    // Make sure that the block does not try to include data requests asking for too many witnesses
+    // Enforce data request transactions requiring too many witnesses to get immediately solved in this block
+    let stakes_count = stakes.validator_count();
     for transaction in &block.txns.data_request_txns {
         let dr_tx_hash = transaction.versioned_hash(protocol_version);
-        if !dr_pool.data_request_pool.contains_key(&dr_tx_hash)
-            && data_request_has_too_many_witnesses(
+        if data_request_has_too_many_witnesses(
                 &transaction.body.dr_output,
-                stakes.validator_count(),
+                stakes_count,
                 Some(epoch),
             )
         {
-            log::debug!(
-                "Temporarily adding data request {} to data request pool for validation purposes",
-                transaction.versioned_hash(protocol_version)
-            );
+            if let Some(dr_prev_state) = dr_pool.data_request_pool.get(&dr_tx_hash) {
+                log::warn!(
+                    "Reinserting data request {} from a former block {:?} at epoch {}",
+                    dr_tx_hash,
+                    dr_prev_state.info.block_hash_dr_tx,
+                    dr_prev_state.epoch
+                );
+            }
             if let Err(e) = dr_pool.process_data_request(
                 transaction,
                 epoch,
