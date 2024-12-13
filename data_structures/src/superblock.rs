@@ -441,69 +441,62 @@ impl SuperBlockState {
 
         self.update_ars_identities(ars_identities);
 
-        // During synchronization we use the superblock received as consensus by our outbounds
-        // to have the right value of the signing committee size. From now on, we have all the values
-        // to construct our own superblocks.
-        let superblock = if let Some(sb) = sync_superblock {
-            // Before updating the superblock_beacon, calculate the signing committee
-            let signing_committee = calculate_superblock_signing_committee(
+        // Before updating the superblock_beacon, calculate the signing committee
+        let signing_committee = if let Some(ref sb) = sync_superblock {
+            calculate_superblock_signing_committee(
                 self.ars_previous_identities.clone(),
                 sb.signing_committee_length,
                 superblock_index,
                 self.current_superblock_beacon.hash_prev_block,
                 block_epoch,
-            );
-
-            // Override superblock signing committee during each of the different emergency periods
-            self.signing_committee =
-                if let Some(ars_ids) = in_emergency_period(superblock_index, get_environment()) {
-                    ars_ids.into_iter().collect()
-                } else {
-                    signing_committee
-                };
-
-            // Override superblock signing committee during the bootstrapping of wit/2
-            self.signing_committee = match get_environment() {
-                Environment::Mainnet => {
-                    // wit/2 activates at 2_922_240 + 14 x 1_920 (TAPI delay) + 7 x 1_920 (instant activation delay) = 2_962_560
-                    // disabling the activation committee at 299_712 implies we add an extra 8 weeks worth of time (8 x 4320)
-                    // to inplement a decentralized superblock committee selection mechanism. Note that any delay in activating
-                    // wit/2 will essentially be subtracted from the extra 8 weeks,
-                    if (292_224..299_712).contains(&superblock_index) {
-                        WIT2_BOOTSTRAP_COMMITTEE
-                            .iter()
-                            .map(|address| address.parse().expect("Malformed signing committee"))
-                            .collect()
-                    } else {
-                        self.signing_committee.clone()
-                    }
-                }
-                Environment::Testnet => WIT2_BOOTSTRAP_COMMITTEE_TEST
-                    .iter()
-                    .map(|address| address.parse().expect("Malformed signing committee"))
-                    .collect(),
-                _ => self.signing_committee.clone(),
-            };
-
-            sb
+            )
         } else {
-            // Before updating the superblock_beacon, calculate the signing committee
-            let signing_committee = calculate_superblock_signing_committee(
+            calculate_superblock_signing_committee(
                 self.ars_previous_identities.clone(),
                 signing_committee_size,
                 superblock_index,
                 self.current_superblock_beacon.hash_prev_block,
                 block_epoch,
-            );
+            )
+        };
 
-            // Override superblock signing committee during each of the different emergency periods
-            self.signing_committee =
-                if let Some(ars_ids) = in_emergency_period(superblock_index, get_environment()) {
-                    ars_ids.into_iter().collect()
+        // Override superblock signing committee during each of the different emergency periods
+        let emergency_committee =
+            if let Some(ars_ids) = in_emergency_period(superblock_index, get_environment()) {
+                ars_ids.into_iter().collect()
+            } else {
+                signing_committee
+            };
+
+        // Override superblock signing committee during the bootstrapping of wit/2
+        self.signing_committee = match get_environment() {
+            Environment::Mainnet => {
+                // wit/2 activates at 2_922_240 + 14 x 1_920 (TAPI delay) + 7 x 1_920 (instant activation delay) = 2_962_560
+                // disabling the activation committee at 299_712 implies we add an extra 8 weeks worth of time (8 x 4320)
+                // to inplement a decentralized superblock committee selection mechanism. Note that any delay in activating
+                // wit/2 will essentially be subtracted from the extra 8 weeks,
+                if (292_224..299_712).contains(&superblock_index) {
+                    WIT2_BOOTSTRAP_COMMITTEE
+                        .iter()
+                        .map(|address| address.parse().expect("Malformed signing committee"))
+                        .collect()
                 } else {
-                    signing_committee
-                };
+                    emergency_committee
+                }
+            }
+            Environment::Testnet => WIT2_BOOTSTRAP_COMMITTEE_TEST
+                .iter()
+                .map(|address| address.parse().expect("Malformed signing committee"))
+                .collect(),
+            _ => emergency_committee,
+        };
 
+        // During synchronization we use the superblock received as consensus by our outbounds
+        // to have the right value of the signing committee size. From now on, we have all the values
+        // to construct our own superblocks.
+        let superblock = if let Some(sb) = sync_superblock {
+            sb
+        } else {
             mining_build_superblock(
                 block_headers,
                 &key_leaves,
