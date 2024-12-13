@@ -20,8 +20,8 @@ use witnet_data_structures::{
     chain::{
         tapi::{after_second_hard_fork, ActiveWips},
         Block, BlockHeader, BlockMerkleRoots, BlockTransactions, Bn256PublicKey, CheckpointBeacon,
-        CheckpointVRF, ConsensusConstantsWit2, DataRequestOutput, EpochConstants, Hash, Hashable,
-        Input, PublicKeyHash, RADTally, TransactionsPool, ValueTransferOutput,
+        CheckpointVRF, ConsensusConstantsWit2, DataRequestOutput, DataRequestStage, EpochConstants,
+        Hash, Hashable, Input, PublicKeyHash, RADTally, TransactionsPool, ValueTransferOutput,
     },
     data_request::{
         calculate_witness_reward, calculate_witness_reward_before_second_hard_fork, create_tally,
@@ -1097,12 +1097,25 @@ pub fn build_block(
                 checkpoint_zero_timestamp,
             );
 
-            // Number of data request witnesses should be at most the number of validators divided by four
-            if data_request_has_too_many_witnesses(
-                &dr_tx.body.dr_output,
-                validator_count,
-                Some(epoch),
-            ) {
+            // Check the current data request state
+            // If his data request was already included in a previous local block which was not consolidated
+            // we will have set the state to TALLY already. In the current block, we will already have built
+            // a tally transaction using the normal flow and we do not want to include it a second time here.
+            let data_request_not_in_tally_stage =
+                if let Some(dr_state) = dr_pool.data_request_state(&dr_tx.hash()) {
+                    dr_state.stage != DataRequestStage::TALLY
+                } else {
+                    true
+                };
+            // Number of data request witnesses is limited by a fraction of the number of validators
+            // If the requested witnesses exceed this fraction, resolve the data request with an error
+            if data_request_not_in_tally_stage
+                && data_request_has_too_many_witnesses(
+                    &dr_tx.body.dr_output,
+                    validator_count,
+                    Some(epoch),
+                )
+            {
                 log::debug!("Data request {} has too many witnesses", dr_tx.hash());
 
                 // Temporarily insert the data request into the dr_pool
