@@ -358,6 +358,18 @@ impl ChainManager {
                 .data_request_state(&dr_pointer)
                 .map(|dr_state| (dr_pointer, dr_state.clone()))
         }) {
+            // It's possible a data request requesting too many witnesses are in our local data
+            // request pool (e.g., when we failed to validate a proposed block). Do not attempt
+            // to solve this data request.
+            let validator_count = self.chain_state.stakes.validator_count();
+            if data_request_has_too_many_witnesses(
+                &dr_state.data_request,
+                validator_count,
+                Some(current_epoch),
+            ) {
+                continue;
+            }
+
             let (checkpoint_period, max_rounds) = match &self.chain_state.chain_info {
                 Some(x) => (
                     // Unwraps should be safe if we have a chain_info object
