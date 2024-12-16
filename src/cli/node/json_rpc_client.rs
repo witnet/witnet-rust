@@ -1932,16 +1932,20 @@ pub fn query_stakes(
     addr: SocketAddr,
     validator: Option<String>,
     withdrawer: Option<String>,
+    all: bool,
 ) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
-
-    let params = match (validator, withdrawer) {
-        (Some(validator), Some(withdrawer)) => {
-            Some(QueryStakesArgument::Key((validator, withdrawer)))
+    let params = if all {
+        Some(QueryStakesArgument::All(true))
+    } else {
+        match (validator, withdrawer) {
+            (Some(validator), Some(withdrawer)) => {
+                Some(QueryStakesArgument::Key((validator, withdrawer)))
+            }
+            (Some(validator), _) => Some(QueryStakesArgument::Validator(validator)),
+            (_, Some(withdrawer)) => Some(QueryStakesArgument::Withdrawer(withdrawer)),
+            (None, None) => None,
         }
-        (Some(validator), _) => Some(QueryStakesArgument::Validator(validator)),
-        (_, Some(withdrawer)) => Some(QueryStakesArgument::Withdrawer(withdrawer)),
-        (None, None) => None,
     };
 
     let response = send_request(

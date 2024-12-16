@@ -353,6 +353,8 @@ pub enum QueryStakesParams {
     Withdrawer(PublicKeyHash),
     /// To search by validator and withdrawer public key hashes
     Key((PublicKeyHash, PublicKeyHash)),
+    /// To query all stake entries
+    All,
 }
 
 impl Default for QueryStakesParams {
@@ -384,6 +386,7 @@ where
             }),
             QueryStakesParams::Validator(v) => QueryStakesKey::Validator(v.into()),
             QueryStakesParams::Withdrawer(w) => QueryStakesKey::Withdrawer(w.into()),
+            QueryStakesParams::All => QueryStakesKey::All,
         }
     }
 }

@@ -2183,6 +2183,7 @@ pub async fn authorize_stake(params: Result<AuthorizeStake, Error>) -> JsonRpcRe
 
 /// Param for query_stakes
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum QueryStakesArgument {
     /// To query by stake validator
     Validator(String),
@@ -2190,16 +2191,18 @@ pub enum QueryStakesArgument {
     Withdrawer(String),
     /// To query by stake validator and withdrawer
     Key((String, String)),
+    /// To query all stake entries
+    All(bool),
 }
 
 /// Query the amount of nanowits staked by an address.
 pub async fn query_stakes(params: Result<Option<QueryStakesArgument>, Error>) -> JsonRpcResult {
     // Short-circuit if parameters are wrong
     let params = params?;
-
     // If a withdrawer address is not specified, default to local node address
     let key: QueryStakesParams = if let Some(address) = params {
         match address {
+            QueryStakesArgument::All(_) => QueryStakesParams::All,
             QueryStakesArgument::Validator(validator) => QueryStakesParams::Validator(
                 PublicKeyHash::from_bech32(get_environment(), &validator)
                     .map_err(internal_error)?,
@@ -2220,7 +2223,6 @@ pub async fn query_stakes(params: Result<Option<QueryStakesArgument>, Error>) ->
 
         QueryStakesParams::Validator(PublicKeyHash::from_public_key(&pk))
     };
-
     ChainManager::from_registry()
         .send(QueryStake { key })
         .map(|res| match res {
