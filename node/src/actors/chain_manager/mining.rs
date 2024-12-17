@@ -1110,9 +1110,9 @@ pub fn build_block(
             );
 
             // Check the current data request state
-            // If his data request was already included in a previous local block which was not consolidated
-            // we will have set the state to TALLY already. In the current block, we will already have built
-            // a tally transaction using the normal flow and we do not want to include it a second time here.
+            // If his data request was already included in a previously seen block we will have set the state
+            // to TALLY already. In the current block, we will already have built a tally transaction using
+            // the normal flow and we do not want to include it a second time here.
             let data_request_not_in_tally_stage =
                 if let Some(dr_state) = dr_pool.data_request_state(&dr_tx.hash()) {
                     dr_state.stage != DataRequestStage::TALLY
@@ -1133,11 +1133,13 @@ pub fn build_block(
                 // Temporarily insert the data request into the dr_pool
                 if let Err(e) = dr_pool.process_data_request(dr_tx, epoch, None) {
                     log::error!("Error adding data request to the data request pool: {}", e);
+                    continue;
                 }
                 if let Some(dr_state) = dr_pool.data_request_state_mutable(&dr_tx.hash()) {
                     dr_state.update_stage(0, true);
                 } else {
                     log::error!("Could not find data request state");
+                    continue;
                 }
 
                 // The result of `RunTally` will be published as tally
