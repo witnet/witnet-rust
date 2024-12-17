@@ -47,6 +47,11 @@ pub enum TransactionError {
     OutputNotFound { output: OutputPointer },
     #[fail(display = "Data Request not found: {}", hash)]
     DataRequestNotFound { hash: Hash },
+    #[fail(
+        display = "Too many witnesses data request not found in the same block: {}",
+        hash
+    )]
+    TooManyWitnessesDataRequestNotFound { hash: Hash },
     #[fail(display = "Commit transaction has an invalid Proof of Eligibility")]
     InvalidDataRequestPoe,
     #[fail(

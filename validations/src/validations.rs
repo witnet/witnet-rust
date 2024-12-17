@@ -1043,6 +1043,7 @@ pub fn validate_tally_transaction<'a>(
     dr_pool: &mut DataRequestPool,
     consensus_constants: &ConsensusConstants,
     active_wips: &ActiveWips,
+    data_requests_with_too_many_witnesses: &HashSet<Hash>,
     validator_count: Option<usize>,
     epoch: Option<Epoch>,
 ) -> Result<(Vec<&'a ValueTransferOutput>, u64), failure::Error> {
@@ -1053,11 +1054,19 @@ pub fn validate_tally_transaction<'a>(
         too_many_witnesses =
             data_request_has_too_many_witnesses(&dr_state.data_request, validator_count, epoch);
 
-        // Update the data request once at the epoch where V2.0 activates
-        // This handles the edge case where a data request which was already included still needs to be
-        // updated in consolidate_block, but is was short-circuited to the tally stage when V2.0 activates
-        // because it requested too many witnesses
         if too_many_witnesses {
+            // Check that for this tally, the data request was also included in this block
+            if !data_requests_with_too_many_witnesses.contains(&ta_tx.dr_pointer) {
+                return Err(TransactionError::TooManyWitnessesDataRequestNotFound {
+                    hash: ta_tx.dr_pointer,
+                }
+                .into());
+            }
+
+            // Update the data request once at the epoch where V2.0 activates
+            // This handles the edge case where a data request which was already included still needs to be
+            // updated in consolidate_block, but is was short-circuited to the tally stage when V2.0 activates
+            // because it requested too many witnesses
             if let Some(epoch) = epoch {
                 if get_protocol_version_activation_epoch(ProtocolVersion::V2_0) == epoch {
                     dr_state.update_stage(consensus_constants.extra_rounds, too_many_witnesses);
@@ -2069,6 +2078,7 @@ pub fn validate_block_transactions(
 
     // Make sure that the block does not try to include data requests asking for too many witnesses
     let validators_count = stakes.validator_count();
+    let mut data_requests_with_too_many_witnesses = HashSet::<Hash>::new();
     for transaction in &block.txns.data_request_txns {
         let dr_tx_hash = transaction.versioned_hash(protocol_version);
         if data_request_has_too_many_witnesses(
@@ -2080,18 +2090,18 @@ pub fn validate_block_transactions(
                 "Temporarily adding data request {} to data request pool for validation purposes",
                 transaction.versioned_hash(protocol_version)
             );
-            if let Err(e) = dr_pool.process_data_request(
+            dr_pool.process_data_request(
                 transaction,
                 epoch,
                 Some(block.versioned_hash(protocol_version)),
-            ) {
-                log::error!("Error adding data request to the data request pool: {}", e);
-            }
+            )?;
             if let Some(dr_state) = dr_pool.data_request_state_mutable(&dr_tx_hash) {
                 dr_state.update_stage(0, true);
             } else {
-                log::error!("Could not find data request state");
+                return Err(TransactionError::DataRequestNotFound { hash: dr_tx_hash }.into());
             }
+            data_requests_with_too_many_witnesses
+                .insert(transaction.versioned_hash(protocol_version));
         }
     }
 
@@ -2105,6 +2115,7 @@ pub fn validate_block_transactions(
             dr_pool,
             consensus_constants,
             active_wips,
+            &data_requests_with_too_many_witnesses,
             Some(stakes.validator_count()),
             Some(epoch),
         )?;
@@ -2174,7 +2185,8 @@ pub fn validate_block_transactions(
                     .saturating_add(dro.weight())
                     .saturating_add(dro.extra_weight());
 
-                if data_request_has_too_many_witnesses(&dro, stakes.validator_count(), Some(epoch)) {
+                if data_request_has_too_many_witnesses(&dro, stakes.validator_count(), Some(epoch))
+                {
                     too_many_witnesses_drs.insert(dr);
                 }
             }
