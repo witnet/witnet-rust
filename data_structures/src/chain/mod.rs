@@ -3943,6 +3943,12 @@ impl DataRequestState {
         self.info.current_stage = Some(self.stage);
     }
 
+    /// Function to set the stage in case we forced it to advance during validations
+    pub fn set_stage(&mut self, stage: DataRequestStage) {
+        self.stage = stage;
+        self.info.current_stage = Some(self.stage);
+    }
+
     /// Function to calculate the backup witnesses required
     pub fn backup_witnesses(&self) -> u16 {
         calculate_backup_witnesses(self.data_request.witnesses, self.info.current_commit_round)

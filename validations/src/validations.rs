@@ -2078,6 +2078,7 @@ pub fn validate_block_transactions(
 
     // Make sure that the block does not try to include data requests asking for too many witnesses
     let validators_count = stakes.validator_count();
+    let mut data_requests_to_reset = HashSet::<Hash>::new();
     let mut data_requests_with_too_many_witnesses = HashSet::<Hash>::new();
     for transaction in &block.txns.data_request_txns {
         let dr_tx_hash = transaction.versioned_hash(protocol_version);
@@ -2096,7 +2097,10 @@ pub fn validate_block_transactions(
                 Some(block.versioned_hash(protocol_version)),
             )?;
             if let Some(dr_state) = dr_pool.data_request_state_mutable(&dr_tx_hash) {
-                dr_state.update_stage(0, true);
+                if dr_state.stage != DataRequestStage::TALLY {
+                    dr_state.update_stage(0, true);
+                    data_requests_to_reset.insert(transaction.versioned_hash(protocol_version));
+                }
             } else {
                 return Err(TransactionError::DataRequestNotFound { hash: dr_tx_hash }.into());
             }
@@ -2110,7 +2114,7 @@ pub fn validate_block_transactions(
     let mut tally_hs = HashSet::with_capacity(block.txns.tally_txns.len());
     let mut expected_tally_ready_drs = dr_pool.get_tally_ready_drs();
     for transaction in &block.txns.tally_txns {
-        let (outputs, fee) = validate_tally_transaction(
+        let (outputs, fee) = match validate_tally_transaction(
             transaction,
             dr_pool,
             consensus_constants,
@@ -2118,7 +2122,18 @@ pub fn validate_block_transactions(
             &data_requests_with_too_many_witnesses,
             Some(stakes.validator_count()),
             Some(epoch),
-        )?;
+        ) {
+            Ok((outputs, fee)) => {
+                reset_data_request_stage(&data_requests_to_reset, transaction.dr_pointer, dr_pool);
+
+                (outputs, fee)
+            }
+            Err(e) => {
+                reset_data_request_stage(&data_requests_to_reset, transaction.dr_pointer, dr_pool);
+
+                return Err(e);
+            }
+        };
 
         if !active_wips.wips_0009_0011_0012() && transaction.tally == tally_bytes_on_encode_error()
         {
@@ -2489,6 +2504,24 @@ pub fn validate_block(
         );
 
         validate_block_signature(block, signatures_to_verify)
+    }
+}
+
+/// Reset data request stage after changing it to validate transactions
+pub fn reset_data_request_stage(
+    data_requests_to_reset: &HashSet<Hash>,
+    dr_pointer: Hash,
+    dr_pool: &mut DataRequestPool,
+) {
+    // Reset newly added data requests
+    if data_requests_to_reset.contains(&dr_pointer) {
+        log::debug!(
+            "Reset temporarily added data request {}",
+            dr_pointer
+        );
+        if let Some(dr_state) = dr_pool.data_request_state_mutable(&dr_pointer) {
+            dr_state.set_stage(DataRequestStage::COMMIT);
+        }
     }
 }
 
