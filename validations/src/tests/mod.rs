@@ -5175,6 +5175,7 @@ fn tally_dr_not_tally_stage() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
+        &HashSet::<Hash>::new(),
         None,
         Some(epoch),
     );
@@ -5191,6 +5192,7 @@ fn tally_dr_not_tally_stage() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
+        &HashSet::<Hash>::new(),
         None,
         Some(epoch),
     );
@@ -5208,6 +5210,7 @@ fn tally_dr_not_tally_stage() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
+        &HashSet::<Hash>::new(),
         None,
         Some(epoch),
     );
@@ -5225,6 +5228,7 @@ fn tally_dr_not_tally_stage() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
+        &HashSet::<Hash>::new(),
         None,
         Some(epoch),
     )
@@ -5303,6 +5307,7 @@ fn tally_invalid_consensus() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
+        &HashSet::<Hash>::new(),
         None,
         None,
     );
@@ -5376,6 +5381,7 @@ fn tally_valid_1_reveal_5_commits() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -5569,6 +5575,7 @@ fn tally_valid_1_reveal_5_commits_invalid_value() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -5643,6 +5650,7 @@ fn tally_valid_1_reveal_5_commits_with_absurd_timelock() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -5724,6 +5732,7 @@ fn tally_valid() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -5787,6 +5796,7 @@ fn tally_too_many_outputs() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -5834,6 +5844,7 @@ fn tally_too_less_outputs() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -5914,6 +5925,7 @@ fn tally_invalid_change() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -5970,6 +5982,7 @@ fn tally_double_reward() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -6023,6 +6036,7 @@ fn tally_reveal_not_found() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -6077,6 +6091,7 @@ fn tally_invalid_reward() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -6134,6 +6149,7 @@ fn tally_valid_2_reveals() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -6202,6 +6218,7 @@ fn tally_valid_3_reveals_dr_liar() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -6270,6 +6287,7 @@ fn tally_valid_3_reveals_dr_liar_invalid() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -6358,6 +6376,7 @@ fn tally_valid_5_reveals_1_liar_1_error() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -6422,6 +6441,7 @@ fn tally_valid_3_reveals_1_error() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -6486,6 +6506,7 @@ fn tally_valid_3_reveals_1_error_invalid_reward() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -6556,6 +6577,7 @@ fn tally_valid_3_reveals_mark_all_as_error() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -6629,6 +6651,7 @@ fn tally_dishonest_reward() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -6718,6 +6741,7 @@ fn create_tally_validation_dr_liar() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -6828,6 +6852,7 @@ fn create_tally_validation_5_reveals_1_liar_1_error() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -6905,6 +6930,7 @@ fn create_tally_validation_4_commits_2_reveals() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -6940,6 +6966,7 @@ fn tally_valid_zero_commits() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -6987,6 +7014,7 @@ fn create_tally_validation_zero_commits() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -7032,6 +7060,7 @@ fn tally_invalid_zero_commits() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -7114,6 +7143,7 @@ fn tally_valid_zero_reveals() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -7169,6 +7199,7 @@ fn create_tally_validation_zero_reveals() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -7225,6 +7256,7 @@ fn create_tally_validation_zero_reveals_zero_collateral() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -7461,6 +7493,7 @@ fn tally_valid_4_reveals_all_liars() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -7520,6 +7553,7 @@ fn tally_valid_4_reveals_all_liars_attacker_pkh() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -7583,6 +7617,7 @@ fn tally_valid_4_reveals_2_liars_2_true() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -7645,6 +7680,7 @@ fn tally_valid_4_reveals_2_errors_2_true() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -7704,6 +7740,7 @@ fn tally_valid_4_reveals_1_liar_2_true() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -7768,6 +7805,7 @@ fn tally_valid_4_reveals_invalid_script_arg() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -7832,6 +7870,7 @@ fn tally_valid_3_reveals_1_no_reveal_invalid_script_arg() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -7887,6 +7926,7 @@ fn tally_valid_4_reveals_majority_of_errors() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -7952,6 +7992,7 @@ fn tally_valid_3_reveals_1_no_reveal_majority_of_errors() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -8010,6 +8051,7 @@ fn tally_valid_2_reveals_2_no_reveals_majority_of_errors_insufficient_consensus(
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -8074,6 +8116,7 @@ fn tally_valid_4_reveals_majority_of_errors_insufficient_consensus() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -8137,6 +8180,7 @@ fn tally_valid_3_reveals_1_no_reveal_majority_of_errors_insufficient_consensus()
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -8205,6 +8249,7 @@ fn tally_valid_rng() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -8261,6 +8306,7 @@ fn tally_valid_rng_wrong_bytes_len() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -8339,6 +8385,7 @@ fn tally_valid_rng_one_error() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -8424,6 +8471,7 @@ fn tally_valid_rng_all_errors() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -8496,6 +8544,7 @@ fn tally_valid_rng_one_invalid_type() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -8553,6 +8602,7 @@ fn tally_valid_rng_all_invalid_type() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &current_active_wips(),
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -8615,6 +8665,7 @@ fn tally_unserializable_value() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -8678,6 +8729,7 @@ fn tally_unhandled_intercept_with_message() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -8688,6 +8740,7 @@ fn tally_unhandled_intercept_with_message() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -8712,6 +8765,7 @@ fn tally_unhandled_intercept_with_message() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -8728,6 +8782,7 @@ fn tally_unhandled_intercept_with_message() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -8809,6 +8864,7 @@ fn tally_unhandled_intercept_mode_tie_has_no_message() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -8819,6 +8875,7 @@ fn tally_unhandled_intercept_mode_tie_has_no_message() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -8843,6 +8900,7 @@ fn tally_unhandled_intercept_mode_tie_has_no_message() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -8859,6 +8917,7 @@ fn tally_unhandled_intercept_mode_tie_has_no_message() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -8909,6 +8968,7 @@ fn tally_error_encode_reveal_wip() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
@@ -8930,6 +8990,7 @@ fn tally_error_encode_reveal_wip() {
         &mut dr_pool,
         &CONSENSUS_CONSTANTS_FOR_TALLY,
         &active_wips,
+        &HashSet::<Hash>::new(),
         None,
         None,
     )
