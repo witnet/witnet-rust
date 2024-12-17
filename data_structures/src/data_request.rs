@@ -90,24 +90,37 @@ impl DataRequestPool {
     pub fn get_all_reveals(
         &self,
         active_wips: &ActiveWips,
+        validator_count: Option<usize>,
+        epoch: Option<u32>,
     ) -> HashMap<Hash, Vec<RevealTransaction>> {
+        let validator_count = validator_count.unwrap_or(crate::DEFAULT_VALIDATOR_COUNT_FOR_TESTS);
         self.data_request_pool
             .iter()
             .filter_map(|(dr_pointer, dr_state)| {
                 if let DataRequestStage::TALLY = dr_state.stage {
-                    let mut reveals: Vec<RevealTransaction> =
-                        dr_state.info.reveals.values().cloned().collect();
-
-                    if active_wips.wip0019() {
-                        // As specified in (7) in WIP-0019
-                        reveals.sort_unstable_by_key(|reveal| {
-                            concatenate_and_hash(&reveal.body.pkh.hash, dr_pointer.as_ref())
-                        });
+                    // Do not resolve data requests requiring too many witnesses using the normal
+                    // tally creation path, but resolve them when building a block.
+                    if data_request_has_too_many_witnesses(
+                        &dr_state.data_request,
+                        validator_count,
+                        epoch,
+                    ) {
+                        None
                     } else {
-                        reveals.sort_unstable_by_key(|reveal| reveal.body.pkh);
-                    }
+                        let mut reveals: Vec<RevealTransaction> =
+                            dr_state.info.reveals.values().cloned().collect();
 
-                    Some((*dr_pointer, reveals))
+                        if active_wips.wip0019() {
+                            // As specified in (7) in WIP-0019
+                            reveals.sort_unstable_by_key(|reveal| {
+                                concatenate_and_hash(&reveal.body.pkh.hash, dr_pointer.as_ref())
+                            });
+                        } else {
+                            reveals.sort_unstable_by_key(|reveal| reveal.body.pkh);
+                        }
+
+                        Some((*dr_pointer, reveals))
+                    }
                 } else {
                     None
                 }
