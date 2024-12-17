@@ -31,7 +31,7 @@ use witnet_data_structures::{
         SupplyInfo, SyncStatus, ValueTransferOutput,
     },
     fee::Fee,
-    get_environment, get_protocol_version,
+    get_environment,
     proto::{
         versioning::{ProtocolInfo, ProtocolVersion},
         ProtobufConvert,
@@ -1328,7 +1328,6 @@ pub fn data_request_report(
     let response = send_request(&mut stream, &request)?;
     let transaction: GetTransactionOutput = parse_response(&response)?;
 
-    let data_request_transaction_epoch = transaction.block_epoch.clone();
     let data_request_transaction_block_hash = transaction.block_hash.clone();
     let transaction_block_hash = if transaction.block_hash == "pending" {
         None
@@ -1346,7 +1345,7 @@ pub fn data_request_report(
     let protocol_info: Option<ProtocolInfo> = parse_response(&response)?;
 
     let version_at_epoch = if let Some(info) = protocol_info {
-        match data_request_transaction_epoch {
+        match transaction.block_epoch {
             Some(epoch) => info.all_versions.version_for_epoch(epoch),
             None => ProtocolVersion::default(),
         }
