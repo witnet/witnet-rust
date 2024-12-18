@@ -2076,7 +2076,90 @@ pub fn validate_block_transactions(
     }
     let re_hash_merkle_root = re_mt.root();
 
-    // Make sure that the block does not try to include data requests asking for too many witnesses
+    // Validate data request transactions in a block
+    let mut dr_weight: u32 = 0;
+    let mut too_many_witnesses_drs = HashSet::<Hash>::new();
+    if active_wips.wip_0008() {
+        // Calculate data request not solved weight
+        let mut dr_pointers: HashSet<Hash> = dr_pool
+            .get_dr_output_pointers_by_epoch(epoch)
+            .into_iter()
+            .collect();
+        for dr in commits_number.keys() {
+            dr_pointers.remove(dr);
+        }
+        for dr in dr_pointers {
+            let unsolved_dro = dr_pool.get_dr_output(&dr);
+            if let Some(dro) = unsolved_dro {
+                dr_weight = dr_weight
+                    .saturating_add(dro.weight())
+                    .saturating_add(dro.extra_weight());
+
+                if data_request_has_too_many_witnesses(&dro, stakes.validator_count(), Some(epoch)) {
+                    too_many_witnesses_drs.insert(dr);
+                }
+            }
+        }
+    }
+
+    let mut dr_mt = ProgressiveMerkleTree::sha256();
+    for transaction in &block.txns.data_request_txns {
+        let required_reward_collateral_ratio =
+            PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
+        let (inputs, outputs, fee) = validate_dr_transaction(
+            transaction,
+            &utxo_diff,
+            epoch,
+            epoch_constants,
+            signatures_to_verify,
+            consensus_constants.collateral_minimum,
+            consensus_constants.max_dr_weight,
+            required_reward_collateral_ratio,
+            active_wips,
+            Some(protocol_version),
+        )?;
+        total_fee += fee;
+
+        update_utxo_diff(
+            &mut utxo_diff,
+            inputs,
+            outputs,
+            transaction.versioned_hash(protocol_version),
+            epoch,
+            consensus_constants.checkpoint_zero_timestamp,
+        );
+
+        // Add new hash to merkle tree
+        let txn_hash = transaction.versioned_hash(protocol_version);
+        let Hash::SHA256(sha) = txn_hash;
+        dr_mt.push(Sha256(sha));
+
+        // Update dr weight, but prevent double counting data requests with too many witnesses
+        let weight = transaction.weight();
+        let acc_weight = if too_many_witnesses_drs.contains(&txn_hash) {
+            dr_weight
+        } else {
+            dr_weight.saturating_add(weight)
+        };
+        if acc_weight > consensus_constants.max_dr_weight {
+            return Err(BlockError::TotalDataRequestWeightLimitExceeded {
+                weight: acc_weight,
+                max_weight: consensus_constants.max_dr_weight,
+            }
+            .into());
+        }
+        dr_weight = acc_weight;
+
+        // Execute visitor
+        if let Some(visitor) = &mut visitor {
+            let transaction = Transaction::DataRequest(transaction.clone());
+            visitor.visit(&(transaction, fee, weight));
+        }
+    }
+    let dr_hash_merkle_root = dr_mt.root();
+
+    // First loop over all data requests to make sure they are valid
+    // If they are definitely valid, we can start processing the requests with too many witnesses
     let validators_count = stakes.validator_count();
     let mut data_requests_to_reset = HashSet::<Hash>::new();
     let mut data_requests_with_too_many_witnesses = HashSet::<Hash>::new();
@@ -2181,89 +2264,6 @@ pub fn validate_block_transactions(
         }
         .into());
     }
-
-    let mut dr_weight: u32 = 0;
-    let mut too_many_witnesses_drs = HashSet::<Hash>::new();
-    if active_wips.wip_0008() {
-        // Calculate data request not solved weight
-        let mut dr_pointers: HashSet<Hash> = dr_pool
-            .get_dr_output_pointers_by_epoch(epoch)
-            .into_iter()
-            .collect();
-        for dr in commits_number.keys() {
-            dr_pointers.remove(dr);
-        }
-        for dr in dr_pointers {
-            let unsolved_dro = dr_pool.get_dr_output(&dr);
-            if let Some(dro) = unsolved_dro {
-                dr_weight = dr_weight
-                    .saturating_add(dro.weight())
-                    .saturating_add(dro.extra_weight());
-
-                if data_request_has_too_many_witnesses(&dro, stakes.validator_count(), Some(epoch))
-                {
-                    too_many_witnesses_drs.insert(dr);
-                }
-            }
-        }
-    }
-
-    // Validate data request transactions in a block
-    let mut dr_mt = ProgressiveMerkleTree::sha256();
-    for transaction in &block.txns.data_request_txns {
-        let required_reward_collateral_ratio =
-            PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
-        let (inputs, outputs, fee) = validate_dr_transaction(
-            transaction,
-            &utxo_diff,
-            epoch,
-            epoch_constants,
-            signatures_to_verify,
-            consensus_constants.collateral_minimum,
-            consensus_constants.max_dr_weight,
-            required_reward_collateral_ratio,
-            active_wips,
-            Some(protocol_version),
-        )?;
-        total_fee += fee;
-
-        update_utxo_diff(
-            &mut utxo_diff,
-            inputs,
-            outputs,
-            transaction.versioned_hash(protocol_version),
-            epoch,
-            consensus_constants.checkpoint_zero_timestamp,
-        );
-
-        // Add new hash to merkle tree
-        let txn_hash = transaction.versioned_hash(protocol_version);
-        let Hash::SHA256(sha) = txn_hash;
-        dr_mt.push(Sha256(sha));
-
-        // Update dr weight, but prevent double counting data requests with too many witnesses
-        let weight = transaction.weight();
-        let acc_weight = if too_many_witnesses_drs.contains(&txn_hash) {
-            dr_weight
-        } else {
-            dr_weight.saturating_add(weight)
-        };
-        if acc_weight > consensus_constants.max_dr_weight {
-            return Err(BlockError::TotalDataRequestWeightLimitExceeded {
-                weight: acc_weight,
-                max_weight: consensus_constants.max_dr_weight,
-            }
-            .into());
-        }
-        dr_weight = acc_weight;
-
-        // Execute visitor
-        if let Some(visitor) = &mut visitor {
-            let transaction = Transaction::DataRequest(transaction.clone());
-            visitor.visit(&(transaction, fee, weight));
-        }
-    }
-    let dr_hash_merkle_root = dr_mt.root();
 
     let st_root = if protocol_version >= ProtocolVersion::V1_8 {
         // validate stake transactions in a block
