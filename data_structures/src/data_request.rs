@@ -14,6 +14,7 @@ use crate::{
         Epoch, Hash, Hashable, PublicKeyHash, ValueTransferOutput,
     },
     error::{DataRequestError, TransactionError},
+    get_protocol_version_activation_epoch,
     proto::versioning::{ProtocolVersion, VersionedHashable},
     radon_report::{RadonReport, Stage, TypeLike},
     transaction::{CommitTransaction, DRTransaction, RevealTransaction, TallyTransaction},
@@ -100,11 +101,15 @@ impl DataRequestPool {
                 if let DataRequestStage::TALLY = dr_state.stage {
                     // Do not resolve data requests requiring too many witnesses using the normal
                     // tally creation path, but resolve them when building a block.
-                    if data_request_has_too_many_witnesses(
-                        &dr_state.data_request,
-                        validator_count,
-                        epoch,
-                    ) {
+                    let wit2_activation_epoch =
+                        get_protocol_version_activation_epoch(ProtocolVersion::V2_0);
+                    if dr_state.epoch >= wit2_activation_epoch
+                        && data_request_has_too_many_witnesses(
+                            &dr_state.data_request,
+                            validator_count,
+                            epoch,
+                        )
+                    {
                         None
                     } else {
                         let mut reveals: Vec<RevealTransaction> =
