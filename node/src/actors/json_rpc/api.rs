@@ -2226,7 +2226,7 @@ pub async fn query_stakes(params: Result<Option<QueryStakesArgument>, Error>) ->
     ChainManager::from_registry()
         .send(QueryStake { key })
         .map(|res| match res {
-            Ok(Ok(staked_amount)) => serde_json::to_value(staked_amount).map_err(internal_error),
+            Ok(Ok(stakes)) => serde_json::to_value(stakes).map_err(internal_error),
             Ok(Err(e)) => {
                 let err = internal_error_s(e);
                 Err(err)

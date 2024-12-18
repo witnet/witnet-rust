@@ -1458,7 +1458,7 @@ impl Handler<QueryStake> for ChainManager {
 
     fn handle(&mut self, msg: QueryStake, _ctx: &mut Self::Context) -> Self::Result {
         // build address from public key hash
-        let stakes = self.chain_state.stakes.query_total_stake(msg.key);
+        let stakes = self.chain_state.stakes.query_stakes(msg.key);
 
         stakes.map_err(StakesError::from).map_err(Into::into)
     }
