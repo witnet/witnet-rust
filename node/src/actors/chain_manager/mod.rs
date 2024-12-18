@@ -3267,7 +3267,8 @@ fn update_pools(
         {
             data_requests_with_too_many_witnesses.insert(ta_tx.dr_pointer);
 
-            if let Some(dr_state) = data_request_pool.data_request_state_mutable(&ta_tx.dr_pointer) {
+            if let Some(dr_state) = data_request_pool.data_request_state_mutable(&ta_tx.dr_pointer)
+            {
                 if dr_state.stage != DataRequestStage::TALLY {
                     dr_state.update_stage(0, true);
                 }
