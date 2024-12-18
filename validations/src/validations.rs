@@ -1055,8 +1055,10 @@ pub fn validate_tally_transaction<'a>(
             data_request_has_too_many_witnesses(&dr_state.data_request, validator_count, epoch);
 
         if too_many_witnesses {
-            // Check that for this tally, the data request was also included in this block
-            if !data_requests_with_too_many_witnesses.contains(&ta_tx.dr_pointer) {
+            let wit2_activation_epoch = get_protocol_version_activation_epoch(ProtocolVersion::V2_0);
+
+            // Check that for a TooManyWitnesses tally, the data request was also included in the block
+            if dr_state.epoch > wit2_activation_epoch && !data_requests_with_too_many_witnesses.contains(&ta_tx.dr_pointer) {
                 return Err(TransactionError::TooManyWitnessesDataRequestNotFound {
                     hash: ta_tx.dr_pointer,
                 }
@@ -1067,10 +1069,8 @@ pub fn validate_tally_transaction<'a>(
             // This handles the edge case where a data request which was already included still needs to be
             // updated in consolidate_block, but is was short-circuited to the tally stage when V2.0 activates
             // because it requested too many witnesses
-            if let Some(epoch) = epoch {
-                if get_protocol_version_activation_epoch(ProtocolVersion::V2_0) == epoch {
-                    dr_state.update_stage(consensus_constants.extra_rounds, too_many_witnesses);
-                }
+            if wit2_activation_epoch == dr_state.epoch {
+                dr_state.update_stage(consensus_constants.extra_rounds, too_many_witnesses);
             }
         }
     } else {
@@ -2164,7 +2164,6 @@ pub fn validate_block_transactions(
     let mut data_requests_to_reset = HashSet::<Hash>::new();
     let mut data_requests_with_too_many_witnesses = HashSet::<Hash>::new();
     for transaction in &block.txns.data_request_txns {
-        let dr_tx_hash = transaction.versioned_hash(protocol_version);
         if data_request_has_too_many_witnesses(
             &transaction.body.dr_output,
             validators_count,
@@ -2179,16 +2178,17 @@ pub fn validate_block_transactions(
                 epoch,
                 Some(block.versioned_hash(protocol_version)),
             )?;
+            let dr_tx_hash = transaction.versioned_hash(protocol_version);
             if let Some(dr_state) = dr_pool.data_request_state_mutable(&dr_tx_hash) {
                 if dr_state.stage != DataRequestStage::TALLY {
                     dr_state.update_stage(0, true);
                     data_requests_to_reset.insert(transaction.versioned_hash(protocol_version));
                 }
             } else {
+                // This should never happen
                 return Err(TransactionError::DataRequestNotFound { hash: dr_tx_hash }.into());
             }
-            data_requests_with_too_many_witnesses
-                .insert(transaction.versioned_hash(protocol_version));
+            data_requests_with_too_many_witnesses.insert(dr_tx_hash);
         }
     }
 
