@@ -3274,8 +3274,10 @@ fn update_pools(
             }
         }
 
-        // Process tally transactions: used to update reputation engine
-        rep_info.update(ta_tx, data_request_pool, own_pkh, node_stats);
+        if ProtocolVersion::from_epoch(epoch) < ProtocolVersion::V2_0 {
+            // Process tally transactions: used to update reputation engine
+            rep_info.update(ta_tx, data_request_pool, own_pkh, node_stats);
+        }
 
         // IMPORTANT: Update the data request pool after updating reputation info
         if let Err(e) = data_request_pool.process_tally(ta_tx, &block_hash) {
