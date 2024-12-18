@@ -1055,10 +1055,13 @@ pub fn validate_tally_transaction<'a>(
             data_request_has_too_many_witnesses(&dr_state.data_request, validator_count, epoch);
 
         if too_many_witnesses {
-            let wit2_activation_epoch = get_protocol_version_activation_epoch(ProtocolVersion::V2_0);
+            let wit2_activation_epoch =
+                get_protocol_version_activation_epoch(ProtocolVersion::V2_0);
 
             // Check that for a TooManyWitnesses tally, the data request was also included in the block
-            if dr_state.epoch > wit2_activation_epoch && !data_requests_with_too_many_witnesses.contains(&ta_tx.dr_pointer) {
+            if dr_state.epoch > wit2_activation_epoch
+                && !data_requests_with_too_many_witnesses.contains(&ta_tx.dr_pointer)
+            {
                 return Err(TransactionError::TooManyWitnessesDataRequestNotFound {
                     hash: ta_tx.dr_pointer,
                 }
@@ -2095,7 +2098,8 @@ pub fn validate_block_transactions(
                     .saturating_add(dro.weight())
                     .saturating_add(dro.extra_weight());
 
-                if data_request_has_too_many_witnesses(&dro, stakes.validator_count(), Some(epoch)) {
+                if data_request_has_too_many_witnesses(&dro, stakes.validator_count(), Some(epoch))
+                {
                     too_many_witnesses_drs.insert(dr);
                 }
             }
@@ -2515,10 +2519,7 @@ pub fn reset_data_request_stage(
 ) {
     // Reset newly added data requests
     if data_requests_to_reset.contains(&dr_pointer) {
-        log::debug!(
-            "Reset temporarily added data request {}",
-            dr_pointer
-        );
+        log::debug!("Reset temporarily added data request {}", dr_pointer);
         if let Some(dr_state) = dr_pool.data_request_state_mutable(&dr_pointer) {
             dr_state.set_stage(DataRequestStage::COMMIT);
         }

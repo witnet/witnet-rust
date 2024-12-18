@@ -1109,7 +1109,6 @@ pub fn build_block(
                 checkpoint_zero_timestamp,
             );
 
-
             // Number of data request witnesses is limited by a fraction of the number of validators
             // If the requested witnesses exceed this fraction, resolve the data request with an error
             if data_request_has_too_many_witnesses(
