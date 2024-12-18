@@ -1070,7 +1070,7 @@ pub fn validate_tally_transaction<'a>(
 
             // Update the data request once at the epoch where V2.0 activates
             // This handles the edge case where a data request which was already included still needs to be
-            // updated in consolidate_block, but is was short-circuited to the tally stage when V2.0 activates
+            // updated in consolidate_block, but is short-circuited to the tally stage when V2.0 activates
             // because it requested too many witnesses
             if wit2_activation_epoch == dr_state.epoch {
                 dr_state.update_stage(consensus_constants.extra_rounds, too_many_witnesses);
