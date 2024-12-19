@@ -967,7 +967,7 @@ fn create_expected_tally_transaction(
     collateral_minimum: u64,
     active_wips: &ActiveWips,
     too_many_witnesses: bool,
-    epoch: Option<Epoch>,
+    protocol_version: ProtocolVersion,
 ) -> Result<(TallyTransaction, DataRequestState), failure::Error> {
     // Get DataRequestState
     let dr_pointer = ta_tx.dr_pointer;
@@ -1010,7 +1010,7 @@ fn create_expected_tally_transaction(
         collateral_minimum,
         tally_bytes_on_encode_error(),
         active_wips,
-        get_protocol_version(epoch),
+        protocol_version,
     );
 
     Ok((ta_tx, dr_state.clone()))
@@ -1038,6 +1038,7 @@ pub fn calculate_liars_and_errors_count_from_tally(tally_tx: &TallyTransaction) 
 }
 
 /// Function to validate a tally transaction
+#[allow(clippy::too_many_arguments)]
 pub fn validate_tally_transaction<'a>(
     ta_tx: &'a TallyTransaction,
     dr_pool: &mut DataRequestPool,
@@ -1046,6 +1047,7 @@ pub fn validate_tally_transaction<'a>(
     data_requests_with_too_many_witnesses: &HashSet<Hash>,
     validator_count: Option<usize>,
     epoch: Option<Epoch>,
+    protocol_version: ProtocolVersion,
 ) -> Result<(Vec<&'a ValueTransferOutput>, u64), failure::Error> {
     let validator_count =
         validator_count.unwrap_or(witnet_data_structures::DEFAULT_VALIDATOR_COUNT_FOR_TESTS);
@@ -1088,7 +1090,7 @@ pub fn validate_tally_transaction<'a>(
         consensus_constants.collateral_minimum,
         active_wips,
         too_many_witnesses,
-        epoch,
+        protocol_version,
     )?;
 
     let sorted_out_of_consensus = ta_tx.out_of_consensus.iter().cloned().sorted().collect();
@@ -1312,8 +1314,7 @@ pub fn validate_tally_transaction<'a>(
         // In case of no commits, collateral does not affect
         0
     };
-    // TODO: should we somehow validate that the total data request reward is correctly refunded + added to the staked balance?
-    if get_protocol_version(epoch) < ProtocolVersion::V2_0 {
+    if protocol_version < ProtocolVersion::V2_0 {
         let expected_dr_value = dr_state.data_request.checked_total_value()?;
         let found_dr_value = dr_state.info.commits.len() as u64
             * dr_state.data_request.commit_and_reveal_fee
@@ -2209,6 +2210,7 @@ pub fn validate_block_transactions(
             &data_requests_with_too_many_witnesses,
             Some(stakes.validator_count()),
             Some(epoch),
+            get_protocol_version(Some(epoch)),
         ) {
             Ok((outputs, fee)) => {
                 reset_data_request_stage(&data_requests_to_reset, transaction.dr_pointer, dr_pool);

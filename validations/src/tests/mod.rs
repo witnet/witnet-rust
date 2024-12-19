@@ -5178,6 +5178,7 @@ fn tally_dr_not_tally_stage() {
         &HashSet::<Hash>::new(),
         None,
         Some(epoch),
+        ProtocolVersion::default(),
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -5195,6 +5196,7 @@ fn tally_dr_not_tally_stage() {
         &HashSet::<Hash>::new(),
         None,
         Some(epoch),
+        ProtocolVersion::default(),
     );
     assert_eq!(
         x.unwrap_err().downcast::<DataRequestError>().unwrap(),
@@ -5213,6 +5215,7 @@ fn tally_dr_not_tally_stage() {
         &HashSet::<Hash>::new(),
         None,
         Some(epoch),
+        ProtocolVersion::default(),
     );
     assert_eq!(
         x.unwrap_err().downcast::<DataRequestError>().unwrap(),
@@ -5231,6 +5234,7 @@ fn tally_dr_not_tally_stage() {
         &HashSet::<Hash>::new(),
         None,
         Some(epoch),
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     x.unwrap();
@@ -5310,6 +5314,7 @@ fn tally_invalid_consensus() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     );
     assert_eq!(
         x.unwrap_err().downcast::<TransactionError>().unwrap(),
@@ -5384,6 +5389,7 @@ fn tally_valid_1_reveal_5_commits() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     x.unwrap();
@@ -5578,6 +5584,7 @@ fn tally_valid_1_reveal_5_commits_invalid_value() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     assert_eq!(
@@ -5653,6 +5660,7 @@ fn tally_valid_1_reveal_5_commits_with_absurd_timelock() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     assert_eq!(
@@ -5735,6 +5743,7 @@ fn tally_valid() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     x.unwrap();
@@ -5799,6 +5808,7 @@ fn tally_too_many_outputs() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     assert_eq!(
@@ -5847,6 +5857,7 @@ fn tally_too_less_outputs() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     assert_eq!(
@@ -5928,6 +5939,7 @@ fn tally_invalid_change() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     assert_eq!(
@@ -5985,6 +5997,7 @@ fn tally_double_reward() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     assert_eq!(
@@ -6039,6 +6052,7 @@ fn tally_reveal_not_found() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     assert_eq!(
@@ -6094,6 +6108,7 @@ fn tally_invalid_reward() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     assert_eq!(
@@ -6152,6 +6167,7 @@ fn tally_valid_2_reveals() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     x.unwrap();
@@ -6221,6 +6237,7 @@ fn tally_valid_3_reveals_dr_liar() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     x.unwrap();
@@ -6290,6 +6307,7 @@ fn tally_valid_3_reveals_dr_liar_invalid() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
 
@@ -6379,6 +6397,7 @@ fn tally_valid_5_reveals_1_liar_1_error() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     x.unwrap();
@@ -6444,6 +6463,7 @@ fn tally_valid_3_reveals_1_error() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     x.unwrap();
@@ -6509,6 +6529,7 @@ fn tally_valid_3_reveals_1_error_invalid_reward() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     assert_eq!(
@@ -6580,6 +6601,7 @@ fn tally_valid_3_reveals_mark_all_as_error() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     assert_eq!(
@@ -6654,6 +6676,7 @@ fn tally_dishonest_reward() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
 
@@ -6720,33 +6743,39 @@ fn create_tally_validation_dr_liar() {
     let report = evaluate_tally_postcondition_clause(report, min_consensus, 3);
 
     // Create a TallyTransaction using the create_tally function
-    let tally_transaction = create_tally(
-        dr_pointer,
-        &dr_output,
-        dr_pkh,
-        &report,
-        vec![rewarded[0], rewarded[1], dr_pkh],
-        [rewarded[0], rewarded[1], dr_pkh]
-            .iter()
-            .cloned()
-            .collect::<HashSet<PublicKeyHash>>(),
-        ONE_WIT,
-        tally_bytes_on_encode_error(),
-        &active_wips,
-        ProtocolVersion::V1_7,
-    );
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = create_tally(
+            dr_pointer,
+            &dr_output,
+            dr_pkh,
+            &report,
+            vec![rewarded[0], rewarded[1], dr_pkh],
+            [rewarded[0], rewarded[1], dr_pkh]
+                .iter()
+                .cloned()
+                .collect::<HashSet<PublicKeyHash>>(),
+            ONE_WIT,
+            tally_bytes_on_encode_error(),
+            &active_wips,
+            protocol,
+        );
 
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &active_wips,
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-    )
-    .map(|_| ());
-    x.unwrap();
+        assert_eq!(tally_transaction.out_of_consensus, vec![dr_pkh]);
+        assert_eq!(tally_transaction.error_committers, vec![]);
+
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &active_wips,
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+    }
 }
 
 #[test]
@@ -6819,45 +6848,59 @@ fn create_tally_validation_5_reveals_1_liar_1_error() {
     let report = evaluate_tally_postcondition_clause(report, min_consensus, 5);
 
     // Create a TallyTransaction using the create_tally function
-    let tally_transaction = create_tally(
-        dr_pointer,
-        &dr_output,
-        dr_pkh,
-        &report,
-        vec![
-            rewarded[0],
-            rewarded[1],
-            rewarded[2],
-            slashed[0],
-            error_witnesses[0],
-        ],
-        [
-            rewarded[0],
-            rewarded[1],
-            rewarded[2],
-            slashed[0],
-            error_witnesses[0],
-        ]
-        .iter()
-        .cloned()
-        .collect::<HashSet<PublicKeyHash>>(),
-        ONE_WIT,
-        tally_bytes_on_encode_error(),
-        &active_wips,
-        ProtocolVersion::V1_7,
-    );
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = create_tally(
+            dr_pointer,
+            &dr_output,
+            dr_pkh,
+            &report,
+            vec![
+                rewarded[0],
+                rewarded[1],
+                rewarded[2],
+                slashed[0],
+                error_witnesses[0],
+            ],
+            [
+                rewarded[0],
+                rewarded[1],
+                rewarded[2],
+                slashed[0],
+                error_witnesses[0],
+            ]
+            .iter()
+            .cloned()
+            .collect::<HashSet<PublicKeyHash>>(),
+            ONE_WIT,
+            tally_bytes_on_encode_error(),
+            &active_wips,
+            protocol,
+        );
 
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &active_wips,
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-    )
-    .map(|_| ());
-    x.unwrap();
+        assert_eq!(
+            tally_transaction
+                .out_of_consensus
+                .iter()
+                .cloned()
+                .sorted()
+                .collect::<Vec<_>>(),
+            vec![error_witnesses[0], slashed[0]]
+        );
+        assert_eq!(tally_transaction.error_committers, vec![error_witnesses[0]]);
+
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &active_wips,
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+    }
 }
 
 #[test]
@@ -6909,33 +6952,55 @@ fn create_tally_validation_4_commits_2_reveals() {
     let report = evaluate_tally_postcondition_clause(report, min_consensus, 4);
 
     // Create a TallyTransaction using the create_tally function
-    let tally_transaction = create_tally(
-        dr_pointer,
-        &dr_output,
-        dr_pkh,
-        &report,
-        vec![rewarded[0], rewarded[1]],
-        [rewarded[0], rewarded[1], slashed[0], slashed[1]]
-            .iter()
-            .cloned()
-            .collect::<HashSet<PublicKeyHash>>(),
-        ONE_WIT,
-        tally_bytes_on_encode_error(),
-        &active_wips,
-        ProtocolVersion::V1_7,
-    );
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = create_tally(
+            dr_pointer,
+            &dr_output,
+            dr_pkh,
+            &report,
+            vec![rewarded[0], rewarded[1]],
+            [rewarded[0], rewarded[1], slashed[0], slashed[1]]
+                .iter()
+                .cloned()
+                .collect::<HashSet<PublicKeyHash>>(),
+            ONE_WIT,
+            tally_bytes_on_encode_error(),
+            &active_wips,
+            protocol,
+        );
 
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &active_wips,
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-    )
-    .map(|_| ());
-    x.unwrap();
+        assert_eq!(
+            tally_transaction
+                .out_of_consensus
+                .iter()
+                .cloned()
+                .sorted()
+                .collect::<Vec<_>>(),
+            vec![slashed[0], slashed[1], rewarded[1], rewarded[0]]
+        );
+        assert_eq!(
+            tally_transaction
+                .error_committers
+                .iter()
+                .cloned()
+                .sorted()
+                .collect::<Vec<_>>(),
+            vec![rewarded[1], rewarded[0]]
+        );
+
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &active_wips,
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+    }
 }
 
 #[test]
@@ -6969,6 +7034,7 @@ fn tally_valid_zero_commits() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     x.unwrap();
@@ -6997,29 +7063,37 @@ fn create_tally_validation_zero_commits() {
     let script = RADTally::default();
     let report = construct_report_from_clause_result(clause_result, &script, 0, &active_wips);
     let report = evaluate_tally_postcondition_clause(report, min_consensus, 0);
-    let tally_transaction = create_tally(
-        dr_pointer,
-        &dr_output,
-        dr_pkh,
-        &report,
-        vec![],
-        HashSet::<PublicKeyHash>::default(),
-        ONE_WIT,
-        tally_bytes_on_encode_error(),
-        &active_wips,
-        ProtocolVersion::V1_7,
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &active_wips,
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-    )
-    .map(|_| ());
-    x.unwrap();
+
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = create_tally(
+            dr_pointer,
+            &dr_output,
+            dr_pkh,
+            &report,
+            vec![],
+            HashSet::<PublicKeyHash>::default(),
+            ONE_WIT,
+            tally_bytes_on_encode_error(),
+            &active_wips,
+            protocol,
+        );
+
+        assert_eq!(tally_transaction.out_of_consensus, vec![]);
+        assert_eq!(tally_transaction.error_committers, vec![]);
+
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &active_wips,
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+    }
 }
 
 #[test]
@@ -7063,6 +7137,7 @@ fn tally_invalid_zero_commits() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     assert_eq!(
@@ -7146,6 +7221,7 @@ fn tally_valid_zero_reveals() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     x.unwrap();
@@ -7177,34 +7253,50 @@ fn create_tally_validation_zero_reveals() {
     let report = evaluate_tally_postcondition_clause(report, min_consensus, 5);
 
     let mut committers = rewarded;
-    committers.extend(slashed);
+    committers.extend(slashed.clone());
     committers.extend(error_witnesses);
-    let tally_transaction = create_tally(
-        dr_pointer,
-        &dr_output,
-        dr_pkh,
-        &report,
-        vec![],
-        committers
-            .iter()
-            .cloned()
-            .collect::<HashSet<PublicKeyHash>>(),
-        ONE_WIT,
-        tally_bytes_on_encode_error(),
-        &active_wips,
-        ProtocolVersion::V1_7,
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &active_wips,
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-    )
-    .map(|_| ());
-    x.unwrap();
+
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = create_tally(
+            dr_pointer,
+            &dr_output,
+            dr_pkh,
+            &report,
+            vec![],
+            committers
+                .iter()
+                .cloned()
+                .collect::<HashSet<PublicKeyHash>>(),
+            ONE_WIT,
+            tally_bytes_on_encode_error(),
+            &active_wips,
+            protocol,
+        );
+
+        assert_eq!(
+            tally_transaction
+                .out_of_consensus
+                .iter()
+                .cloned()
+                .sorted()
+                .collect::<Vec<_>>(),
+            slashed.iter().cloned().sorted().collect::<Vec<_>>()
+        );
+        assert_eq!(tally_transaction.error_committers, vec![]);
+
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &active_wips,
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+    }
 }
 
 #[test]
@@ -7234,34 +7326,49 @@ fn create_tally_validation_zero_reveals_zero_collateral() {
     let report = evaluate_tally_postcondition_clause(report, min_consensus, 5);
 
     let mut committers = rewarded;
-    committers.extend(slashed);
+    committers.extend(slashed.iter());
     committers.extend(error_witnesses);
-    let tally_transaction = create_tally(
-        dr_pointer,
-        &dr_output,
-        dr_pkh,
-        &report,
-        vec![],
-        committers
-            .iter()
-            .cloned()
-            .collect::<HashSet<PublicKeyHash>>(),
-        ONE_WIT,
-        tally_bytes_on_encode_error(),
-        &active_wips,
-        ProtocolVersion::V1_7,
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &active_wips,
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-    )
-    .map(|_| ());
-    x.unwrap();
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = create_tally(
+            dr_pointer,
+            &dr_output,
+            dr_pkh,
+            &report,
+            vec![],
+            committers
+                .iter()
+                .cloned()
+                .collect::<HashSet<PublicKeyHash>>(),
+            ONE_WIT,
+            tally_bytes_on_encode_error(),
+            &active_wips,
+            protocol,
+        );
+
+        assert_eq!(
+            tally_transaction
+                .out_of_consensus
+                .iter()
+                .cloned()
+                .sorted()
+                .collect::<Vec<_>>(),
+            slashed.iter().cloned().sorted().collect::<Vec<_>>()
+        );
+        assert_eq!(tally_transaction.error_committers, vec![]);
+
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &active_wips,
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+    }
 }
 
 #[test]
@@ -7496,6 +7603,7 @@ fn tally_valid_4_reveals_all_liars() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     x.unwrap();
@@ -7556,6 +7664,7 @@ fn tally_valid_4_reveals_all_liars_attacker_pkh() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     // The attacker_pkh has not participated in the commit/reveal process, so the error is "CommitNotFound"
@@ -7620,6 +7729,7 @@ fn tally_valid_4_reveals_2_liars_2_true() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     x.unwrap();
@@ -7683,6 +7793,7 @@ fn tally_valid_4_reveals_2_errors_2_true() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     x.unwrap();
@@ -7743,6 +7854,7 @@ fn tally_valid_4_reveals_1_liar_2_true() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     x.unwrap();
@@ -7808,6 +7920,7 @@ fn tally_valid_4_reveals_invalid_script_arg() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     x.unwrap();
@@ -7873,6 +7986,7 @@ fn tally_valid_3_reveals_1_no_reveal_invalid_script_arg() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     x.unwrap();
@@ -7929,6 +8043,7 @@ fn tally_valid_4_reveals_majority_of_errors() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     x.unwrap();
@@ -7995,6 +8110,7 @@ fn tally_valid_3_reveals_1_no_reveal_majority_of_errors() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     x.unwrap();
@@ -8054,6 +8170,7 @@ fn tally_valid_2_reveals_2_no_reveals_majority_of_errors_insufficient_consensus(
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     x.unwrap();
@@ -8119,6 +8236,7 @@ fn tally_valid_4_reveals_majority_of_errors_insufficient_consensus() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     x.unwrap();
@@ -8183,6 +8301,7 @@ fn tally_valid_3_reveals_1_no_reveal_majority_of_errors_insufficient_consensus()
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     x.unwrap();
@@ -8252,6 +8371,7 @@ fn tally_valid_rng() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     x.unwrap();
@@ -8309,6 +8429,7 @@ fn tally_valid_rng_wrong_bytes_len() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     x.unwrap();
@@ -8388,6 +8509,7 @@ fn tally_valid_rng_one_error() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     x.unwrap();
@@ -8474,6 +8596,7 @@ fn tally_valid_rng_all_errors() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     x.unwrap();
@@ -8547,6 +8670,7 @@ fn tally_valid_rng_one_invalid_type() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     x.unwrap();
@@ -8605,6 +8729,7 @@ fn tally_valid_rng_all_invalid_type() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     x.unwrap();
@@ -8668,6 +8793,7 @@ fn tally_unserializable_value() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     x.unwrap();
@@ -8732,6 +8858,7 @@ fn tally_unhandled_intercept_with_message() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     x.unwrap();
@@ -8743,6 +8870,7 @@ fn tally_unhandled_intercept_with_message() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     assert_eq!(
@@ -8768,6 +8896,7 @@ fn tally_unhandled_intercept_with_message() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     assert_eq!(
@@ -8785,6 +8914,7 @@ fn tally_unhandled_intercept_with_message() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     x.unwrap();
@@ -8867,6 +8997,7 @@ fn tally_unhandled_intercept_mode_tie_has_no_message() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     x.unwrap();
@@ -8878,6 +9009,7 @@ fn tally_unhandled_intercept_mode_tie_has_no_message() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     assert_eq!(
@@ -8903,6 +9035,7 @@ fn tally_unhandled_intercept_mode_tie_has_no_message() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     assert_eq!(
@@ -8920,6 +9053,7 @@ fn tally_unhandled_intercept_mode_tie_has_no_message() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     x.unwrap();
@@ -8971,6 +9105,7 @@ fn tally_error_encode_reveal_wip() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     assert_eq!(
@@ -8993,6 +9128,7 @@ fn tally_error_encode_reveal_wip() {
         &HashSet::<Hash>::new(),
         None,
         None,
+        ProtocolVersion::default(),
     )
     .map(|_| ());
     x.unwrap();
