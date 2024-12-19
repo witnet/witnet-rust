@@ -29,6 +29,8 @@ pub enum QueryStakesKey<Address: Default + Ord> {
     Withdrawer(Address),
     /// Query stakes by validator and withdrawer addresses
     Key(StakeKey<Address>),
+    /// Query all stake entries
+    All,
 }
 
 impl<Address> Default for QueryStakesKey<Address>
@@ -597,6 +599,7 @@ where
             Ok(QueryStakesKey::Key(key)) => self.query_by_key(key).map(|stake| vec![stake]),
             Ok(QueryStakesKey::Validator(validator)) => self.query_by_validator(validator),
             Ok(QueryStakesKey::Withdrawer(withdrawer)) => self.query_by_withdrawer(withdrawer),
+            Ok(QueryStakesKey::All) => self.query_all(),
             Err(_) => Err(StakesError::EmptyQuery),
         }
     }
@@ -694,6 +697,15 @@ where
             .ok_or(StakesError::WithdrawerNotFound { withdrawer })?;
 
         Ok(withdrawer.iter().map(SyncStakeEntry::read_entry).collect())
+    }
+
+    /// Query all stake entries.
+    #[inline(always)]
+    fn query_all(&self) -> StakeEntryVecResult<UNIT, Address, Coins, Epoch, Nonce, Power> {
+        self.by_key
+            .values()
+            .map(|entry| Ok(entry.read_entry()))
+            .collect()
     }
 }
 

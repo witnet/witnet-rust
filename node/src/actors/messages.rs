@@ -36,7 +36,7 @@ use witnet_data_structures::{
     transaction_factory::NodeBalance,
     types::{LastBeacon, ProtocolVersion},
     utxo_pool::{UtxoInfo, UtxoSelectionStrategy},
-    wit::Wit,
+    wit::{Wit, WIT_DECIMAL_PLACES},
 };
 use witnet_p2p::{
     error::SessionsError,
@@ -353,6 +353,8 @@ pub enum QueryStakesParams {
     Withdrawer(PublicKeyHash),
     /// To search by validator and withdrawer public key hashes
     Key((PublicKeyHash, PublicKeyHash)),
+    /// To query all stake entries
+    All,
 }
 
 impl Default for QueryStakesParams {
@@ -369,7 +371,10 @@ pub struct QueryStake {
 }
 
 impl Message for QueryStake {
-    type Result = Result<Wit, failure::Error>;
+    type Result = Result<
+        Vec<StakeEntry<WIT_DECIMAL_PLACES, PublicKeyHash, Wit, Epoch, u64, u64>>,
+        failure::Error,
+    >;
 }
 
 impl<Address> From<QueryStakesParams> for QueryStakesKey<Address>
@@ -384,6 +389,7 @@ where
             }),
             QueryStakesParams::Validator(v) => QueryStakesKey::Validator(v.into()),
             QueryStakesParams::Withdrawer(w) => QueryStakesKey::Withdrawer(w.into()),
+            QueryStakesParams::All => QueryStakesKey::All,
         }
     }
 }
