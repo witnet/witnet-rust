@@ -1053,228 +1053,14 @@ impl ChainManager {
                     }
                 }
 
-                // Reset the coin age of the miner for all staked coins
-                if ProtocolVersion::from_epoch(block_epoch) == ProtocolVersion::V2_0 {
-                    let minimum_stakeable = self
-                        .consensus_constants_wit2
-                        .get_validator_min_stake_nanowits(block_epoch);
-
-                    let mut total_commit_reward = 0;
-                    for co_tx in &block.txns.commit_txns {
-                        let commit_pkh = co_tx.body.proof.proof.pkh();
-                        total_commit_reward += if let Some(dr_output) = self
-                            .chain_state
-                            .data_request_pool
-                            .get_dr_output(&co_tx.body.dr_pointer)
-                        {
-                            log::debug!(
-                                "Reserving {} wit collateral from {}",
-                                Wit::from(dr_output.collateral),
-                                commit_pkh,
-                            );
-                            // Subtract collateral from staked balance
-                            let _ = stakes.reserve_collateral(
-                                commit_pkh,
-                                Wit::from(dr_output.collateral),
-                                Wit::from(minimum_stakeable),
-                            );
-
-                            dr_output.commit_and_reveal_fee
-                        } else {
-                            0
-                        };
-                    }
-                    // Add commit reward
-                    if total_commit_reward > 0 {
-                        log::debug!(
-                            "Rewarding {} with {} wit for including commits",
-                            miner_pkh,
-                            Wit::from(total_commit_reward),
-                        );
-                        let _ = stakes.add_reward(
-                            miner_pkh,
-                            Wit::from(total_commit_reward),
-                            block_epoch,
-                        );
-                    }
-
-                    // Add reveal rewards
-                    let mut total_reveal_reward = 0;
-                    for re_tx in &block.txns.reveal_txns {
-                        total_reveal_reward += if let Some(dr_output) = self
-                            .chain_state
-                            .data_request_pool
-                            .get_dr_output(&re_tx.body.dr_pointer)
-                        {
-                            dr_output.commit_and_reveal_fee
-                        } else {
-                            0
-                        };
-                    }
-                    // Add reveal reward
-                    if total_reveal_reward > 0 {
-                        log::debug!(
-                            "Rewarding {} with {} wit for including reveals",
-                            miner_pkh,
-                            Wit::from(total_reveal_reward),
-                        );
-                        let _ = stakes.add_reward(
-                            miner_pkh,
-                            Wit::from(total_reveal_reward),
-                            block_epoch,
-                        );
-                    }
-
-                    for ta_tx in &block.txns.tally_txns {
-                        let (collateral, reward) = if let Some(dr_output) = self
-                            .chain_state
-                            .data_request_pool
-                            .get_dr_output(&ta_tx.dr_pointer)
-                        {
-                            (dr_output.collateral, dr_output.witness_reward)
-                        } else {
-                            (0, 0)
-                        };
-                        let commits: Vec<_> = self.chain_state.data_request_pool.data_request_pool
-                            [&ta_tx.dr_pointer]
-                            .info
-                            .commits
-                            .keys()
-                            .cloned()
-                            .collect();
-
-                        // Reward honest validators
-                        let honest_pkhs: Vec<PublicKeyHash> = commits
-                            .iter()
-                            .filter(|pkh| !ta_tx.out_of_consensus.contains(pkh))
-                            .cloned()
-                            .collect();
-                        for honest_pkh in honest_pkhs {
-                            log::debug!(
-                                "Refunding and rewarding {} for {} wit for solving data request {}",
-                                honest_pkh,
-                                collateral + reward,
-                                ta_tx.dr_pointer
-                            );
-                            let _ = stakes.add_reward(
-                                honest_pkh,
-                                Wit::from(collateral + reward),
-                                block_epoch,
-                            );
-                        }
-
-                        // Refund errored validators
-                        for error_pkh in &ta_tx.error_committers {
-                            log::debug!(
-                                "Refunding {} with {} wit because it revealed an error for data request {}",
-                                error_pkh,
-                                collateral,
-                                ta_tx.dr_pointer
-                            );
-                            let _ =
-                                stakes.add_reward(*error_pkh, Wit::from(collateral), block_epoch);
-                        }
-                    }
-
-                    // Add all transaction fees plus the block reward
-                    let epoch_constants = self.epoch_constants.unwrap();
-                    let utxo_diff_wit2 =
-                        UtxoDiff::new(&self.chain_state.unspent_outputs_pool, block_epoch);
-
-                    let mut transaction_fees = 0;
-                    for vt_tx in &block.txns.value_transfer_txns {
-                        transaction_fees += vt_transaction_fee(
-                            vt_tx,
-                            &utxo_diff_wit2,
-                            block_epoch,
-                            epoch_constants,
-                        )
-                        .unwrap_or_default();
-                    }
-                    for dr_tx in &block.txns.data_request_txns {
-                        transaction_fees += dr_transaction_fee(
-                            dr_tx,
-                            &utxo_diff_wit2,
-                            block_epoch,
-                            epoch_constants,
-                        )
-                        .unwrap_or_default();
-                    }
-                    for st_tx in &block.txns.stake_txns {
-                        transaction_fees += st_transaction_fee(
-                            st_tx,
-                            &utxo_diff_wit2,
-                            block_epoch,
-                            epoch_constants,
-                        )
-                        .unwrap_or_default();
-                    }
-                    for ut_tx in &block.txns.unstake_txns {
-                        transaction_fees += ut_tx.body.fee;
-                    }
-
-                    let block_reward = self
-                        .consensus_constants_wit2
-                        .get_validator_block_reward(block_epoch);
-
-                    log::debug!(
-                        "Rewarding {} with {} wit transaction fees and {} wit block reward for proposing a block",
-                        miner_pkh,
-                        Wit::from(transaction_fees),
-                        Wit::from(block_reward),
-                    );
-                    let _ = stakes.add_reward(
-                        miner_pkh,
-                        Wit::from(transaction_fees) + Wit::from(block_reward),
-                        block_epoch,
-                    );
-
-                    // IMPORTANT: Always perform age resets after adding rewards
-
-                    // Reset mining power to block proposer, and higher ranked eligible candidates:
-                    let _ = stakes.reset_mining_age(miner_pkh, block_epoch);
-
-                    // Reset witnessing power
-                    for co_tx in &block.txns.commit_txns {
-                        let commit_pkh = co_tx.body.proof.proof.pkh();
-                        log::debug!(
-                            "Resetting witnessing age for {} to {}",
-                            commit_pkh,
-                            block_epoch + 1,
-                        );
-                        let _ = stakes.reset_age(
-                            commit_pkh,
-                            Capability::Witnessing,
-                            block_epoch + 1,
-                            1,
-                        );
-                    }
-
-                    // Slash lieing validators
-                    // Collateral was already reserved, so not returning it results in losing it
-                    // Reset the age for witnessing power to 10 epochs in the future
-                    for ta_tx in &block.txns.tally_txns {
-                        let liar_pkhs: Vec<PublicKeyHash> = ta_tx
-                            .out_of_consensus
-                            .iter()
-                            .filter(|&pkh| !ta_tx.error_committers.contains(pkh))
-                            .cloned()
-                            .collect();
-                        for liar_pkh in &liar_pkhs {
-                            log::debug!(
-                                "Slashing {} because it revealed a lie for data request {}",
-                                liar_pkh,
-                                ta_tx.dr_pointer,
-                            );
-                            let _ = stakes.reset_age(
-                                *liar_pkh,
-                                Capability::Witnessing,
-                                block_epoch + 10,
-                                1,
-                            );
-                        }
-                    }
-                }
+                process_wit2_stakes_changes(
+                    &block,
+                    &self.consensus_constants_wit2,
+                    &self.chain_state.data_request_pool,
+                    stakes,
+                    self.epoch_constants.unwrap(),
+                    &UtxoDiff::new(&self.chain_state.unspent_outputs_pool, block_epoch),
+                );
 
                 let rep_info = update_pools(
                     &block,
@@ -3239,6 +3025,209 @@ impl ReputationInfo {
     }
 }
 
+fn process_wit2_stakes_changes(
+    block: &Block,
+    consensus_constants_wit2: &ConsensusConstantsWit2,
+    data_request_pool: &DataRequestPool,
+    stakes: &mut StakesTracker,
+    epoch_constants: EpochConstants,
+    utxo_diff: &UtxoDiff<'_>,
+) {
+    let block_epoch = block.block_header.beacon.checkpoint;
+    let miner_pkh = block.block_header.proof.proof.pkh();
+
+    // Reset the coin age of the miner for all staked coins
+    if ProtocolVersion::from_epoch(block_epoch) == ProtocolVersion::V2_0 {
+        let minimum_stakeable =
+            consensus_constants_wit2.get_validator_min_stake_nanowits(block_epoch);
+
+        let mut total_commit_reward = 0;
+        for co_tx in &block.txns.commit_txns {
+            let commit_pkh = co_tx.body.proof.proof.pkh();
+            total_commit_reward +=
+                if let Some(dr_output) = data_request_pool.get_dr_output(&co_tx.body.dr_pointer) {
+                    log::debug!(
+                        "Reserving {} wit collateral from {}",
+                        Wit::from(dr_output.collateral),
+                        commit_pkh,
+                    );
+                    // Subtract collateral from staked balance
+                    stakes
+                        .reserve_collateral(
+                            commit_pkh,
+                            Wit::from(dr_output.collateral),
+                            Wit::from(minimum_stakeable),
+                        )
+                        .unwrap();
+
+                    dr_output.commit_and_reveal_fee
+                } else {
+                    0
+                };
+        }
+        // Add commit reward
+        if total_commit_reward > 0 {
+            log::debug!(
+                "Rewarding {} with {} wit for including commits",
+                miner_pkh,
+                Wit::from(total_commit_reward),
+            );
+            stakes
+                .add_reward(miner_pkh, Wit::from(total_commit_reward), block_epoch)
+                .unwrap();
+        }
+
+        // Add reveal rewards
+        let mut total_reveal_reward = 0;
+        for re_tx in &block.txns.reveal_txns {
+            total_reveal_reward +=
+                if let Some(dr_output) = data_request_pool.get_dr_output(&re_tx.body.dr_pointer) {
+                    dr_output.commit_and_reveal_fee
+                } else {
+                    0
+                };
+        }
+        // Add reveal reward
+        if total_reveal_reward > 0 {
+            log::debug!(
+                "Rewarding {} with {} wit for including reveals",
+                miner_pkh,
+                Wit::from(total_reveal_reward),
+            );
+            stakes
+                .add_reward(miner_pkh, Wit::from(total_reveal_reward), block_epoch)
+                .unwrap();
+        }
+
+        for ta_tx in &block.txns.tally_txns {
+            let (collateral, reward) =
+                if let Some(dr_output) = data_request_pool.get_dr_output(&ta_tx.dr_pointer) {
+                    (dr_output.collateral, dr_output.witness_reward)
+                } else {
+                    (0, 0)
+                };
+            let commits: Vec<_> = data_request_pool.data_request_pool[&ta_tx.dr_pointer]
+                .info
+                .commits
+                .keys()
+                .cloned()
+                .collect();
+
+            // Reward honest validators
+            let honest_pkhs: Vec<PublicKeyHash> = commits
+                .iter()
+                .filter(|pkh| {
+                    !ta_tx.error_committers.contains(pkh) && !ta_tx.out_of_consensus.contains(pkh)
+                })
+                .cloned()
+                .collect();
+            for honest_pkh in honest_pkhs {
+                log::debug!(
+                    "Refunding and rewarding {} for {} wit for solving data request {}",
+                    honest_pkh,
+                    collateral + reward,
+                    ta_tx.dr_pointer
+                );
+                stakes
+                    .add_reward(honest_pkh, Wit::from(collateral + reward), block_epoch)
+                    .unwrap();
+            }
+
+            // Refund errored validators
+            for error_pkh in &ta_tx.error_committers {
+                log::debug!(
+                    "Refunding {} with {} wit because it revealed an error for data request {}",
+                    error_pkh,
+                    collateral,
+                    ta_tx.dr_pointer
+                );
+                stakes
+                    .add_reward(*error_pkh, Wit::from(collateral), block_epoch)
+                    .unwrap();
+            }
+        }
+
+        // Add all transaction fees plus the block reward
+        let mut transaction_fees = 0;
+        for vt_tx in &block.txns.value_transfer_txns {
+            transaction_fees += vt_transaction_fee(vt_tx, utxo_diff, block_epoch, epoch_constants)
+                .unwrap_or_default();
+        }
+        for dr_tx in &block.txns.data_request_txns {
+            transaction_fees += dr_transaction_fee(dr_tx, utxo_diff, block_epoch, epoch_constants)
+                .unwrap_or_default();
+        }
+        for st_tx in &block.txns.stake_txns {
+            transaction_fees += st_transaction_fee(st_tx, utxo_diff, block_epoch, epoch_constants)
+                .unwrap_or_default();
+        }
+        for ut_tx in &block.txns.unstake_txns {
+            transaction_fees += ut_tx.body.fee;
+        }
+
+        let block_reward = consensus_constants_wit2.get_validator_block_reward(block_epoch);
+
+        log::debug!(
+            "Rewarding {} with {} wit transaction fees and {} wit block reward for proposing a block",
+            miner_pkh,
+            Wit::from(transaction_fees),
+            Wit::from(block_reward),
+        );
+        stakes
+            .add_reward(
+                miner_pkh,
+                Wit::from(transaction_fees) + Wit::from(block_reward),
+                block_epoch,
+            )
+            .unwrap();
+
+        // IMPORTANT: Always perform age resets after adding rewards
+
+        // Reset mining power to block proposer, and higher ranked eligible candidates:
+        log::debug!(
+            "Resetting mining age for {} to {}",
+            miner_pkh,
+            block_epoch + 1
+        );
+        stakes.reset_mining_age(miner_pkh, block_epoch).unwrap();
+
+        // Reset witnessing power
+        for co_tx in &block.txns.commit_txns {
+            let commit_pkh = co_tx.body.proof.proof.pkh();
+            log::debug!(
+                "Resetting witnessing age for {} to {}",
+                commit_pkh,
+                block_epoch + 1,
+            );
+            stakes
+                .reset_age(commit_pkh, Capability::Witnessing, block_epoch + 1, 1)
+                .unwrap();
+        }
+
+        // Slash lieing validators
+        // Collateral was already reserved, so not returning it results in losing it
+        // Reset the age for witnessing power to 10 epochs in the future
+        for ta_tx in &block.txns.tally_txns {
+            let liar_pkhs: Vec<PublicKeyHash> = ta_tx
+                .out_of_consensus
+                .iter()
+                .filter(|&pkh| !ta_tx.error_committers.contains(pkh))
+                .cloned()
+                .collect();
+            for liar_pkh in &liar_pkhs {
+                log::debug!(
+                    "Slashing {} because it revealed a lie for data request {}",
+                    liar_pkh,
+                    ta_tx.dr_pointer,
+                );
+                stakes
+                    .reset_age(*liar_pkh, Capability::Witnessing, block_epoch + 10, 1)
+                    .unwrap();
+            }
+        }
+    }
+}
+
 // Helper methods
 #[allow(clippy::too_many_arguments)]
 fn update_pools(
@@ -3810,9 +3799,9 @@ mod tests {
     };
     use witnet_data_structures::{
         chain::{
-            BlockMerkleRoots, BlockTransactions, ChainInfo, Environment, Input, KeyedSignature,
-            OutputPointer, PartialConsensusConstants, PublicKey, SecretKey, Signature,
-            ValueTransferOutput,
+            BlockMerkleRoots, BlockTransactions, ChainInfo, DataRequestState, Environment, Input,
+            KeyedSignature, OutputPointer, PartialConsensusConstants, PublicKey, SecretKey,
+            Signature, ValueTransferOutput,
         },
         proto::versioning::{ProtocolInfo, VersionedHashable},
         transaction::{
@@ -3825,6 +3814,7 @@ mod tests {
     use witnet_validations::validations::block_reward;
 
     use crate::{
+        actors::chain_manager::mining::build_block,
         config_mngr,
         utils::{test_actix_system, ActorFutureToNormalFuture},
     };
@@ -4262,6 +4252,8 @@ mod tests {
 
     static PRIV_KEY_1: [u8; 32] = [0xcd; 32];
     static PRIV_KEY_2: [u8; 32] = [0x43; 32];
+    static PRIV_KEY_3: [u8; 32] = [0x57; 32];
+    static PRIV_KEY_4: [u8; 32] = [0xa5; 32];
 
     fn sign_tx<H: VersionedHashable>(
         mk: [u8; 32],
@@ -4685,5 +4677,401 @@ mod tests {
                 .query_power(pkh_1, Capability::Mining, 300),
             Ok(20_000)
         );
+    }
+
+    static LAST_VRF_INPUT: &str =
+        "4da71b67e7e50ae4ad06a71e505244f8b490da55fc58c50386c908f7146d2239";
+
+    fn build_block_with_tally_transactions(
+        block_epoch: u32,
+        data_request_pool: &mut DataRequestPool,
+        tally_transactions: Vec<TallyTransaction>,
+        stakes: &StakesTracker,
+    ) -> Block {
+        let mut transaction_pool = TransactionsPool::default();
+        let unspent_outputs_pool = UnspentOutputsPool::default();
+
+        let beacon = CheckpointBeacon {
+            checkpoint: block_epoch,
+            ..Default::default()
+        };
+
+        // Add valid vrf proof
+        let vrf = &mut VrfCtx::secp256k1().unwrap();
+        let secret_key = SecretKey {
+            bytes: Protected::from(PRIV_KEY_1),
+        };
+        let vrf_input = CheckpointVRF {
+            hash_prev_vrf: LAST_VRF_INPUT.parse().unwrap(),
+            checkpoint: block_epoch - 1,
+        };
+        let block_proof = BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap();
+
+        let active_wips: ActiveWips = ActiveWips {
+            active_wips: HashMap::default(),
+            block_epoch,
+        };
+
+        let (block_header, txns) = build_block(
+            (
+                &mut transaction_pool,
+                &unspent_outputs_pool,
+                data_request_pool,
+            ),
+            0, // max_vt_weight
+            0, // max_dr_weight
+            beacon,
+            block_proof,
+            &tally_transactions,
+            PublicKeyHash::default(),
+            EpochConstants::default(),
+            block_epoch,
+            1_000_000_000, // collateral_minimum
+            None,
+            None,
+            0,
+            250_000_000_000, // initial_block_reward
+            1_000_000_000,   // checkpoint_zero_timestamp
+            1_000_000,       // halving_period
+            0,
+            &active_wips,
+            Some(stakes.validator_count()),
+            stakes,
+            &ConsensusConstantsWit2::default(),
+        );
+
+        // Create a KeyedSignature
+        let Hash::SHA256(data) = block_header.versioned_hash(get_protocol_version(Some(0)));
+        let secret_key =
+            Secp256k1_SecretKey::from_slice(&PRIV_KEY_1).expect("32 bytes, within curve order");
+        let public_key = Secp256k1_PublicKey::from_secret_key_global(&secret_key);
+        let signature = sign(secret_key, &data).unwrap();
+        let witnet_pk = PublicKey::from(public_key);
+        let witnet_signature = Signature::from(signature);
+
+        // Create the block
+        Block::new(
+            block_header,
+            KeyedSignature {
+                signature: witnet_signature,
+                public_key: witnet_pk,
+            },
+            txns,
+        )
+    }
+
+    #[test]
+    fn test_stake_changes() {
+        register_protocol_version(ProtocolVersion::V2_0, 80, 15);
+
+        let pkh_1 = pkh(&PRIV_KEY_1);
+        let pkh_2 = pkh(&PRIV_KEY_2);
+        let pkh_3 = pkh(&PRIV_KEY_3);
+        let pkh_4 = pkh(&PRIV_KEY_4);
+
+        // Create stakes tracker
+        let mut stakes = StakesTracker::default();
+        let mut validators = vec![];
+        for pkh in [pkh_1, pkh_2, pkh_3, pkh_4] {
+            validators.push(StakeKey {
+                validator: pkh,
+                withdrawer: pkh,
+            });
+        }
+        for validator in &validators {
+            stakes
+                .add_stake(
+                    validator.clone(),
+                    100_000_000_000_000.into(),
+                    100,
+                    10_000_000_000_000.into(),
+                )
+                .unwrap();
+        }
+
+        // Build pools
+        let mut data_request_pool = DataRequestPool::default();
+        let data_request_state = DataRequestState {
+            data_request: DataRequestOutput {
+                collateral: 1_000_000_000,
+                witness_reward: 1_000_000_000_000, // Hey, big spender
+                ..Default::default()
+            },
+            info: DataRequestInfo {
+                commits: HashMap::from([
+                    (pkh_1, CommitTransaction::default()),
+                    (pkh_2, CommitTransaction::default()),
+                    (pkh_3, CommitTransaction::default()),
+                    (pkh_4, CommitTransaction::default()),
+                ]),
+                ..Default::default()
+            },
+            stage: DataRequestStage::TALLY,
+            ..Default::default()
+        };
+        data_request_pool.data_request_pool =
+            HashMap::from([(Hash::from(vec![1; 32]), data_request_state)]);
+
+        let unspent_outputs_pool = UnspentOutputsPool::default();
+
+        // Test stake changes with a block with a tally with four honests
+        let epoch = 200;
+        let tally_transactions = vec![TallyTransaction::new(
+            Hash::from(vec![1; 32]), // dr_pointer
+            vec![],                  // tally
+            vec![],                  // outputs
+            vec![],                  // out_of_consensus
+            vec![],                  // error_committers
+        )];
+        let block_one_succesful_tally = build_block_with_tally_transactions(
+            epoch,
+            &mut data_request_pool,
+            tally_transactions,
+            &stakes,
+        );
+
+        process_wit2_stakes_changes(
+            &block_one_succesful_tally,
+            &ConsensusConstantsWit2::default(),
+            &data_request_pool,
+            &mut stakes,
+            EpochConstants::default(),
+            &UtxoDiff::new(&unspent_outputs_pool, epoch),
+        );
+
+        // The first staker receives a 50 WIT block reward, his 1 WIT collateral and a 1_000 WIT data request reward
+        let new_coins = stakes
+            .query_stakes(QueryStakesKey::Key(validators[0].clone()))
+            .unwrap()
+            .first()
+            .unwrap()
+            .value
+            .coins;
+        assert_eq!(new_coins, 101_051_000_000_000.into());
+        // The other stakers all receive their 1 WIT collateral back and a 1_000 WIT data request reward
+        for validator in &validators[1..3] {
+            let new_coins = stakes
+                .query_stakes(QueryStakesKey::Key(validator.clone()))
+                .unwrap()
+                .first()
+                .unwrap()
+                .value
+                .coins;
+            assert_eq!(new_coins, 101_001_000_000_000.into());
+        }
+
+        // Test stake changes with a block with a tally with all errors
+        let tally_transactions = vec![TallyTransaction::new(
+            Hash::from(vec![1; 32]),          // dr_pointer
+            vec![],                           // tally
+            vec![],                           // outputs
+            vec![],                           // out_of_consensus
+            vec![pkh_1, pkh_2, pkh_3, pkh_4], // error_committers
+        )];
+        let block_tally_all_errors = build_block_with_tally_transactions(
+            epoch,
+            &mut data_request_pool,
+            tally_transactions,
+            &stakes,
+        );
+
+        process_wit2_stakes_changes(
+            &block_tally_all_errors,
+            &ConsensusConstantsWit2::default(),
+            &data_request_pool,
+            &mut stakes,
+            EpochConstants::default(),
+            &UtxoDiff::new(&unspent_outputs_pool, epoch),
+        );
+
+        // The first staker receives a 50 WIT block reward and his 1 WIT collateral back
+        let new_coins = stakes
+            .query_stakes(QueryStakesKey::Key(validators[0].clone()))
+            .unwrap()
+            .first()
+            .unwrap()
+            .value
+            .coins;
+        assert_eq!(new_coins, 101_102_000_000_000.into());
+        // The other stakers all receive their 1 WIT collateral back
+        for validator in &validators[1..3] {
+            let new_coins = stakes
+                .query_stakes(QueryStakesKey::Key(validator.clone()))
+                .unwrap()
+                .first()
+                .unwrap()
+                .value
+                .coins;
+            assert_eq!(new_coins, 101_002_000_000_000.into());
+        }
+
+        // Test stake changes with a block with a tally with one error and three honests
+        let tally_transactions = vec![TallyTransaction::new(
+            Hash::from(vec![1; 32]), // dr_pointer
+            vec![],                  // tally
+            vec![],                  // outputs
+            vec![pkh_2],             // out_of_consensus
+            vec![pkh_2],             // error_committers
+        )];
+        let block_tally_one_error = build_block_with_tally_transactions(
+            epoch,
+            &mut data_request_pool,
+            tally_transactions,
+            &stakes,
+        );
+
+        process_wit2_stakes_changes(
+            &block_tally_one_error,
+            &ConsensusConstantsWit2::default(),
+            &data_request_pool,
+            &mut stakes,
+            EpochConstants::default(),
+            &UtxoDiff::new(&unspent_outputs_pool, epoch),
+        );
+
+        // The first staker receives a 50 WIT block reward, his 1 WIT collateral and a reward of 1_000 WIT
+        let new_coins = stakes
+            .query_stakes(QueryStakesKey::Key(validators[0].clone()))
+            .unwrap()
+            .first()
+            .unwrap()
+            .value
+            .coins;
+        assert_eq!(new_coins, 102_153_000_000_000.into());
+        // The second staker revealed an error so he only gets his 1 WIT collateral back
+        let new_coins = stakes
+            .query_stakes(QueryStakesKey::Key(validators[1].clone()))
+            .unwrap()
+            .first()
+            .unwrap()
+            .value
+            .coins;
+        assert_eq!(new_coins, 101_003_000_000_000.into());
+        // The other stakers all receive their 1 WIT collateral back and a reward of 1_000 WIT
+        for validator in &validators[2..3] {
+            let new_coins = stakes
+                .query_stakes(QueryStakesKey::Key(validator.clone()))
+                .unwrap()
+                .first()
+                .unwrap()
+                .value
+                .coins;
+            assert_eq!(new_coins, 102_003_000_000_000.into());
+        }
+
+        // Test stake changes with a block with a tally with one liar and three honests
+        let tally_transactions = vec![TallyTransaction::new(
+            Hash::from(vec![1; 32]), // dr_pointer
+            vec![],                  // tally
+            vec![],                  // outputs
+            vec![pkh_2],             // out_of_consensus
+            vec![],                  // error_committers
+        )];
+        let block_tally_one_liar = build_block_with_tally_transactions(
+            epoch,
+            &mut data_request_pool,
+            tally_transactions,
+            &stakes,
+        );
+
+        process_wit2_stakes_changes(
+            &block_tally_one_liar,
+            &ConsensusConstantsWit2::default(),
+            &data_request_pool,
+            &mut stakes,
+            EpochConstants::default(),
+            &UtxoDiff::new(&unspent_outputs_pool, epoch),
+        );
+
+        // The first staker receives a 50 WIT block reward, his 1 WIT collateral and a reward of 1_000 WIT
+        let new_coins = stakes
+            .query_stakes(QueryStakesKey::Key(validators[0].clone()))
+            .unwrap()
+            .first()
+            .unwrap()
+            .value
+            .coins;
+        assert_eq!(new_coins, 103_204_000_000_000.into());
+        // The second staker revealed a lie so he receives nothing
+        let new_coins = stakes
+            .query_stakes(QueryStakesKey::Key(validators[1].clone()))
+            .unwrap()
+            .first()
+            .unwrap()
+            .value
+            .coins;
+        assert_eq!(new_coins, 101_003_000_000_000.into());
+        // The other stakers all receive their 1 WIT collateral back and a reward of 1_000 WIT
+        for validator in &validators[2..3] {
+            let new_coins = stakes
+                .query_stakes(QueryStakesKey::Key(validator.clone()))
+                .unwrap()
+                .first()
+                .unwrap()
+                .value
+                .coins;
+            assert_eq!(new_coins, 103_004_000_000_000.into());
+        }
+
+        // Test stake changes with a block with a tally with one error, one liar and two honests
+        let tally_transactions = vec![TallyTransaction::new(
+            Hash::from(vec![1; 32]), // dr_pointer
+            vec![],                  // tally
+            vec![],                  // outputs
+            vec![pkh_2, pkh_3],      // out_of_consensus
+            vec![pkh_3],             // error_committers
+        )];
+        let block_tally_one_liar_one_error = build_block_with_tally_transactions(
+            epoch,
+            &mut data_request_pool,
+            tally_transactions,
+            &stakes,
+        );
+
+        process_wit2_stakes_changes(
+            &block_tally_one_liar_one_error,
+            &ConsensusConstantsWit2::default(),
+            &data_request_pool,
+            &mut stakes,
+            EpochConstants::default(),
+            &UtxoDiff::new(&unspent_outputs_pool, epoch),
+        );
+
+        // The first staker receives a 50 WIT block reward, his 1 WIT collateral and a reward of 1_000 WIT
+        let new_coins = stakes
+            .query_stakes(QueryStakesKey::Key(validators[0].clone()))
+            .unwrap()
+            .first()
+            .unwrap()
+            .value
+            .coins;
+        assert_eq!(new_coins, 104_255_000_000_000.into());
+        // The second staker revealed a lie so he receives nothing
+        let new_coins = stakes
+            .query_stakes(QueryStakesKey::Key(validators[1].clone()))
+            .unwrap()
+            .first()
+            .unwrap()
+            .value
+            .coins;
+        assert_eq!(new_coins, 101_003_000_000_000.into());
+        // The third staker revealed an error so he receives his 1 WIT collateral back
+        let new_coins = stakes
+            .query_stakes(QueryStakesKey::Key(validators[2].clone()))
+            .unwrap()
+            .first()
+            .unwrap()
+            .value
+            .coins;
+        assert_eq!(new_coins, 103_005_000_000_000.into());
+        // The fourth staker revealed receives his 1 WIT collateral and a reward of 1_000 WIT
+        let new_coins = stakes
+            .query_stakes(QueryStakesKey::Key(validators[3].clone()))
+            .unwrap()
+            .first()
+            .unwrap()
+            .value
+            .coins;
+        assert_eq!(new_coins, 104_005_000_000_000.into());
     }
 }
