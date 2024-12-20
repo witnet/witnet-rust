@@ -1330,6 +1330,30 @@ pub fn validate_tally_transaction<'a>(
             }
             .into());
         }
+    } else {
+        // Validate that the value returned to the data request launcher is correct
+        let expected_tally_value = if honests_count == 0 {
+            // If there are no honests because the data request fails, all rewards are returned
+            // The returned commit-and-reveal fees depends on the amount of commits and reveals observed
+            u64::from(dr_state.data_request.witnesses) * dr_state.data_request.witness_reward
+                + (dr_state.data_request.witnesses as usize - commits_count) as u64
+                    * dr_state.data_request.commit_and_reveal_fee
+                + (dr_state.data_request.witnesses as usize - reveals_count) as u64
+                    * dr_state.data_request.commit_and_reveal_fee
+        } else {
+            // For non-revealers, the commit-and-reveal fee is refunded
+            // For liars (which can be both revealers and non-revealers) and errors, the reward is refunded
+            (commits_count - reveals_count) as u64 * dr_state.data_request.commit_and_reveal_fee
+                + (errors_count + liars_count) as u64 * dr_state.data_request.witness_reward
+        };
+
+        if total_tally_value != expected_tally_value {
+            return Err(TransactionError::InvalidTallyValue {
+                value: total_tally_value,
+                expected_value: expected_tally_value,
+            }
+            .into());
+        }
     }
 
     Ok((ta_tx.outputs.iter().collect(), tally_extra_fee))
