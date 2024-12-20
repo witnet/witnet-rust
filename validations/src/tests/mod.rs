@@ -5166,78 +5166,90 @@ fn tally_dr_not_tally_stage() {
         pkh: public_key.pkh(),
         value: dr_output.witness_reward + dr_output.collateral,
     };
-    let tally_transaction =
-        TallyTransaction::new(dr_pointer, tally_value, vec![vt0], vec![], vec![]);
 
-    let mut dr_pool = DataRequestPool::default();
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &active_wips,
-        &HashSet::<Hash>::new(),
-        None,
-        Some(epoch),
-        ProtocolVersion::default(),
-    );
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::DataRequestNotFound { hash: dr_pointer },
-    );
-    dr_pool
-        .process_data_request(&dr_transaction, epoch, None)
-        .unwrap();
-    dr_pool.update_data_request_stages(None, Some(epoch));
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &active_wips,
-        &HashSet::<Hash>::new(),
-        None,
-        Some(epoch),
-        ProtocolVersion::default(),
-    );
-    assert_eq!(
-        x.unwrap_err().downcast::<DataRequestError>().unwrap(),
-        DataRequestError::NotTallyStage
-    );
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt0.clone()],
+                vec![],
+                vec![],
+            )
+        } else {
+            TallyTransaction::new(dr_pointer, tally_value.clone(), vec![], vec![], vec![])
+        };
 
-    dr_pool
-        .process_commit(&commit_transaction, epoch, &fake_block_hash)
-        .unwrap();
-    dr_pool.update_data_request_stages(None, Some(epoch));
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &active_wips,
-        &HashSet::<Hash>::new(),
-        None,
-        Some(epoch),
-        ProtocolVersion::default(),
-    );
-    assert_eq!(
-        x.unwrap_err().downcast::<DataRequestError>().unwrap(),
-        DataRequestError::NotTallyStage
-    );
+        let mut dr_pool = DataRequestPool::default();
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &active_wips,
+            &HashSet::<Hash>::new(),
+            None,
+            Some(epoch),
+            protocol,
+        );
+        assert_eq!(
+            x.unwrap_err().downcast::<TransactionError>().unwrap(),
+            TransactionError::DataRequestNotFound { hash: dr_pointer },
+        );
+        dr_pool
+            .process_data_request(&dr_transaction, epoch, None)
+            .unwrap();
+        dr_pool.update_data_request_stages(None, Some(epoch));
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &active_wips,
+            &HashSet::<Hash>::new(),
+            None,
+            Some(epoch),
+            protocol,
+        );
+        assert_eq!(
+            x.unwrap_err().downcast::<DataRequestError>().unwrap(),
+            DataRequestError::NotTallyStage
+        );
 
-    dr_pool
-        .process_reveal(&reveal_transaction, epoch, &fake_block_hash)
-        .unwrap();
-    dr_pool.update_data_request_stages(None, Some(epoch));
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &active_wips,
-        &HashSet::<Hash>::new(),
-        None,
-        Some(epoch),
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    x.unwrap();
+        dr_pool
+            .process_commit(&commit_transaction, epoch, &fake_block_hash)
+            .unwrap();
+        dr_pool.update_data_request_stages(None, Some(epoch));
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &active_wips,
+            &HashSet::<Hash>::new(),
+            None,
+            Some(epoch),
+            protocol,
+        );
+        assert_eq!(
+            x.unwrap_err().downcast::<DataRequestError>().unwrap(),
+            DataRequestError::NotTallyStage
+        );
+
+        dr_pool
+            .process_reveal(&reveal_transaction, epoch, &fake_block_hash)
+            .unwrap();
+        dr_pool.update_data_request_stages(None, Some(epoch));
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &active_wips,
+            &HashSet::<Hash>::new(),
+            None,
+            Some(epoch),
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+    }
 }
 
 #[test]
@@ -5299,30 +5311,48 @@ fn tally_invalid_consensus() {
         value: change,
     };
 
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        fake_tally_value.clone(),
-        vec![vt0, vt1, vt2, vt3, vt_change],
-        slashed,
-        error_witnesses,
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &active_wips,
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    );
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::MismatchedConsensus {
-            expected_tally: tally_value,
-            miner_tally: fake_tally_value,
-        }
-    );
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                fake_tally_value.clone(),
+                vec![
+                    vt0.clone(),
+                    vt1.clone(),
+                    vt2.clone(),
+                    vt3.clone(),
+                    vt_change.clone(),
+                ],
+                slashed.clone(),
+                error_witnesses.clone(),
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                fake_tally_value.clone(),
+                vec![vt_change.clone()],
+                slashed.clone(),
+                error_witnesses.clone(),
+            )
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &active_wips,
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        );
+        assert_eq!(
+            x.unwrap_err().downcast::<TransactionError>().unwrap(),
+            TransactionError::MismatchedConsensus {
+                expected_tally: tally_value.clone(),
+                miner_tally: fake_tally_value.clone(),
+            }
+        );
+    }
 }
 
 #[test]
@@ -5374,25 +5404,44 @@ fn tally_valid_1_reveal_5_commits() {
         value: change,
     };
 
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_bytes,
-        vec![vt0, vt1, vt2, vt3, vt4, vt_change],
-        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3], pkhs[4]],
-        vec![pkhs[0]],
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &current_active_wips(),
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    x.unwrap();
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_bytes.clone(),
+                vec![
+                    vt0.clone(),
+                    vt1.clone(),
+                    vt2.clone(),
+                    vt3.clone(),
+                    vt4.clone(),
+                    vt_change.clone(),
+                ],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3], pkhs[4]],
+                vec![pkhs[0]],
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_bytes.clone(),
+                vec![vt_change.clone()],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3], pkhs[4]],
+                vec![pkhs[0]],
+            )
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &current_active_wips(),
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+    }
 }
 
 fn generic_tally_test_stddev_dr(
@@ -5569,31 +5618,53 @@ fn tally_valid_1_reveal_5_commits_invalid_value() {
         value: change,
     };
 
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_bytes,
-        vec![vt0, vt1, vt2, vt3, vt4, vt_change],
-        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3], pkhs[4]],
-        vec![pkhs[0]],
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &current_active_wips(),
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::InvalidReward {
-            value: collateral * 4 - 3,
-            expected_value: collateral
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_bytes.clone(),
+                vec![
+                    vt0.clone(),
+                    vt1.clone(),
+                    vt2.clone(),
+                    vt3.clone(),
+                    vt4.clone(),
+                    vt_change.clone(),
+                ],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3], pkhs[4]],
+                vec![pkhs[0]],
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_bytes.clone(),
+                vec![vt_change.clone()],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3], pkhs[4]],
+                vec![pkhs[0]],
+            )
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &current_active_wips(),
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        );
+        if protocol < ProtocolVersion::V2_0 {
+            assert_eq!(
+                x.unwrap_err().downcast::<TransactionError>().unwrap(),
+                TransactionError::InvalidReward {
+                    value: collateral * 4 - 3,
+                    expected_value: collateral
+                }
+            );
+        } else {
+            assert_eq!(x.unwrap(), (vec![&vt_change], 0u64));
         }
-    );
+    }
 }
 
 #[test]
@@ -5645,31 +5716,50 @@ fn tally_valid_1_reveal_5_commits_with_absurd_timelock() {
         value: change,
     };
 
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_bytes,
-        vec![vt0, vt1, vt2, vt3, vt4, vt_change],
-        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3], pkhs[4]],
-        vec![pkhs[0]],
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &current_active_wips(),
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::InvalidTimeLock {
-            expected: 0,
-            current: u64::MAX,
-        }
-    );
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_bytes.clone(),
+                vec![
+                    vt0.clone(),
+                    vt1.clone(),
+                    vt2.clone(),
+                    vt3.clone(),
+                    vt4.clone(),
+                    vt_change.clone(),
+                ],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3], pkhs[4]],
+                vec![pkhs[0]],
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_bytes.clone(),
+                vec![vt_change.clone()],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3], pkhs[4]],
+                vec![pkhs[0]],
+            )
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &current_active_wips(),
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        assert_eq!(
+            x.unwrap_err().downcast::<TransactionError>().unwrap(),
+            TransactionError::InvalidTimeLock {
+                expected: 0,
+                current: u64::MAX,
+            }
+        );
+    }
 }
 
 #[test]
@@ -5727,26 +5817,44 @@ fn tally_valid() {
         pkh: dr_pkh,
         value: change,
     };
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_value,
-        vec![vt0, vt1, vt2, vt3, vt_change],
-        slashed,
-        error_witnesses,
-    );
 
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &active_wips,
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    x.unwrap();
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![
+                    vt0.clone(),
+                    vt1.clone(),
+                    vt2.clone(),
+                    vt3.clone(),
+                    vt_change.clone(),
+                ],
+                slashed.clone(),
+                error_witnesses.clone(),
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt_change.clone()],
+                slashed.clone(),
+                error_witnesses.clone(),
+            )
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &active_wips,
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+    }
 }
 
 #[test]
@@ -5793,35 +5901,48 @@ fn tally_too_many_outputs() {
         pkh: dr_pkh,
         value: change,
     };
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_value,
-        vec![vt0, vt1, vt_change],
-        slashed,
-        error_witnesses,
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &active_wips,
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::WrongNumberOutputs {
-            outputs: tally_transaction.outputs.len(),
-            expected_outputs: 5
-        },
-    );
+
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = TallyTransaction::new(
+            dr_pointer,
+            tally_value.clone(),
+            vec![vt0.clone(), vt1.clone(), vt_change.clone()],
+            slashed.clone(),
+            error_witnesses.clone(),
+        );
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &active_wips,
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        if protocol < ProtocolVersion::V2_0 {
+            assert_eq!(
+                x.unwrap_err().downcast::<TransactionError>().unwrap(),
+                TransactionError::WrongNumberOutputs {
+                    outputs: tally_transaction.outputs.len(),
+                    expected_outputs: 5
+                },
+            );
+        } else {
+            assert_eq!(
+                x.unwrap_err().downcast::<TransactionError>().unwrap(),
+                TransactionError::WrongNumberOutputs {
+                    outputs: tally_transaction.outputs.len(),
+                    expected_outputs: 1
+                },
+            );
+        }
+    }
 }
 
 #[test]
-fn tally_too_less_outputs() {
+fn tally_too_few_outputs() {
     let active_wips = current_active_wips();
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
@@ -5847,26 +5968,47 @@ fn tally_too_less_outputs() {
         value: reward,
     };
 
-    let tally_transaction =
-        TallyTransaction::new(dr_pointer, tally_value, vec![vt0], slashed, error_witnesses);
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &active_wips,
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::WrongNumberOutputs {
-            outputs: tally_transaction.outputs.len(),
-            expected_outputs: 2
-        },
-    );
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt0.clone()],
+                slashed.clone(),
+                error_witnesses.clone(),
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![],
+                slashed.clone(),
+                error_witnesses.clone(),
+            )
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &active_wips,
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        );
+        if protocol < ProtocolVersion::V2_0 {
+            assert_eq!(
+                x.unwrap_err().downcast::<TransactionError>().unwrap(),
+                TransactionError::WrongNumberOutputs {
+                    outputs: tally_transaction.outputs.len(),
+                    expected_outputs: 2
+                },
+            );
+        } else {
+            // A successful tally with zero change expects no outputs
+            assert_eq!(x.unwrap(), (vec![], 0));
+        }
+    }
 }
 
 #[test]
@@ -5924,31 +6066,50 @@ fn tally_invalid_change() {
         pkh: dr_pkh,
         value: invalid_change,
     };
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_value,
-        vec![vt0, vt1, vt2, vt3, vt_change],
-        slashed,
-        error_witnesses,
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &active_wips,
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::InvalidTallyChange {
-            change: invalid_change,
-            expected_change: change
-        },
-    );
+
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![
+                    vt0.clone(),
+                    vt1.clone(),
+                    vt2.clone(),
+                    vt3.clone(),
+                    vt_change.clone(),
+                ],
+                slashed.clone(),
+                error_witnesses.clone(),
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt_change.clone()],
+                slashed.clone(),
+                error_witnesses.clone(),
+            )
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &active_wips,
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        assert_eq!(
+            x.unwrap_err().downcast::<TransactionError>().unwrap(),
+            TransactionError::InvalidTallyChange {
+                change: invalid_change,
+                expected_change: change
+            },
+        );
+    }
 }
 
 #[test]
@@ -5982,28 +6143,45 @@ fn tally_double_reward() {
         pkh: rewarded[0],
         value: reward,
     };
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_value,
-        vec![vt0, vt1],
-        slashed,
-        error_witnesses,
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &active_wips,
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::MultipleRewards { pkh: rewarded[0] },
-    );
+
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt0.clone(), vt1.clone()],
+                slashed.clone(),
+                error_witnesses.clone(),
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![],
+                slashed.clone(),
+                error_witnesses.clone(),
+            )
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &active_wips,
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        );
+        if protocol < ProtocolVersion::V2_0 {
+            assert_eq!(
+                x.unwrap_err().downcast::<TransactionError>().unwrap(),
+                TransactionError::MultipleRewards { pkh: rewarded[0] },
+            );
+        } else {
+            // Rewards are not distributed through UTXO's anymore, so this test is now successful
+            assert_eq!(x.unwrap(), (vec![], 0));
+        }
+    }
 }
 
 #[test]
@@ -6011,11 +6189,11 @@ fn tally_reveal_not_found() {
     let active_wips = current_active_wips();
     // Reveal value: integer(0)
     let reveal_value = vec![0x00];
-    let dr_output = example_data_request_output(2, DEFAULT_WITNESS_REWARD, 20);
-    let (mut dr_pool, dr_pointer, rewarded, slashed, error_witnesses, _dr_pkh, _change, reward) =
+    let dr_output = example_data_request_output(3, DEFAULT_WITNESS_REWARD, 20);
+    let (mut dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage(
             dr_output,
-            2,
+            3,
             2,
             0,
             reveal_value,
@@ -6037,28 +6215,46 @@ fn tally_reveal_not_found() {
         pkh: PublicKeyHash::default(),
         value: reward,
     };
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_value,
-        vec![vt0, vt1],
-        slashed,
-        error_witnesses,
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &active_wips,
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::RevealNotFound,
-    );
+    let vt2 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: dr_pkh,
+        value: change,
+    };
+
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt0.clone(), vt1.clone(), vt2.clone()],
+                slashed.clone(),
+                error_witnesses.clone(),
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt1.clone()],
+                slashed.clone(),
+                error_witnesses.clone(),
+            )
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &active_wips,
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        assert_eq!(
+            x.unwrap_err().downcast::<TransactionError>().unwrap(),
+            TransactionError::RevealNotFound,
+        );
+    }
 }
 
 #[test]
@@ -6093,31 +6289,48 @@ fn tally_invalid_reward() {
         value: reward,
     };
     assert_eq!(change, 0);
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_value,
-        vec![vt0, vt1],
-        slashed,
-        error_witnesses,
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &active_wips,
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::InvalidReward {
-            value: reward + 1000,
-            expected_value: reward
-        },
-    );
+
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt0.clone(), vt1.clone()],
+                slashed.clone(),
+                error_witnesses.clone(),
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![],
+                slashed.clone(),
+                error_witnesses.clone(),
+            )
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &active_wips,
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        );
+        if protocol < ProtocolVersion::V2_0 {
+            assert_eq!(
+                x.unwrap_err().downcast::<TransactionError>().unwrap(),
+                TransactionError::InvalidReward {
+                    value: reward + 1000,
+                    expected_value: reward
+                },
+            );
+        } else {
+            // Rewards are not distributed through UTXO's anymore, so this test is now successful
+            assert_eq!(x.unwrap(), (vec![], 0));
+        }
+    }
 }
 
 #[test]
@@ -6152,25 +6365,38 @@ fn tally_valid_2_reveals() {
         value: reward,
     };
     assert_eq!(change, 0);
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_value,
-        vec![vt0, vt1],
-        slashed,
-        error_witnesses,
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &active_wips,
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    x.unwrap();
+
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt0.clone(), vt1.clone()],
+                slashed.clone(),
+                error_witnesses.clone(),
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![],
+                slashed.clone(),
+                error_witnesses.clone(),
+            )
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &active_wips,
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+    }
 }
 
 #[test]
@@ -6222,25 +6448,38 @@ fn tally_valid_3_reveals_dr_liar() {
         value: change,
     };
     assert_eq!(slashed, vec![dr_pkh]);
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_value,
-        vec![vt0, vt1, vt2],
-        slashed,
-        error_witnesses,
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &current_active_wips(),
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    x.unwrap();
+
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt0.clone(), vt1.clone(), vt2.clone()],
+                slashed.clone(),
+                error_witnesses.clone(),
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt2.clone()],
+                slashed.clone(),
+                error_witnesses.clone(),
+            )
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &current_active_wips(),
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+    }
 }
 
 #[test]
@@ -6292,32 +6531,45 @@ fn tally_valid_3_reveals_dr_liar_invalid() {
         value: reward,
     };
     let slashed_witnesses = vec![];
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_value,
-        vec![vt0, vt1, vt2],
-        slashed_witnesses.clone(),
-        error_witnesses,
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &active_wips,
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
 
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::MismatchingOutOfConsensusCount {
-            expected: slashed.into_iter().sorted().collect(),
-            found: slashed_witnesses.into_iter().sorted().collect(),
-        },
-    );
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt0.clone(), vt1.clone(), vt2.clone()],
+                slashed_witnesses.clone(),
+                error_witnesses.clone(),
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt2.clone()],
+                slashed_witnesses.clone(),
+                error_witnesses.clone(),
+            )
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &active_wips,
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+
+        assert_eq!(
+            x.unwrap_err().downcast::<TransactionError>().unwrap(),
+            TransactionError::MismatchingOutOfConsensusCount {
+                expected: slashed.clone().into_iter().sorted().collect(),
+                found: slashed_witnesses.clone().into_iter().sorted().collect(),
+            },
+        );
+    }
 }
 
 #[test]
@@ -6382,25 +6634,44 @@ fn tally_valid_5_reveals_1_liar_1_error() {
 
     let mut out_of_consensus = slashed;
     out_of_consensus.extend(error_witnesses.clone());
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_value,
-        vec![vt0, vt1, vt2, vt3, vt4],
-        out_of_consensus,
-        error_witnesses,
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &current_active_wips(),
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    x.unwrap();
+
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![
+                    vt0.clone(),
+                    vt1.clone(),
+                    vt2.clone(),
+                    vt3.clone(),
+                    vt4.clone(),
+                ],
+                out_of_consensus.clone(),
+                error_witnesses.clone(),
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt4.clone()],
+                out_of_consensus.clone(),
+                error_witnesses.clone(),
+            )
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &current_active_wips(),
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+    }
 }
 
 #[test]
@@ -6448,25 +6719,38 @@ fn tally_valid_3_reveals_1_error() {
         value: change,
     };
     assert_eq!(slashed, vec![]);
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_value,
-        vec![vt0, vt1, vt2, vt3],
-        error_witnesses.clone(),
-        error_witnesses,
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &current_active_wips(),
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    x.unwrap();
+
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt0.clone(), vt1.clone(), vt2.clone(), vt3.clone()],
+                error_witnesses.clone(),
+                error_witnesses.clone(),
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt3.clone()],
+                error_witnesses.clone(),
+                error_witnesses.clone(),
+            )
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &current_active_wips(),
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+    }
 }
 
 #[test]
@@ -6514,31 +6798,48 @@ fn tally_valid_3_reveals_1_error_invalid_reward() {
         value: change,
     };
     assert_eq!(slashed, vec![]);
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_value,
-        vec![vt0, vt1, vt2, vt3],
-        error_witnesses.clone(),
-        error_witnesses,
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &current_active_wips(),
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::InvalidReward {
-            value: reward,
-            expected_value: DEFAULT_COLLATERAL,
+
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt0.clone(), vt1.clone(), vt2.clone(), vt3.clone()],
+                error_witnesses.clone(),
+                error_witnesses.clone(),
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt3.clone()],
+                error_witnesses.clone(),
+                error_witnesses.clone(),
+            )
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &current_active_wips(),
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        );
+        if protocol < ProtocolVersion::V2_0 {
+            assert_eq!(
+                x.unwrap_err().downcast::<TransactionError>().unwrap(),
+                TransactionError::InvalidReward {
+                    value: reward,
+                    expected_value: DEFAULT_COLLATERAL,
+                }
+            );
+        } else {
+            // Rewards are not distributed through UTXO's anymore, so this test is now successful
+            assert_eq!(x.unwrap(), (vec![&vt3], 0));
         }
-    )
+    }
 }
 
 #[test]
@@ -6586,31 +6887,44 @@ fn tally_valid_3_reveals_mark_all_as_error() {
         value: change,
     };
     assert_eq!(slashed, vec![]);
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_value,
-        vec![vt0, vt1, vt2, vt3],
-        error_witnesses,
-        vec![rewarded[0], rewarded[1], rewarded[2]],
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &current_active_wips(),
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::MismatchingErrorCount {
-            expected: vec![],
-            found: vec![rewarded[2], rewarded[1], rewarded[0]],
-        }
-    )
+
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt0.clone(), vt1.clone(), vt2.clone(), vt3.clone()],
+                error_witnesses.clone(),
+                vec![rewarded[0], rewarded[1], rewarded[2]],
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt3.clone()],
+                error_witnesses.clone(),
+                vec![rewarded[0], rewarded[1], rewarded[2]],
+            )
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &current_active_wips(),
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        assert_eq!(
+            x.unwrap_err().downcast::<TransactionError>().unwrap(),
+            TransactionError::MismatchingErrorCount {
+                expected: vec![],
+                found: vec![rewarded[2], rewarded[1], rewarded[0]],
+            }
+        );
+    }
 }
 
 #[test]
@@ -6622,7 +6936,7 @@ fn tally_dishonest_reward() {
 
     // Create a DataRequestPool with 3 reveals (one of them is a lie from the data requester)
     let dr_output = example_data_request_output_with_mode_filter(3, DEFAULT_WITNESS_REWARD, 20);
-    let (mut dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, _change, reward) =
+    let (mut dr_pool, dr_pointer, rewarded, slashed, error_witnesses, dr_pkh, change, reward) =
         dr_pool_with_dr_in_tally_stage_with_dr_liar(
             dr_output,
             3,
@@ -6661,29 +6975,51 @@ fn tally_dishonest_reward() {
         pkh: dr_pkh,
         value: reward,
     };
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_value,
-        vec![vt0, vt1, vt2],
-        slashed,
-        error_witnesses,
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &current_active_wips(),
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
+    let vt3 = ValueTransferOutput {
+        time_lock: 0,
+        pkh: dr_pkh,
+        value: change,
+    };
 
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::DishonestReward,
-    );
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt0.clone(), vt1.clone(), vt2.clone()],
+                slashed.clone(),
+                error_witnesses.clone(),
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt3.clone()],
+                slashed.clone(),
+                error_witnesses.clone(),
+            )
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &current_active_wips(),
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        );
+
+        if protocol < ProtocolVersion::V2_0 {
+            assert_eq!(
+                x.unwrap_err().downcast::<TransactionError>().unwrap(),
+                TransactionError::DishonestReward,
+            );
+        } else {
+            // Rewards are not distributed through UTXO's anymore, so this test is now successful
+            assert_eq!(x.unwrap(), (vec![&vt3], 0));
+        }
+    }
 }
 
 #[test]
@@ -7026,18 +7362,21 @@ fn tally_valid_zero_commits() {
     };
     let tally_transaction =
         TallyTransaction::new(dr_pointer, tally_value, vec![vt0], slashed, error_witnesses);
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &active_wips,
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    x.unwrap();
+
+    for protocol in ProtocolVersion::iter() {
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &active_wips,
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+    }
 }
 
 #[test]
@@ -7129,24 +7468,27 @@ fn tally_invalid_zero_commits() {
         slashed,
         error_witnesses,
     );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &active_wips,
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::WrongNumberOutputs {
-            outputs: 2,
-            expected_outputs: 1
-        },
-    );
+
+    for protocol in ProtocolVersion::iter() {
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &active_wips,
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        assert_eq!(
+            x.unwrap_err().downcast::<TransactionError>().unwrap(),
+            TransactionError::WrongNumberOutputs {
+                outputs: 2,
+                expected_outputs: 1
+            },
+        );
+    }
 }
 
 #[test]
@@ -7206,25 +7548,45 @@ fn tally_valid_zero_reveals() {
         pkh: dr_pkh,
         value: change,
     };
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_value,
-        vec![vt1, vt2, vt3, vt4, vt5, vt0],
-        slashed,
-        error_witnesses,
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &active_wips,
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    x.unwrap();
+
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![
+                    vt1.clone(),
+                    vt2.clone(),
+                    vt3.clone(),
+                    vt4.clone(),
+                    vt5.clone(),
+                    vt0.clone(),
+                ],
+                slashed.clone(),
+                error_witnesses.clone(),
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt0.clone()],
+                slashed.clone(),
+                error_witnesses.clone(),
+            )
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &active_wips,
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+    }
 }
 
 #[test]
@@ -7588,25 +7950,44 @@ fn tally_valid_4_reveals_all_liars() {
         pkh: dr_pkh,
         value: change,
     };
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_value,
-        vec![vt0, vt1, vt2, vt3, vt4],
-        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
-        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &current_active_wips(),
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    x.unwrap();
+
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![
+                    vt0.clone(),
+                    vt1.clone(),
+                    vt2.clone(),
+                    vt3.clone(),
+                    vt4.clone(),
+                ],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt4.clone()],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+            )
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &current_active_wips(),
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+    }
 }
 
 #[test]
@@ -7649,29 +8030,48 @@ fn tally_valid_4_reveals_all_liars_attacker_pkh() {
         pkh: dr_pkh,
         value: change,
     };
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_value,
-        vec![vt0, vt1, vt2, vt3, vt4],
-        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
-        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &current_active_wips(),
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    // The attacker_pkh has not participated in the commit/reveal process, so the error is "CommitNotFound"
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::CommitNotFound
-    );
+
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![
+                    vt0.clone(),
+                    vt1.clone(),
+                    vt2.clone(),
+                    vt3.clone(),
+                    vt4.clone(),
+                ],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt0.clone()],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+            )
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &current_active_wips(),
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        // The attacker_pkh has not participated in the commit/reveal process, so the error is "CommitNotFound"
+        assert_eq!(
+            x.unwrap_err().downcast::<TransactionError>().unwrap(),
+            TransactionError::CommitNotFound
+        );
+    }
 }
 
 #[test]
@@ -7714,25 +8114,44 @@ fn tally_valid_4_reveals_2_liars_2_true() {
         pkh: dr_pkh,
         value: change,
     };
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_value,
-        vec![vt0, vt1, vt2, vt3, vt4],
-        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
-        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &current_active_wips(),
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    x.unwrap();
+
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![
+                    vt0.clone(),
+                    vt1.clone(),
+                    vt2.clone(),
+                    vt3.clone(),
+                    vt4.clone(),
+                ],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt4.clone()],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+            )
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &current_active_wips(),
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+    }
 }
 
 #[test]
@@ -7778,25 +8197,44 @@ fn tally_valid_4_reveals_2_errors_2_true() {
         pkh: dr_pkh,
         value: change,
     };
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_value,
-        vec![vt0, vt1, vt2, vt3, vt4],
-        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
-        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &current_active_wips(),
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    x.unwrap();
+
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![
+                    vt0.clone(),
+                    vt1.clone(),
+                    vt2.clone(),
+                    vt3.clone(),
+                    vt4.clone(),
+                ],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt4.clone()],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+            )
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &current_active_wips(),
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+    }
 }
 
 #[test]
@@ -7839,25 +8277,44 @@ fn tally_valid_4_reveals_1_liar_2_true() {
         pkh: dr_pkh,
         value: change + 10,
     };
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_value,
-        vec![vt0, vt1, vt2, vt3, vt4],
-        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
-        vec![pkhs[0], pkhs[1], pkhs[2]],
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &current_active_wips(),
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    x.unwrap();
+
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![
+                    vt0.clone(),
+                    vt1.clone(),
+                    vt2.clone(),
+                    vt3.clone(),
+                    vt4.clone(),
+                ],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+                vec![pkhs[0], pkhs[1], pkhs[2]],
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt4.clone()],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+                vec![pkhs[0], pkhs[1], pkhs[2]],
+            )
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &current_active_wips(),
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+    }
 }
 
 #[test]
@@ -7905,25 +8362,44 @@ fn tally_valid_4_reveals_invalid_script_arg() {
         pkh: dr_pkh,
         value: change,
     };
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_value,
-        vec![vt0, vt1, vt2, vt3, vt4],
-        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
-        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &current_active_wips(),
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    x.unwrap();
+
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![
+                    vt0.clone(),
+                    vt1.clone(),
+                    vt2.clone(),
+                    vt3.clone(),
+                    vt4.clone(),
+                ],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt4.clone()],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+            )
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &current_active_wips(),
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+    }
 }
 
 #[test]
@@ -7971,25 +8447,44 @@ fn tally_valid_3_reveals_1_no_reveal_invalid_script_arg() {
         pkh: dr_pkh,
         value: change,
     };
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_value,
-        vec![vt0, vt1, vt2, vt3, vt4],
-        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
-        vec![pkhs[0], pkhs[1], pkhs[2]],
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &current_active_wips(),
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    x.unwrap();
+
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![
+                    vt0.clone(),
+                    vt1.clone(),
+                    vt2.clone(),
+                    vt3.clone(),
+                    vt4.clone(),
+                ],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+                vec![pkhs[0], pkhs[1], pkhs[2]],
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt4.clone()],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+                vec![pkhs[0], pkhs[1], pkhs[2]],
+            )
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &current_active_wips(),
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+    }
 }
 
 #[test]
@@ -8028,25 +8523,38 @@ fn tally_valid_4_reveals_majority_of_errors() {
         pkh: pkhs[3],
         value: reward,
     };
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_value,
-        vec![vt0, vt1, vt2, vt3],
-        vec![],
-        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &current_active_wips(),
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    x.unwrap();
+
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt0.clone(), vt1.clone(), vt2.clone(), vt3.clone()],
+                vec![],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![],
+                vec![],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+            )
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &current_active_wips(),
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+    }
 }
 
 #[test]
@@ -8095,25 +8603,38 @@ fn tally_valid_3_reveals_1_no_reveal_majority_of_errors() {
         pkh: dr_pkh,
         value: change,
     };
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_value,
-        vec![vt0, vt1, vt2, vt3],
-        vec![pkhs[3]],
-        vec![pkhs[0], pkhs[1], pkhs[2]],
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &current_active_wips(),
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    x.unwrap();
+
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt0.clone(), vt1.clone(), vt2.clone(), vt3.clone()],
+                vec![pkhs[3]],
+                vec![pkhs[0], pkhs[1], pkhs[2]],
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt3.clone()],
+                vec![pkhs[3]],
+                vec![pkhs[0], pkhs[1], pkhs[2]],
+            )
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &current_active_wips(),
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+    }
 }
 
 #[test]
@@ -8155,25 +8676,44 @@ fn tally_valid_2_reveals_2_no_reveals_majority_of_errors_insufficient_consensus(
         pkh: dr_pkh,
         value: change,
     };
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_value,
-        vec![vt0, vt1, vt2, vt3, vt4],
-        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
-        vec![pkhs[0], pkhs[1]],
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &current_active_wips(),
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    x.unwrap();
+
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![
+                    vt0.clone(),
+                    vt1.clone(),
+                    vt2.clone(),
+                    vt3.clone(),
+                    vt4.clone(),
+                ],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+                vec![pkhs[0], pkhs[1]],
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt4.clone()],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+                vec![pkhs[0], pkhs[1]],
+            )
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &current_active_wips(),
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+    }
 }
 
 #[test]
@@ -8221,25 +8761,44 @@ fn tally_valid_4_reveals_majority_of_errors_insufficient_consensus() {
         pkh: dr_pkh,
         value: change,
     };
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_value,
-        vec![vt0, vt1, vt2, vt3, vt4],
-        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
-        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &current_active_wips(),
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    x.unwrap();
+
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![
+                    vt0.clone(),
+                    vt1.clone(),
+                    vt2.clone(),
+                    vt3.clone(),
+                    vt4.clone(),
+                ],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt4.clone()],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+            )
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &current_active_wips(),
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+    }
 }
 
 #[test]
@@ -8286,25 +8845,44 @@ fn tally_valid_3_reveals_1_no_reveal_majority_of_errors_insufficient_consensus()
         pkh: dr_pkh,
         value: change,
     };
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_value,
-        vec![vt0, vt1, vt2, vt3, vt4],
-        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
-        vec![pkhs[0], pkhs[1], pkhs[2]],
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &current_active_wips(),
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    x.unwrap();
+
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![
+                    vt0.clone(),
+                    vt1.clone(),
+                    vt2.clone(),
+                    vt3.clone(),
+                    vt4.clone(),
+                ],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+                vec![pkhs[0], pkhs[1], pkhs[2]],
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt4.clone()],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+                vec![pkhs[0], pkhs[1], pkhs[2]],
+            )
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &current_active_wips(),
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+    }
 }
 
 #[test]
@@ -8356,25 +8934,32 @@ fn tally_valid_rng() {
         pkh: pkhs[3],
         value: reward,
     };
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_value,
-        vec![vt0, vt1, vt2, vt3],
-        vec![],
-        vec![],
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &current_active_wips(),
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    x.unwrap();
+
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt0.clone(), vt1.clone(), vt2.clone(), vt3.clone()],
+                vec![],
+                vec![],
+            )
+        } else {
+            TallyTransaction::new(dr_pointer, tally_value.clone(), vec![], vec![], vec![])
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &current_active_wips(),
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+    }
 }
 
 #[test]
@@ -8414,25 +8999,32 @@ fn tally_valid_rng_wrong_bytes_len() {
         pkh: pkhs[3],
         value: reward,
     };
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_value,
-        vec![vt0, vt1, vt2, vt3],
-        vec![],
-        vec![],
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &current_active_wips(),
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    x.unwrap();
+
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt0.clone(), vt1.clone(), vt2.clone(), vt3.clone()],
+                vec![],
+                vec![],
+            )
+        } else {
+            TallyTransaction::new(dr_pointer, tally_value.clone(), vec![], vec![], vec![])
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &current_active_wips(),
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+    }
 }
 
 #[test]
@@ -8494,25 +9086,44 @@ fn tally_valid_rng_one_error() {
         pkh: dr_pkh,
         value: change,
     };
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_value,
-        vec![vt0, vt1, vt2, vt3, vt4],
-        vec![pkhs[3]],
-        vec![pkhs[3]],
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &current_active_wips(),
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    x.unwrap();
+
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![
+                    vt0.clone(),
+                    vt1.clone(),
+                    vt2.clone(),
+                    vt3.clone(),
+                    vt4.clone(),
+                ],
+                vec![pkhs[3]],
+                vec![pkhs[3]],
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt4.clone()],
+                vec![pkhs[3]],
+                vec![pkhs[3]],
+            )
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &current_active_wips(),
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+    }
 }
 
 #[test]
@@ -8581,25 +9192,38 @@ fn tally_valid_rng_all_errors() {
         pkh: pkhs[3],
         value: reward,
     };
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_value,
-        vec![vt0, vt1, vt2, vt3],
-        vec![],
-        vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &current_active_wips(),
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    x.unwrap();
+
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt0.clone(), vt1.clone(), vt2.clone(), vt3.clone()],
+                vec![],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![],
+                vec![],
+                vec![pkhs[0], pkhs[1], pkhs[2], pkhs[3]],
+            )
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &current_active_wips(),
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+    }
 }
 
 #[test]
@@ -8655,25 +9279,38 @@ fn tally_valid_rng_one_invalid_type() {
         pkh: dr_pkh,
         value: change,
     };
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_value,
-        vec![vt0, vt1, vt2, vt4],
-        vec![pkhs[3]],
-        vec![],
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &current_active_wips(),
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    x.unwrap();
+
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt0.clone(), vt1.clone(), vt2.clone(), vt4.clone()],
+                vec![pkhs[3]],
+                vec![],
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt4.clone()],
+                vec![pkhs[3]],
+                vec![],
+            )
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &current_active_wips(),
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+    }
 }
 
 #[test]
@@ -8714,25 +9351,32 @@ fn tally_valid_rng_all_invalid_type() {
         pkh: pkhs[3],
         value: reward,
     };
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_value,
-        vec![vt0, vt1, vt2, vt3],
-        vec![],
-        vec![],
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &current_active_wips(),
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    x.unwrap();
+
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt0.clone(), vt1.clone(), vt2.clone(), vt3.clone()],
+                vec![],
+                vec![],
+            )
+        } else {
+            TallyTransaction::new(dr_pointer, tally_value.clone(), vec![], vec![], vec![])
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &current_active_wips(),
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+    }
 }
 
 #[test]
@@ -8778,25 +9422,38 @@ fn tally_unserializable_value() {
         value: reward,
     };
     assert_eq!(change, 0);
-    let tally_transaction = TallyTransaction::new(
-        dr_pointer,
-        tally_value,
-        vec![vt0, vt1],
-        slashed,
-        error_witnesses,
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &active_wips,
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    x.unwrap();
+
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![vt0.clone(), vt1.clone()],
+                slashed.clone(),
+                error_witnesses.clone(),
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value.clone(),
+                vec![],
+                slashed.clone(),
+                error_witnesses.clone(),
+            )
+        };
+        let x = validate_tally_transaction(
+            &tally_transaction,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &active_wips,
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+    }
 }
 
 #[test]
@@ -8829,95 +9486,117 @@ fn tally_unhandled_intercept_with_message() {
         value: reward,
     };
     assert_eq!(change, 0);
-    let tally_transaction_with_message = TallyTransaction::new(
-        dr_pointer,
-        tally_value_with_message.clone(),
-        vec![vt0.clone(), vt1.clone()],
-        slashed.clone(),
-        error_witnesses.clone(),
-    );
-    let tally_transaction_no_message = TallyTransaction::new(
-        dr_pointer,
-        tally_value_no_message.clone(),
-        vec![vt0, vt1],
-        slashed,
-        error_witnesses,
-    );
 
-    let mut active_wips = current_active_wips();
-    // Disable WIP-0018
-    active_wips.active_wips.remove("WIP0017-0018-0019");
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction_with_message = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value_with_message.clone(),
+                vec![vt0.clone(), vt1.clone()],
+                slashed.clone(),
+                error_witnesses.clone(),
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value_with_message.clone(),
+                vec![],
+                slashed.clone(),
+                error_witnesses.clone(),
+            )
+        };
+        let tally_transaction_no_message = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value_no_message.clone(),
+                vec![vt0.clone(), vt1.clone()],
+                slashed.clone(),
+                error_witnesses.clone(),
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value_no_message.clone(),
+                vec![],
+                slashed.clone(),
+                error_witnesses.clone(),
+            )
+        };
+        let mut active_wips = current_active_wips();
+        // Disable WIP-0018
+        active_wips.active_wips.remove("WIP0017-0018-0019");
 
-    // Before WIP-0018:
-    // tally_transaction_with_message is valid, tally_transaction_no_message is invalid
-    let x = validate_tally_transaction(
-        &tally_transaction_with_message,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &active_wips,
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    x.unwrap();
-    let x = validate_tally_transaction(
-        &tally_transaction_no_message,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &active_wips,
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::MismatchedConsensus {
-            miner_tally: tally_value_no_message.clone(),
-            expected_tally: tally_value_with_message.clone(),
-        }
-    );
+        // Before WIP-0018:
+        // tally_transaction_with_message is valid, tally_transaction_no_message is invalid
+        let x = validate_tally_transaction(
+            &tally_transaction_with_message,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &active_wips,
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+        let x = validate_tally_transaction(
+            &tally_transaction_no_message,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &active_wips,
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        assert_eq!(
+            x.unwrap_err().downcast::<TransactionError>().unwrap(),
+            TransactionError::MismatchedConsensus {
+                miner_tally: tally_value_no_message.clone(),
+                expected_tally: tally_value_with_message.clone(),
+            }
+        );
 
-    // Enable WIP-0018
-    active_wips
-        .active_wips
-        .insert("WIP0017-0018-0019".to_string(), 0);
+        // Enable WIP-0018
+        active_wips
+            .active_wips
+            .insert("WIP0017-0018-0019".to_string(), 0);
 
-    // After WIP-0018:
-    // tally_transaction_with_message is invalid, tally_transaction_no_message is valid
-    let x = validate_tally_transaction(
-        &tally_transaction_with_message,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &active_wips,
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::MismatchedConsensus {
-            miner_tally: tally_value_with_message,
-            expected_tally: tally_value_no_message,
-        }
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction_no_message,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &active_wips,
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    x.unwrap();
+        // After WIP-0018:
+        // tally_transaction_with_message is invalid, tally_transaction_no_message is valid
+        let x = validate_tally_transaction(
+            &tally_transaction_with_message,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &active_wips,
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        assert_eq!(
+            x.unwrap_err().downcast::<TransactionError>().unwrap(),
+            TransactionError::MismatchedConsensus {
+                miner_tally: tally_value_with_message.clone(),
+                expected_tally: tally_value_no_message.clone(),
+            }
+        );
+        let x = validate_tally_transaction(
+            &tally_transaction_no_message,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &active_wips,
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+    }
 }
 
 #[test]
@@ -8969,94 +9648,117 @@ fn tally_unhandled_intercept_mode_tie_has_no_message() {
         value: reward,
     };
     assert_eq!(change, 0);
-    let tally_transaction_with_message = TallyTransaction::new(
-        dr_pointer,
-        tally_value_with_message.clone(),
-        vec![vt0.clone(), vt1.clone()],
-        slashed.clone(),
-        error_witnesses.clone(),
-    );
-    let tally_transaction_no_message = TallyTransaction::new(
-        dr_pointer,
-        tally_value_no_message.clone(),
-        vec![vt0, vt1],
-        slashed,
-        error_witnesses,
-    );
 
-    // Disable WIP-0018
-    active_wips.active_wips.remove("WIP0017-0018-0019");
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction_with_message = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value_with_message.clone(),
+                vec![vt0.clone(), vt1.clone()],
+                slashed.clone(),
+                error_witnesses.clone(),
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value_with_message.clone(),
+                vec![],
+                slashed.clone(),
+                error_witnesses.clone(),
+            )
+        };
+        let tally_transaction_no_message = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value_no_message.clone(),
+                vec![vt0.clone(), vt1.clone()],
+                slashed.clone(),
+                error_witnesses.clone(),
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value_no_message.clone(),
+                vec![],
+                slashed.clone(),
+                error_witnesses.clone(),
+            )
+        };
 
-    // Before WIP-0018:
-    // tally_transaction_with_message is valid, tally_transaction_no_message is invalid
-    let x = validate_tally_transaction(
-        &tally_transaction_with_message,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &active_wips,
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    x.unwrap();
-    let x = validate_tally_transaction(
-        &tally_transaction_no_message,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &active_wips,
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::MismatchedConsensus {
-            miner_tally: tally_value_no_message.clone(),
-            expected_tally: tally_value_with_message.clone(),
-        }
-    );
+        // Disable WIP-0018
+        active_wips.active_wips.remove("WIP0017-0018-0019");
 
-    // Enable WIP-0018
-    active_wips
-        .active_wips
-        .insert("WIP0017-0018-0019".to_string(), 0);
+        // Before WIP-0018:
+        // tally_transaction_with_message is valid, tally_transaction_no_message is invalid
+        let x = validate_tally_transaction(
+            &tally_transaction_with_message,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &active_wips,
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+        let x = validate_tally_transaction(
+            &tally_transaction_no_message,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &active_wips,
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        assert_eq!(
+            x.unwrap_err().downcast::<TransactionError>().unwrap(),
+            TransactionError::MismatchedConsensus {
+                miner_tally: tally_value_no_message.clone(),
+                expected_tally: tally_value_with_message.clone(),
+            }
+        );
 
-    // After WIP-0018:
-    // tally_transaction_with_message is invalid, tally_transaction_no_message is valid
-    let x = validate_tally_transaction(
-        &tally_transaction_with_message,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &active_wips,
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::MismatchedConsensus {
-            miner_tally: tally_value_with_message,
-            expected_tally: tally_value_no_message,
-        }
-    );
-    let x = validate_tally_transaction(
-        &tally_transaction_no_message,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &active_wips,
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    x.unwrap();
+        // Enable WIP-0018
+        active_wips
+            .active_wips
+            .insert("WIP0017-0018-0019".to_string(), 0);
+
+        // After WIP-0018:
+        // tally_transaction_with_message is invalid, tally_transaction_no_message is valid
+        let x = validate_tally_transaction(
+            &tally_transaction_with_message,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &active_wips,
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        assert_eq!(
+            x.unwrap_err().downcast::<TransactionError>().unwrap(),
+            TransactionError::MismatchedConsensus {
+                miner_tally: tally_value_with_message.clone(),
+                expected_tally: tally_value_no_message.clone(),
+            }
+        );
+        let x = validate_tally_transaction(
+            &tally_transaction_no_message,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &active_wips,
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+    }
 }
 
 #[test]
@@ -9084,54 +9786,67 @@ fn tally_error_encode_reveal_wip() {
         value: reward,
     };
     assert_eq!(change, 0);
-    let tally_transaction_error_encode_reveal = TallyTransaction::new(
-        dr_pointer,
-        tally_value_error_encode_reveal.clone(),
-        vec![vt0, vt1],
-        slashed,
-        error_witnesses,
-    );
 
-    let mut active_wips = current_active_wips();
-    // Disable WIP-0026
-    active_wips.active_wips.remove("WIP0026");
+    for protocol in ProtocolVersion::iter() {
+        let tally_transaction_error_encode_reveal = if protocol < ProtocolVersion::V2_0 {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value_error_encode_reveal.clone(),
+                vec![vt0.clone(), vt1.clone()],
+                slashed.clone(),
+                error_witnesses.clone(),
+            )
+        } else {
+            TallyTransaction::new(
+                dr_pointer,
+                tally_value_error_encode_reveal.clone(),
+                vec![],
+                slashed.clone(),
+                error_witnesses.clone(),
+            )
+        };
 
-    // Before WIP-0026:
-    let x = validate_tally_transaction(
-        &tally_transaction_error_encode_reveal,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &active_wips,
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    assert_eq!(
-        x.unwrap_err().downcast::<TransactionError>().unwrap(),
-        TransactionError::MismatchedConsensus {
-            miner_tally: tally_value_error_encode_reveal,
-            expected_tally: tally_value_malformed_reveal,
-        }
-    );
+        let mut active_wips = current_active_wips();
+        // Disable WIP-0026
+        active_wips.active_wips.remove("WIP0026");
 
-    // Enable WIP-0026
-    active_wips.active_wips.insert("WIP0026".to_string(), 0);
+        // Before WIP-0026:
+        let x = validate_tally_transaction(
+            &tally_transaction_error_encode_reveal,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &active_wips,
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        assert_eq!(
+            x.unwrap_err().downcast::<TransactionError>().unwrap(),
+            TransactionError::MismatchedConsensus {
+                miner_tally: tally_value_error_encode_reveal.clone(),
+                expected_tally: tally_value_malformed_reveal.clone(),
+            }
+        );
 
-    // After WIP-0026:
-    let x = validate_tally_transaction(
-        &tally_transaction_error_encode_reveal,
-        &mut dr_pool,
-        &CONSENSUS_CONSTANTS_FOR_TALLY,
-        &active_wips,
-        &HashSet::<Hash>::new(),
-        None,
-        None,
-        ProtocolVersion::default(),
-    )
-    .map(|_| ());
-    x.unwrap();
+        // Enable WIP-0026
+        active_wips.active_wips.insert("WIP0026".to_string(), 0);
+
+        // After WIP-0026:
+        let x = validate_tally_transaction(
+            &tally_transaction_error_encode_reveal,
+            &mut dr_pool,
+            &CONSENSUS_CONSTANTS_FOR_TALLY,
+            &active_wips,
+            &HashSet::<Hash>::new(),
+            None,
+            None,
+            protocol,
+        )
+        .map(|_| ());
+        x.unwrap();
+    }
 }
 
 fn setup_stakes_tracker(
