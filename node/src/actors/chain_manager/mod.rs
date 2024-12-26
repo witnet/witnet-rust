@@ -72,7 +72,7 @@ use witnet_data_structures::{
     radon_report::{RadonReport, ReportContext},
     register_protocol_version,
     staking::prelude::*,
-    superblock::{ARSIdentities, AddSuperBlockVote, SuperBlockConsensus},
+    superblock::{Census, AddSuperBlockVote, SuperBlockConsensus},
     transaction::{RevealTransaction, TallyTransaction, Transaction},
     types::{
         visitor::{StatefulVisitor, Visitor},
@@ -2042,7 +2042,7 @@ impl ChainManager {
 
                 // Get the list of members of the ARS with reputation greater than 0
                 // the list itself is ordered by decreasing reputation
-                let ars_identities = ARSIdentities::new(ars_members);
+                let ars_identities = Census::new(ars_members);
 
                 // After the second hard fork, the superblock committee size must be at least 50
                 let min_committee_size = if after_second_hard_fork(block_epoch, get_environment()) {
