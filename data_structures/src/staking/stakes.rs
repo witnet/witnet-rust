@@ -260,6 +260,9 @@ where
         self.by_key.len()
     }
 
+    /// Quickly count how many different validators are recorded into this data structure.
+    pub fn validators_count(&self) -> usize {
+        self.by_validator.len()
     }
 
     /// Tells what is the power of an identity in the network on a certain epoch.
