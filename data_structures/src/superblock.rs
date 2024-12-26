@@ -424,16 +424,20 @@ impl SuperBlockState {
         self.ars_current_identities = new_identities;
     }
 
-    /// Produces a `SuperBlock` that includes the blocks in `block_headers` if there is at least one of them.
-    /// `ars_identities` will be used to validate all the superblock votes received for the
-    /// next superblock. The votes for the current superblock must be validated using them
-    /// to calculate the superblock_signing_committee.
+    /// Produces a `SuperBlock` that includes the blocks in `block_headers` if there is at least
+    /// one of them.
+    ///
+    /// `census` will be used to validate all the superblock votes received for the next superblock.
+    ///
+    /// The votes for the current superblock must be validated using them to calculate
+    /// `superblock_signing_committee`.
+    ///
     /// The ordered bn256 keys will be merkelized and appended to the superblock
     #[allow(clippy::cast_possible_truncation, clippy::too_many_arguments)]
     pub fn build_superblock(
         &mut self,
         block_headers: &[BlockHeader],
-        ars_identities: Census,
+        census: Census,
         signing_committee_size: u32,
         superblock_index: u32,
         last_block_in_previous_superblock: Hash,
@@ -442,28 +446,23 @@ impl SuperBlockState {
         block_epoch: Epoch,
     ) -> SuperBlock {
         let protocol_version = ProtocolVersion::from_epoch(block_epoch);
-        let key_leaves = hash_key_leaves(&ars_identities.get_rep_ordered_bn256_list(alt_keys));
+        let key_leaves = hash_key_leaves(&census.get_rep_ordered_bn256_list(alt_keys));
 
-        self.update_ars_identities(ars_identities);
+        self.update_ars_identities(census);
 
         // Before updating the superblock_beacon, calculate the signing committee
-        let signing_committee = if let Some(ref sb) = sync_superblock {
-            calculate_superblock_signing_committee(
-                self.ars_previous_identities.clone(),
-                sb.signing_committee_length,
-                superblock_index,
-                self.current_superblock_beacon.hash_prev_block,
-                block_epoch,
-            )
+        let signing_committee_size = if let Some(ref sb) = sync_superblock {
+            sb.signing_committee_length
         } else {
-            calculate_superblock_signing_committee(
-                self.ars_previous_identities.clone(),
-                signing_committee_size,
-                superblock_index,
-                self.current_superblock_beacon.hash_prev_block,
-                block_epoch,
-            )
+            signing_committee_size
         };
+        let signing_committee = calculate_superblock_signing_committee(
+            self.ars_previous_identities.clone(),
+            signing_committee_size,
+            superblock_index,
+            self.current_superblock_beacon.hash_prev_block,
+            block_epoch,
+        );
 
         // Override superblock signing committee during each of the different emergency periods
         let emergency_committee =
