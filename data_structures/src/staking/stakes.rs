@@ -260,34 +260,6 @@ where
         self.by_key.len()
     }
 
-    /// Obtain a list of stakers, conveniently ordered by one of several strategies.
-    ///
-    /// ## Strategies
-    ///
-    /// - `All`: retrieve all addresses, ordered by decreasing power.
-    /// - `StepBy`: retrieve every Nth address, ordered by decreasing power.
-    /// - `Take`: retrieve the most powerful N addresses, ordered by decreasing power.
-    /// - `Evenly`: retrieve a total of N addresses, evenly distributed from the index, ordered by
-    ///   decreasing power.
-    pub fn census(
-        &self,
-        capability: Capability,
-        epoch: Epoch,
-        strategy: CensusStrategy,
-    ) -> Box<dyn Iterator<Item = StakeKey<Address>> + '_> {
-        let iterator = self.by_rank(capability, epoch).map(|(address, _)| address);
-
-        match strategy {
-            CensusStrategy::All => Box::new(iterator),
-            CensusStrategy::StepBy(step) => Box::new(iterator.step_by(step)),
-            CensusStrategy::Take(head) => Box::new(iterator.take(head)),
-            CensusStrategy::Evenly(count) => {
-                let collected = iterator.collect::<Vec<_>>();
-                let step = collected.len() / count;
-
-                Box::new(collected.into_iter().step_by(step).take(count))
-            }
-        }
     }
 
     /// Tells what is the power of an identity in the network on a certain epoch.
