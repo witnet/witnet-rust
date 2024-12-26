@@ -265,6 +265,20 @@ where
         self.by_validator.len()
     }
 
+    /// Retrieve all validators, ordered by the total amount of stake that they operate.
+    pub fn validators_by_stake(&self) -> impl Iterator<Item = (Address, Coins)> + Clone + '_ {
+        self.by_validator
+            .iter()
+            .map(|(address, entries)| {
+                let coins = entries.iter().fold(Coins::zero(), |acc, entry| {
+                    acc + entry.value.read().unwrap().coins
+                });
+
+                (address.clone(), coins)
+            })
+            .sorted_by_key(|(_, coins)| *coins)
+    }
+
     /// Tells what is the power of an identity in the network on a certain epoch.
     pub fn query_power<ISK>(
         &self,

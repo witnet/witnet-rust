@@ -2043,17 +2043,17 @@ impl ChainManager {
                 // - In V1_X protocols, the census was sourced from the ARS. Namely, it contains
                 //   all identities with non-zero reputation, ordered by decreasing reputation.
                 // - In V2_x protocols, the census is instead sourced from the stakes tracker.
-                //   Namely, it contains the two top quartiles of the most powerful validators,
-                //   ordered by power.
+                //   Namely, it contains the two top quartiles of the validators that operate the
+                //   most stake.
                 // Exceptionally, if a base census has been constructed above, all of this logic is
                 // skipped, and the base census is used.
                 let census = Census::new(base_census.unwrap_or(
                     if ProtocolVersion::from_epoch(block_epoch) < ProtocolVersion::V2_0 {
                         reputation_engine.get_rep_ordered_ars_list()
                     } else {
-                        let all_validators = act.chain_state.stakes.by_rank(Capability::Mining, block_epoch);
+                        let all_validators = act.chain_state.stakes.validators_by_stake();
                         let half_count = act.chain_state.stakes.validators_count() / 2;
-                        let top_validators = all_validators.map(|(StakeKey { validator, .. }, _)| validator).take(half_count).collect();
+                        let top_validators = all_validators.map(|(validator, _)| validator).take(half_count).collect();
 
                         top_validators
                     }));

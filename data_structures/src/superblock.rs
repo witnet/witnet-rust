@@ -68,7 +68,7 @@ pub enum SuperBlockConsensus {
 ///
 /// Different protocol versions populate this data differently:
 /// - In V1_X, this contained a complete list of all ARS identities.
-/// - In V2_X, it is expected to contain all validators instead.
+/// - In V2_X, it is expected to contain a list of validators instead.
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Census {
     // HashSet containing the identities
