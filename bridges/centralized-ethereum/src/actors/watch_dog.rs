@@ -447,7 +447,7 @@ async fn fetch_wit_info(
         },
         Ok(Err(_)) => None,
         Err(err) => {
-            log::debug!("fetch_wit_info => {}", err);
+            log::debug!("fetch_wit_info => method: getPkh; error: {}", err);
             return Err(WatchDogStatus::WitErrors);
         }
     };
@@ -462,7 +462,7 @@ async fn fetch_wit_info(
             let res = match res {
                 Ok(res) => res,
                 Err(err) => {
-                    log::debug!("fetch_wit_info => {}", err);
+                    log::debug!("fetch_wit_info => method: getBalance; error: {}", err);
                     return Err(WatchDogStatus::WitErrors);
                 }
             };
@@ -472,7 +472,7 @@ async fn fetch_wit_info(
                     None => None,
                 },
                 Err(err) => {
-                    log::debug!("fetch_wit_info => {}", err);
+                    log::debug!("fetch_wit_info => method: getBalance; error: {}", err);
                     return Err(WatchDogStatus::WitErrors);
                 }
             }
@@ -490,7 +490,7 @@ async fn fetch_wit_info(
             let res = match res {
                 Ok(res) => res,
                 Err(err) => {
-                    log::debug!("fetch_wit_info => {}", err);
+                    log::debug!("fetch_wit_info => method: getUtxoInfo; error: {}", err);
                     return Err(WatchDogStatus::WitErrors);
                 }
             };
@@ -512,7 +512,7 @@ async fn fetch_wit_info(
                     }
                 }
                 Err(err) => {
-                    log::debug!("fetch_wit_info => {}", err);
+                    log::debug!("fetch_wit_info => method: getUtxoInfo; error: {}", err);
                     return Err(WatchDogStatus::WitErrors);
                 }
             }
