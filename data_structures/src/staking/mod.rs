@@ -31,7 +31,9 @@ pub mod test {
         let mut stakes = StakesTester::default();
 
         // Alpha stakes 2 @ epoch 0
-        stakes.add_stake("Alpha", 2, 0, MIN_STAKE_NANOWITS).unwrap();
+        stakes
+            .add_stake("Alpha", 2, 0, true, MIN_STAKE_NANOWITS)
+            .unwrap();
 
         // Nobody holds any power just yet
         let rank = stakes.by_rank(Capability::Mining, 0).collect::<Vec<_>>();
@@ -42,7 +44,9 @@ pub mod test {
         assert_eq!(rank, vec![("Alpha".into(), 2)]);
 
         // Beta stakes 5 @ epoch 10
-        stakes.add_stake("Beta", 5, 10, MIN_STAKE_NANOWITS).unwrap();
+        stakes
+            .add_stake("Beta", 5, 10, true, MIN_STAKE_NANOWITS)
+            .unwrap();
 
         // Alpha is still leading, but Beta has scheduled its takeover
         let rank = stakes.by_rank(Capability::Mining, 10).collect::<Vec<_>>();
@@ -56,7 +60,7 @@ pub mod test {
 
         // Gamma should never take over, even in a million epochs, because it has only 1 coin
         stakes
-            .add_stake("Gamma", 1, 30, MIN_STAKE_NANOWITS)
+            .add_stake("Gamma", 1, 30, true, MIN_STAKE_NANOWITS)
             .unwrap();
         let rank = stakes
             .by_rank(Capability::Mining, 1_000_000)
@@ -72,7 +76,7 @@ pub mod test {
 
         // But Delta is here to change it all
         stakes
-            .add_stake("Delta", 1_000, 50, MIN_STAKE_NANOWITS)
+            .add_stake("Delta", 1_000, 50, true, MIN_STAKE_NANOWITS)
             .unwrap();
         let rank = stakes.by_rank(Capability::Mining, 50).collect::<Vec<_>>();
         assert_eq!(
@@ -96,7 +100,9 @@ pub mod test {
         );
 
         // If Alpha removes all of its stake, it should immediately disappear
-        stakes.remove_stake("Alpha", 2, MIN_STAKE_NANOWITS).unwrap();
+        stakes
+            .remove_stake("Alpha", 2, true, MIN_STAKE_NANOWITS)
+            .unwrap();
         let rank = stakes.by_rank(Capability::Mining, 51).collect::<Vec<_>>();
         assert_eq!(
             rank,

@@ -302,10 +302,10 @@ mod tests {
         let isk = "validator_1";
 
         stakes
-            .add_stake(isk, 10_000_000_000_000, 0, MIN_STAKE_NANOWITS)
+            .add_stake(isk, 10_000_000_000_000, 0, true, MIN_STAKE_NANOWITS)
             .unwrap();
         stakes
-            .add_stake("validator_2", 10_000_000_000, 0, MIN_STAKE_NANOWITS)
+            .add_stake("validator_2", 10_000_000_000, 0, true, MIN_STAKE_NANOWITS)
             .unwrap();
 
         assert_eq!(
@@ -344,7 +344,7 @@ mod tests {
         let isk = "validator";
 
         stakes
-            .add_stake(isk, 10_000_000_000, 0, MIN_STAKE_NANOWITS)
+            .add_stake(isk, 10_000_000_000, 0, true, MIN_STAKE_NANOWITS)
             .unwrap();
 
         let eligibility = stakes.witnessing_eligibility(isk, 0, 10, 0, 4);
@@ -368,16 +368,16 @@ mod tests {
         let isk_4 = "validator_4";
 
         stakes
-            .add_stake(isk_1, 10_000_000_000, 0, MIN_STAKE_NANOWITS)
+            .add_stake(isk_1, 10_000_000_000, 0, true, MIN_STAKE_NANOWITS)
             .unwrap();
         stakes
-            .add_stake(isk_2, 20_000_000_000, 0, MIN_STAKE_NANOWITS)
+            .add_stake(isk_2, 20_000_000_000, 0, true, MIN_STAKE_NANOWITS)
             .unwrap();
         stakes
-            .add_stake(isk_3, 30_000_000_000, 0, MIN_STAKE_NANOWITS)
+            .add_stake(isk_3, 30_000_000_000, 0, true, MIN_STAKE_NANOWITS)
             .unwrap();
         stakes
-            .add_stake(isk_4, 40_000_000_000, 0, MIN_STAKE_NANOWITS)
+            .add_stake(isk_4, 40_000_000_000, 0, true, MIN_STAKE_NANOWITS)
             .unwrap();
 
         let eligibility = stakes.witnessing_eligibility(isk_1, 0, 2, 0, 4);

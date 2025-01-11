@@ -214,6 +214,7 @@ where
         key: ISK,
         coins: Coins,
         epoch: Epoch,
+        increment_nonce: bool,
         minimum_stakeable: Coins,
     ) -> StakesResult<Stake<UNIT, Address, Coins, Epoch, Nonce, Power>, Address, Coins, Epoch>
     where
@@ -240,7 +241,7 @@ where
         stake
             .value
             .write()?
-            .add_stake(coins, epoch, minimum_stakeable)?;
+            .add_stake(coins, epoch, increment_nonce, minimum_stakeable)?;
 
         // Update all indexes if needed (only when the stake entry didn't exist before)
         if !stake_found {
@@ -368,6 +369,7 @@ where
         &mut self,
         key: ISK,
         coins: Coins,
+        increment_nonce: bool,
         minimum_stakeable: Coins,
     ) -> StakesResult<Coins, Address, Coins, Epoch>
     where
@@ -380,7 +382,7 @@ where
             let final_coins = {
                 let mut stake = by_address_entry.get_mut().value.write()?;
 
-                stake.remove_stake(coins, minimum_stakeable)?
+                stake.remove_stake(coins, increment_nonce, minimum_stakeable)?
             };
 
             // No need to keep the entry if the stake has gone to zero
@@ -521,7 +523,7 @@ where
             .value
             .write()
             .unwrap()
-            .add_stake(coins, current_epoch, 0.into());
+            .add_stake(coins, current_epoch, false, 0.into());
 
         Ok(())
     }
@@ -548,7 +550,7 @@ where
             .value
             .write()
             .unwrap()
-            .remove_stake(coins, minimum_stakeable);
+            .remove_stake(coins, false, minimum_stakeable);
 
         Ok(())
     }
@@ -807,7 +809,7 @@ where
         key.validator.bech32(environment)
     );
 
-    stakes.add_stake(key, coins, epoch, minimum_stakeable.into())?;
+    stakes.add_stake(key, coins, epoch, true, minimum_stakeable.into())?;
 
     log::debug!("Current state of the stakes tracker: {:#?}", stakes);
 
@@ -866,7 +868,7 @@ where
         coins.wits_and_nanowits().0,
     );
 
-    stakes.remove_stake(key, coins, minimum_stakeable.into())?;
+    stakes.remove_stake(key, coins, true, minimum_stakeable.into())?;
 
     log::debug!("Current state of the stakes tracker: {:#?}", stakes);
 
@@ -1004,7 +1006,7 @@ mod tests {
         // Let's make Alice stake 100 Wit at epoch 100
         assert_eq!(
             stakes
-                .add_stake(alice_charlie, 100, 100, MIN_STAKE_NANOWITS)
+                .add_stake(alice_charlie, 100, 100, true, MIN_STAKE_NANOWITS)
                 .unwrap(),
             Stake::from_parts(
                 100,
@@ -1028,7 +1030,7 @@ mod tests {
         // Let's make Alice stake 50 Wits at epoch 150 this time
         assert_eq!(
             stakes
-                .add_stake(alice_charlie, 50, 300, MIN_STAKE_NANOWITS)
+                .add_stake(alice_charlie, 50, 300, true, MIN_STAKE_NANOWITS)
                 .unwrap(),
             Stake::from_parts(
                 150,
@@ -1059,7 +1061,7 @@ mod tests {
         // Now let's make Bob stake 500 Wits at epoch 1000 this time
         assert_eq!(
             stakes
-                .add_stake(bob_david, 500, 1_000, MIN_STAKE_NANOWITS)
+                .add_stake(bob_david, 500, 1_000, true, MIN_STAKE_NANOWITS)
                 .unwrap(),
             Stake::from_parts(
                 500,
@@ -1118,13 +1120,13 @@ mod tests {
         let charlie_erin = (charlie, erin);
 
         stakes
-            .add_stake(alice_charlie, 10, 0, MIN_STAKE_NANOWITS)
+            .add_stake(alice_charlie, 10, 0, true, MIN_STAKE_NANOWITS)
             .unwrap();
         stakes
-            .add_stake(bob_david, 20, 20, MIN_STAKE_NANOWITS)
+            .add_stake(bob_david, 20, 20, true, MIN_STAKE_NANOWITS)
             .unwrap();
         stakes
-            .add_stake(charlie_erin, 30, 30, MIN_STAKE_NANOWITS)
+            .add_stake(charlie_erin, 30, 30, true, MIN_STAKE_NANOWITS)
             .unwrap();
 
         // Let's really start our test at epoch 100
@@ -1270,19 +1272,19 @@ mod tests {
         let erin_alice = (erin, alice);
 
         stakes
-            .add_stake(alice_bob, 10, 0, MIN_STAKE_NANOWITS)
+            .add_stake(alice_bob, 10, 0, true, MIN_STAKE_NANOWITS)
             .unwrap();
         stakes
-            .add_stake(bob_charlie, 20, 10, MIN_STAKE_NANOWITS)
+            .add_stake(bob_charlie, 20, 10, true, MIN_STAKE_NANOWITS)
             .unwrap();
         stakes
-            .add_stake(charlie_david, 30, 20, MIN_STAKE_NANOWITS)
+            .add_stake(charlie_david, 30, 20, true, MIN_STAKE_NANOWITS)
             .unwrap();
         stakes
-            .add_stake(david_erin, 40, 30, MIN_STAKE_NANOWITS)
+            .add_stake(david_erin, 40, 30, true, MIN_STAKE_NANOWITS)
             .unwrap();
         stakes
-            .add_stake(erin_alice, 50, 40, MIN_STAKE_NANOWITS)
+            .add_stake(erin_alice, 50, 40, true, MIN_STAKE_NANOWITS)
             .unwrap();
 
         // Power of validators at epoch 90:
@@ -1331,13 +1333,13 @@ mod tests {
         let charlie_erin = (charlie, erin);
 
         stakes
-            .add_stake(alice_charlie, 10, 0, MIN_STAKE_NANOWITS)
+            .add_stake(alice_charlie, 10, 0, true, MIN_STAKE_NANOWITS)
             .unwrap();
         stakes
-            .add_stake(bob_david, 20, 30, MIN_STAKE_NANOWITS)
+            .add_stake(bob_david, 20, 30, true, MIN_STAKE_NANOWITS)
             .unwrap();
         stakes
-            .add_stake(charlie_erin, 40, 50, MIN_STAKE_NANOWITS)
+            .add_stake(charlie_erin, 40, 50, true, MIN_STAKE_NANOWITS)
             .unwrap();
 
         let result = stakes.query_stakes(QueryStakesKey::Key(bob_david.into()));
@@ -1415,7 +1417,7 @@ mod tests {
 
         let alice_bob = (alice.clone(), bob.clone());
         stakes
-            .add_stake(alice_bob, 123, 456, MIN_STAKE_NANOWITS)
+            .add_stake(alice_bob, 123, 456, true, MIN_STAKE_NANOWITS)
             .ok();
 
         let serialized = bincode::serialize(&stakes).unwrap().clone();
@@ -1448,7 +1450,7 @@ mod tests {
 
         // Use the validator with a (validator, withdrawer) pair
         stakes
-            .add_stake((alice, bob), 10, 0, MIN_STAKE_NANOWITS)
+            .add_stake((alice, bob), 10, 0, true, MIN_STAKE_NANOWITS)
             .unwrap();
 
         // The validator is used, we can still stake as long as the correct withdrawer is used
@@ -1476,24 +1478,48 @@ mod tests {
         let alice_charlie = (alice, charlie);
         let bob_david = (bob, david);
 
+        // Test nonces increasing
         stakes
-            .add_stake(alice_charlie, 10, 0, MIN_STAKE_NANOWITS)
+            .add_stake(alice_charlie, 10, 0, true, MIN_STAKE_NANOWITS)
             .unwrap();
         stakes
-            .add_stake(bob_david, 20, 10, MIN_STAKE_NANOWITS)
+            .add_stake(bob_david, 20, 10, true, MIN_STAKE_NANOWITS)
             .unwrap();
         assert_eq!(stakes.query_nonce(alice_charlie), Ok(1));
         assert_eq!(stakes.query_nonce(bob_david), Ok(1));
 
         stakes
-            .remove_stake(bob_david, 10, MIN_STAKE_NANOWITS)
+            .remove_stake(bob_david, 10, true, MIN_STAKE_NANOWITS)
             .unwrap();
         assert_eq!(stakes.query_nonce(alice_charlie), Ok(1));
         assert_eq!(stakes.query_nonce(bob_david), Ok(2));
 
         stakes
-            .add_stake(bob_david, 40, 30, MIN_STAKE_NANOWITS)
+            .add_stake(bob_david, 40, 30, true, MIN_STAKE_NANOWITS)
             .unwrap();
+        assert_eq!(stakes.query_nonce(alice_charlie), Ok(1));
+        assert_eq!(stakes.query_nonce(bob_david), Ok(3));
+
+        // Test nonces not increasing
+        stakes
+            .remove_stake(bob_david, 10, false, MIN_STAKE_NANOWITS)
+            .unwrap();
+        assert_eq!(stakes.query_nonce(alice_charlie), Ok(1));
+        assert_eq!(stakes.query_nonce(bob_david), Ok(3));
+
+        stakes
+            .reserve_collateral(bob, 10, MIN_STAKE_NANOWITS)
+            .unwrap();
+        assert_eq!(stakes.query_nonce(alice_charlie), Ok(1));
+        assert_eq!(stakes.query_nonce(bob_david), Ok(3));
+
+        stakes
+            .add_stake(bob_david, 40, 30, false, MIN_STAKE_NANOWITS)
+            .unwrap();
+        assert_eq!(stakes.query_nonce(alice_charlie), Ok(1));
+        assert_eq!(stakes.query_nonce(bob_david), Ok(3));
+
+        stakes.add_reward(bob, 40, 30).unwrap();
         assert_eq!(stakes.query_nonce(alice_charlie), Ok(1));
         assert_eq!(stakes.query_nonce(bob_david), Ok(3));
     }
@@ -1509,10 +1535,10 @@ mod tests {
 
         // Add some stake and verify the power
         stakes
-            .add_stake((alice, charlie), 10, 0, MIN_STAKE_NANOWITS)
+            .add_stake((alice, charlie), 10, 0, true, MIN_STAKE_NANOWITS)
             .unwrap();
         stakes
-            .add_stake((bob, david), 20, 10, MIN_STAKE_NANOWITS)
+            .add_stake((bob, david), 20, 10, true, MIN_STAKE_NANOWITS)
             .unwrap();
         assert_eq!(stakes.query_power(alice, Capability::Mining, 30), Ok(300));
         assert_eq!(stakes.query_power(bob, Capability::Mining, 30), Ok(400));
@@ -1563,16 +1589,16 @@ mod tests {
 
         // Add some stake and verify the power
         stakes
-            .add_stake(alice_alice, 10, 0, MIN_STAKE_NANOWITS)
+            .add_stake(alice_alice, 10, 0, true, MIN_STAKE_NANOWITS)
             .unwrap();
         stakes
-            .add_stake(bob_alice, 20, 0, MIN_STAKE_NANOWITS)
+            .add_stake(bob_alice, 20, 0, true, MIN_STAKE_NANOWITS)
             .unwrap();
         stakes
-            .add_stake(charlie_charlie, 30, 10, MIN_STAKE_NANOWITS)
+            .add_stake(charlie_charlie, 30, 10, true, MIN_STAKE_NANOWITS)
             .unwrap();
         stakes
-            .add_stake(david_charlie, 40, 10, MIN_STAKE_NANOWITS)
+            .add_stake(david_charlie, 40, 10, true, MIN_STAKE_NANOWITS)
             .unwrap();
         assert_eq!(
             stakes.by_rank(Capability::Mining, 30).collect::<Vec<_>>(),

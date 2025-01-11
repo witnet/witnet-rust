@@ -84,6 +84,7 @@ where
         &mut self,
         coins: Coins,
         epoch: Epoch,
+        increment_nonce: bool,
         minimum_stakeable: Coins,
     ) -> StakesResult<Coins, Address, Coins, Epoch> {
         // Make sure that the amount to be staked is equal or greater than the minimum
@@ -112,7 +113,9 @@ where
             self.epochs.update(capability, epoch_after);
         }
 
-        self.nonce += Nonce::from(1);
+        if increment_nonce {
+            self.nonce += Nonce::from(1);
+        }
 
         Ok(coins_after)
     }
@@ -141,6 +144,7 @@ where
     pub fn remove_stake(
         &mut self,
         coins: Coins,
+        increment_nonce: bool,
         minimum_stakeable: Coins,
     ) -> StakesResult<Coins, Address, Coins, Epoch> {
         let coins_after = self.coins.sub(coins);
@@ -154,7 +158,9 @@ where
 
         self.coins = coins_after;
 
-        self.nonce += Nonce::from(1);
+        if increment_nonce {
+            self.nonce += Nonce::from(1);
+        }
 
         Ok(self.coins)
     }

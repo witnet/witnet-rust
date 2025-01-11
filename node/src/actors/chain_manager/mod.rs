@@ -4613,6 +4613,7 @@ mod tests {
                 },
                 100_000_000_000.into(),
                 100,
+                true,
                 1_000_000_000.into(),
             )
             .unwrap();
@@ -4784,6 +4785,7 @@ mod tests {
                     validator.clone(),
                     100_000_000_000_000.into(),
                     100,
+                    true,
                     10_000_000_000_000.into(),
                 )
                 .unwrap();

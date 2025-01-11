@@ -15,7 +15,13 @@ fn populate(b: &mut Bencher) {
         let coins = i;
         let epoch = i;
         stakes
-            .add_stake(address.as_str(), coins, epoch, MINIMUM_VALIDATOR_STAKE)
+            .add_stake(
+                address.as_str(),
+                coins,
+                epoch,
+                true,
+                MINIMUM_VALIDATOR_STAKE,
+            )
             .unwrap();
 
         i += 1;
@@ -37,7 +43,13 @@ fn rank(b: &mut Bencher) {
         let address = format!("{}", rng.gen::<u64>());
 
         stakes
-            .add_stake(address.as_str(), coins, epoch, MINIMUM_VALIDATOR_STAKE)
+            .add_stake(
+                address.as_str(),
+                coins,
+                epoch,
+                true,
+                MINIMUM_VALIDATOR_STAKE,
+            )
             .unwrap();
 
         i += 1;
@@ -69,7 +81,13 @@ fn query_power(b: &mut Bencher) {
         let address = format!("{i}");
 
         stakes
-            .add_stake(address.as_str(), coins, epoch, MINIMUM_VALIDATOR_STAKE)
+            .add_stake(
+                address.as_str(),
+                coins,
+                epoch,
+                true,
+                MINIMUM_VALIDATOR_STAKE,
+            )
             .unwrap();
 
         i += 1;
