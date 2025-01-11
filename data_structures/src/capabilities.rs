@@ -1,9 +1,11 @@
 use serde::{Deserialize, Serialize};
 
 #[repr(u8)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Capability {
     /// The base block mining and superblock voting capability
+    #[default]
     Mining = 0,
     /// The universal HTTP GET / HTTP POST / WIP-0019 RNG capability
     Witnessing = 1,

@@ -344,6 +344,17 @@ impl Message for StakeAuthorization {
     type Result = Result<String, failure::Error>;
 }
 
+/// Message for querying stakes
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct QueryStakePowers {
+    /// capability being searched for
+    pub capability: Capability,
+}
+
+impl Message for QueryStakePowers {
+    type Result = Vec<(StakeKey<PublicKeyHash>, Power)>;
+}
+
 /// Stake key for quering stakes
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum QueryStakesFilter {

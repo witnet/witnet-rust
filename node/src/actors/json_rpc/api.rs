@@ -47,8 +47,8 @@ use crate::{
             GetHighestCheckpointBeacon, GetItemBlock, GetItemSuperblock, GetItemTransaction,
             GetKnownPeers, GetMemoryTransaction, GetMempool, GetNodeStats, GetProtocolInfo,
             GetReputation, GetSignalingInfo, GetState, GetSupplyInfo, GetSupplyInfo2, GetUtxoInfo,
-            InitializePeers, IsConfirmedBlock, QueryStakes, QueryStakesFilter, Rewind,
-            SnapshotExport, SnapshotImport, StakeAuthorization,
+            InitializePeers, IsConfirmedBlock, QueryStakePowers, QueryStakes, QueryStakesFilter,
+            Rewind, SnapshotExport, SnapshotImport, StakeAuthorization,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -147,6 +147,9 @@ pub fn attach_regular_methods<H>(
     server.add_actix_method(system, "protocol", |_params: Params| Box::pin(protocol()));
     server.add_actix_method(system, "queryStakes", |params: Params| {
         Box::pin(query_stakes(params.parse()))
+    });
+    server.add_actix_method(system, "ranks", |params: Params| {
+        Box::pin(query_ranks(params.parse()))
     });
 }
 
@@ -2260,6 +2263,46 @@ pub async fn query_stakes(params: Result<Option<QueryStakesParams>, Error>) -> J
             Ok(Err(e)) => {
                 let err = internal_error_s(e);
                 Err(err)
+            }
+            Err(e) => {
+                let err = internal_error_s(e);
+                Err(err)
+            }
+        })
+        .await
+}
+
+/// Format of the output of getTransaction
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+pub struct QueryRanksRecord {
+    /// Current power
+    pub power: u64,
+    /// Validator's stringified pkh
+    pub validator: String,
+    /// Withdrawer's stringified pkh
+    pub withdrawer: String,
+}
+
+/// Query the amount of nanowits staked by an address.
+pub async fn query_ranks(params: Result<(Capability,), Error>) -> JsonRpcResult {
+    let capability = match params {
+        Ok(x) => x.0,
+        Err(_) => Capability::Mining,
+    };
+    ChainManager::from_registry()
+        .send(QueryStakePowers { capability })
+        .map(|res| match res {
+            Ok(candidates) => {
+                let candidates: Vec<QueryRanksRecord> = candidates
+                    .iter()
+                    .map(|(key, power)| QueryRanksRecord {
+                        power: *power,
+                        validator: key.validator.to_string(),
+                        withdrawer: key.withdrawer.to_string(),
+                    })
+                    .collect();
+                let candidates = serde_json::to_value(candidates);
+                candidates.map_err(internal_error)
             }
             Err(e) => {
                 let err = internal_error_s(e);
