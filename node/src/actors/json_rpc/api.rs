@@ -148,6 +148,9 @@ pub fn attach_regular_methods<H>(
     server.add_actix_method(system, "ranks", |params: Params| {
         Box::pin(query_ranks(params.parse()))
     });
+    server.add_actix_method(system, "getUtxoInfo", move |params: Params| {
+        Box::pin(get_utxo_info(params.parse()))
+    });
 }
 
 /// Attach the sensitive JSON-RPC methods to a multi-transport server.
@@ -196,14 +199,6 @@ pub fn attach_sensitive_methods<H>(
             "getPkh",
             params,
             |_params| get_pkh(),
-        ))
-    });
-    server.add_actix_method(system, "getUtxoInfo", move |params| {
-        Box::pin(if_authorized(
-            enable_sensitive_methods,
-            "getUtxoInfo",
-            params,
-            |params| get_utxo_info(params.parse()),
         ))
     });
     server.add_actix_method(system, "sign", move |params| {
