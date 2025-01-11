@@ -346,7 +346,7 @@ impl Message for StakeAuthorization {
 
 /// Stake key for quering stakes
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub enum QueryStakesParams {
+pub enum QueryStakesFilter {
     /// To search by the validator public key hash
     Validator(PublicKeyHash),
     /// To search by the withdrawer public key hash
@@ -357,39 +357,39 @@ pub enum QueryStakesParams {
     All,
 }
 
-impl Default for QueryStakesParams {
+impl Default for QueryStakesFilter {
     fn default() -> Self {
-        QueryStakesParams::Validator(PublicKeyHash::default())
+        QueryStakesFilter::Validator(PublicKeyHash::default())
     }
 }
 
 /// Message for querying stakes
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-pub struct QueryStake {
+pub struct QueryStakes {
     /// stake key used to search the stake
-    pub key: QueryStakesParams,
+    pub filter: QueryStakesFilter,
 }
 
-impl Message for QueryStake {
+impl Message for QueryStakes {
     type Result = Result<
         Vec<StakeEntry<WIT_DECIMAL_PLACES, PublicKeyHash, Wit, Epoch, u64, u64>>,
         failure::Error,
     >;
 }
 
-impl<Address> From<QueryStakesParams> for QueryStakesKey<Address>
+impl<Address> From<QueryStakesFilter> for QueryStakesKey<Address>
 where
     Address: Default + Ord + From<PublicKeyHash>,
 {
-    fn from(query: QueryStakesParams) -> Self {
+    fn from(query: QueryStakesFilter) -> Self {
         match query {
-            QueryStakesParams::Key(key) => QueryStakesKey::Key(StakeKey {
+            QueryStakesFilter::Key(key) => QueryStakesKey::Key(StakeKey {
                 validator: key.0.into(),
                 withdrawer: key.1.into(),
             }),
-            QueryStakesParams::Validator(v) => QueryStakesKey::Validator(v.into()),
-            QueryStakesParams::Withdrawer(w) => QueryStakesKey::Withdrawer(w.into()),
-            QueryStakesParams::All => QueryStakesKey::All,
+            QueryStakesFilter::Validator(v) => QueryStakesKey::Validator(v.into()),
+            QueryStakesFilter::Withdrawer(w) => QueryStakesKey::Withdrawer(w.into()),
+            QueryStakesFilter::All => QueryStakesKey::All,
         }
     }
 }

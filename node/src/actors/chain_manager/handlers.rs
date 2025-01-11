@@ -40,7 +40,7 @@ use crate::{
             GetDataRequestInfo, GetHighestCheckpointBeacon, GetMemoryTransaction, GetMempool,
             GetMempoolResult, GetNodeStats, GetProtocolInfo, GetReputation, GetReputationResult,
             GetSignalingInfo, GetState, GetSuperBlockVotes, GetSupplyInfo, GetSupplyInfo2,
-            GetUtxoInfo, IsConfirmedBlock, PeersBeacons, QueryStake, ReputationStats, Rewind,
+            GetUtxoInfo, IsConfirmedBlock, PeersBeacons, QueryStakes, ReputationStats, Rewind,
             SendLastBeacon, SendProtocolVersions, SessionUnitResult, SetEpochConstants,
             SetLastBeacon, SetPeersLimits, SignalingInfo, SnapshotExport, SnapshotImport,
             TryMineBlock,
@@ -1457,12 +1457,12 @@ impl Handler<BuildUnstake> for ChainManager {
     }
 }
 
-impl Handler<QueryStake> for ChainManager {
-    type Result = <QueryStake as Message>::Result;
+impl Handler<QueryStakes> for ChainManager {
+    type Result = <QueryStakes as Message>::Result;
 
-    fn handle(&mut self, msg: QueryStake, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: QueryStakes, _ctx: &mut Self::Context) -> Self::Result {
         // build address from public key hash
-        let stakes = self.chain_state.stakes.query_stakes(msg.key);
+        let stakes = self.chain_state.stakes.query_stakes(msg.filter);
 
         stakes.map_err(StakesError::from).map_err(Into::into)
     }
@@ -1784,7 +1784,8 @@ impl Handler<GetSupplyInfo2> for ChainManager {
             }
         }
 
-        let burnt_supply = self.initial_supply
+        let burnt_supply = self
+            .initial_supply
             .saturating_add(blocks_minted_reward)
             .saturating_sub(current_locked_supply)
             .saturating_sub(current_staked_supply)

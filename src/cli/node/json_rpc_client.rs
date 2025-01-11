@@ -47,7 +47,7 @@ use witnet_data_structures::{
 use witnet_node::actors::{
     chain_manager::run_dr_locally,
     json_rpc::api::{
-        AddrType, GetBlockChainParams, GetTransactionOutput, PeersResult, QueryStakesArgument,
+        AddrType, GetBlockChainParams, GetTransactionOutput, PeersResult, QueryStakesParams,
     },
     messages::{
         AuthorizeStake, BuildDrt, BuildStakeParams, BuildStakeResponse, BuildUnstakeParams,
@@ -1952,14 +1952,14 @@ pub fn query_stakes(
 ) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
     let params = if all {
-        Some(QueryStakesArgument::All(true))
+        Some(QueryStakesParams::All(true))
     } else {
         match (validator, withdrawer) {
             (Some(validator), Some(withdrawer)) => {
-                Some(QueryStakesArgument::Key((validator, withdrawer)))
+                Some(QueryStakesParams::Key((validator, withdrawer)))
             }
-            (Some(validator), _) => Some(QueryStakesArgument::Validator(validator)),
-            (_, Some(withdrawer)) => Some(QueryStakesArgument::Withdrawer(withdrawer)),
+            (Some(validator), _) => Some(QueryStakesParams::Validator(validator)),
+            (_, Some(withdrawer)) => Some(QueryStakesParams::Withdrawer(withdrawer)),
             (None, None) => None,
         }
     };
