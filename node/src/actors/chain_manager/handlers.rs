@@ -37,9 +37,10 @@ use crate::{
             GetDataRequestInfo, GetHighestCheckpointBeacon, GetMemoryTransaction, GetMempool,
             GetMempoolResult, GetNodeStats, GetProtocolInfo, GetReputation, GetReputationResult,
             GetSignalingInfo, GetState, GetSuperBlockVotes, GetSupplyInfo, GetUtxoInfo,
-            IsConfirmedBlock, PeersBeacons, QueryStake, ReputationStats, Rewind, SendLastBeacon,
-            SendProtocolVersions, SessionUnitResult, SetEpochConstants, SetLastBeacon,
-            SetPeersLimits, SignalingInfo, SnapshotExport, SnapshotImport, TryMineBlock,
+            IsConfirmedBlock, PeersBeacons, QueryStakePowers, QueryStakes, ReputationStats, Rewind,
+            SendLastBeacon, SendProtocolVersions, SessionUnitResult, SetEpochConstants,
+            SetLastBeacon, SetPeersLimits, SignalingInfo, SnapshotExport, SnapshotImport,
+            TryMineBlock,
         },
         sessions_manager::SessionsManager,
     },
@@ -1461,6 +1462,17 @@ impl Handler<QueryStakes> for ChainManager {
         let stakes = self.chain_state.stakes.query_stakes(msg.filter);
 
         stakes.map_err(StakesError::from).map_err(Into::into)
+    }
+}
+
+impl Handler<QueryStakePowers> for ChainManager {
+    type Result = <QueryStakePowers as Message>::Result;
+
+    fn handle(&mut self, msg: QueryStakePowers, _ctx: &mut Self::Context) -> Self::Result {
+        self.chain_state
+            .stakes
+            .by_rank(msg.capability, self.current_epoch.unwrap())
+            .collect()
     }
 }
 
