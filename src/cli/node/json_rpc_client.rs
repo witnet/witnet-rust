@@ -873,8 +873,7 @@ pub fn send_dr(
 pub fn send_st(
     addr: SocketAddr,
     value: u64,
-    authorization: MagicEither<String, KeyedSignature>,
-    validator: MagicEither<String, PublicKeyHash>,
+    authorization: String,
     withdrawer: MagicEither<String, PublicKeyHash>,
     fee: Option<Fee>,
     sorted_bigger: Option<bool>,
@@ -894,7 +893,7 @@ pub fn send_st(
     };
 
     let mut build_stake_params = BuildStakeParams {
-        authorization,
+        authorization: MagicEither::Left(authorization.clone()),
         withdrawer,
         value,
         fee,
@@ -978,8 +977,11 @@ pub fn send_st(
     let (dry, _): (BuildStakeResponse, _) =
         issue_method("stake", Some(params), &mut stream, id.next())?;
 
-    let validator_address = validator
-        .try_do_magic(|hex_str| PublicKeyHash::from_bech32(get_environment(), &hex_str))?;
+    let validator_address = {
+        let pkh_bytes =
+            hex::decode(authorization.clone().chars().take(40).collect::<String>()).unwrap();
+        PublicKeyHash::from_bytes(pkh_bytes.as_slice())?
+    };
     if validator_address != dry.validator {
         bail!(
             "The specified validator ({}) does not match the validator recovered from the authorization string ({}), please double check all arguments.",
