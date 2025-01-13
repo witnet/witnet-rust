@@ -274,7 +274,6 @@ pub fn exec_cmd(
             node,
             value,
             authorization,
-            validator,
             withdrawer,
             fee,
             require_confirmation,
@@ -282,8 +281,7 @@ pub fn exec_cmd(
         } => rpc::send_st(
             node.unwrap_or(default_jsonrpc),
             value,
-            MagicEither::Left(authorization),
-            MagicEither::Left(validator),
+            authorization,
             MagicEither::Left(withdrawer),
             fee.map(Fee::absolute_from_nanowits),
             None,
@@ -794,9 +792,6 @@ pub enum Command {
         /// Stake authorization code (the withdrawer address, signed by the validator node)
         #[structopt(long = "authorization")]
         authorization: String,
-        /// Validator
-        #[structopt(long = "validator")]
-        validator: String,
         /// Withdrawer
         #[structopt(long = "withdrawer")]
         withdrawer: String,
