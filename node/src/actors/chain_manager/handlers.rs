@@ -1395,7 +1395,7 @@ impl Handler<BuildUnstake> for ChainManager {
             withdrawer: self.own_pkh.unwrap(),
         }) {
             Err(e) => {
-                log::error!("Error when building stake transaction: {}", e);
+                log::error!("Error when building unstake transaction: {}", e);
                 Box::pin(actix::fut::err(e.into()))
             }
             Ok(nonce) => {
@@ -1410,7 +1410,7 @@ impl Handler<BuildUnstake> for ChainManager {
                 };
                 match transaction_factory::build_ut(msg.operator, withdrawal, msg.fee, nonce) {
                     Err(e) => {
-                        log::error!("Error when building stake transaction: {}", e);
+                        log::error!("Error when building unstake transaction: {}", e);
                         Box::pin(actix::fut::err(e.into()))
                     }
                     Ok(ut) => {
@@ -1440,7 +1440,7 @@ impl Handler<BuildUnstake> for ChainManager {
                                     }
                                 }
                                 Err(e) => {
-                                    log::error!("Failed to sign stake transaction: {}", e);
+                                    log::error!("Failed to sign unstake transaction: {}", e);
                                     Either::Right(actix::fut::result(Err(e)))
                                 }
                             });
