@@ -984,7 +984,10 @@ pub fn send_st(
     };
     if validator_address != dry.validator {
         bail!(
-            "The specified validator ({}) does not match the validator recovered from the authorization string ({}), please double check all arguments.",
+            "The validator derived from the authorization string ({}) \
+            does not match the validator calculated using the specified withdrawer ({}). \
+            Please verify that you are using the same withdrawer address that was used \
+            to generate the authorization string.",
             validator_address,
             dry.validator.to_string(),
         );
