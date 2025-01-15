@@ -145,8 +145,8 @@ pub fn attach_regular_methods<H>(
     server.add_actix_method(system, "queryStakes", |params: Params| {
         Box::pin(query_stakes(params.parse()))
     });
-    server.add_actix_method(system, "ranks", |params: Params| {
-        Box::pin(query_ranks(params.parse()))
+    server.add_actix_method(system, "queryPowers", |params: Params| {
+        Box::pin(query_powers(params.parse()))
     });
     server.add_actix_method(system, "getUtxoInfo", move |params: Params| {
         Box::pin(get_utxo_info(params.parse()))
@@ -2239,7 +2239,7 @@ pub async fn query_stakes(params: Result<Option<QueryStakesParams>, Error>) -> J
 
 /// Format of the output of getTransaction
 #[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
-pub struct QueryRanksRecord {
+pub struct QueryPowersRecord {
     /// Current power
     pub power: u64,
     /// Validator's stringified pkh
@@ -2249,7 +2249,7 @@ pub struct QueryRanksRecord {
 }
 
 /// Query the amount of nanowits staked by an address.
-pub async fn query_ranks(params: Result<(Capability,), Error>) -> JsonRpcResult {
+pub async fn query_powers(params: Result<(Capability,), Error>) -> JsonRpcResult {
     let capability = match params {
         Ok(x) => x.0,
         Err(_) => Capability::Mining,
@@ -2258,9 +2258,9 @@ pub async fn query_ranks(params: Result<(Capability,), Error>) -> JsonRpcResult 
         .send(QueryStakePowers { capability })
         .map(|res| match res {
             Ok(candidates) => {
-                let candidates: Vec<QueryRanksRecord> = candidates
+                let candidates: Vec<QueryPowersRecord> = candidates
                     .iter()
-                    .map(|(key, power)| QueryRanksRecord {
+                    .map(|(key, power)| QueryPowersRecord {
                         power: *power,
                         validator: key.validator.to_string(),
                         withdrawer: key.withdrawer.to_string(),
