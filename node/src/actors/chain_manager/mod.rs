@@ -48,6 +48,25 @@ use glob::glob;
 use itertools::Itertools;
 use rand::Rng;
 
+use crate::{
+    actors::{
+        chain_manager::handlers::SYNCED_BANNER,
+        inventory_manager::InventoryManager,
+        json_rpc::JsonRpcServer,
+        messages::{
+            AddItem, AddItems, AddTransaction, Anycast, BlockNotify, Broadcast, DropOutboundPeers,
+            GetBlocksEpochRange, GetItemBlock, NodeStatusNotify, RemoveAddressesFromTried,
+            SendInventoryItem, SendInventoryRequest, SendLastBeacon, SendSuperBlockVote,
+            SetLastBeacon, SetSuperBlockTargetBeacon, StoreInventoryItem, SuperBlockNotify,
+        },
+        node::{NodeOps, PutNodeOps},
+        peers_manager::PeersManager,
+        sessions_manager::SessionsManager,
+        storage_keys,
+    },
+    signature_mngr, storage_mngr,
+    utils::{deserialize_from_file, file_name_compose, stop_system_if_panicking, Force},
+};
 use witnet_config::{
     config::Tapi, defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO,
 };
@@ -91,26 +110,6 @@ use witnet_validations::{
         validate_block_transactions, validate_new_transaction, validate_rad_request,
         verify_signatures, vt_transaction_fee,
     },
-};
-
-use crate::{
-    actors::{
-        chain_manager::handlers::SYNCED_BANNER,
-        inventory_manager::InventoryManager,
-        json_rpc::JsonRpcServer,
-        messages::{
-            AddItem, AddItems, AddTransaction, Anycast, BlockNotify, Broadcast, DropOutboundPeers,
-            GetBlocksEpochRange, GetItemBlock, NodeStatusNotify, RemoveAddressesFromTried,
-            SendInventoryItem, SendInventoryRequest, SendLastBeacon, SendSuperBlockVote,
-            SetLastBeacon, SetSuperBlockTargetBeacon, StoreInventoryItem, SuperBlockNotify,
-        },
-        node::{NodeOps, PutNodeOps},
-        peers_manager::PeersManager,
-        sessions_manager::SessionsManager,
-        storage_keys,
-    },
-    signature_mngr, storage_mngr,
-    utils::{deserialize_from_file, file_name_compose, stop_system_if_panicking, Force},
 };
 
 mod actor;
@@ -264,6 +263,8 @@ pub struct ChainManager {
     export: Force<PathBuf>,
     /// Consensus constants for wit/2
     consensus_constants_wit2: ConsensusConstantsWit2,
+    /// Initial WIT supply
+    initial_supply: u64,
 }
 
 impl ChainManager {

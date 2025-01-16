@@ -161,6 +161,19 @@ impl ChainManager {
                 // Store settings for Threshold Activation of Protocol Improvements
                 act.tapi = config.tapi.clone();
 
+                // Calculate and store initial supply
+                let genesis_block =
+                    GenesisBlockInfo::from_path(&config.mining.genesis_path, consensus_constants.bootstrap_hash, consensus_constants.genesis_hash)
+                        .map_err(|e| {
+                            log::error!("Failed to load genesis block from config: {}", e);
+                            System::current().stop_with_code(1);
+                        }).ok();
+
+                if let Some(genesis_block) = genesis_block {
+                    act.initial_supply = genesis_block.alloc.iter().fold(0u64, |acc, item| acc + item.iter().fold(0, |acc: u64, utxo| acc.saturating_add(utxo.value)));
+                    log::debug!("Initial WIT supply: {}", act.initial_supply);
+                }
+
                 storage_mngr::get_chain_state(&storage_keys::chain_state_key(magic))
                     .into_actor(act)
                     .then(|chain_state_from_storage, _, _| {

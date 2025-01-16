@@ -23,7 +23,7 @@ use witnet_data_structures::{
         Block, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, EpochConstants, Hash,
         InventoryEntry, InventoryItem, KeyedSignature, NodeStats, PointerToBlock, PublicKeyHash,
         PublicKeyHashParseError, RADRequest, RADTally, Reputation, StakeOutput, StateMachine,
-        SuperBlock, SuperBlockVote, SupplyInfo, ValueTransferOutput,
+        SuperBlock, SuperBlockVote, SupplyInfo, SupplyInfo2, ValueTransferOutput,
     },
     fee::{deserialize_fee_backwards_compatible, Fee},
     proto::versioning::ProtocolInfo,
@@ -544,6 +544,14 @@ pub struct GetSupplyInfo;
 
 impl Message for GetSupplyInfo {
     type Result = Result<SupplyInfo, failure::Error>;
+}
+
+/// Get Supply after V1_8 activation
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct GetSupplyInfo2;
+
+impl Message for GetSupplyInfo2 {
+    type Result = Result<SupplyInfo2, failure::Error>;
 }
 
 /// Get Balance

@@ -46,9 +46,9 @@ use crate::{
             GetBlocksEpochRange, GetConsolidatedPeers, GetDataRequestInfo, GetEpoch,
             GetHighestCheckpointBeacon, GetItemBlock, GetItemSuperblock, GetItemTransaction,
             GetKnownPeers, GetMemoryTransaction, GetMempool, GetNodeStats, GetProtocolInfo,
-            GetReputation, GetSignalingInfo, GetState, GetSupplyInfo, GetUtxoInfo, InitializePeers,
-            IsConfirmedBlock, QueryStake, QueryStakesParams, Rewind, SnapshotExport,
-            SnapshotImport, StakeAuthorization,
+            GetReputation, GetSignalingInfo, GetState, GetSupplyInfo, GetSupplyInfo2, GetUtxoInfo,
+            InitializePeers, IsConfirmedBlock, QueryStake, QueryStakesParams, Rewind,
+            SnapshotExport, SnapshotImport, StakeAuthorization,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -118,6 +118,9 @@ pub fn attach_regular_methods<H>(
     });
     server.add_actix_method(system, "getSupplyInfo", |_params: Params| {
         Box::pin(get_supply_info())
+    });
+    server.add_actix_method(system, "getSupplyInfo2", |_params: Params| {
+        Box::pin(get_supply_info_2())
     });
     server.add_actix_method(system, "peers", |_params: Params| Box::pin(peers()));
     server.add_actix_method(system, "knownPeers", |_params: Params| {
@@ -1486,6 +1489,28 @@ pub async fn get_supply_info() -> JsonRpcResult {
 
     chain_manager_addr
         .send(GetSupplyInfo)
+        .map(|res| {
+            res.map_err(internal_error)
+                .and_then(|supply_info| match supply_info {
+                    Ok(x) => match serde_json::to_value(x) {
+                        Ok(x) => Ok(x),
+                        Err(e) => {
+                            let err = internal_error_s(e);
+                            Err(err)
+                        }
+                    },
+                    Err(e) => Err(internal_error_s(e)),
+                })
+        })
+        .await
+}
+
+/// Get relevant supply info after V1_8 activation
+pub async fn get_supply_info_2() -> JsonRpcResult {
+    let chain_manager_addr = ChainManager::from_registry();
+
+    chain_manager_addr
+        .send(GetSupplyInfo2)
         .map(|res| {
             res.map_err(internal_error)
                 .and_then(|supply_info| match supply_info {

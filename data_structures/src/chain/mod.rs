@@ -1755,6 +1755,31 @@ pub struct SupplyInfo {
     pub maximum_supply: u64,
 }
 
+/// Information about the total supply after V1_8 activation
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SupplyInfo2 {
+    /// Current epoch
+    pub epoch: u32,
+    /// Current time
+    pub current_time: u64,
+    /// Number of blocks minted
+    pub blocks_minted: u32,
+    /// WIT minted through block creation
+    pub blocks_minted_reward: u64,
+    /// Amount of nanowits that have been burnt so far
+    pub burnt_supply: u64,
+    /// Current locked supply (includes in_flight_requests_collateral)
+    pub current_locked_supply: u64,
+    /// Current staked supply
+    pub current_staked_supply: u64,
+    /// Current unlocked supply
+    pub current_unlocked_supply: u64,
+    /// Initial supply
+    pub initial_supply: u64,
+    /// WIT currently locked as collateral by in-flight data requests
+    pub requests_in_flight_collateral: u64,
+}
+
 /// Keyed signature data structure
 #[derive(Debug, Default, Eq, PartialEq, Clone, Hash, Serialize, Deserialize, ProtobufConvert)]
 #[protobuf_convert(pb = "crate::proto::schema::witnet::KeyedSignature")]
