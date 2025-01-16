@@ -11,11 +11,14 @@ use futures::future::Either;
 
 use witnet_data_structures::{
     chain::{
-        tapi::ActiveWips, Block, ChainInfo, ChainState, CheckpointBeacon, DataRequestInfo, Epoch,
-        Hash, Hashable, NodeStats, PublicKeyHash, SuperBlockVote, SupplyInfo, ValueTransferOutput,
+        tapi::ActiveWips, Block, ChainInfo, ChainState, CheckpointBeacon, ConsensusConstantsWit2,
+        DataRequestInfo, Epoch, Hash, Hashable, NodeStats, PublicKeyHash, SuperBlockVote,
+        SupplyInfo, SupplyInfo2, ValueTransferOutput,
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
-    get_protocol_version, refresh_protocol_version,
+    get_protocol_version,
+    proto::versioning::ProtocolVersion,
+    refresh_protocol_version,
     staking::{errors::StakesError, prelude::StakeKey},
     transaction::{
         DRTransaction, StakeTransaction, Transaction, UnstakeTransaction, VTTransaction,
@@ -36,10 +39,11 @@ use crate::{
             EpochNotification, EstimatePriority, GetBalance, GetBalanceTarget, GetBlocksEpochRange,
             GetDataRequestInfo, GetHighestCheckpointBeacon, GetMemoryTransaction, GetMempool,
             GetMempoolResult, GetNodeStats, GetProtocolInfo, GetReputation, GetReputationResult,
-            GetSignalingInfo, GetState, GetSuperBlockVotes, GetSupplyInfo, GetUtxoInfo,
-            IsConfirmedBlock, PeersBeacons, QueryStake, ReputationStats, Rewind, SendLastBeacon,
-            SendProtocolVersions, SessionUnitResult, SetEpochConstants, SetLastBeacon,
-            SetPeersLimits, SignalingInfo, SnapshotExport, SnapshotImport, TryMineBlock,
+            GetSignalingInfo, GetState, GetSuperBlockVotes, GetSupplyInfo, GetSupplyInfo2,
+            GetUtxoInfo, IsConfirmedBlock, PeersBeacons, QueryStake, ReputationStats, Rewind,
+            SendLastBeacon, SendProtocolVersions, SessionUnitResult, SetEpochConstants,
+            SetLastBeacon, SetPeersLimits, SignalingInfo, SnapshotExport, SnapshotImport,
+            TryMineBlock,
         },
         sessions_manager::SessionsManager,
     },
@@ -1720,6 +1724,83 @@ impl Handler<GetSupplyInfo> for ChainManager {
             current_unlocked_supply,
             current_locked_supply,
             maximum_supply,
+        })
+    }
+}
+
+impl Handler<GetSupplyInfo2> for ChainManager {
+    type Result = Result<SupplyInfo2, failure::Error>;
+
+    fn handle(&mut self, _msg: GetSupplyInfo2, _ctx: &mut Self::Context) -> Self::Result {
+        if self.sm_state != StateMachine::Synced {
+            return Err(ChainManagerError::NotSynced {
+                current_state: self.sm_state,
+            }
+            .into());
+        }
+
+        let chain_info = self.chain_state.chain_info.as_ref().unwrap();
+        let current_epoch = self.current_epoch.unwrap();
+        let current_time = u64::try_from(get_timestamp()).unwrap();
+        let current_staked_supply = self.chain_state.stakes.total_staked().nanowits();
+
+        let wit1_block_reward = chain_info.consensus_constants.initial_block_reward;
+        let wit2_activated = chain_info.protocol.current_version == ProtocolVersion::V2_0;
+        let wit2_activation_epoch = chain_info
+            .protocol
+            .all_versions
+            .get_activation_epoch(chain_info.protocol.current_version);
+        let wit2_block_reward =
+            ConsensusConstantsWit2::default().get_validator_block_reward(current_epoch);
+
+        let collateral_minimum = chain_info.consensus_constants.collateral_minimum;
+
+        let requests_in_flight_collateral = self
+            .chain_state
+            .data_request_pool
+            .locked_wits_by_requests(collateral_minimum);
+
+        let mut current_locked_supply = requests_in_flight_collateral;
+        let mut current_unlocked_supply = 0;
+        for (_output_pointer, value_transfer_output) in self.chain_state.unspent_outputs_pool.iter()
+        {
+            if value_transfer_output.0.time_lock <= current_time {
+                current_unlocked_supply += value_transfer_output.0.value;
+            } else {
+                current_locked_supply += value_transfer_output.0.value;
+            }
+        }
+
+        let (mut blocks_minted, mut blocks_minted_reward) = (0, 0);
+        for epoch in 1..current_epoch {
+            // If the blockchain contains an epoch, a block was minted in that epoch, add the reward to blocks_minted_reward
+            if self.chain_state.block_chain.contains_key(&epoch) {
+                blocks_minted += 1;
+                blocks_minted_reward += if wit2_activated && epoch >= wit2_activation_epoch {
+                    wit2_block_reward
+                } else {
+                    wit1_block_reward
+                }
+            }
+        }
+
+        let burnt_supply = self.initial_supply
+            .saturating_add(blocks_minted_reward)
+            .saturating_sub(current_locked_supply)
+            .saturating_sub(current_staked_supply)
+            .saturating_sub(current_unlocked_supply);
+
+        Ok(SupplyInfo2 {
+            epoch: current_epoch,
+            current_time,
+            blocks_minted,
+            blocks_minted_reward,
+            burnt_supply,
+            current_locked_supply,
+            current_staked_supply,
+            current_unlocked_supply,
+            initial_supply: self.initial_supply,
+            requests_in_flight_collateral,
         })
     }
 }
