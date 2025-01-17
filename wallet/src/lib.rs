@@ -24,10 +24,14 @@ use witnet_config::config::Config;
 use witnet_data_structures::{
     chain::{CheckpointBeacon, EpochConstants},
     get_protocol_version_activation_epoch, get_protocol_version_period,
-    proto::versioning::ProtocolVersion,
+    proto::versioning::{ProtocolInfo, ProtocolVersion},
 };
 use witnet_net::client::tcp::JsonRpcClient;
 use witnet_validations::witnessing::validate_witnessing_config;
+
+use serde_json::json;
+use witnet_futures_utils::TryFutureExt2;
+use witnet_net::client::tcp::jsonrpc;
 
 use crate::actors::app;
 
@@ -157,12 +161,15 @@ pub fn run(conf: Config) -> Result<(), Error> {
             hash_prev_block: genesis_prev_hash,
         }));
         let network = String::from(if testnet { "Testnet" } else { "Mainnet" });
+        let protocol_info = get_protocol_info(node_client.clone()).await?;
+
         let node_params = params::NodeParams {
             client: node_client.clone(),
             last_beacon,
             network,
             requests_timeout,
             subscriptions: node_subscriptions,
+            protocol_info,
         };
 
         // Start wallet actors
@@ -193,4 +200,25 @@ pub fn run(conf: Config) -> Result<(), Error> {
     log::info!("Db shut down finished.");
 
     Ok(())
+}
+
+async fn get_protocol_info (node_client: Arc<app::NodeClient>) -> Result<ProtocolInfo, app::Error> {
+     let method = String::from("protocol");
+        let params1 = json!(null);
+        let req = jsonrpc::Request::method(method)
+            .timeout(Duration::from_secs(5))
+            .params(params1)
+            .expect("params failed serialization");
+
+        let report: Result<_, Error> = node_client.actor.send(req).flatten_err().await;
+
+        match report {
+            Ok(report) => Ok(serde_json::from_value::<ProtocolInfo>(report)
+                .expect("Failed to deserialize protocol info")),
+            Err(err) => {
+                log::error!("getProtocolInfo failed: {}", &err);
+
+                Err(app::Error::Node(err))
+            }
+        }
 }

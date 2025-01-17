@@ -11,7 +11,7 @@ use witnet_data_structures::{
         StateMachine, ValueTransferOutput,
     },
     fee::AbsoluteFee,
-    proto::versioning::{ProtocolVersion, VersionedHashable},
+    proto::versioning::VersionedHashable,
     transaction::Transaction,
 };
 use witnet_futures_utils::TryFutureExt2;
@@ -986,7 +986,11 @@ impl Worker {
         let wallet_data = wallet.public_data()?;
         let last_sync = wallet_data.last_sync;
         let last_confirmed = wallet_data.last_confirmed;
-        let protocol_version = ProtocolVersion::from_epoch(block_beacon.checkpoint);
+        let protocol_version = self
+            .node
+            .protocol_info
+            .all_versions
+            .version_for_epoch(block_beacon.checkpoint);
         let (needs_clear_pending, needs_indexing) = if block_beacon.hash_prev_block
             == last_sync.hash_prev_block
             && (block_beacon.checkpoint == 0 || block_beacon.checkpoint > last_sync.checkpoint)
