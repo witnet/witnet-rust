@@ -36,6 +36,7 @@ pub struct Params {
     pub use_unconfirmed_utxos: bool,
     pub pending_transactions_timeout_seconds: u64,
     pub witnessing: WitnessingConfig<witnet_net::Uri>,
+    pub protocol_info: ProtocolInfo,
 }
 
 #[allow(dead_code)]

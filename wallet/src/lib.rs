@@ -134,6 +134,8 @@ pub fn run(conf: Config) -> Result<(), Error> {
         // retrying connection using a different URL each time.
         node_client.valid_connection().await;
 
+        let protocol_info = get_protocol_info(node_client.clone()).await?;
+
         let params = params::Params {
             testnet,
             seed_password,
@@ -154,6 +156,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
             use_unconfirmed_utxos,
             pending_transactions_timeout_seconds,
             witnessing: witnessing_config,
+            protocol_info: protocol_info.clone(),
         };
 
         let last_beacon = Arc::new(RwLock::new(CheckpointBeacon {
@@ -161,7 +164,6 @@ pub fn run(conf: Config) -> Result<(), Error> {
             hash_prev_block: genesis_prev_hash,
         }));
         let network = String::from(if testnet { "Testnet" } else { "Mainnet" });
-        let protocol_info = get_protocol_info(node_client.clone()).await?;
 
         let node_params = params::NodeParams {
             client: node_client.clone(),
@@ -169,7 +171,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
             network,
             requests_timeout,
             subscriptions: node_subscriptions,
-            protocol_info,
+            protocol_info: protocol_info.clone(),
         };
 
         // Start wallet actors
@@ -182,6 +184,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
             session_expires_in,
             requests_timeout,
             consensus_constants,
+            protocol_info: protocol_info,
         });
 
         // Intercept SIGTERM signal to gracefully close the wallet

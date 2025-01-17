@@ -19,18 +19,12 @@ use witnet_data_structures::{
     chain::{
         CheckpointBeacon, DataRequestOutput, Environment, Epoch, EpochConstants, Hash, Hashable,
         Input, KeyedSignature, OutputPointer, PublicKeyHash, ValueTransferOutput,
-    },
-    fee::{AbsoluteFee, Fee},
-    get_environment,
-    radon_error::RadonError,
-    transaction::{
+    }, fee::{AbsoluteFee, Fee}, get_environment, proto::versioning::{ProtocolInfo, VersionedHashable}, radon_error::RadonError, transaction::{
         DRTransaction, DRTransactionBody, TallyTransaction, Transaction, VTTransaction,
         VTTransactionBody,
-    },
-    transaction_factory::{
+    }, transaction_factory::{
         insert_change_output, CollectedOutputs, OutputsCollection, TransactionInfo,
-    },
-    utxo_pool::UtxoSelectionStrategy,
+    }, utxo_pool::UtxoSelectionStrategy
 };
 use witnet_rad::{error::RadError, types::RadonTypes};
 use witnet_util::timestamp::get_timestamp;
@@ -848,8 +842,11 @@ where
             match self._index_transaction(&mut state, &mut addresses, txn, block_info, confirmed) {
                 Ok(Some(balance_movement)) => {
                     if let Transaction::DataRequest(dr_tx) = &txn.transaction {
+                        let protocol_version = self.params.protocol_info.all_versions.version_for_epoch(block_info.epoch);
+
+
                         dr_balance_movements.insert(
-                            dr_tx.hash().to_string(),
+                            dr_tx.versioned_hash(protocol_version).to_string(),
                             (block_info.block_hash, block_balance_movements.len()),
                         );
                     }
@@ -1394,8 +1391,10 @@ where
                 Some(account_mutation) => account_mutation,
             };
 
+        let protocol_version = self.params.protocol_info.all_versions.version_for_epoch(block_info.epoch);
+
         // If exists, remove transaction from local pending movements
-        let txn_hash = txn.transaction.hash();
+        let txn_hash = txn.transaction.versioned_hash(protocol_version);
         if let Some(local_movement) = state.local_movements.remove(&txn_hash) {
             log::debug!(
                 "Updating local pending movement (txn id: {}) because it has been included in block #{}",
@@ -1540,7 +1539,9 @@ where
             account_mutation.balance_movement.transaction.timestamp =
                 u64::try_from(get_timestamp())
                     .expect("Get timestamp should return a positive value");
-            let txn_hash = txn.transaction.hash();
+            // FIXME
+            let protocol_version = self.params.protocol_info.current_version;
+            let txn_hash = txn.transaction.versioned_hash(protocol_version);
             state
                 .local_movements
                 .insert(txn_hash, account_mutation.balance_movement.clone());
@@ -1706,8 +1707,9 @@ where
                 }
             }
             if own_outputs.contains_key(&output.pkh) {
+                let protocol_version = self.params.protocol_info.all_versions.version_for_epoch(block_info.epoch);
                 let out_ptr = model::OutPtr {
-                    txn_hash: txn.transaction.hash().as_ref().to_vec(),
+                    txn_hash: txn.transaction.versioned_hash(protocol_version).as_ref().to_vec(),
                     output_index: u32::try_from(index).unwrap(),
                 };
                 let output_info = model::OutputInfo {
@@ -1744,6 +1746,8 @@ where
             (input_amount - output_amount, model::MovementType::Negative)
         };
 
+        let protocol_version = self.params.protocol_info.all_versions.version_for_epoch(block_info.epoch);
+
         // Build the balance movement, first computing the miner fee
         let miner_fee: u64 = match &txn.metadata {
             Some(model::TransactionMetadata::InputValues(input_values)) => {
@@ -1758,7 +1762,7 @@ where
                     total_input_amount
                         .checked_sub(total_output_amount)
                         .unwrap_or_else(|| {
-                            log::warn!("Miner fee below 0 in a transaction of type value transfer or data request: {}", txn.transaction.hash().to_string());
+                            log::warn!("Miner fee below 0 in a transaction of type value transfer or data request: {}", txn.transaction.versioned_hash(protocol_version).to_string());
 
                             0
                         })
@@ -1790,6 +1794,7 @@ where
             convert_block_epoch_to_timestamp(state.epoch_constants, block_info.epoch),
             confirmed,
             own_outputs,
+            &self.params.protocol_info,
         )?;
 
         Ok(Some(AccountMutation {
@@ -2091,6 +2096,7 @@ fn build_balance_movement(
     timestamp: u64,
     confirmed: bool,
     own_outputs: HashMap<PublicKeyHash, model::OutputType>,
+    protocol_info: &ProtocolInfo,
 ) -> Result<model::BalanceMovement> {
     // Input values with their ValueTransferOutput data
     let transaction_inputs = match &txn.metadata {
@@ -2134,6 +2140,7 @@ fn build_balance_movement(
             )));
         }
     };
+    let protocol_version = protocol_info.all_versions.version_for_epoch(block_info.epoch);
 
     Ok(model::BalanceMovement {
         db_key: identifier,
@@ -2143,7 +2150,7 @@ fn build_balance_movement(
             block: Some(block_info.clone()),
             confirmed,
             data: transaction_data,
-            hash: hex::encode(txn.transaction.hash()),
+            hash: hex::encode(txn.transaction.versioned_hash(protocol_version)),
             miner_fee,
             timestamp,
         },

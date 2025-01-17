@@ -1149,7 +1149,13 @@ impl Worker {
         wallet: &types::SessionWallet,
         sink: types::DynamicSink,
     ) -> Result<CheckpointBeacon> {
-        let block_hash = block.hash();
+        let protocol_version = self
+            .node
+            .protocol_info
+            .all_versions
+            .version_for_epoch(block.block_header.beacon.checkpoint);
+
+        let block_hash = block.versioned_hash(protocol_version);
 
         // Immediately update the local reference to the node's last beacon
         let block_own_beacon = CheckpointBeacon {
