@@ -302,7 +302,7 @@ impl ConsensusConstantsWit2 {
     pub fn get_wit2_activation_delay_epochs(self) -> u32 {
         match get_environment() {
             Environment::Development | Environment::Testnet => {
-                480 // 6 hours
+                1_920 // 24 hours
             }
             _ => {
                 13_440 // 1 week
