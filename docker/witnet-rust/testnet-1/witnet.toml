@@ -11,11 +11,13 @@ public_addr = "0.0.0.0:21337"
 # List of bootstrap peer addresses. The first time that a node runs, it connects to some of these addresses and query
 # them for a list of all the addresses they know. From that moment on, the addresses listed here are not given any
 # preference over addresses that have been discovered in any way.
-known_peers =[
-    "62.146.171.154:21337",
-    "62.146.171.154:22337",
-    "62.146.171.155:21337",
-    "62.146.171.155:22337",
+known_peers = [
+    "62.146.171.153:31337",
+    "62.146.171.153:32337",
+    "62.146.171.154:31337",
+    "62.146.171.154:32337",
+    "62.146.171.155:31337",
+    "62.146.171.155:32337",
 ]
 
 # How many peer connections to stablish before considering that is safe to decide what the best chain tip is, based on
