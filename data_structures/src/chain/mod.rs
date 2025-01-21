@@ -490,7 +490,7 @@ impl GenesisBlockInfo {
         let built_genesis_block_hash = genesis_block
             .clone()
             .build_genesis_block(bootstrap_hash)
-            .hash();
+            .versioned_hash(get_protocol_version(Some(0)));
 
         if built_genesis_block_hash != genesis_block_hash {
             Err(GenesisBlockInfoError::HashMismatch {
