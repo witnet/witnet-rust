@@ -1,6 +1,4 @@
-use std::time::Duration;
-
-use actix::{AsyncContext, Context, Handler};
+use actix::{Context, Handler};
 
 use witnet_data_structures::chain::Epoch;
 
@@ -81,9 +79,7 @@ impl Handler<GetEpochConstants> for EpochManager {
 impl Handler<SetEpochConstants> for EpochManager {
     type Result = ();
 
-    fn handle(&mut self, msg: SetEpochConstants, ctx: &mut Context<Self>) -> Self::Result {
-        log::debug!("Received new epoch constants: {:?}", msg.epoch_constants);
-
+    fn handle(&mut self, msg: SetEpochConstants, _ctx: &mut Context<Self>) -> Self::Result {
         // Check if the epoch calculated with the current version of the epoch constants
         // and the last_checked_epoch are different and if they are, subtract that difference
         // from the new last_checked_epoch.
@@ -103,21 +99,5 @@ impl Handler<SetEpochConstants> for EpochManager {
                 .unwrap_or_default()
                 .saturating_sub(epoch_diff),
         );
-
-        // Reschedule next epoch
-        let current_epoch = self.current_epoch();
-        log::debug!(
-            "Rescheduling timeout for epoch {}",
-            current_epoch.unwrap_or_default()
-        );
-        ctx.cancel_future(self.last_future);
-        let time_to_next_checkpoint =
-            self.time_to_next_checkpoint(current_epoch)
-                .unwrap_or_else(|_| {
-                    let retry_seconds = self.constants.as_ref().unwrap().checkpoints_period;
-                    log::warn!("Failed to calculate time to next checkpoint");
-                    Duration::from_secs(u64::from(retry_seconds))
-                });
-        self.checkpoint_monitor(ctx, time_to_next_checkpoint);
     }
 }

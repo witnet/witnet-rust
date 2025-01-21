@@ -6,9 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     chain::{Block, CheckpointBeacon, Hashable, InventoryEntry, SuperBlock, SuperBlockVote},
-    proto::{
-        schema::witnet, versioning::ProtocolVersion as VersioningProtocolVersion, ProtobufConvert,
-    },
+    proto::{schema::witnet, ProtobufConvert},
     transaction::Transaction,
 };
 
@@ -52,26 +50,7 @@ impl fmt::Display for Command {
             Command::GetPeers(_) => f.write_str("GET_PEERS"),
             Command::Peers(_) => f.write_str("PEERS"),
             Command::Verack(_) => f.write_str("VERACK"),
-            Command::Version(Version {
-                version: v,
-                sender_address: sa,
-                protocol_versions: pv,
-                ..
-            }) => {
-                let mut protocol_versions_str = String::from("(");
-                for protocol in pv {
-                    protocol_versions_str.push_str(&format!(
-                        "(version: {:?}, activation_epoch: {}, period: {}),",
-                        protocol.version, protocol.activation_epoch, protocol.checkpoint_period
-                    ));
-                }
-                protocol_versions_str.push(')');
-                write!(
-                    f,
-                    "VERSION MESSAGE: version = {}, sender_address = {:?}, protocol_versions = {}",
-                    v, sa, protocol_versions_str,
-                )
-            }
+            Command::Version(_) => f.write_str("VERSION"),
             Command::Block(block) => write!(
                 f,
                 "BLOCK #{}: {}",
@@ -133,32 +112,6 @@ pub struct Peers {
 #[protobuf_convert(pb = "witnet::Verack")]
 pub struct Verack;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, ProtobufConvert)]
-#[protobuf_convert(pb = "witnet::ProtocolVersionName")]
-pub enum ProtocolVersionName {
-    V1_7(bool),
-    V1_8(bool),
-    V2_0(bool),
-}
-
-impl From<VersioningProtocolVersion> for ProtocolVersionName {
-    fn from(version: VersioningProtocolVersion) -> Self {
-        match version {
-            VersioningProtocolVersion::V1_7 => ProtocolVersionName::V1_7(true),
-            VersioningProtocolVersion::V1_8 => ProtocolVersionName::V1_8(true),
-            VersioningProtocolVersion::V2_0 => ProtocolVersionName::V2_0(true),
-        }
-    }
-}
-
-#[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert)]
-#[protobuf_convert(pb = "witnet::ProtocolVersion")]
-pub struct ProtocolVersion {
-    pub version: ProtocolVersionName,
-    pub activation_epoch: u32,
-    pub checkpoint_period: u16,
-}
-
 #[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert)]
 #[protobuf_convert(pb = "witnet::Version")]
 pub struct Version {
@@ -170,7 +123,6 @@ pub struct Version {
     pub user_agent: String,
     pub nonce: u64,
     pub beacon: LastBeacon,
-    pub protocol_versions: Vec<ProtocolVersion>,
 }
 
 ///////////////////////////////////////////////////////////

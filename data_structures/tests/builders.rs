@@ -128,7 +128,6 @@ fn builders_build_version() {
         ip: IpAddress::Ipv4 { ip: 3_232_235_778 },
         port: 8001,
     };
-    let protocol_versions = vec![];
     let version_cmd = Command::Version(Version {
         version: PROTOCOL_VERSION,
         timestamp: 1234,
@@ -138,7 +137,6 @@ fn builders_build_version() {
         user_agent: user_agent(),
         nonce: 1234,
         beacon: hardcoded_beacon.clone(),
-        protocol_versions,
     });
     let msg = Message {
         kind: version_cmd,
