@@ -13,12 +13,12 @@ use witnet_data_structures::{
     chain::{
         Block, CheckpointBeacon, Epoch, InventoryEntry, InventoryItem, SuperBlock, SuperBlockVote,
     },
-    get_protocol_version, get_protocol_version_activation_epoch, get_protocol_version_period,
+    get_protocol_version,
     proto::versioning::{Versioned, VersionedHashable},
     transaction::Transaction,
     types::{
         Address, Command, InventoryAnnouncement, InventoryRequest, LastBeacon,
-        Message as WitnetMessage, Peers, ProtocolVersion, ProtocolVersionName, Version,
+        Message as WitnetMessage, Peers, Version,
     },
 };
 use witnet_p2p::sessions::{SessionStatus, SessionType};
@@ -32,8 +32,8 @@ use crate::actors::{
         AddTransaction, CloseSession, Consolidate, EpochNotification, GetBlocksEpochRange,
         GetHighestCheckpointBeacon, GetItem, GetSuperBlockVotes, PeerBeacon,
         RemoveAddressesFromTried, RequestPeers, SendGetPeers, SendInventoryAnnouncement,
-        SendInventoryItem, SendInventoryRequest, SendLastBeacon, SendProtocolVersions,
-        SendSuperBlockVote, SessionUnitResult,
+        SendInventoryItem, SendInventoryRequest, SendLastBeacon, SendSuperBlockVote,
+        SessionUnitResult,
     },
     peers_manager::PeersManager,
     sessions_manager::SessionsManager,
@@ -75,8 +75,6 @@ enum HandshakeError {
         current_ts: i64,
         timestamp_diff: i64,
     },
-    #[fail(display = "Received versions message has incompatible protocol version information")]
-    IncompatibleProtocolVersion {},
 }
 
 /// Implement WriteHandler for Session
@@ -184,18 +182,16 @@ impl StreamHandler<Result<BytesMut, Error>> for Session {
                             current_ts,
                             self.current_epoch,
                         ) {
-                            Ok((msgs, protocol_versions)) => {
+                            Ok(msgs) => {
                                 for msg in msgs {
                                     self.send_message(msg);
                                 }
 
                                 try_consolidate_session(self, ctx);
-                                session_send_protocol_versions(self, protocol_versions);
                             }
                             Err(err) => {
                                 if let HandshakeError::DifferentTimestamp { .. }
-                                | HandshakeError::DifferentEpoch { .. }
-                                | HandshakeError::IncompatibleProtocolVersion {} = err
+                                | HandshakeError::DifferentEpoch { .. } = err
                                 {
                                     // Remove this address from tried bucket and ice it
                                     self.remove_and_ice_peer();
@@ -848,55 +844,17 @@ fn handshake_verack(session: &mut Session) {
     flags.verack_rx = true;
 }
 
-// If a peer is on a protocol version with faster block times, epochs won't align
-// Attempt to recaculate the epoch using the protocol version from the other peer
-fn recalculate_epoch(
-    time_since_genesis: i64,
-    checkpoints_period: u16,
-    wit2_protocol_version: Option<ProtocolVersion>,
-) -> Epoch {
-    match wit2_protocol_version {
-        Some(protocol) => {
-            let seconds_to_wit2 = protocol.activation_epoch * u32::from(checkpoints_period);
-            let seconds_since_wit2 = u32::try_from(time_since_genesis)
-                .expect("Time since genesis should fit in a u32")
-                - seconds_to_wit2;
-            let epochs_since_wit2 = seconds_since_wit2 / u32::from(protocol.checkpoint_period);
-
-            protocol.activation_epoch + epochs_since_wit2
-        }
-        None => (time_since_genesis / i64::from(checkpoints_period))
-            .try_into()
-            .unwrap(),
-    }
-}
-
 fn check_beacon_compatibility(
     current_beacon: &LastBeacon,
     received_beacon: &LastBeacon,
     current_epoch: Epoch,
-    time_since_genesis: i64,
-    checkpoints_period: u16,
     target_superblock_beacon: Option<CheckpointBeacon>,
-    wit2_protocol_version: Option<ProtocolVersion>,
 ) -> Result<(), HandshakeError> {
     if received_beacon.highest_block_checkpoint.checkpoint > current_epoch {
-        let recalculated_epoch = recalculate_epoch(
-            time_since_genesis,
-            checkpoints_period,
-            wit2_protocol_version,
-        );
-        log::debug!(
-            "Recalculated epoch {} -> {}",
+        return Err(HandshakeError::DifferentEpoch {
             current_epoch,
-            recalculated_epoch
-        );
-        if received_beacon.highest_block_checkpoint.checkpoint > recalculated_epoch {
-            return Err(HandshakeError::DifferentEpoch {
-                current_epoch,
-                received_beacon: received_beacon.clone(),
-            });
-        }
+            received_beacon: received_beacon.clone(),
+        });
     }
 
     // In order to improve the synchronization process, if we have information about the last
@@ -952,43 +910,6 @@ fn check_beacon_compatibility(
     }
 }
 
-fn check_protocol_version_compatibility(
-    received_protocol_versions: &Vec<ProtocolVersion>,
-) -> Result<Vec<ProtocolVersion>, HandshakeError> {
-    let mut protocol_versions = vec![];
-    for protocol in received_protocol_versions {
-        // Protocol version not activated yet
-        if protocol.activation_epoch == u32::MAX || protocol.checkpoint_period == u16::MAX {
-            log::debug!("Received inactive protocol {:?}", protocol.version);
-            continue;
-        }
-
-        // Check already registered protocols for incompatibilities
-        let protocol_activation_epoch =
-            get_protocol_version_activation_epoch(protocol.version.into());
-        let protocol_period = get_protocol_version_period(protocol.version.into());
-        if protocol_activation_epoch != u32::MAX
-            && protocol_activation_epoch != protocol.activation_epoch
-        {
-            log::debug!(
-                "Received protocol {:?} with an incompatible activation epoch",
-                protocol.version
-            );
-            return Err(HandshakeError::IncompatibleProtocolVersion {});
-        } else if protocol_period != u16::MAX && protocol_period != protocol.checkpoint_period {
-            log::debug!(
-                "Received protocol {:?} with an incompatible activation epoch",
-                protocol.checkpoint_period
-            );
-            return Err(HandshakeError::IncompatibleProtocolVersion {});
-        }
-
-        protocol_versions.push(protocol.clone());
-    }
-
-    Ok(protocol_versions)
-}
-
 /// Check that the received timestamp is close enough to the current timestamp
 fn check_timestamp_drift(
     current_ts: i64,
@@ -1017,7 +938,7 @@ fn handshake_version(
     command_version: &Version,
     current_ts: i64,
     current_epoch: Epoch,
-) -> Result<(Vec<WitnetMessage>, Vec<ProtocolVersion>), HandshakeError> {
+) -> Result<Vec<WitnetMessage>, HandshakeError> {
     // Check that the received timestamp is close enough to the current timestamp
     let received_ts = command_version.timestamp;
     let max_ts_diff = session.config.connections.handshake_max_ts_diff;
@@ -1027,35 +948,17 @@ fn handshake_version(
     let current_beacon = &session.last_beacon;
     let received_beacon = &command_version.beacon;
 
-    let received_protocol_versions = &command_version.protocol_versions;
-
-    let protocol_versions = match session.session_type {
+    match session.session_type {
         SessionType::Outbound | SessionType::Feeler => {
-            let versions = check_protocol_version_compatibility(received_protocol_versions)?;
-
-            let mut wit2_protocol_version = None;
-            for protocol in versions.iter() {
-                if protocol.version == ProtocolVersionName::V2_0(true) {
-                    wit2_protocol_version = Some(protocol.clone());
-                    break;
-                }
-            }
-            let time_since_genesis =
-                current_ts - session.config.consensus_constants.checkpoint_zero_timestamp;
             check_beacon_compatibility(
                 current_beacon,
                 received_beacon,
                 current_epoch,
-                time_since_genesis,
-                session.config.consensus_constants.checkpoints_period,
                 session.superblock_beacon_target,
-                wit2_protocol_version,
             )?;
-
-            versions
         }
         // Do not check beacon for inbound peers, but do check protocol versions
-        SessionType::Inbound => check_protocol_version_compatibility(received_protocol_versions)?,
+        SessionType::Inbound => {}
     };
 
     let flags = &mut session.handshake_flags;
@@ -1086,7 +989,7 @@ fn handshake_version(
         responses.push(version);
     }
 
-    Ok((responses, protocol_versions))
+    Ok(responses)
 }
 
 fn send_inventory_item_msg(session: &mut Session, item: InventoryItem) {
@@ -1237,22 +1140,6 @@ fn process_superblock_vote(_session: &mut Session, superblock_vote: SuperBlockVo
     chain_manager_addr.do_send(AddSuperBlockVote { superblock_vote });
 }
 
-fn session_send_protocol_versions(session: &Session, protocol_versions: Vec<ProtocolVersion>) {
-    // Only send unregistered protocol versions
-    let unregistered_protocol_versions: Vec<_> = protocol_versions
-        .into_iter()
-        .filter(|protocol| {
-            get_protocol_version_activation_epoch(protocol.version.into()) == u32::MAX
-        })
-        .collect();
-    if !unregistered_protocol_versions.is_empty() {
-        SessionsManager::from_registry().do_send(SendProtocolVersions {
-            address: session.remote_addr,
-            protocol_versions: unregistered_protocol_versions,
-        })
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use witnet_data_structures::chain::Hash;
@@ -1280,15 +1167,7 @@ mod tests {
         let current_epoch = 0;
 
         assert_eq!(
-            check_beacon_compatibility(
-                &current_beacon,
-                &current_beacon,
-                current_epoch,
-                1_000_000_000,
-                45,
-                None,
-                None
-            ),
+            check_beacon_compatibility(&current_beacon, &current_beacon, current_epoch, None,),
             Ok(())
         );
     }
@@ -1313,15 +1192,7 @@ mod tests {
         let current_epoch = 1;
 
         assert_eq!(
-            check_beacon_compatibility(
-                &current_beacon,
-                &current_beacon,
-                current_epoch,
-                1_000_000_000,
-                45,
-                None,
-                None
-            ),
+            check_beacon_compatibility(&current_beacon, &current_beacon, current_epoch, None),
             Ok(()),
         );
     }
@@ -1358,27 +1229,11 @@ mod tests {
 
         // Both nodes can peer because they share the same superblock
         assert_eq!(
-            check_beacon_compatibility(
-                &current_beacon,
-                &received_beacon,
-                current_epoch,
-                1_000_000_000,
-                45,
-                None,
-                None
-            ),
+            check_beacon_compatibility(&current_beacon, &received_beacon, current_epoch, None),
             Ok(())
         );
         assert_eq!(
-            check_beacon_compatibility(
-                &received_beacon,
-                &current_beacon,
-                current_epoch,
-                1_000_000_000,
-                45,
-                None,
-                None
-            ),
+            check_beacon_compatibility(&received_beacon, &current_beacon, current_epoch, None),
             Ok(())
         );
     }
@@ -1418,15 +1273,7 @@ mod tests {
 
         // We cannot peer with the other node
         assert_eq!(
-            check_beacon_compatibility(
-                &current_beacon,
-                &received_beacon,
-                current_epoch,
-                1_000_000_000,
-                45,
-                None,
-                None
-            ),
+            check_beacon_compatibility(&current_beacon, &received_beacon, current_epoch, None),
             Err(HandshakeError::PeerBeaconOld {
                 current_beacon: current_beacon.highest_superblock_checkpoint,
                 received_beacon: received_beacon.highest_superblock_checkpoint,
@@ -1434,15 +1281,7 @@ mod tests {
         );
         // But the other node can peer with us and start syncing
         assert_eq!(
-            check_beacon_compatibility(
-                &received_beacon,
-                &current_beacon,
-                current_epoch,
-                1_000_000_000,
-                45,
-                None,
-                None
-            ),
+            check_beacon_compatibility(&received_beacon, &current_beacon, current_epoch, None),
             Ok(())
         );
     }
@@ -1479,15 +1318,7 @@ mod tests {
 
         // We cannot peer with the other node
         assert_eq!(
-            check_beacon_compatibility(
-                &current_beacon,
-                &received_beacon,
-                current_epoch,
-                1_000_000_000,
-                45,
-                None,
-                None
-            ),
+            check_beacon_compatibility(&current_beacon, &received_beacon, current_epoch, None),
             Err(HandshakeError::PeerBeaconDifferentBlockHash {
                 current_beacon: current_beacon.highest_superblock_checkpoint,
                 received_beacon: received_beacon.highest_superblock_checkpoint,
@@ -1495,15 +1326,7 @@ mod tests {
         );
         // And the other node cannot peer with us
         assert_eq!(
-            check_beacon_compatibility(
-                &received_beacon,
-                &current_beacon,
-                current_epoch,
-                1_000_000_000,
-                45,
-                None,
-                None
-            ),
+            check_beacon_compatibility(&received_beacon, &current_beacon, current_epoch, None),
             Err(HandshakeError::PeerBeaconDifferentBlockHash {
                 current_beacon: received_beacon.highest_superblock_checkpoint,
                 received_beacon: current_beacon.highest_superblock_checkpoint,
@@ -1618,48 +1441,5 @@ mod tests {
             "{}",
             received_ts
         );
-    }
-
-    #[test]
-    fn test_epoch_recalculation() {
-        let wit2_protocol = ProtocolVersion {
-            version: ProtocolVersionName::V2_0(true),
-            activation_epoch: 40,
-            checkpoint_period: 20,
-        };
-
-        let checkpoints_period: u16 = 45;
-
-        let time_since_genesis = i64::from(42 * checkpoints_period) + 16;
-        let recalculated_epoch = recalculate_epoch(
-            time_since_genesis,
-            checkpoints_period,
-            Some(wit2_protocol.clone()),
-        );
-        assert_eq!(45, recalculated_epoch);
-
-        let time_since_genesis = i64::from(42 * checkpoints_period) + 44;
-        let recalculated_epoch = recalculate_epoch(
-            time_since_genesis,
-            checkpoints_period,
-            Some(wit2_protocol.clone()),
-        );
-        assert_eq!(46, recalculated_epoch);
-
-        let time_since_genesis = i64::from(43 * checkpoints_period) + 14;
-        let recalculated_epoch = recalculate_epoch(
-            time_since_genesis,
-            checkpoints_period,
-            Some(wit2_protocol.clone()),
-        );
-        assert_eq!(47, recalculated_epoch);
-
-        let time_since_genesis = i64::from(43 * checkpoints_period) + 33;
-        let recalculated_epoch = recalculate_epoch(
-            time_since_genesis,
-            checkpoints_period,
-            Some(wit2_protocol.clone()),
-        );
-        assert_eq!(48, recalculated_epoch);
     }
 }

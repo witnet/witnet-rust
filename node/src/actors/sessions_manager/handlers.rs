@@ -18,9 +18,9 @@ use crate::actors::{
     messages::{
         AddConsolidatedPeer, AddPeers, Anycast, Broadcast, Consolidate, Create, DropAllPeers,
         DropOutboundPeers, EpochNotification, GetConsolidatedPeers, LogMessage, NumSessions,
-        NumSessionsResult, PeerBeacon, Register, RemoveAddressesFromTried, SendProtocolVersions,
-        SessionsUnitResult, SetEpochConstants, SetLastBeacon, SetPeersLimits,
-        SetSuperBlockTargetBeacon, TryMineBlock, Unregister,
+        NumSessionsResult, PeerBeacon, Register, RemoveAddressesFromTried, SessionsUnitResult,
+        SetEpochConstants, SetLastBeacon, SetPeersLimits, SetSuperBlockTargetBeacon, TryMineBlock,
+        Unregister,
     },
     peers_manager::PeersManager,
     session::Session,
@@ -175,7 +175,6 @@ impl Handler<Unregister> for SessionsManager {
 
                     if msg.session_type == SessionType::Outbound {
                         self.beacons.remove(&msg.address);
-                        self.versions.remove(&msg.address);
 
                         let peers_manager_addr = PeersManager::from_registry();
 
@@ -245,7 +244,6 @@ impl Handler<Consolidate> for SessionsManager {
                 if msg.session_type == SessionType::Outbound {
                     // Add outbound peer to the list of peers that should send us a beacon
                     self.beacons.also_wait_for(msg.address);
-                    self.versions.also_wait_for(msg.address);
                 }
             }
             Err(error @ SessionsError::AddressAlreadyRegistered)
@@ -461,34 +459,6 @@ impl Handler<PeerBeacon> for SessionsManager {
             Ok(()) => {}
             Err(NotSendingPeersBeaconsBecause::NotEnoughBeacons) => {}
             Err(e) => log::debug!("{}", e),
-        }
-    }
-}
-
-impl Handler<SendProtocolVersions> for SessionsManager {
-    type Result = ();
-
-    fn handle(&mut self, msg: SendProtocolVersions, _ctx: &mut Context<Self>) {
-        let process_message = match self.sessions.public_address {
-            Some(own_address) => own_address != msg.address,
-            None => true,
-        };
-
-        if process_message {
-            self.versions
-                .insert(msg.address, msg.protocol_versions.clone());
-
-            // Check if we have all the beacons, and sent PeersBeacons message to ChainManager
-            match self.try_set_protocol_versions() {
-                Ok(()) => {
-                    // Pass the message on to chain manager to set its protocol versions too
-                    ChainManager::from_registry().do_send(msg);
-                    self.versions.protocol_versions_set();
-                }
-                Err(e) => log::debug!("{}", e),
-            }
-        } else {
-            log::debug!("Got protocol versions message from own node, skipping");
         }
     }
 }

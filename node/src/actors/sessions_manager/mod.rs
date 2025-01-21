@@ -9,7 +9,7 @@ use ansi_term::Color::Cyan;
 
 use witnet_p2p::sessions::{SessionType, Sessions};
 
-use self::{beacons::Beacons, versions::Versions};
+use self::beacons::Beacons;
 use crate::{
     actors::{
         chain_manager::ChainManager,
@@ -17,11 +17,10 @@ use crate::{
         epoch_manager::EpochManager,
         messages::{
             Anycast, CloseSession, GetEpochConstants, GetRandomPeers, OutboundTcpConnect,
-            PeersBeacons, PeersSocketAddrsResult, SendGetPeers, SetEpochConstants, Subscribe,
+            PeersBeacons, PeersSocketAddrsResult, SendGetPeers, Subscribe,
         },
         peers_manager::PeersManager,
         session::Session,
-        sessions_manager::versions::NotSettingProtocolVersions,
     },
     utils::stop_system_if_panicking,
 };
@@ -29,16 +28,12 @@ use failure::Fail;
 use witnet_config::config::Config;
 use witnet_data_structures::{
     chain::{CheckpointBeacon, Epoch, EpochConstants},
-    get_protocol_version_activation_epoch, get_protocol_version_period,
-    proto::versioning::ProtocolVersion,
-    register_protocol_version,
-    types::{LastBeacon, ProtocolVersionName},
+    types::LastBeacon,
 };
 
 mod actor;
 mod beacons;
 mod handlers;
-mod versions;
 
 /// SessionsManager actor
 #[derive(Default)]
@@ -47,8 +42,6 @@ pub struct SessionsManager {
     sessions: Sessions<Addr<Session>>,
     /// List of beacons of outbound sessions
     beacons: Beacons,
-    /// List of protocol versions of outbound sessions
-    versions: Versions,
     /// Constants used to calculate instants in time
     epoch_constants: Option<EpochConstants>,
     /// Current epoch
@@ -233,75 +226,6 @@ impl SessionsManager {
         }
 
         self.send_peers_beacons(ctx);
-
-        Ok(())
-    }
-
-    fn try_set_protocol_versions(&mut self) -> Result<(), NotSettingProtocolVersions> {
-        if self.versions.already_set() {
-            return Err(NotSettingProtocolVersions::AlreadySet);
-        }
-
-        // Do not send PeersBeacons until we get to the outbound limit
-        if self.sessions.is_outbound_bootstrap_needed() {
-            return Err(NotSettingProtocolVersions::BootstrapNeeded);
-        }
-
-        // We may have 0 beacons out of 0
-        // We actually want to check it against the outbound limit
-        let expected_peers = self
-            .sessions
-            .outbound_consolidated
-            .limit
-            .map(|x| x as usize);
-        if Some(self.versions.total_count()) < expected_peers {
-            return Err(NotSettingProtocolVersions::NotEnoughPeers);
-        }
-
-        // Check all peers have sent us the same protocol info vector
-        match self.versions.check_protocol_versions() {
-            Ok(protocols) => {
-                let mut wit2_registered = false;
-                for protocol in protocols {
-                    register_protocol_version(
-                        protocol.version.into(),
-                        protocol.activation_epoch,
-                        protocol.checkpoint_period,
-                    );
-                    if protocol.version == ProtocolVersionName::V2_0(true) {
-                        wit2_registered = true;
-                    }
-                }
-
-                if wit2_registered {
-                    log::debug!("Updating epoch constants");
-
-                    let config = self.config.as_ref().expect("Config should be set");
-                    let checkpoint_zero_timestamp_wit2 = config
-                        .consensus_constants
-                        .checkpoint_zero_timestamp
-                        + i64::from(get_protocol_version_activation_epoch(ProtocolVersion::V2_0))
-                            * i64::from(config.consensus_constants.checkpoints_period);
-
-                    let epoch_constants = EpochConstants {
-                        checkpoint_zero_timestamp: config
-                            .consensus_constants
-                            .checkpoint_zero_timestamp,
-                        checkpoints_period: config.consensus_constants.checkpoints_period,
-                        checkpoint_zero_timestamp_wit2,
-                        checkpoints_period_wit2: get_protocol_version_period(ProtocolVersion::V2_0),
-                    };
-                    self.epoch_constants = Some(epoch_constants);
-
-                    log::debug!("Sending epoch constants to chain manager");
-                    ChainManager::from_registry().do_send(SetEpochConstants { epoch_constants });
-
-                    log::debug!("Sending epoch constants to epoch manager");
-                    EpochManager::from_registry().do_send(SetEpochConstants { epoch_constants });
-                }
-            }
-            Err(e) => return Err(e),
-        }
 
         Ok(())
     }
