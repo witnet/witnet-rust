@@ -55,6 +55,7 @@ impl fmt::Display for Command {
             Command::Version(Version {
                 version: v,
                 sender_address: sa,
+                user_agent: ua,
                 protocol_versions: pv,
                 ..
             }) => {
@@ -68,8 +69,8 @@ impl fmt::Display for Command {
                 protocol_versions_str.push(')');
                 write!(
                     f,
-                    "VERSION MESSAGE: version = {}, sender_address = {:?}, protocol_versions = {}",
-                    v, sa, protocol_versions_str,
+                    "VERSION MESSAGE: version = {}, sender_address = {:?}, user_agent = {}, protocol_versions = {}",
+                    v, sa, ua, protocol_versions_str,
                 )
             }
             Command::Block(block) => write!(

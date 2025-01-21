@@ -9,7 +9,7 @@ use failure::Fail;
 use futures::future::Either;
 
 use witnet_data_structures::{
-    builders::from_address,
+    builders::{from_address, user_agent},
     chain::{
         Block, CheckpointBeacon, Epoch, InventoryEntry, InventoryItem, SuperBlock, SuperBlockVote,
     },
@@ -1027,11 +1027,25 @@ fn handshake_version(
     let current_beacon = &session.last_beacon;
     let received_beacon = &command_version.beacon;
 
+    let message_user_agent = &command_version.user_agent;
     let received_protocol_versions = &command_version.protocol_versions;
 
     let protocol_versions = match session.session_type {
         SessionType::Outbound | SessionType::Feeler => {
             let versions = check_protocol_version_compatibility(received_protocol_versions)?;
+
+            // Nullify protocol versions vector if our user agent does not match with the
+            // one from the received versions message.
+            let versions = if *message_user_agent == user_agent() {
+                versions
+            } else {
+                log::debug!(
+                    "Received versions message from incompatible node: {} != {}",
+                    message_user_agent,
+                    user_agent()
+                );
+                vec![]
+            };
 
             let mut wit2_protocol_version = None;
             for protocol in versions.iter() {
