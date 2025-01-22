@@ -320,7 +320,6 @@ impl ChainManager {
             .unwrap_or_default();
         // Retrieve the withdrawer address of the first stake entry in which we are the validator
         let first_withdrawer_address = stake_entries.first().map(|stake| stake.key.withdrawer);
-        let protocol_version = get_protocol_version(self.current_epoch);
         let mut available_stake = totalize_stakes(stake_entries).unwrap_or_default();
 
         // Data Request mining
@@ -358,6 +357,10 @@ impl ChainManager {
                 .data_request_state(&dr_pointer)
                 .map(|dr_state| (dr_pointer, dr_state.clone()))
         }) {
+            // The protocol version under which a data request needs to be resolved is decided
+            // based on the epoch of the block in which the data request was included.
+            let protocol_version = get_protocol_version(Some(dr_state.epoch));
+
             // It's possible a data request requesting too many witnesses are in our local data
             // request pool (e.g., when we failed to validate a proposed block). Do not attempt
             // to solve this data request.
@@ -365,7 +368,7 @@ impl ChainManager {
             if data_request_has_too_many_witnesses(
                 &dr_state.data_request,
                 validator_count,
-                Some(current_epoch),
+                Some(dr_state.epoch),
             ) {
                 continue;
             }
@@ -846,7 +849,7 @@ impl ChainManager {
                         let too_many_witnesses = data_request_has_too_many_witnesses(
                             &dr_state.data_request,
                             validator_count,
-                            Some(block_epoch),
+                            Some(dr_state.epoch),
                         );
 
                         // The result of `RunTally` will be published as tally
@@ -883,7 +886,7 @@ impl ChainManager {
                             collateral_minimum,
                             tally_bytes_on_encode_error(),
                             &active_wips_inside_move,
-                            get_protocol_version(Some(block_epoch)),
+                            get_protocol_version(Some(dr_state.epoch)),
                         );
 
                         log::info!(
@@ -1381,7 +1384,7 @@ mod tests {
         PublicKey as Secp256k1_PublicKey, SecretKey as Secp256k1_SecretKey,
     };
     use witnet_crypto::signature::{sign, verify};
-    use witnet_data_structures::{chain::*, strum::IntoEnumIterator, transaction::*, vrf::VrfCtx};
+    use witnet_data_structures::{chain::*, transaction::*, vrf::VrfCtx};
     use witnet_protected::Protected;
     use witnet_validations::validations::validate_block_signature;
 
@@ -1555,9 +1558,7 @@ mod tests {
         let mut signatures_to_verify = vec![];
         assert!(validate_block_signature(&block, &mut signatures_to_verify).is_ok());
 
-        for protocol in ProtocolVersion::iter() {
-            assert!(verify_signatures(signatures_to_verify.clone(), vrf, protocol).is_ok());
-        }
+        assert!(verify_signatures(signatures_to_verify.clone(), vrf).is_ok());
     }
 
     static MILLION_TX_OUTPUT: &str =

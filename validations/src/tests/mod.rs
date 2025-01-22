@@ -118,7 +118,7 @@ fn verify_signatures_test(
 ) -> Result<(), failure::Error> {
     let vrf = &mut VrfCtx::secp256k1().unwrap();
 
-    verify_signatures(signatures_to_verify, vrf, ProtocolVersion::V1_7).map(|_| ())
+    verify_signatures(signatures_to_verify, vrf).map(|_| ())
 }
 
 fn sign_tx<H: VersionedHashable>(
@@ -5188,7 +5188,6 @@ fn tally_dr_not_tally_stage() {
             &active_wips,
             &HashSet::<Hash>::new(),
             None,
-            Some(epoch),
             protocol,
         );
         assert_eq!(
@@ -5206,7 +5205,6 @@ fn tally_dr_not_tally_stage() {
             &active_wips,
             &HashSet::<Hash>::new(),
             None,
-            Some(epoch),
             protocol,
         );
         assert_eq!(
@@ -5225,7 +5223,6 @@ fn tally_dr_not_tally_stage() {
             &active_wips,
             &HashSet::<Hash>::new(),
             None,
-            Some(epoch),
             protocol,
         );
         assert_eq!(
@@ -5244,7 +5241,6 @@ fn tally_dr_not_tally_stage() {
             &active_wips,
             &HashSet::<Hash>::new(),
             None,
-            Some(epoch),
             protocol,
         )
         .map(|_| ());
@@ -5342,7 +5338,6 @@ fn tally_invalid_consensus() {
             &active_wips,
             &HashSet::<Hash>::new(),
             None,
-            None,
             protocol,
         );
         assert_eq!(
@@ -5435,7 +5430,6 @@ fn tally_valid_1_reveal_5_commits() {
             &CONSENSUS_CONSTANTS_FOR_TALLY,
             &current_active_wips(),
             &HashSet::<Hash>::new(),
-            None,
             None,
             protocol,
         )
@@ -5650,7 +5644,6 @@ fn tally_valid_1_reveal_5_commits_invalid_value() {
             &current_active_wips(),
             &HashSet::<Hash>::new(),
             None,
-            None,
             protocol,
         );
         if protocol < ProtocolVersion::V2_0 {
@@ -5747,7 +5740,6 @@ fn tally_valid_1_reveal_5_commits_with_absurd_timelock() {
             &CONSENSUS_CONSTANTS_FOR_TALLY,
             &current_active_wips(),
             &HashSet::<Hash>::new(),
-            None,
             None,
             protocol,
         )
@@ -5849,7 +5841,6 @@ fn tally_valid() {
             &active_wips,
             &HashSet::<Hash>::new(),
             None,
-            None,
             protocol,
         )
         .map(|_| ());
@@ -5916,7 +5907,6 @@ fn tally_too_many_outputs() {
             &CONSENSUS_CONSTANTS_FOR_TALLY,
             &active_wips,
             &HashSet::<Hash>::new(),
-            None,
             None,
             protocol,
         )
@@ -5992,7 +5982,6 @@ fn tally_too_few_outputs() {
             &CONSENSUS_CONSTANTS_FOR_TALLY,
             &active_wips,
             &HashSet::<Hash>::new(),
-            None,
             None,
             protocol,
         );
@@ -6098,7 +6087,6 @@ fn tally_invalid_change() {
             &active_wips,
             &HashSet::<Hash>::new(),
             None,
-            None,
             protocol,
         )
         .map(|_| ());
@@ -6168,7 +6156,6 @@ fn tally_double_reward() {
             &CONSENSUS_CONSTANTS_FOR_TALLY,
             &active_wips,
             &HashSet::<Hash>::new(),
-            None,
             None,
             protocol,
         );
@@ -6246,7 +6233,6 @@ fn tally_reveal_not_found() {
             &active_wips,
             &HashSet::<Hash>::new(),
             None,
-            None,
             protocol,
         )
         .map(|_| ());
@@ -6314,7 +6300,6 @@ fn tally_invalid_reward() {
             &CONSENSUS_CONSTANTS_FOR_TALLY,
             &active_wips,
             &HashSet::<Hash>::new(),
-            None,
             None,
             protocol,
         );
@@ -6390,7 +6375,6 @@ fn tally_valid_2_reveals() {
             &CONSENSUS_CONSTANTS_FOR_TALLY,
             &active_wips,
             &HashSet::<Hash>::new(),
-            None,
             None,
             protocol,
         )
@@ -6474,7 +6458,6 @@ fn tally_valid_3_reveals_dr_liar() {
             &current_active_wips(),
             &HashSet::<Hash>::new(),
             None,
-            None,
             protocol,
         )
         .map(|_| ());
@@ -6556,7 +6539,6 @@ fn tally_valid_3_reveals_dr_liar_invalid() {
             &CONSENSUS_CONSTANTS_FOR_TALLY,
             &active_wips,
             &HashSet::<Hash>::new(),
-            None,
             None,
             protocol,
         )
@@ -6666,7 +6648,6 @@ fn tally_valid_5_reveals_1_liar_1_error() {
             &current_active_wips(),
             &HashSet::<Hash>::new(),
             None,
-            None,
             protocol,
         )
         .map(|_| ());
@@ -6745,7 +6726,6 @@ fn tally_valid_3_reveals_1_error() {
             &current_active_wips(),
             &HashSet::<Hash>::new(),
             None,
-            None,
             protocol,
         )
         .map(|_| ());
@@ -6823,7 +6803,6 @@ fn tally_valid_3_reveals_1_error_invalid_reward() {
             &CONSENSUS_CONSTANTS_FOR_TALLY,
             &current_active_wips(),
             &HashSet::<Hash>::new(),
-            None,
             None,
             protocol,
         );
@@ -6912,7 +6891,6 @@ fn tally_valid_3_reveals_mark_all_as_error() {
             &CONSENSUS_CONSTANTS_FOR_TALLY,
             &current_active_wips(),
             &HashSet::<Hash>::new(),
-            None,
             None,
             protocol,
         )
@@ -7005,7 +6983,6 @@ fn tally_dishonest_reward() {
             &CONSENSUS_CONSTANTS_FOR_TALLY,
             &current_active_wips(),
             &HashSet::<Hash>::new(),
-            None,
             None,
             protocol,
         );
@@ -7105,7 +7082,6 @@ fn create_tally_validation_dr_liar() {
             &CONSENSUS_CONSTANTS_FOR_TALLY,
             &active_wips,
             &HashSet::<Hash>::new(),
-            None,
             None,
             protocol,
         )
@@ -7231,7 +7207,6 @@ fn create_tally_validation_5_reveals_1_liar_1_error() {
             &active_wips,
             &HashSet::<Hash>::new(),
             None,
-            None,
             protocol,
         )
         .map(|_| ());
@@ -7331,7 +7306,6 @@ fn create_tally_validation_4_commits_2_reveals() {
             &active_wips,
             &HashSet::<Hash>::new(),
             None,
-            None,
             protocol,
         )
         .map(|_| ());
@@ -7370,7 +7344,6 @@ fn tally_valid_zero_commits() {
             &CONSENSUS_CONSTANTS_FOR_TALLY,
             &active_wips,
             &HashSet::<Hash>::new(),
-            None,
             None,
             protocol,
         )
@@ -7427,7 +7400,6 @@ fn create_tally_validation_zero_commits() {
             &active_wips,
             &HashSet::<Hash>::new(),
             None,
-            None,
             protocol,
         )
         .map(|_| ());
@@ -7476,7 +7448,6 @@ fn tally_invalid_zero_commits() {
             &CONSENSUS_CONSTANTS_FOR_TALLY,
             &active_wips,
             &HashSet::<Hash>::new(),
-            None,
             None,
             protocol,
         )
@@ -7581,7 +7552,6 @@ fn tally_valid_zero_reveals() {
             &active_wips,
             &HashSet::<Hash>::new(),
             None,
-            None,
             protocol,
         )
         .map(|_| ());
@@ -7653,7 +7623,6 @@ fn create_tally_validation_zero_reveals() {
             &active_wips,
             &HashSet::<Hash>::new(),
             None,
-            None,
             protocol,
         )
         .map(|_| ());
@@ -7724,7 +7693,6 @@ fn create_tally_validation_zero_reveals_zero_collateral() {
             &CONSENSUS_CONSTANTS_FOR_TALLY,
             &active_wips,
             &HashSet::<Hash>::new(),
-            None,
             None,
             protocol,
         )
@@ -7982,7 +7950,6 @@ fn tally_valid_4_reveals_all_liars() {
             &current_active_wips(),
             &HashSet::<Hash>::new(),
             None,
-            None,
             protocol,
         )
         .map(|_| ());
@@ -8061,7 +8028,6 @@ fn tally_valid_4_reveals_all_liars_attacker_pkh() {
             &CONSENSUS_CONSTANTS_FOR_TALLY,
             &current_active_wips(),
             &HashSet::<Hash>::new(),
-            None,
             None,
             protocol,
         )
@@ -8146,7 +8112,6 @@ fn tally_valid_4_reveals_2_liars_2_true() {
             &current_active_wips(),
             &HashSet::<Hash>::new(),
             None,
-            None,
             protocol,
         )
         .map(|_| ());
@@ -8229,7 +8194,6 @@ fn tally_valid_4_reveals_2_errors_2_true() {
             &current_active_wips(),
             &HashSet::<Hash>::new(),
             None,
-            None,
             protocol,
         )
         .map(|_| ());
@@ -8308,7 +8272,6 @@ fn tally_valid_4_reveals_1_liar_2_true() {
             &CONSENSUS_CONSTANTS_FOR_TALLY,
             &current_active_wips(),
             &HashSet::<Hash>::new(),
-            None,
             None,
             protocol,
         )
@@ -8394,7 +8357,6 @@ fn tally_valid_4_reveals_invalid_script_arg() {
             &current_active_wips(),
             &HashSet::<Hash>::new(),
             None,
-            None,
             protocol,
         )
         .map(|_| ());
@@ -8479,7 +8441,6 @@ fn tally_valid_3_reveals_1_no_reveal_invalid_script_arg() {
             &current_active_wips(),
             &HashSet::<Hash>::new(),
             None,
-            None,
             protocol,
         )
         .map(|_| ());
@@ -8548,7 +8509,6 @@ fn tally_valid_4_reveals_majority_of_errors() {
             &CONSENSUS_CONSTANTS_FOR_TALLY,
             &current_active_wips(),
             &HashSet::<Hash>::new(),
-            None,
             None,
             protocol,
         )
@@ -8629,7 +8589,6 @@ fn tally_valid_3_reveals_1_no_reveal_majority_of_errors() {
             &current_active_wips(),
             &HashSet::<Hash>::new(),
             None,
-            None,
             protocol,
         )
         .map(|_| ());
@@ -8707,7 +8666,6 @@ fn tally_valid_2_reveals_2_no_reveals_majority_of_errors_insufficient_consensus(
             &CONSENSUS_CONSTANTS_FOR_TALLY,
             &current_active_wips(),
             &HashSet::<Hash>::new(),
-            None,
             None,
             protocol,
         )
@@ -8793,7 +8751,6 @@ fn tally_valid_4_reveals_majority_of_errors_insufficient_consensus() {
             &current_active_wips(),
             &HashSet::<Hash>::new(),
             None,
-            None,
             protocol,
         )
         .map(|_| ());
@@ -8877,7 +8834,6 @@ fn tally_valid_3_reveals_1_no_reveal_majority_of_errors_insufficient_consensus()
             &current_active_wips(),
             &HashSet::<Hash>::new(),
             None,
-            None,
             protocol,
         )
         .map(|_| ());
@@ -8954,7 +8910,6 @@ fn tally_valid_rng() {
             &current_active_wips(),
             &HashSet::<Hash>::new(),
             None,
-            None,
             protocol,
         )
         .map(|_| ());
@@ -9018,7 +8973,6 @@ fn tally_valid_rng_wrong_bytes_len() {
             &CONSENSUS_CONSTANTS_FOR_TALLY,
             &current_active_wips(),
             &HashSet::<Hash>::new(),
-            None,
             None,
             protocol,
         )
@@ -9117,7 +9071,6 @@ fn tally_valid_rng_one_error() {
             &CONSENSUS_CONSTANTS_FOR_TALLY,
             &current_active_wips(),
             &HashSet::<Hash>::new(),
-            None,
             None,
             protocol,
         )
@@ -9218,7 +9171,6 @@ fn tally_valid_rng_all_errors() {
             &current_active_wips(),
             &HashSet::<Hash>::new(),
             None,
-            None,
             protocol,
         )
         .map(|_| ());
@@ -9305,7 +9257,6 @@ fn tally_valid_rng_one_invalid_type() {
             &current_active_wips(),
             &HashSet::<Hash>::new(),
             None,
-            None,
             protocol,
         )
         .map(|_| ());
@@ -9370,7 +9321,6 @@ fn tally_valid_rng_all_invalid_type() {
             &CONSENSUS_CONSTANTS_FOR_TALLY,
             &current_active_wips(),
             &HashSet::<Hash>::new(),
-            None,
             None,
             protocol,
         )
@@ -9447,7 +9397,6 @@ fn tally_unserializable_value() {
             &CONSENSUS_CONSTANTS_FOR_TALLY,
             &active_wips,
             &HashSet::<Hash>::new(),
-            None,
             None,
             protocol,
         )
@@ -9535,7 +9484,6 @@ fn tally_unhandled_intercept_with_message() {
             &active_wips,
             &HashSet::<Hash>::new(),
             None,
-            None,
             protocol,
         )
         .map(|_| ());
@@ -9546,7 +9494,6 @@ fn tally_unhandled_intercept_with_message() {
             &CONSENSUS_CONSTANTS_FOR_TALLY,
             &active_wips,
             &HashSet::<Hash>::new(),
-            None,
             None,
             protocol,
         )
@@ -9573,7 +9520,6 @@ fn tally_unhandled_intercept_with_message() {
             &active_wips,
             &HashSet::<Hash>::new(),
             None,
-            None,
             protocol,
         )
         .map(|_| ());
@@ -9590,7 +9536,6 @@ fn tally_unhandled_intercept_with_message() {
             &CONSENSUS_CONSTANTS_FOR_TALLY,
             &active_wips,
             &HashSet::<Hash>::new(),
-            None,
             None,
             protocol,
         )
@@ -9697,7 +9642,6 @@ fn tally_unhandled_intercept_mode_tie_has_no_message() {
             &active_wips,
             &HashSet::<Hash>::new(),
             None,
-            None,
             protocol,
         )
         .map(|_| ());
@@ -9708,7 +9652,6 @@ fn tally_unhandled_intercept_mode_tie_has_no_message() {
             &CONSENSUS_CONSTANTS_FOR_TALLY,
             &active_wips,
             &HashSet::<Hash>::new(),
-            None,
             None,
             protocol,
         )
@@ -9735,7 +9678,6 @@ fn tally_unhandled_intercept_mode_tie_has_no_message() {
             &active_wips,
             &HashSet::<Hash>::new(),
             None,
-            None,
             protocol,
         )
         .map(|_| ());
@@ -9752,7 +9694,6 @@ fn tally_unhandled_intercept_mode_tie_has_no_message() {
             &CONSENSUS_CONSTANTS_FOR_TALLY,
             &active_wips,
             &HashSet::<Hash>::new(),
-            None,
             None,
             protocol,
         )
@@ -9818,7 +9759,6 @@ fn tally_error_encode_reveal_wip() {
             &active_wips,
             &HashSet::<Hash>::new(),
             None,
-            None,
             protocol,
         )
         .map(|_| ());
@@ -9840,7 +9780,6 @@ fn tally_error_encode_reveal_wip() {
             &CONSENSUS_CONSTANTS_FOR_TALLY,
             &active_wips,
             &HashSet::<Hash>::new(),
-            None,
             None,
             protocol,
         )
@@ -10874,7 +10813,6 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
         &active_wips,
         None,
         &stakes,
-        protocol_version,
     )?;
     verify_signatures_test(signatures_to_verify)?;
 
@@ -11158,7 +11096,6 @@ fn block_difficult_proof() {
                 &current_active_wips(),
                 None,
                 &stakes,
-                protocol_version,
             )?;
             verify_signatures_test(signatures_to_verify)?;
 
@@ -11896,7 +11833,6 @@ fn test_blocks_with_limits(
             &current_active_wips(),
             None,
             &stakes,
-            protocol_version,
         )?;
         verify_signatures_test(signatures_to_verify)?;
 
@@ -12499,7 +12435,6 @@ fn genesis_block_value_overflow() {
         &current_active_wips(),
         None,
         &stakes,
-        protocol_version,
     );
     assert_eq!(signatures_to_verify, vec![]);
     assert_eq!(
@@ -12592,7 +12527,6 @@ fn genesis_block_full_validate() {
         &current_active_wips(),
         None,
         &stakes,
-        protocol_version,
     )
     .unwrap();
     assert_eq!(signatures_to_verify, vec![]);
@@ -12687,7 +12621,6 @@ fn validate_block_transactions_uses_block_number_in_utxo_diff() {
             &current_active_wips(),
             None,
             &stakes,
-            protocol_version,
         )
         .unwrap()
     };
@@ -12858,7 +12791,6 @@ fn validate_commit_transactions_included_in_utxo_diff() {
             &current_active_wips(),
             None,
             &stakes,
-            protocol_version,
         )
         .unwrap()
     };
@@ -13009,7 +12941,6 @@ fn validate_required_tally_not_found() {
     let mut dr_pool = DataRequestPool::default();
     dr_pool.data_request_pool.insert(dr_pointer, dr_state);
     let stakes = StakesTracker::default();
-    let protocol_version = ProtocolVersion::default();
 
     let b = Block::default();
 
@@ -13027,7 +12958,6 @@ fn validate_required_tally_not_found() {
         &current_active_wips(),
         None,
         &stakes,
-        protocol_version,
     )
     .unwrap_err();
 
