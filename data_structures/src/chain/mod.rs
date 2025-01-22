@@ -4836,6 +4836,7 @@ pub enum SignaturesToVerify {
         dr_hash: Hash,
         target_hash: Hash,
         withdrawer: Option<PublicKeyHash>,
+        inclusion_epoch: Option<Epoch>,
     },
     VrfBlock {
         proof: BlockEligibilityClaim,

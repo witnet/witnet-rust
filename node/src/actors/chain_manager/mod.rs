@@ -1348,7 +1348,6 @@ impl ChainManager {
 
     fn add_temp_superblock_votes(&mut self, ctx: &mut Context<Self>) {
         let consensus_constants = self.consensus_constants();
-        let protocol = ProtocolVersion::from_epoch_opt(self.current_epoch);
 
         let superblock_period = u32::from(consensus_constants.superblock_period);
 
@@ -1360,12 +1359,9 @@ impl ChainManager {
             }
 
             // Validate secp256k1 signature
-            signature_mngr::verify_signatures(
-                vec![SignaturesToVerify::SuperBlockVote {
-                    superblock_vote: superblock_vote.clone(),
-                }],
-                protocol,
-            )
+            signature_mngr::verify_signatures(vec![SignaturesToVerify::SuperBlockVote {
+                superblock_vote: superblock_vote.clone(),
+            }])
             .map(|res| {
                 res.map_err(|e| {
                     log::error!("Verify superblock vote signature: {}", e);
@@ -1396,7 +1392,6 @@ impl ChainManager {
             self.sm_state
         );
         let consensus_constants = self.consensus_constants();
-        let protocol = ProtocolVersion::from_epoch_opt(self.current_epoch);
 
         let superblock_period = u32::from(consensus_constants.superblock_period);
 
@@ -1410,12 +1405,9 @@ impl ChainManager {
         }
 
         // Validate secp256k1 signature
-        signature_mngr::verify_signatures(
-            vec![SignaturesToVerify::SuperBlockVote {
-                superblock_vote: superblock_vote.clone(),
-            }],
-            protocol,
-        )
+        signature_mngr::verify_signatures(vec![SignaturesToVerify::SuperBlockVote {
+            superblock_vote: superblock_vote.clone(),
+        }])
         .into_actor(self)
         .map_err(|e, _act, _ctx| {
             log::error!("Verify superblock vote signature: {}", e);
@@ -1578,7 +1570,24 @@ impl ChainManager {
                 // than or equal to the current epoch
                 block_epoch: current_epoch,
             };
-            let protocol_version = ProtocolVersion::from_epoch(current_epoch);
+            // For commit transactions, we want to verify their validity using the protocol version at
+            // the time of the data request inclusion. For simplicity's sake when validating signatures,
+            // we use the protocol version of the block epoch.
+            // For all other transactions which can pass through the add_transaction function and which
+            // need the protocol version, we can always use the protocol version of the block epoch.
+            let protocol_version = if let Transaction::Commit(co_tx) = &msg.transaction {
+                if let Some(dr_state) = self
+                    .chain_state
+                    .data_request_pool
+                    .data_request_state(&co_tx.body.dr_pointer)
+                {
+                    ProtocolVersion::from_epoch(dr_state.epoch)
+                } else {
+                    ProtocolVersion::from_epoch(current_epoch)
+                }
+            } else {
+                ProtocolVersion::from_epoch(current_epoch)
+            };
             let collateral_age = self
                 .consensus_constants_wit2
                 .get_collateral_age(&active_wips);
@@ -1612,7 +1621,7 @@ impl ChainManager {
             ))
             .into_actor(self)
             .and_then(move |fee, act, _ctx| {
-                signature_mngr::verify_signatures(signatures_to_verify, protocol_version)
+                signature_mngr::verify_signatures(signatures_to_verify)
                     .map(move |res| res.map(|()| fee))
                     .into_actor(act)
             })
@@ -2147,7 +2156,7 @@ impl ChainManager {
             // Short-circuit if validation failed
             res?;
 
-            signature_mngr::verify_signatures(signatures_to_verify, protocol_version).await
+            signature_mngr::verify_signatures(signatures_to_verify).await
         }
         .into_actor(self)
         .and_then(move |(), act, _ctx| {
@@ -2166,13 +2175,12 @@ impl ChainManager {
                 &active_wips,
                 None,
                 &act.chain_state.stakes,
-                protocol_version,
             );
             async move {
                 // Short-circuit if validation failed
                 let diff = res?;
 
-                signature_mngr::verify_signatures(signatures_to_verify, protocol_version)
+                signature_mngr::verify_signatures(signatures_to_verify)
                     .await
                     .map(|()| diff)
             }
@@ -2935,7 +2943,7 @@ pub fn process_validations(
             replication_factor,
         )?;
         log::trace!("Verifying {} block signatures", signatures_to_verify.len());
-        verify_signatures(signatures_to_verify, vrf_ctx, protocol_version)?;
+        verify_signatures(signatures_to_verify, vrf_ctx)?;
     }
 
     let mut signatures_to_verify = vec![];
@@ -2953,7 +2961,6 @@ pub fn process_validations(
         active_wips,
         transaction_visitor,
         stakes,
-        protocol_version,
     )?;
 
     if !resynchronizing {
@@ -2961,7 +2968,7 @@ pub fn process_validations(
             "Verifying {} transaction signatures",
             signatures_to_verify.len()
         );
-        verify_signatures(signatures_to_verify, vrf_ctx, protocol_version)?;
+        verify_signatures(signatures_to_verify, vrf_ctx)?;
     }
 
     Ok(utxo_dif)
@@ -3044,6 +3051,10 @@ fn process_wit2_stakes_changes(
 
         let mut total_commit_reward = 0;
         for co_tx in &block.txns.commit_txns {
+            if data_request_is_pre_wit2(data_request_pool, &Transaction::Commit(co_tx.clone())) {
+                continue;
+            }
+
             let commit_pkh = co_tx.body.proof.proof.pkh();
             total_commit_reward +=
                 if let Some(dr_output) = data_request_pool.get_dr_output(&co_tx.body.dr_pointer) {
@@ -3081,6 +3092,10 @@ fn process_wit2_stakes_changes(
         // Add reveal rewards
         let mut total_reveal_reward = 0;
         for re_tx in &block.txns.reveal_txns {
+            if data_request_is_pre_wit2(data_request_pool, &Transaction::Reveal(re_tx.clone())) {
+                continue;
+            }
+
             total_reveal_reward +=
                 if let Some(dr_output) = data_request_pool.get_dr_output(&re_tx.body.dr_pointer) {
                     dr_output.commit_and_reveal_fee
@@ -3101,6 +3116,10 @@ fn process_wit2_stakes_changes(
         }
 
         for ta_tx in &block.txns.tally_txns {
+            if data_request_is_pre_wit2(data_request_pool, &Transaction::Tally(ta_tx.clone())) {
+                continue;
+            }
+
             let (collateral, reward) =
                 if let Some(dr_output) = data_request_pool.get_dr_output(&ta_tx.dr_pointer) {
                     (dr_output.collateral, dr_output.witness_reward)
@@ -3194,6 +3213,10 @@ fn process_wit2_stakes_changes(
 
         // Reset witnessing power
         for co_tx in &block.txns.commit_txns {
+            if data_request_is_pre_wit2(data_request_pool, &Transaction::Commit(co_tx.clone())) {
+                continue;
+            }
+
             let commit_pkh = co_tx.body.proof.proof.pkh();
             log::debug!(
                 "Resetting witnessing age for {} to {}",
@@ -3209,6 +3232,10 @@ fn process_wit2_stakes_changes(
         // Collateral was already reserved, so not returning it results in losing it
         // Reset the age for witnessing power to 10 epochs in the future
         for ta_tx in &block.txns.tally_txns {
+            if data_request_is_pre_wit2(data_request_pool, &Transaction::Tally(ta_tx.clone())) {
+                continue;
+            }
+
             let liar_pkhs: Vec<PublicKeyHash> = ta_tx
                 .out_of_consensus
                 .iter()
@@ -3351,6 +3378,40 @@ fn update_pools(
     utxo_diff.apply(unspent_outputs_pool);
 
     rep_info
+}
+
+fn data_request_is_pre_wit2(
+    data_request_pool: &DataRequestPool,
+    transaction: &Transaction,
+) -> bool {
+    // Data requests which were included in a block prior to the activation of wit/2 do
+    // not need to be processed using the wit/2 business logic.
+    match transaction {
+        Transaction::Commit(co_tx) => {
+            if let Some(dr_state) = data_request_pool.data_request_state(&co_tx.body.dr_pointer) {
+                if get_protocol_version(Some(dr_state.epoch)) < ProtocolVersion::V2_0 {
+                    return true;
+                }
+            }
+        }
+        Transaction::Reveal(re_tx) => {
+            if let Some(dr_state) = data_request_pool.data_request_state(&re_tx.body.dr_pointer) {
+                if get_protocol_version(Some(dr_state.epoch)) < ProtocolVersion::V2_0 {
+                    return true;
+                }
+            }
+        }
+        Transaction::Tally(ta_tx) => {
+            if let Some(dr_state) = data_request_pool.data_request_state(&ta_tx.dr_pointer) {
+                if get_protocol_version(Some(dr_state.epoch)) < ProtocolVersion::V2_0 {
+                    return true;
+                }
+            }
+        }
+        _ => (),
+    }
+
+    false
 }
 
 fn separate_honest_errors_and_liars<K, I>(rep_info: I) -> (Vec<K>, Vec<K>, Vec<(K, u32)>)
@@ -4793,6 +4854,7 @@ mod tests {
         }
 
         // Build pools
+        let epoch = 200;
         let mut data_request_pool = DataRequestPool::default();
         let data_request_state = DataRequestState {
             data_request: DataRequestOutput {
@@ -4810,6 +4872,7 @@ mod tests {
                 ..Default::default()
             },
             stage: DataRequestStage::TALLY,
+            epoch,
             ..Default::default()
         };
         data_request_pool.data_request_pool =
@@ -4818,7 +4881,6 @@ mod tests {
         let unspent_outputs_pool = UnspentOutputsPool::default();
 
         // Test stake changes with a block with a tally with four honests
-        let epoch = 200;
         let tally_transactions = vec![TallyTransaction::new(
             Hash::from(vec![1; 32]), // dr_pointer
             vec![],                  // tally
@@ -4827,7 +4889,7 @@ mod tests {
             vec![],                  // error_committers
         )];
         let block_one_succesful_tally = build_block_with_tally_transactions(
-            epoch,
+            epoch + 3,
             &mut data_request_pool,
             tally_transactions,
             &stakes,

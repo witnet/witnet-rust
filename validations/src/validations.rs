@@ -819,6 +819,7 @@ pub fn validate_commit_transaction(
         co_tx.body.dr_pointer,
         target_hash,
         withdrawer,
+        Some(dr_state.epoch),
     );
 
     // The commit fee here is the fee to include one commit
@@ -1046,15 +1047,17 @@ pub fn validate_tally_transaction<'a>(
     active_wips: &ActiveWips,
     data_requests_with_too_many_witnesses: &HashSet<Hash>,
     validator_count: Option<usize>,
-    epoch: Option<Epoch>,
     protocol_version: ProtocolVersion,
 ) -> Result<(Vec<&'a ValueTransferOutput>, u64), failure::Error> {
     let validator_count =
         validator_count.unwrap_or(witnet_data_structures::DEFAULT_VALIDATOR_COUNT_FOR_TESTS);
     let too_many_witnesses;
     if let Some(dr_state) = dr_pool.data_request_state_mutable(&ta_tx.dr_pointer) {
-        too_many_witnesses =
-            data_request_has_too_many_witnesses(&dr_state.data_request, validator_count, epoch);
+        too_many_witnesses = data_request_has_too_many_witnesses(
+            &dr_state.data_request,
+            validator_count,
+            Some(dr_state.epoch),
+        );
 
         if too_many_witnesses {
             let wit2_activation_epoch =
@@ -1068,14 +1071,6 @@ pub fn validate_tally_transaction<'a>(
                     hash: ta_tx.dr_pointer,
                 }
                 .into());
-            }
-
-            // Update the data request once at the epoch where V2.0 activates
-            // This handles the edge case where a data request which was already included still needs to be
-            // updated in consolidate_block, but is short-circuited to the tally stage when V2.0 activates
-            // because it requested too many witnesses
-            if wit2_activation_epoch == dr_state.epoch {
-                dr_state.update_stage(consensus_constants.extra_rounds, too_many_witnesses);
             }
         }
     } else {
@@ -1689,6 +1684,7 @@ pub fn add_dr_vrf_signature_to_verify(
     dr_hash: Hash,
     target_hash: Hash,
     withdrawer: Option<PublicKeyHash>,
+    inclusion_epoch: Option<Epoch>,
 ) {
     signatures_to_verify.push(SignaturesToVerify::VrfDr {
         proof: proof.clone(),
@@ -1696,6 +1692,7 @@ pub fn add_dr_vrf_signature_to_verify(
         dr_hash,
         target_hash,
         withdrawer,
+        inclusion_epoch,
     })
 }
 
@@ -1922,7 +1919,6 @@ pub fn validate_block_transactions(
     active_wips: &ActiveWips,
     mut visitor: Option<&mut dyn Visitor<Visitable = (Transaction, u64, u32)>>,
     stakes: &StakesTracker,
-    protocol_version: ProtocolVersion,
 ) -> Result<Diff, failure::Error> {
     let epoch = block.block_header.beacon.checkpoint;
     let is_genesis = block.is_genesis(&consensus_constants.genesis_hash);
@@ -1939,12 +1935,14 @@ pub fn validate_block_transactions(
         );
     let mut genesis_value_available = max_total_value_genesis;
 
+    let block_protocol_version = get_protocol_version(Some(epoch));
+
     // Check stake transactions are added in V1_8 at the earliest
-    if protocol_version == ProtocolVersion::V1_7 && !block.txns.stake_txns.is_empty() {
+    if block_protocol_version == ProtocolVersion::V1_7 && !block.txns.stake_txns.is_empty() {
         return Err(TransactionError::NoStakeTransactionsAllowed.into());
     }
     // Check stake transactions are added in V2_0 at the earliest
-    if protocol_version <= ProtocolVersion::V1_8 && !block.txns.unstake_txns.is_empty() {
+    if block_protocol_version <= ProtocolVersion::V1_8 && !block.txns.unstake_txns.is_empty() {
         return Err(TransactionError::NoUnstakeTransactionsAllowed.into());
     }
 
@@ -1994,13 +1992,13 @@ pub fn validate_block_transactions(
             &mut utxo_diff,
             inputs,
             outputs,
-            transaction.versioned_hash(protocol_version),
+            transaction.versioned_hash(block_protocol_version),
             epoch,
             consensus_constants.checkpoint_zero_timestamp,
         );
 
         // Add new hash to merkle tree
-        let txn_hash = transaction.versioned_hash(protocol_version);
+        let txn_hash = transaction.versioned_hash(block_protocol_version);
         let Hash::SHA256(sha) = txn_hash;
         vt_mt.push(Sha256(sha));
 
@@ -2020,6 +2018,13 @@ pub fn validate_block_transactions(
     let collateral_age = consensus_constants_wit2.get_collateral_age(active_wips);
     let min_stake = consensus_constants_wit2.get_validator_min_stake_nanowits(epoch);
     for transaction in &block.txns.commit_txns {
+        let data_request_protocol_version =
+            if let Some(dr_state) = dr_pool.data_request_state(&transaction.body.dr_pointer) {
+                get_protocol_version(Some(dr_state.epoch))
+            } else {
+                ProtocolVersion::default()
+            };
+
         let (dr_pointer, dr_witnesses, fee) = validate_commit_transaction(
             transaction,
             dr_pool,
@@ -2035,7 +2040,7 @@ pub fn validate_block_transactions(
             consensus_constants.minimum_difficulty,
             active_wips,
             consensus_constants.superblock_period,
-            protocol_version,
+            data_request_protocol_version,
             stakes,
             consensus_constants.extra_rounds + 1,
             min_stake,
@@ -2059,13 +2064,13 @@ pub fn validate_block_transactions(
             &mut utxo_diff,
             inputs,
             outputs,
-            transaction.versioned_hash(protocol_version),
+            transaction.versioned_hash(block_protocol_version),
             epoch,
             consensus_constants.checkpoint_zero_timestamp,
         );
 
         // Add new hash to merkle tree
-        let txn_hash = transaction.versioned_hash(protocol_version);
+        let txn_hash = transaction.versioned_hash(block_protocol_version);
         let Hash::SHA256(sha) = txn_hash;
         co_mt.push(Sha256(sha));
     }
@@ -2098,7 +2103,7 @@ pub fn validate_block_transactions(
         total_fee += fee;
 
         // Add new hash to merkle tree
-        let txn_hash = transaction.versioned_hash(protocol_version);
+        let txn_hash = transaction.versioned_hash(block_protocol_version);
         let Hash::SHA256(sha) = txn_hash;
         re_mt.push(Sha256(sha));
     }
@@ -2145,7 +2150,7 @@ pub fn validate_block_transactions(
             consensus_constants.max_dr_weight,
             required_reward_collateral_ratio,
             active_wips,
-            Some(protocol_version),
+            Some(block_protocol_version),
         )?;
         total_fee += fee;
 
@@ -2153,13 +2158,13 @@ pub fn validate_block_transactions(
             &mut utxo_diff,
             inputs,
             outputs,
-            transaction.versioned_hash(protocol_version),
+            transaction.versioned_hash(block_protocol_version),
             epoch,
             consensus_constants.checkpoint_zero_timestamp,
         );
 
         // Add new hash to merkle tree
-        let txn_hash = transaction.versioned_hash(protocol_version);
+        let txn_hash = transaction.versioned_hash(block_protocol_version);
         let Hash::SHA256(sha) = txn_hash;
         dr_mt.push(Sha256(sha));
 
@@ -2200,18 +2205,19 @@ pub fn validate_block_transactions(
         ) {
             log::debug!(
                 "Temporarily adding data request {} to data request pool for validation purposes",
-                transaction.versioned_hash(protocol_version)
+                transaction.versioned_hash(block_protocol_version)
             );
             dr_pool.process_data_request(
                 transaction,
                 epoch,
-                Some(block.versioned_hash(protocol_version)),
+                Some(block.versioned_hash(block_protocol_version)),
             )?;
-            let dr_tx_hash = transaction.versioned_hash(protocol_version);
+            let dr_tx_hash = transaction.versioned_hash(block_protocol_version);
             if let Some(dr_state) = dr_pool.data_request_state_mutable(&dr_tx_hash) {
                 if dr_state.stage != DataRequestStage::TALLY {
                     dr_state.update_stage(0, true);
-                    data_requests_to_reset.insert(transaction.versioned_hash(protocol_version));
+                    data_requests_to_reset
+                        .insert(transaction.versioned_hash(block_protocol_version));
                 }
             } else {
                 // This should never happen
@@ -2226,6 +2232,13 @@ pub fn validate_block_transactions(
     let mut tally_hs = HashSet::with_capacity(block.txns.tally_txns.len());
     let mut expected_tally_ready_drs = dr_pool.get_tally_ready_drs();
     for transaction in &block.txns.tally_txns {
+        let data_request_protocol_version =
+            if let Some(dr_state) = dr_pool.data_request_state(&transaction.dr_pointer) {
+                get_protocol_version(Some(dr_state.epoch))
+            } else {
+                ProtocolVersion::default()
+            };
+
         let (outputs, fee) = match validate_tally_transaction(
             transaction,
             dr_pool,
@@ -2233,8 +2246,7 @@ pub fn validate_block_transactions(
             active_wips,
             &data_requests_with_too_many_witnesses,
             Some(stakes.validator_count()),
-            Some(epoch),
-            get_protocol_version(Some(epoch)),
+            data_request_protocol_version,
         ) {
             Ok((outputs, fee)) => {
                 reset_data_request_stage(&data_requests_to_reset, transaction.dr_pointer, dr_pool);
@@ -2273,13 +2285,13 @@ pub fn validate_block_transactions(
             &mut utxo_diff,
             vec![],
             outputs,
-            transaction.versioned_hash(protocol_version),
+            transaction.versioned_hash(block_protocol_version),
             epoch,
             consensus_constants.checkpoint_zero_timestamp,
         );
 
         // Add new hash to merkle tree
-        let txn_hash = transaction.versioned_hash(protocol_version);
+        let txn_hash = transaction.versioned_hash(block_protocol_version);
         let Hash::SHA256(sha) = txn_hash;
         ta_mt.push(Sha256(sha));
     }
@@ -2290,12 +2302,12 @@ pub fn validate_block_transactions(
     if !expected_tally_ready_drs.is_empty() {
         return Err(BlockError::MissingExpectedTallies {
             count: expected_tally_ready_drs.len(),
-            block_hash: block.versioned_hash(protocol_version),
+            block_hash: block.versioned_hash(block_protocol_version),
         }
         .into());
     }
 
-    let st_root = if protocol_version >= ProtocolVersion::V1_8 {
+    let st_root = if block_protocol_version >= ProtocolVersion::V1_8 {
         // validate stake transactions in a block
         let mut st_mt = ProgressiveMerkleTree::sha256();
         let mut st_weight: u32 = 0;
@@ -2350,13 +2362,13 @@ pub fn validate_block_transactions(
                 &mut utxo_diff,
                 inputs,
                 outputs,
-                transaction.versioned_hash(protocol_version),
+                transaction.versioned_hash(block_protocol_version),
                 epoch,
                 consensus_constants.checkpoint_zero_timestamp,
             );
 
             // Add new hash to merkle tree
-            st_mt.push(transaction.versioned_hash(protocol_version).into());
+            st_mt.push(transaction.versioned_hash(block_protocol_version).into());
 
             // TODO: Move validations to a visitor
             // // Execute visitor
@@ -2372,7 +2384,7 @@ pub fn validate_block_transactions(
         Hash::default()
     };
 
-    let ut_root = if protocol_version >= ProtocolVersion::V2_0 {
+    let ut_root = if block_protocol_version >= ProtocolVersion::V2_0 {
         let mut ut_mt = ProgressiveMerkleTree::sha256();
         let mut ut_weight: u32 = 0;
 
@@ -2401,13 +2413,13 @@ pub fn validate_block_transactions(
                 &mut utxo_diff,
                 vec![],
                 outputs,
-                transaction.versioned_hash(protocol_version),
+                transaction.versioned_hash(block_protocol_version),
                 epoch,
                 consensus_constants.checkpoint_zero_timestamp,
             );
 
             // Add new hash to merkle tree
-            ut_mt.push(transaction.versioned_hash(protocol_version).into());
+            ut_mt.push(transaction.versioned_hash(block_protocol_version).into());
         }
 
         Hash::from(ut_mt.root())
@@ -2431,7 +2443,7 @@ pub fn validate_block_transactions(
             &mut utxo_diff,
             vec![],
             block.txns.mint.outputs.iter(),
-            block.txns.mint.versioned_hash(protocol_version),
+            block.txns.mint.versioned_hash(block_protocol_version),
             epoch,
             consensus_constants.checkpoint_zero_timestamp,
         );
@@ -2439,7 +2451,7 @@ pub fn validate_block_transactions(
 
     // Validate Merkle Root
     let merkle_roots = BlockMerkleRoots {
-        mint_hash: block.txns.mint.versioned_hash(protocol_version),
+        mint_hash: block.txns.mint.versioned_hash(block_protocol_version),
         vt_hash_merkle_root: Hash::from(vt_hash_merkle_root),
         dr_hash_merkle_root: Hash::from(dr_hash_merkle_root),
         commit_hash_merkle_root: Hash::from(co_hash_merkle_root),
@@ -2830,7 +2842,6 @@ pub fn compare_block_candidates(
 pub fn verify_signatures(
     signatures_to_verify: Vec<SignaturesToVerify>,
     vrf: &mut VrfCtx,
-    protocol: ProtocolVersion,
 ) -> Result<Vec<Hash>, failure::Error> {
     let mut vrf_hashes = vec![];
     for signature in signatures_to_verify {
@@ -2858,8 +2869,9 @@ pub fn verify_signatures(
                 dr_hash,
                 target_hash,
                 withdrawer,
+                inclusion_epoch,
             } => {
-                let vrf_hash = if protocol >= ProtocolVersion::V2_0 {
+                let vrf_hash = if get_protocol_version(inclusion_epoch) >= ProtocolVersion::V2_0 {
                     proof.verify_v2(vrf, vrf_input, dr_hash, withdrawer)
                 } else {
                     proof.verify_v1(vrf, vrf_input, dr_hash)

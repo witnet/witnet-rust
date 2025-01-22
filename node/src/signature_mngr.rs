@@ -21,7 +21,6 @@ use witnet_data_structures::{
         Bn256KeyedSignature, Bn256PublicKey, Bn256SecretKey, ExtendedSecretKey, Hash, Hashable,
         KeyedSignature, PublicKey, PublicKeyHash, SecretKey, Signature, SignaturesToVerify,
     },
-    proto::versioning::ProtocolVersion,
     transaction::MemoizedHashable,
     vrf::{VrfCtx, VrfMessage, VrfProof},
 };
@@ -145,14 +144,9 @@ pub async fn vrf_prove(message: VrfMessage) -> Result<(VrfProof, Hash), failure:
 }
 
 /// Verify signatures async
-pub async fn verify_signatures(
-    message: Vec<SignaturesToVerify>,
-    protocol: ProtocolVersion,
-) -> Result<(), failure::Error> {
+pub async fn verify_signatures(message: Vec<SignaturesToVerify>) -> Result<(), failure::Error> {
     let addr = SignatureManagerAdapter::from_registry();
-    addr.send(VerifySignatures(message, protocol))
-        .flatten_err()
-        .await
+    addr.send(VerifySignatures(message)).flatten_err().await
 }
 
 #[derive(Debug, Default)]
@@ -194,7 +188,7 @@ struct GetBn256KeyPair;
 
 struct VrfProve(VrfMessage);
 
-struct VerifySignatures(Vec<SignaturesToVerify>, ProtocolVersion);
+struct VerifySignatures(Vec<SignaturesToVerify>);
 
 async fn persist_master_key(master_key: ExtendedSK) -> Result<(), failure::Error> {
     let master_key = ExtendedSecretKey::from(master_key);
@@ -468,13 +462,8 @@ impl Handler<VrfProve> for SignatureManager {
 impl Handler<VerifySignatures> for SignatureManager {
     type Result = <VerifySignatures as Message>::Result;
 
-    fn handle(
-        &mut self,
-        VerifySignatures(signatures, protocol): VerifySignatures,
-        _ctx: &mut Self::Context,
-    ) -> Self::Result {
-        validations::verify_signatures(signatures, self.vrf_ctx.as_mut().unwrap(), protocol)
-            .map(|_| ())
+    fn handle(&mut self, msg: VerifySignatures, _ctx: &mut Self::Context) -> Self::Result {
+        validations::verify_signatures(msg.0, self.vrf_ctx.as_mut().unwrap()).map(|_| ())
     }
 }
 
