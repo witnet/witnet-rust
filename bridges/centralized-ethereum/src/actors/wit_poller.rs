@@ -305,7 +305,10 @@ async fn get_dr_timestamp(
         .unwrap_or(&45u16);
 
     Ok(protocol_activation_timestamp
-        + i64::from((dr_last_commit_epoch - protocol_activation_epoch) * u32::from(*protocol_checkpoint_period)))
+        + i64::from(
+            (dr_last_commit_epoch - protocol_activation_epoch)
+                * u32::from(*protocol_checkpoint_period),
+        ))
 }
 
 /// Get current protocol info from the Witnet node
