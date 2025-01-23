@@ -48,8 +48,8 @@ use crate::{
             GetHighestCheckpointBeacon, GetItemBlock, GetItemSuperblock, GetItemTransaction,
             GetKnownPeers, GetMemoryTransaction, GetMempool, GetNodeStats, GetProtocolInfo,
             GetReputation, GetSignalingInfo, GetState, GetSupplyInfo, GetSupplyInfo2, GetUtxoInfo,
-            InitializePeers, IsConfirmedBlock, QueryStakePowers, QueryStakes, QueryStakesFilter,
-            Rewind, SnapshotExport, SnapshotImport, StakeAuthorization,
+            InitializePeers, IsConfirmedBlock, MagicEither, QueryStakePowers, QueryStakes,
+            QueryStakesFilter, Rewind, SnapshotExport, SnapshotImport, StakeAuthorization,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -2068,6 +2068,28 @@ pub async fn stake(params: Result<BuildStakeParams, Error>) -> JsonRpcResult {
 
     // This is the actual message that gets signed as part of the authorization
     let msg = withdrawer.as_secp256k1_msg();
+
+    // Perform some sanity checks on the authorization string
+    match params.authorization {
+        MagicEither::Left(ref hex_str) => {
+            // Authorization string is not a hexadecimal string
+            if !hex_str.chars().all(|c| c.is_ascii_hexdigit()) {
+                return Err(Error::invalid_params(
+                    "The authorization string is not a hexadecimal string",
+                ));
+            }
+
+            // Invalid authorization length
+            if hex_str.len() != 170 {
+                return Err(Error::invalid_params(format!(
+                    "Authorization string has an unexpected length: {} != {}",
+                    hex_str.len(),
+                    170
+                )));
+            }
+        }
+        MagicEither::Right(_) => (),
+    };
 
     let authorization = params
         .authorization
