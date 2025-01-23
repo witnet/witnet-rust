@@ -1,4 +1,5 @@
 use std::{
+    cmp::Reverse,
     collections::{BTreeSet, HashMap, HashSet},
     convert::TryFrom,
     fmt,
@@ -36,13 +37,14 @@ use witnet_data_structures::{
         versioning::{ProtocolInfo, ProtocolVersion},
         ProtobufConvert,
     },
+    staking::prelude::StakeEntry,
     transaction::{
         DRTransaction, StakeTransaction, Transaction, UnstakeTransaction, VTTransaction,
     },
     transaction_factory::NodeBalance,
     types::SequentialId,
     utxo_pool::{UtxoInfo, UtxoSelectionStrategy},
-    wit::Wit,
+    wit::{Wit, WIT_DECIMAL_PLACES},
 };
 use witnet_node::actors::{
     chain_manager::run_dr_locally,
@@ -1949,6 +1951,7 @@ pub fn query_stakes(
     validator: Option<String>,
     withdrawer: Option<String>,
     all: bool,
+    long: bool,
 ) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
     let params = if all {
@@ -1971,7 +1974,37 @@ pub fn query_stakes(
             serde_json::to_string(&params).unwrap()
         ),
     )?;
-    log::info!("{}", response);
+
+    let mut stakes: Vec<StakeEntry<WIT_DECIMAL_PLACES, PublicKeyHash, Wit, Epoch, u64, u64>> =
+        parse_response(&response)?;
+    stakes.sort_by_key(|stake| Reverse(stake.value.coins));
+
+    let mut stakes_table = Table::new();
+    stakes_table.set_format(*prettytable::format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
+    if long {
+        stakes_table.set_titles(row![c->"Validator", c->"Withdrawer", c->"Staked", c->"Mining Epoch", c->"Witnessing Epoch", c->"Nonce"]);
+        for stake in stakes {
+            stakes_table.add_row(row![
+                stake.key.validator,
+                stake.key.withdrawer,
+                r->whole_wits(stake.value.coins.into()).to_formatted_string(&Locale::en),
+                r->stake.value.epochs.mining.to_formatted_string(&Locale::en),
+                r->stake.value.epochs.witnessing.to_formatted_string(&Locale::en),
+                r->stake.value.nonce.to_formatted_string(&Locale::en),
+            ]);
+        }
+    } else {
+        stakes_table.set_titles(row![c->"Validator", c->"Withdrawer", c->"Staked"]);
+        for stake in stakes {
+            stakes_table.add_row(row![
+                stake.key.validator,
+                stake.key.withdrawer,
+                r->whole_wits(stake.value.coins.into()).to_formatted_string(&Locale::en),
+            ]);
+        }
+    }
+    stakes_table.printstd();
+    println!();
 
     Ok(())
 }

@@ -296,7 +296,14 @@ pub fn exec_cmd(
             validator,
             withdrawer,
             all,
-        } => rpc::query_stakes(node.unwrap_or(default_jsonrpc), validator, withdrawer, all),
+            long,
+        } => rpc::query_stakes(
+            node.unwrap_or(default_jsonrpc),
+            validator,
+            withdrawer,
+            all,
+            long,
+        ),
         Command::Unstake {
             node,
             operator,
@@ -830,6 +837,8 @@ pub enum Command {
         withdrawer: Option<String>,
         #[structopt(short = "a", long = "all")]
         all: bool,
+        #[structopt(short = "l", long = "long")]
+        long: bool,
     },
     #[structopt(name = "unstake", about = "Create an unstake transaction")]
     Unstake {
