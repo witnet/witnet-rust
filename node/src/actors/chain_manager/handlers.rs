@@ -1474,11 +1474,7 @@ impl Handler<QueryStakePowers> for ChainManager {
         let mut powers = HashMap::new();
         let current_epoch = self.current_epoch.unwrap();
         for capability in msg.capabilities {
-            for (key, power) in self
-                .chain_state
-                .stakes
-                .by_rank(capability, current_epoch)
-            {
+            for (key, power) in self.chain_state.stakes.by_rank(capability, current_epoch) {
                 powers.entry(key).or_insert(vec![]).push(power);
             }
         }
