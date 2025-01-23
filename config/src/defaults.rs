@@ -563,4 +563,14 @@ impl Defaults for Testnet {
     fn consensus_constants_minimum_difficulty(&self) -> u32 {
         0
     }
+
+    fn protocol_versions(&self) -> HashMap<ProtocolVersion, (Epoch, u16)> {
+        [
+            (ProtocolVersion::V1_7, (0, 45)),
+            (ProtocolVersion::V1_8, (101, 45)),
+            (ProtocolVersion::V2_0, (281, 20)),
+        ]
+        .into_iter()
+        .collect()
+    }
 }
