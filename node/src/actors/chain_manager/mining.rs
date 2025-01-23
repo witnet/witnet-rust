@@ -1002,6 +1002,7 @@ pub fn build_block(
                 vt_tx.body.outputs.iter(),
                 vt_tx.hash(),
                 epoch,
+                epoch_constants,
                 checkpoint_zero_timestamp,
             );
             value_transfer_txns.push(vt_tx.clone());
@@ -1109,6 +1110,7 @@ pub fn build_block(
                 dr_tx.body.outputs.iter(),
                 dr_tx.hash(),
                 epoch,
+                epoch_constants,
                 checkpoint_zero_timestamp,
             );
 
@@ -1243,6 +1245,7 @@ pub fn build_block(
                     st_tx.body.change.iter(),
                     st_tx.hash(),
                     epoch,
+                    epoch_constants,
                     checkpoint_zero_timestamp,
                 );
                 stake_txns.push(st_tx.clone());
@@ -1286,6 +1289,7 @@ pub fn build_block(
                     vec![&ut_tx.body.withdrawal],
                     ut_tx.hash(),
                     epoch,
+                    epoch_constants,
                     checkpoint_zero_timestamp,
                 );
                 unstake_txns.push(ut_tx.clone());

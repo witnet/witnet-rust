@@ -1834,6 +1834,7 @@ pub fn update_utxo_diff<'a, IterInputs, IterOutputs>(
     outputs: IterOutputs,
     tx_hash: Hash,
     epoch: Epoch,
+    epoch_constants: EpochConstants,
     checkpoint_zero_timestamp: i64,
 ) where
     IterInputs: IntoIterator<Item = &'a Input>,
@@ -1885,10 +1886,14 @@ pub fn update_utxo_diff<'a, IterInputs, IterOutputs>(
         #[allow(clippy::cast_sign_loss)]
         let output_to_insert = if get_protocol_version(Some(epoch)) >= ProtocolVersion::V2_0 {
             if output.time_lock < checkpoint_zero_timestamp.try_into().unwrap() {
+                let epoch_timestamp = match epoch_constants.epoch_timestamp(epoch) {
+                    Ok((timestamp, _)) => timestamp,
+                    Err(e) => panic!("Failed to get timestamp for epoch {}: {}", epoch, e),
+                };
                 ValueTransferOutput {
                     pkh: output.pkh,
                     value: output.value,
-                    time_lock: output.time_lock + checkpoint_zero_timestamp as u64,
+                    time_lock: output.time_lock + epoch_timestamp as u64,
                 }
             } else {
                 output.clone()
@@ -1896,6 +1901,8 @@ pub fn update_utxo_diff<'a, IterInputs, IterOutputs>(
         } else {
             output.clone()
         };
+
+        log::info!("Inserting output {:?}", output_to_insert);
 
         utxo_diff.insert_utxo(output_pointer, output_to_insert, block_number);
     }
@@ -1994,6 +2001,7 @@ pub fn validate_block_transactions(
             outputs,
             transaction.versioned_hash(block_protocol_version),
             epoch,
+            epoch_constants,
             consensus_constants.checkpoint_zero_timestamp,
         );
 
@@ -2066,6 +2074,7 @@ pub fn validate_block_transactions(
             outputs,
             transaction.versioned_hash(block_protocol_version),
             epoch,
+            epoch_constants,
             consensus_constants.checkpoint_zero_timestamp,
         );
 
@@ -2160,6 +2169,7 @@ pub fn validate_block_transactions(
             outputs,
             transaction.versioned_hash(block_protocol_version),
             epoch,
+            epoch_constants,
             consensus_constants.checkpoint_zero_timestamp,
         );
 
@@ -2287,6 +2297,7 @@ pub fn validate_block_transactions(
             outputs,
             transaction.versioned_hash(block_protocol_version),
             epoch,
+            epoch_constants,
             consensus_constants.checkpoint_zero_timestamp,
         );
 
@@ -2364,6 +2375,7 @@ pub fn validate_block_transactions(
                 outputs,
                 transaction.versioned_hash(block_protocol_version),
                 epoch,
+                epoch_constants,
                 consensus_constants.checkpoint_zero_timestamp,
             );
 
@@ -2415,6 +2427,7 @@ pub fn validate_block_transactions(
                 outputs,
                 transaction.versioned_hash(block_protocol_version),
                 epoch,
+                epoch_constants,
                 consensus_constants.checkpoint_zero_timestamp,
             );
 
@@ -2445,6 +2458,7 @@ pub fn validate_block_transactions(
             block.txns.mint.outputs.iter(),
             block.txns.mint.versioned_hash(block_protocol_version),
             epoch,
+            epoch_constants,
             consensus_constants.checkpoint_zero_timestamp,
         );
     }
