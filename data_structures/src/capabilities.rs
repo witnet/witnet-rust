@@ -1,8 +1,21 @@
 use serde::{Deserialize, Serialize};
+use strum_macros::{EnumString, IntoStaticStr};
 
 #[repr(u8)]
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    EnumString,
+    Eq,
+    IntoStaticStr,
+    PartialEq,
+    serde::Deserialize,
+    serde::Serialize,
+)]
 #[serde(rename_all = "lowercase")]
+#[strum(serialize_all = "snake_case")]
 pub enum Capability {
     /// The base block mining and superblock voting capability
     #[default]

@@ -1471,10 +1471,19 @@ impl Handler<QueryStakePowers> for ChainManager {
     type Result = <QueryStakePowers as Message>::Result;
 
     fn handle(&mut self, msg: QueryStakePowers, _ctx: &mut Self::Context) -> Self::Result {
-        self.chain_state
-            .stakes
-            .by_rank(msg.capability, self.current_epoch.unwrap())
-            .collect()
+        let mut powers = HashMap::new();
+        let current_epoch = self.current_epoch.unwrap();
+        for capability in msg.capabilities {
+            for (key, power) in self
+                .chain_state
+                .stakes
+                .by_rank(capability, current_epoch)
+            {
+                powers.entry(key).or_insert(vec![]).push(power);
+            }
+        }
+
+        powers.into_iter().collect()
     }
 }
 

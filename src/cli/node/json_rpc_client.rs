@@ -14,7 +14,7 @@ use ansi_term::Color::{Purple, Red, White, Yellow};
 use failure::{bail, Fail};
 use itertools::Itertools;
 use num_format::{Locale, ToFormattedString};
-use prettytable::{row, Table};
+use prettytable::{row, Cell, Row, Table};
 use qrcode::render::unicode;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
@@ -24,6 +24,7 @@ use witnet_crypto::{
     key::{ExtendedPK, ExtendedSK},
 };
 use witnet_data_structures::{
+    capabilities::{Capability, ALL_CAPABILITIES},
     chain::{
         priority::{PrioritiesEstimate, Priority, PriorityEstimate, TimeToBlock},
         tapi::{current_active_wips, ActiveWips},
@@ -49,7 +50,8 @@ use witnet_data_structures::{
 use witnet_node::actors::{
     chain_manager::run_dr_locally,
     json_rpc::api::{
-        AddrType, GetBlockChainParams, GetTransactionOutput, PeersResult, QueryStakesParams,
+        AddrType, GetBlockChainParams, GetTransactionOutput, PeersResult, QueryPowersParams,
+        QueryPowersRecord, QueryStakesParams,
     },
     messages::{
         AuthorizeStake, BuildDrt, BuildStakeParams, BuildStakeResponse, BuildUnstakeParams,
@@ -2004,6 +2006,74 @@ pub fn query_stakes(
         }
     }
     stakes_table.printstd();
+    println!();
+
+    Ok(())
+}
+
+pub fn query_powers(
+    addr: SocketAddr,
+    capability: Option<String>,
+    all: bool,
+) -> Result<(), failure::Error> {
+    let mut stream = start_client(addr)?;
+    let params = if all {
+        QueryPowersParams::All(true)
+    } else {
+        match capability {
+            Some(c) => match Capability::from_str(&c) {
+                Ok(c) => QueryPowersParams::Capability(c),
+                Err(_) => QueryPowersParams::Capability(Capability::Mining),
+            },
+            None => QueryPowersParams::Capability(Capability::Mining),
+        }
+    };
+
+    let response = send_request(
+        &mut stream,
+        &format!(
+            r#"{{"jsonrpc": "2.0","method": "queryPowers", "params": {}, "id": 1}}"#,
+            serde_json::to_string(&params).unwrap()
+        ),
+    )?;
+
+    let mut powers: Vec<QueryPowersRecord> = parse_response(&response)?;
+    powers.sort_by_key(|power| Reverse(power.powers[0]));
+
+    let mut powers_table = Table::new();
+    powers_table.set_format(*prettytable::format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
+    if all {
+        let mut header = vec![
+            Cell::new("Validator").style_spec("c"),
+            Cell::new("Withdrawer").style_spec("c"),
+        ];
+        for capability in ALL_CAPABILITIES {
+            let capability_str: &'static str = capability.into();
+            header.push(Cell::new(capability_str).style_spec("c"));
+        }
+        powers_table.set_titles(Row::new(header));
+        for power in powers.iter() {
+            let mut row = vec![
+                Cell::new(&power.validator.to_string()),
+                Cell::new(&power.withdrawer.to_string()),
+            ];
+            for p in &power.powers {
+                row.push(Cell::new(&p.to_formatted_string(&Locale::en)).style_spec("r"));
+            }
+            powers_table.add_row(Row::new(row));
+        }
+    } else {
+        let capability_str: &'static str = params.into();
+        powers_table.set_titles(row![c->"Validator", c->"Withdrawer", c->capability_str]);
+        for power in powers.iter() {
+            powers_table.add_row(row![
+                power.validator,
+                power.withdrawer,
+                r->(power.powers[0]).to_formatted_string(&Locale::en),
+            ]);
+        }
+    }
+    powers_table.printstd();
     println!();
 
     Ok(())

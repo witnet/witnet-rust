@@ -304,6 +304,11 @@ pub fn exec_cmd(
             all,
             long,
         ),
+        Command::QueryPowers {
+            node,
+            capability,
+            all,
+        } => rpc::query_powers(node.unwrap_or(default_jsonrpc), capability, all),
         Command::Unstake {
             node,
             operator,
@@ -839,6 +844,21 @@ pub enum Command {
         all: bool,
         #[structopt(short = "l", long = "long")]
         long: bool,
+    },
+
+    #[structopt(
+        name = "queryPowers",
+        alias = "powers",
+        about = "Retrieve information about powers"
+    )]
+    QueryPowers {
+        /// Socket address of the Witnet node to query
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
+        #[structopt(short = "c", long = "capability")]
+        capability: Option<String>,
+        #[structopt(short = "a", long = "all")]
+        all: bool,
     },
     #[structopt(name = "unstake", about = "Create an unstake transaction")]
     Unstake {

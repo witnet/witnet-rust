@@ -347,12 +347,12 @@ impl Message for StakeAuthorization {
 /// Message for querying stakes
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct QueryStakePowers {
-    /// capability being searched for
-    pub capability: Capability,
+    /// capabilities being searched for
+    pub capabilities: Vec<Capability>,
 }
 
 impl Message for QueryStakePowers {
-    type Result = Vec<(StakeKey<PublicKeyHash>, Power)>;
+    type Result = Vec<(StakeKey<PublicKeyHash>, Vec<Power>)>;
 }
 
 /// Stake key for quering stakes
