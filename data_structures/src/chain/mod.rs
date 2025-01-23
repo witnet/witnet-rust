@@ -3450,15 +3450,7 @@ impl TransactionsPool {
                 if fee < self.minimum_ut_fee {
                     return vec![Transaction::Unstake(ut_tx)];
                 } else {
-                    self.total_st_weight += u64::from(ut_tx.weight());
-
-                    // TODO
-                    // for input in &ut_tx.body.inputs {
-                    //     self.output_pointer_map
-                    //         .entry(input.output_pointer)
-                    //         .or_insert_with(Vec::new)
-                    //         .push(ut_tx.hash());
-                    // }
+                    self.total_ut_weight += u64::from(ut_tx.weight());
 
                     self.ut_transactions.insert(key, (priority, ut_tx));
                     self.sorted_ut_index.insert((priority, key));
