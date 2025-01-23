@@ -741,9 +741,9 @@ checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
 
 [[package]]
 name = "crunchy"
-version = "0.2.2"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a81dae078cea95a014a339291cec439d2f232ebe854a9d672b796c6afafa9b7"
+checksum = "43da5946c66ffcc7745f48db692ffbb10a83bfe0afd96235c5c2a4fb23994929"
 
 [[package]]
 name = "crypto-common"
@@ -1912,13 +1912,13 @@ checksum = "469fb0b9cefa57e3ef31275ee7cacb78f2fdca44e4765491884a2b119d4eb130"
 
 [[package]]
 name = "is-terminal"
-version = "0.4.13"
+version = "0.4.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "261f68e344040fbd0edea105bef17c66edf46f984ddb1115b775ce31be948f4b"
+checksum = "e19b23d53f35ce9f56aebc7d1bb4e6ac1e9c0db7ac85c8d1760c04379edced37"
 dependencies = [
  "hermit-abi 0.4.0",
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -3747,9 +3747,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "0.38.43"
+version = "0.38.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a78891ee6bf2340288408954ac787aa063d8e8817e9f53abb37c695c6d834ef6"
+checksum = "fdb5bc1ae2baa591800df16c9ca78619bf65c0488b41b96ccec5d11220d8c154"
 dependencies = [
  "bitflags 2.8.0",
  "errno",
@@ -4896,9 +4896,9 @@ checksum = "5c1cb5db39152898a79168971543b1cb5020dff7fe43c8dc468b0885f5e29df5"
 
 [[package]]
 name = "unicode-ident"
-version = "1.0.14"
+version = "1.0.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "adb9e6ca4f869e1180728b7950e35922a7fc6397f7b641499e8f3ef06e50dc83"
+checksum = "11cd88e12b17c6494200a9c1b683a04fcac9573ed74cd1b62aeb2727c5592243"
 
 [[package]]
 name = "unicode-normalization"
@@ -5512,7 +5512,7 @@ dependencies = [
 
 [[package]]
 name = "witnet"
-version = "2.0.0-rc.9"
+version = "2.0.0-rc.10"
 dependencies = [
  "ansi_term",
  "bytecount",
@@ -5560,7 +5560,7 @@ dependencies = [
 
 [[package]]
 name = "witnet-centralized-ethereum-bridge"
-version = "2.0.0-rc.9"
+version = "2.0.0-rc.10"
 dependencies = [
  "actix",
  "async-jsonrpc-client",
@@ -5626,7 +5626,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_data_structures"
-version = "2.0.0-rc.9"
+version = "2.0.0-rc.10"
 dependencies = [
  "bech32",
  "bencher",
@@ -5693,7 +5693,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_node"
-version = "2.0.0-rc.9"
+version = "2.0.0-rc.10"
 dependencies = [
  "actix",
  "ansi_term",
@@ -5802,7 +5802,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_toolkit"
-version = "2.0.0-rc.9"
+version = "2.0.0-rc.10"
 dependencies = [
  "failure",
  "hex",
@@ -5847,7 +5847,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_wallet"
-version = "2.0.0-rc.9"
+version = "2.0.0-rc.10"
 dependencies = [
  "actix",
  "async-jsonrpc-client",
