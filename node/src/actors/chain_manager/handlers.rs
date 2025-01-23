@@ -2219,7 +2219,11 @@ where
     let current_superblock_index = current_epoch / superblock_period;
     assert!(
         current_superblock_index >= sync_target.superblock.checkpoint,
-        "Provided a sync target that is in the future"
+        "Provided a sync target (epoch: {}, superblock index: {}) that is in the future (epoch: {}, superblock index: {})",
+        current_epoch,
+        current_superblock_index,
+        sync_target.block.checkpoint,
+        sync_target.superblock.checkpoint,
     );
 
     // If the chain reverted, this function cannot receive blocks from between the reverted epochs
