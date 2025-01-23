@@ -5719,6 +5719,7 @@ dependencies = [
  "sentry",
  "serde",
  "serde_json",
+ "strum_macros",
  "tokio 1.43.0",
  "tokio-util 0.7.13",
  "trust-dns-resolver",

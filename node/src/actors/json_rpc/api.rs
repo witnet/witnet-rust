@@ -19,6 +19,7 @@ use itertools::Itertools;
 use jsonrpc_core::{BoxFuture, Error, Params, Value};
 use jsonrpc_pubsub::{Subscriber, SubscriptionId};
 use serde::{Deserialize, Serialize};
+use strum_macros::IntoStaticStr;
 
 use witnet_crypto::key::KeyPath;
 use witnet_data_structures::{
@@ -2267,11 +2268,21 @@ pub async fn query_stakes(params: Result<Option<QueryStakesParams>, Error>) -> J
         .await
 }
 
-/// Format of the output of getTransaction
+/// Param for query_stakes
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, IntoStaticStr, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum QueryPowersParams {
+    /// To query all validators' power for a specific capability
+    Capability(Capability),
+    /// To query all powers
+    All(bool),
+}
+
+/// Format of the output of query_powers
 #[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct QueryPowersRecord {
     /// Current power
-    pub power: u64,
+    pub powers: Vec<u64>,
     /// Validator's stringified pkh
     pub validator: String,
     /// Withdrawer's stringified pkh
@@ -2279,19 +2290,22 @@ pub struct QueryPowersRecord {
 }
 
 /// Query the amount of nanowits staked by an address.
-pub async fn query_powers(params: Result<(Capability,), Error>) -> JsonRpcResult {
-    let capability = match params {
-        Ok(x) => x.0,
-        Err(_) => Capability::Mining,
+pub async fn query_powers(params: Result<QueryPowersParams, Error>) -> JsonRpcResult {
+    // Short-circuit if parameters are wrong
+    let params = params?;
+
+    let capabilities = match params {
+        QueryPowersParams::All(_) => ALL_CAPABILITIES.to_vec(),
+        QueryPowersParams::Capability(c) => vec![c],
     };
     ChainManager::from_registry()
-        .send(QueryStakePowers { capability })
+        .send(QueryStakePowers { capabilities })
         .map(|res| match res {
             Ok(candidates) => {
                 let candidates: Vec<QueryPowersRecord> = candidates
                     .iter()
-                    .map(|(key, power)| QueryPowersRecord {
-                        power: *power,
+                    .map(|(key, powers)| QueryPowersRecord {
+                        powers: powers.clone(),
                         validator: key.validator.to_string(),
                         withdrawer: key.withdrawer.to_string(),
                     })
