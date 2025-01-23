@@ -5,7 +5,7 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
-const FOURTEEN_HOURS: u32 = 1_120;
+const ONE_HOUR: u32 = 80;
 const TWO_WEEKS: u32 = 26_880;
 
 /// Committee for superblock indices 750-1344
@@ -243,7 +243,7 @@ impl TapiEngine {
                 // Hardcoded information about WIPs in vote processing
                 let wip_0028 = BitVotesCounter {
                     votes: 0,
-                    period: FOURTEEN_HOURS,
+                    period: ONE_HOUR,
                     wip: "WIP0028".to_string(),
                     init: 0,
                     end: u32::MAX,
