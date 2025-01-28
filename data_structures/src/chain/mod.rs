@@ -3202,6 +3202,19 @@ impl TransactionsPool {
         }
     }
 
+    /// Remove unstake transactions that would result in understaking on a validator
+    pub fn remove_understake_transactions(&mut self, transactions: Vec<Hash>) {
+        for ut_tx_hash in transactions.iter() {
+            if let Some(ut_tx) = self
+                .ut_transactions
+                .get(ut_tx_hash)
+                .map(|(_, ut)| ut.clone())
+            {
+                self.ut_remove(&ut_tx);
+            }
+        }
+    }
+
     /// Remove an unstake transaction from the pool.
     ///
     /// This should be used to remove transactions that got included in a consolidated block.

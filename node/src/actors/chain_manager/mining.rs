@@ -1269,6 +1269,7 @@ pub fn build_block(
 
     if protocol_version > V1_8 {
         let mut included_validators = HashSet::<PublicKeyHash>::new();
+        let mut understake_transactions = Vec::<Hash>::new();
         let max_ut_weight = consensus_constants_wit2.get_maximum_unstake_block_weight(epoch);
         for ut_tx in transactions_pool.ut_iter() {
             let validator_pkh = ut_tx.body.operator;
@@ -1279,6 +1280,43 @@ pub fn build_block(
                 );
                 continue;
             }
+
+            // If a set of unstaking transactions is sent simultaneously to the transactions pool using an amount which leaves
+            // more than 'min_stake' staked they can all be accepted since they do not introduce understaking yet. However,
+            // accepting all of them in subsequent blocks could violate the 'min_stake' rule. Thus we still need to check that
+            // we do not include all these unstaking transactions in a block so we do not produce an invalid block.
+            let stakes_key = QueryStakesKey::Key(StakeKey {
+                validator: ut_tx.body.operator,
+                withdrawer: ut_tx.body.withdrawal.pkh,
+            });
+            let min_stake = consensus_constants_wit2.get_validator_min_stake_nanowits(epoch);
+            match stakes.query_stakes(stakes_key) {
+                Ok(stake_entry) => {
+                    // TODO: modify this to enable delegated staking with multiple withdrawer addresses on a single validator
+                    let staked_amount: u64 = stake_entry
+                        .first()
+                        .map(|stake| stake.value.coins)
+                        .unwrap()
+                        .into();
+                    if staked_amount - ut_tx.body.withdrawal.value - ut_tx.body.fee < min_stake {
+                        log::info!("Unstaking with {} would result in understaking", {
+                            ut_tx.hash()
+                        });
+                        understake_transactions.push(ut_tx.hash());
+                        continue;
+                    }
+                }
+                Err(_) => {
+                    // Not finding a stake entry is possible if there are two concurrent unstake transactions where at least
+                    // one of them unstakes all balance before the second one is included in a block. In that case, remove
+                    // the latter one from our transaction pool.
+                    log::info!("Cannot process unstake transaction {} since the full balance was already unstaked", {
+                        ut_tx.hash()
+                    });
+                    understake_transactions.push(ut_tx.hash());
+                    continue;
+                }
+            };
 
             let transaction_weight = ut_tx.weight();
             let new_ut_weight = ut_weight.saturating_add(transaction_weight);
@@ -1305,6 +1343,12 @@ pub fn build_block(
 
             included_validators.insert(validator_pkh);
         }
+
+        transactions_pool.remove_understake_transactions(understake_transactions);
+        log::info!(
+            "There are {} unstake transactions in the transactions pool",
+            transactions_pool.ut_len()
+        );
     } else {
         transactions_pool.clear_unstake_transactions();
     }
