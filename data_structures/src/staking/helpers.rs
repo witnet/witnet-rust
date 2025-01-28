@@ -499,6 +499,22 @@ where
     }
 }
 
+/// Tells the stakes tracker what to do with the nonce associated to the entry or entries being
+/// updated.
+///
+/// This allows customizing the behavior of the nonce to be different when updating a stake entry
+/// when processing a stake or unstake transaction vs. when adding rewards or enforcing slashing.
+///
+/// Generally speaking, we want to update the nonce when we are processing a stake or unstake
+/// transaction, but we want to keep the nonce the same if it is a reward or slashing act.
+#[derive(Debug, PartialEq)]
+pub enum NoncePolicy<Epoch> {
+    /// Update the value of the nonce field by deriving it from this epoch.
+    SetFromEpoch(Epoch),
+    /// Leave the value of the nonce field as is.
+    KeepAsIs,
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

@@ -22,7 +22,9 @@ where
     pub coins: Coins,
     /// The average epoch used to derive coin age for different capabilities.
     pub epochs: CapabilityMap<Epoch>,
-    /// The amount of stake and unstake actions.
+    /// A versioning number that gets updated upon unstaking, to guarantee resistance to replay
+    /// attacks and other potential issues that may arise from the lack of inputs in unstake
+    /// transactions.
     pub nonce: Nonce,
     /// This phantom field is here just for the sake of specifying generics.
     #[serde(skip)]
@@ -65,6 +67,7 @@ where
         + Default
         + num_traits::Saturating
         + AddAssign
+        + From<Epoch>
         + From<u32>
         + Debug
         + Display
@@ -78,6 +81,7 @@ where
     /// When adding stake:
     /// - Amounts are added together.
     /// - Epochs are weight-averaged, using the amounts as the weight.
+    /// - Nonces are overwritten.
     ///
     /// This type of averaging makes the entry equivalent to an unbounded record of all stake
     /// additions and removals, without the overhead in memory and computation.
@@ -85,7 +89,7 @@ where
         &mut self,
         coins: Coins,
         epoch: Epoch,
-        increment_nonce: bool,
+        nonce_policy: NoncePolicy<Epoch>,
         minimum_stakeable: Coins,
     ) -> StakesResult<Coins, Address, Coins, Epoch> {
         // Make sure that the amount to be staked is equal or greater than the minimum
@@ -114,8 +118,11 @@ where
             self.epochs.update(capability, epoch_after);
         }
 
-        if increment_nonce {
-            self.nonce += Nonce::from(1);
+        // Nonces are updated following the "keep the latest epoch where this stake was updated
+        // manually" logic, where "manually" means by means of staking or unstaking, but not through
+        // rewards nor slashing.
+        if let NoncePolicy::SetFromEpoch(epoch) = nonce_policy {
+            self.nonce = Nonce::from(epoch);
         }
 
         Ok(coins_after)
@@ -145,7 +152,7 @@ where
     pub fn remove_stake(
         &mut self,
         coins: Coins,
-        increment_nonce: bool,
+        nonce_policy: NoncePolicy<Epoch>,
         minimum_stakeable: Coins,
     ) -> StakesResult<Coins, Address, Coins, Epoch> {
         let coins_after = self.coins.sub(coins);
@@ -159,8 +166,8 @@ where
 
         self.coins = coins_after;
 
-        if increment_nonce {
-            self.nonce += Nonce::from(1);
+        if let NoncePolicy::SetFromEpoch(epoch) = nonce_policy {
+            self.nonce = Nonce::from(epoch);
         }
 
         Ok(self.coins)

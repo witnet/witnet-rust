@@ -1117,6 +1117,7 @@ impl ChainManager {
                         let _ = process_unstake_transactions(
                             stakes,
                             block.txns.unstake_txns.iter(),
+                            block_epoch,
                             minimum_stakeable,
                         );
                     }
@@ -5236,6 +5237,7 @@ mod tests {
         process_unstake_transactions(
             &mut stakes,
             vec![unstake_txn_1.clone()].iter(),
+            block_epoch,
             10_000_000_000_000,
         )
         .unwrap();
@@ -5297,8 +5299,13 @@ mod tests {
         assert_ne!(unstake_txn_1.hash(), unstake_txn_2.hash());
 
         // Unstake all again for validator 2
-        process_unstake_transactions(&mut stakes, vec![unstake_txn_2].iter(), 10_000_000_000_000)
-            .unwrap();
+        process_unstake_transactions(
+            &mut stakes,
+            vec![unstake_txn_2].iter(),
+            block_epoch,
+            10_000_000_000_000,
+        )
+        .unwrap();
 
         // Check validator 2 is removed from stakes again
         assert_eq!(

@@ -216,7 +216,7 @@ where
         key: ISK,
         coins: Coins,
         epoch: Epoch,
-        increment_nonce: bool,
+        set_nonce: bool,
         minimum_stakeable: Coins,
     ) -> StakesResult<Stake<UNIT, Address, Coins, Epoch, Nonce, Power>, Address, Coins, Epoch>
     where
@@ -242,11 +242,17 @@ where
             stake.key.write()?.withdrawer = key.withdrawer.clone();
         }
 
+        let nonce_policy = if set_nonce {
+            NoncePolicy::SetFromEpoch(epoch)
+        } else {
+            NoncePolicy::KeepAsIs
+        };
+
         // Actually increase the number of coins
         stake
             .value
             .write()?
-            .add_stake(coins, epoch, increment_nonce, minimum_stakeable)?;
+            .add_stake(coins, epoch, nonce_policy, minimum_stakeable)?;
 
         // Update all indexes if needed (only when the stake entry didn't exist before)
         if !stake_found {
@@ -374,7 +380,8 @@ where
         &mut self,
         key: ISK,
         coins: Coins,
-        increment_nonce: bool,
+        epoch: Epoch,
+        set_nonce: bool,
         minimum_stakeable: Coins,
     ) -> StakesResult<Coins, Address, Coins, Epoch>
     where
@@ -386,8 +393,13 @@ where
             // Reduce the amount of stake
             let final_coins = {
                 let mut stake = by_address_entry.get_mut().value.write()?;
+                let nonce_policy = if set_nonce {
+                    NoncePolicy::SetFromEpoch(epoch)
+                } else {
+                    NoncePolicy::KeepAsIs
+                };
 
-                stake.remove_stake(coins, increment_nonce, minimum_stakeable)?
+                stake.remove_stake(coins, nonce_policy, minimum_stakeable)?
             };
 
             // No need to keep the entry if the stake has gone to zero
@@ -524,11 +536,12 @@ where
             .ok_or(StakesError::ValidatorNotFound { validator })?;
 
         // TODO: modify this to enable delegated staking with multiple withdrawer addresses on a single validator
-        let _ = stakes[0]
-            .value
-            .write()
-            .unwrap()
-            .add_stake(coins, current_epoch, false, 0.into());
+        let _ = stakes[0].value.write().unwrap().add_stake(
+            coins,
+            current_epoch,
+            NoncePolicy::KeepAsIs,
+            0.into(),
+        );
 
         Ok(())
     }
@@ -551,11 +564,11 @@ where
             .ok_or(StakesError::ValidatorNotFound { validator })?;
 
         // TODO: modify this to enable delegated staking with multiple withdrawer addresses on a single validator
-        let _ = stakes[0]
-            .value
-            .write()
-            .unwrap()
-            .remove_stake(coins, false, minimum_stakeable);
+        let _ = stakes[0].value.write().unwrap().remove_stake(
+            coins,
+            NoncePolicy::KeepAsIs,
+            minimum_stakeable,
+        );
 
         Ok(())
     }
@@ -815,6 +828,7 @@ where
         key.validator.bech32(environment)
     );
 
+    // When adding stake, epochs get averaged but nonces get overwritten
     stakes.add_stake(key, coins, epoch, true, minimum_stakeable.into())?;
 
     log::debug!("Current state of the stakes tracker: {:#?}", stakes);
@@ -829,6 +843,7 @@ where
 pub fn process_unstake_transaction<const UNIT: u8, Epoch, Nonce, Power>(
     stakes: &mut Stakes<UNIT, PublicKeyHash, Wit, Epoch, Nonce, Power>,
     transaction: &UnstakeTransaction,
+    epoch: Epoch,
     minimum_stakeable: u64,
 ) -> StakesResult<(), PublicKeyHash, Wit, Epoch>
 where
@@ -875,7 +890,8 @@ where
         coins.wits_and_nanowits().0,
     );
 
-    stakes.remove_stake(key, coins, true, minimum_stakeable.into())?;
+    // When removing stake, epochs get averaged but nonces get overwritten
+    stakes.remove_stake(key, coins, epoch, true, minimum_stakeable.into())?;
 
     log::debug!("Current state of the stakes tracker: {:#?}", stakes);
 
@@ -935,6 +951,7 @@ where
 pub fn process_unstake_transactions<'a, const UNIT: u8, Epoch, Nonce, Power>(
     stakes: &mut Stakes<UNIT, PublicKeyHash, Wit, Epoch, Nonce, Power>,
     transactions: impl Iterator<Item = &'a UnstakeTransaction>,
+    epoch: Epoch,
     minimum_stakeable: u64,
 ) -> Result<(), StakesError<PublicKeyHash, Wit, Epoch>>
 where
@@ -968,7 +985,7 @@ where
     u64: From<Wit> + From<Power>,
 {
     for transaction in transactions {
-        process_unstake_transaction(stakes, transaction, minimum_stakeable)?;
+        process_unstake_transaction(stakes, transaction, epoch, minimum_stakeable)?;
     }
 
     Ok(())
@@ -1498,7 +1515,7 @@ mod tests {
         assert_eq!(stakes.query_nonce(bob_david), Ok(1));
 
         stakes
-            .remove_stake(bob_david, 10, true, MIN_STAKE_NANOWITS)
+            .remove_stake(bob_david, 10, 11, true, MIN_STAKE_NANOWITS)
             .unwrap();
         assert_eq!(stakes.query_nonce(alice_charlie), Ok(1));
         assert_eq!(stakes.query_nonce(bob_david), Ok(2));
@@ -1511,7 +1528,7 @@ mod tests {
 
         // Test nonces not increasing
         stakes
-            .remove_stake(bob_david, 10, false, MIN_STAKE_NANOWITS)
+            .remove_stake(bob_david, 10, 31, false, MIN_STAKE_NANOWITS)
             .unwrap();
         assert_eq!(stakes.query_nonce(alice_charlie), Ok(1));
         assert_eq!(stakes.query_nonce(bob_david), Ok(3));
@@ -1704,14 +1721,14 @@ mod tests {
             .unwrap();
         assert_eq!(stakes.query_nonce(bob_alice), Ok(1));
         stakes
-            .remove_stake(bob_alice, 20, true, MIN_STAKE_NANOWITS)
+            .remove_stake(bob_alice, 20, 0, true, MIN_STAKE_NANOWITS)
             .unwrap();
         stakes
             .add_stake(bob_alice, 20, 1, true, MIN_STAKE_NANOWITS)
             .unwrap();
         assert_eq!(stakes.query_nonce(bob_alice), Ok(2));
         stakes
-            .remove_stake(bob_alice, 20, true, MIN_STAKE_NANOWITS)
+            .remove_stake(bob_alice, 20, 1, true, MIN_STAKE_NANOWITS)
             .unwrap();
         stakes
             .add_stake(bob_alice, 20, 2, true, MIN_STAKE_NANOWITS)

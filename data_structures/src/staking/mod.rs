@@ -101,7 +101,7 @@ pub mod test {
 
         // If Alpha removes all of its stake, it should immediately disappear
         stakes
-            .remove_stake("Alpha", 2, true, MIN_STAKE_NANOWITS)
+            .remove_stake("Alpha", 2, 52, true, MIN_STAKE_NANOWITS)
             .unwrap();
         let rank = stakes.by_rank(Capability::Mining, 51).collect::<Vec<_>>();
         assert_eq!(

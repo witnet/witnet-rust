@@ -1459,7 +1459,7 @@ pub fn validate_stake_transaction<'a>(
     ))
 }
 
-/// Function to validate a unstake transaction
+/// Function to validate an unstake transaction
 pub fn validate_unstake_transaction<'a>(
     ut_tx: &'a UnstakeTransaction,
     epoch: Epoch,
