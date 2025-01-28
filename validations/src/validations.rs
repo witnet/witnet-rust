@@ -2406,6 +2406,19 @@ pub fn validate_block_transactions(
         let mut ut_mt = ProgressiveMerkleTree::sha256();
         let mut ut_weight: u32 = 0;
 
+        // Check if the block contains more than one unstake tx from the same operator
+        let duplicate = block
+            .txns
+            .unstake_txns
+            .iter()
+            .map(|unstake_txn| unstake_txn.body.operator)
+            .duplicates()
+            .next();
+
+        if let Some(duplicate) = duplicate {
+            return Err(BlockError::RepeatedUnstakeOperator { pkh: duplicate }.into());
+        }
+
         for transaction in &block.txns.unstake_txns {
             let min_stake = consensus_constants_wit2.get_validator_min_stake_nanowits(epoch);
             let unstake_delay = consensus_constants_wit2.get_unstaking_delay_seconds(epoch);

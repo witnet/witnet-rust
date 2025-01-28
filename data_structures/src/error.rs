@@ -515,6 +515,12 @@ pub enum BlockError {
         pkh
     )]
     RepeatedStakeOperator { pkh: PublicKeyHash },
+    /// Repeated operator Unstake
+    #[fail(
+        display = "A single operator is withdrawing stake more than once in a block: ({}) ",
+        pkh
+    )]
+    RepeatedUnstakeOperator { pkh: PublicKeyHash },
     /// Missing expected tallies
     #[fail(
         display = "{} expected tally transactions are missing in block candidate {}",
