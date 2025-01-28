@@ -171,7 +171,7 @@ impl DrSender {
                                 // Error sending transaction: node not synced, not enough balance, etc.
                                 // Do nothing, will retry later.
                                 log::error!("[{}] >< cannot broadcast dr_tx: {}", dr_id, e);
-                                // In this case, refrain from trying to send remaining data requests, 
+                                // In this case, refrain from trying to send remaining data requests,
                                 // and let the dr_sender actor try again on next poll.
                                 return witnet_node_pkh;
                             }

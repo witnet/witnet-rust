@@ -6,15 +6,18 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::transaction::UnstakeTransactionBody;
 use crate::{
     chain::{
-        DataRequestOutput, Epoch, EpochConstants, Input, OutputPointer, PublicKeyHash, StakeOutput,
-        ValueTransferOutput,
+        DataRequestOutput, Environment, Epoch, EpochConstants, Input, OutputPointer, PublicKeyHash,
+        StakeOutput, ValueTransferOutput,
     },
     error::TransactionError,
     fee::{AbsoluteFee, Fee},
-    transaction::{DRTransactionBody, StakeTransactionBody, VTTransactionBody, INPUT_SIZE},
+    get_environment,
+    transaction::{
+        DRTransactionBody, StakeTransactionBody, UnstakeTransactionBody, VTTransactionBody,
+        INPUT_SIZE,
+    },
     utxo_pool::{
         NodeUtxos, NodeUtxosRef, OwnUnspentOutputsPool, UnspentOutputsPool, UtxoDiff,
         UtxoSelectionStrategy,
@@ -677,7 +680,11 @@ pub fn transaction_inputs_sum(
         // Verify that commits are only accepted after the time lock expired
         let (epoch_timestamp, _) = epoch_constants.epoch_timestamp(epoch)?;
         let vt_time_lock = i64::try_from(vt_output.time_lock)?;
-        if vt_time_lock > epoch_timestamp {
+        if (get_environment() == Environment::Development
+            || get_environment() == Environment::Testnet)
+            && epoch > 22_000
+            && vt_time_lock > epoch_timestamp
+        {
             return Err(TransactionError::TimeLock {
                 expected: vt_time_lock,
                 current: epoch_timestamp,

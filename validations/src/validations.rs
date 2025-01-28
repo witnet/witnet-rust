@@ -1500,7 +1500,7 @@ pub fn validate_unstake_transaction<'a>(
             // TODO: remove this check for mainnet release
             if (get_environment() == Environment::Development
                 || get_environment() == Environment::Testnet)
-                && epoch > 20_000
+                && epoch > 22_000
             {
                 let nonce = stake_entry.first().map(|stake| stake.value.nonce).unwrap();
                 if ut_tx.body.nonce != nonce {
