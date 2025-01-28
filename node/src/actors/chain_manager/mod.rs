@@ -5236,7 +5236,7 @@ mod tests {
         // Unstake all for validator 2
         process_unstake_transactions(
             &mut stakes,
-            vec![unstake_txn_1.clone()].iter(),
+            [unstake_txn_1.clone()].iter(),
             block_epoch,
             10_000_000_000_000,
         )
@@ -5301,7 +5301,7 @@ mod tests {
         // Unstake all again for validator 2
         process_unstake_transactions(
             &mut stakes,
-            vec![unstake_txn_2].iter(),
+            [unstake_txn_2].iter(),
             block_epoch,
             10_000_000_000_000,
         )

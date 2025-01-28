@@ -1908,8 +1908,6 @@ pub fn update_utxo_diff<'a, IterInputs, IterOutputs>(
             output.clone()
         };
 
-        log::info!("Inserting output {:?}", output_to_insert);
-
         utxo_diff.insert_utxo(output_pointer, output_to_insert, block_number);
     }
 }
