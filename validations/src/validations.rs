@@ -1470,7 +1470,7 @@ pub fn validate_unstake_transaction<'a>(
     }
 
     // Check if is unstaking more than the total stake
-    let amount_to_unstake = ut_tx.body.value() + ut_tx.body.fee;
+    let mut amount_to_unstake = ut_tx.body.value() + ut_tx.body.fee;
 
     let validator = ut_tx.body.operator;
     let withdrawer = ut_tx.signature.public_key.pkh();
@@ -1514,6 +1514,12 @@ pub fn validate_unstake_transaction<'a>(
             .into());
         }
     };
+    
+    // Apply a protocol-level "rule of convenience", where an amount to unstake of u64::MAX actually
+    // means "unstake all my stake".
+    if amount_to_unstake == u64::MAX {
+        amount_to_unstake = staked_amount;
+    }
 
     // Allowed unstake actions:
     // 1) Unstake the full balance (checked by the first condition)
