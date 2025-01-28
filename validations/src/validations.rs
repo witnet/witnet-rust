@@ -1525,10 +1525,10 @@ pub fn validate_unstake_transaction<'a>(
 
     // Allowed unstake actions:
     // 1) Unstake the full balance (checked by the first condition)
-    // 2) Unstake an amount such that the leftover staked amount is greater than the min allowed
-    if staked_amount - amount_to_unstake > 0
-        && staked_amount - amount_to_unstake < min_stake_nanowits
-    {
+    // 2) Unstake an amount such that the remainder (the stake amount that is left over) is greater
+    //    than the minimum allowed
+    let remainder = staked_amount - amount_to_unstake;
+    if remainder > 0 && remainder < min_stake_nanowits {
         return Err(TransactionError::StakeBelowMinimum {
             min_stake: min_stake_nanowits,
             stake: staked_amount,
