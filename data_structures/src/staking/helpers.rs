@@ -373,6 +373,7 @@ where
         + Default
         + DeserializeOwned
         + Display
+        + From<Epoch>
         + From<u32>
         + Saturating
         + Send
@@ -457,6 +458,7 @@ where
         + Default
         + DeserializeOwned
         + Display
+        + From<Epoch>
         + From<u32>
         + Saturating
         + Send

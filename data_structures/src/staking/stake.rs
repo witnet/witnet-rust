@@ -24,11 +24,12 @@ where
     pub epochs: CapabilityMap<Epoch>,
     /// The amount of stake and unstake actions.
     pub nonce: Nonce,
-    // These two phantom fields are here just for the sake of specifying generics.
+    /// This phantom field is here just for the sake of specifying generics.
     #[serde(skip)]
-    phantom_address: PhantomData<Address>,
+    pub phantom_address: PhantomData<Address>,
+    /// This phantom field is here just for the sake of specifying generics.
     #[serde(skip)]
-    phantom_power: PhantomData<Power>,
+    pub phantom_power: PhantomData<Power>,
 }
 
 impl<const UNIT: u8, Address, Coins, Epoch, Nonce, Power>

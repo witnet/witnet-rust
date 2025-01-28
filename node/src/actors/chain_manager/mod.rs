@@ -3863,11 +3863,12 @@ mod tests {
         chain::{
             BlockMerkleRoots, BlockTransactions, ChainInfo, DataRequestState, Environment, Input,
             KeyedSignature, OutputPointer, PartialConsensusConstants, PublicKey, SecretKey,
-            Signature, ValueTransferOutput,
+            Signature, StakeOutput, ValueTransferOutput,
         },
         proto::versioning::{ProtocolInfo, VersionedHashable},
         transaction::{
-            CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, VTTransaction,
+            CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, StakeTransaction,
+            StakeTransactionBody, UnstakeTransaction, UnstakeTransactionBody, VTTransaction,
             VTTransactionBody,
         },
         vrf::BlockEligibilityClaim,
@@ -5138,5 +5139,171 @@ mod tests {
             .value
             .coins;
         assert_eq!(new_coins, 104_005_000_000_000.into());
+    }
+
+    #[test]
+    fn test_unstake_unique_nonce() {
+        register_protocol_version(ProtocolVersion::V2_0, 100, 15);
+
+        // Create inputs
+        let vti_1 = Input::new(
+            "1111111111111111111111111111111111111111111111111111111111111111:0"
+                .parse()
+                .unwrap(),
+        );
+        let vti_2 = Input::new(
+            "2222222222222222222222222222222222222222222222222222222222222222:0"
+                .parse()
+                .unwrap(),
+        );
+
+        // Start epoch
+        let mut block_epoch = 101;
+
+        // Create addresses and validators
+        let pkh_1 = pkh(&PRIV_KEY_1);
+        let pkh_2 = pkh(&PRIV_KEY_2);
+
+        let validator_1 = StakeKey {
+            validator: pkh_1,
+            withdrawer: pkh_1,
+        };
+        let validator_2 = StakeKey {
+            validator: pkh_2,
+            withdrawer: pkh_2,
+        };
+
+        // Create stakes tracker
+        let mut stakes = StakesTracker::default();
+
+        let stake_txns_1 = vec![
+            StakeTransaction::new(
+                StakeTransactionBody::new(
+                    vec![vti_1],
+                    StakeOutput {
+                        value: 1_000_000_000_000_000,
+                        key: validator_1.clone(),
+                        ..Default::default()
+                    },
+                    None,
+                ),
+                vec![],
+            ),
+            StakeTransaction::new(
+                StakeTransactionBody::new(
+                    vec![vti_2],
+                    StakeOutput {
+                        value: 2_000_000_000_000_000,
+                        key: validator_2.clone(),
+                        ..Default::default()
+                    },
+                    None,
+                ),
+                vec![],
+            ),
+        ];
+
+        // Process all stake transactions
+        process_stake_transactions(
+            &mut stakes,
+            stake_txns_1.iter(),
+            block_epoch,
+            10_000_000_000_000,
+        )
+        .unwrap();
+
+        let unstake_txn_1 = UnstakeTransaction::new(
+            UnstakeTransactionBody::new(
+                pkh_2,
+                ValueTransferOutput {
+                    pkh: pkh_2,
+                    value: 2_000_000_000_000_000,
+                    time_lock: 1000,
+                },
+                0,
+                stakes.query_nonce(validator_2.clone()).unwrap(),
+            ),
+            KeyedSignature::default(),
+        );
+
+        // Check unstake nonce
+        assert_eq!(stakes.query_nonce(validator_2.clone()), Ok(102));
+
+        // Advance time
+        block_epoch += 1;
+
+        // Unstake all for validator 2
+        process_unstake_transactions(
+            &mut stakes,
+            vec![unstake_txn_1.clone()].iter(),
+            10_000_000_000_000,
+        )
+        .unwrap();
+
+        // Check validator 2 is removed from stakes
+        assert_eq!(
+            stakes.query_stakes(QueryStakesKey::Key(validator_2.clone())),
+            Err(StakesError::EntryNotFound {
+                key: validator_2.clone()
+            })
+        );
+
+        // Advance time
+        block_epoch += 1;
+
+        // Create new stake transaction for the same validator 2 and process it
+        let stake_txns_2 = vec![StakeTransaction::new(
+            StakeTransactionBody::new(
+                vec![vti_1],
+                StakeOutput {
+                    value: 3_000_000_000_000_000,
+                    key: validator_2.clone(),
+                    ..Default::default()
+                },
+                None,
+            ),
+            vec![],
+        )];
+
+        process_stake_transactions(
+            &mut stakes,
+            stake_txns_2.iter(),
+            block_epoch,
+            10_000_000_000_000,
+        )
+        .unwrap();
+
+        // Advance time
+        block_epoch += 1;
+
+        let unstake_txn_2 = UnstakeTransaction::new(
+            UnstakeTransactionBody::new(
+                pkh_2,
+                ValueTransferOutput {
+                    pkh: pkh_2,
+                    value: 3_000_000_000_000_000,
+                    time_lock: 1000,
+                },
+                0,
+                stakes.query_nonce(validator_2.clone()).unwrap(),
+            ),
+            KeyedSignature::default(),
+        );
+
+        // Check unstake nonce
+        assert_eq!(stakes.query_nonce(validator_2.clone()), Ok(104));
+
+        // Check hashes are unique due to unique nonces
+        assert_ne!(unstake_txn_1.hash(), unstake_txn_2.hash());
+
+        // Unstake all again for validator 2
+        process_unstake_transactions(&mut stakes, vec![unstake_txn_2].iter(), 10_000_000_000_000)
+            .unwrap();
+
+        // Check validator 2 is removed from stakes again
+        assert_eq!(
+            stakes.query_stakes(QueryStakesKey::Key(validator_2.clone())),
+            Err(StakesError::EntryNotFound { key: validator_2 })
+        );
     }
 }

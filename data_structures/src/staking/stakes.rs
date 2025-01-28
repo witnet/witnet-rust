@@ -128,6 +128,7 @@ where
         + Debug
         + Default
         + Display
+        + From<Epoch>
         + From<u32>
         + Saturating
         + Send
@@ -200,6 +201,7 @@ where
         + Debug
         + Default
         + Display
+        + From<Epoch>
         + From<u32>
         + Saturating
         + Send
@@ -229,7 +231,10 @@ where
             .entry(key.clone())
             .or_insert(SyncStakeEntry::from(StakeEntry {
                 key: key.clone(),
-                ..Default::default()
+                value: Stake {
+                    nonce: Nonce::from(epoch),
+                    ..Default::default()
+                },
             }));
 
         if !stake_found {
@@ -782,6 +787,7 @@ where
         + Debug
         + Default
         + Display
+        + From<Epoch>
         + From<u32>
         + Saturating
         + Send
@@ -844,6 +850,7 @@ where
         + Debug
         + Default
         + Display
+        + From<Epoch>
         + From<u32>
         + Saturating
         + Send
@@ -904,6 +911,7 @@ where
         + Debug
         + Default
         + Display
+        + From<Epoch>
         + From<u32>
         + Saturating
         + Send
@@ -948,6 +956,7 @@ where
         + Debug
         + Default
         + Display
+        + From<Epoch>
         + From<u32>
         + Saturating
         + Send
@@ -1673,5 +1682,40 @@ mod tests {
                 (charlie_charlie.into(), 30),
             ]
         );
+    }
+
+    #[test]
+    fn test_nonce_uniqueness() {
+        // First, lets create a setup with a few stakers
+        let mut stakes = StakesTester::default();
+        let alice = "Alice";
+        let bob = "Bob";
+
+        let alice_alice = (alice, alice);
+        let bob_alice = (bob, alice);
+
+        // Add some stake and verify the nonce is ever increasing and unique
+        stakes
+            .add_stake(alice_alice, 10, 0, true, MIN_STAKE_NANOWITS)
+            .unwrap();
+        assert_eq!(stakes.query_nonce(alice_alice), Ok(1));
+        stakes
+            .add_stake(bob_alice, 20, 0, true, MIN_STAKE_NANOWITS)
+            .unwrap();
+        assert_eq!(stakes.query_nonce(bob_alice), Ok(1));
+        stakes
+            .remove_stake(bob_alice, 20, true, MIN_STAKE_NANOWITS)
+            .unwrap();
+        stakes
+            .add_stake(bob_alice, 20, 1, true, MIN_STAKE_NANOWITS)
+            .unwrap();
+        assert_eq!(stakes.query_nonce(bob_alice), Ok(2));
+        stakes
+            .remove_stake(bob_alice, 20, true, MIN_STAKE_NANOWITS)
+            .unwrap();
+        stakes
+            .add_stake(bob_alice, 20, 2, true, MIN_STAKE_NANOWITS)
+            .unwrap();
+        assert_eq!(stakes.query_nonce(bob_alice), Ok(3));
     }
 }

@@ -146,6 +146,7 @@ where
         + Display
         + num_traits::Saturating
         + AddAssign
+        + From<Epoch>
         + From<u32>
         + Sync
         + Send
