@@ -9,6 +9,7 @@ use std::{
 use actix::{prelude::*, ActorFutureExt, WrapFuture};
 use futures::future::Either;
 
+use itertools::Itertools;
 use witnet_data_structures::{
     chain::{
         tapi::ActiveWips, Block, ChainInfo, ChainState, CheckpointBeacon, ConsensusConstantsWit2,
@@ -1542,10 +1543,39 @@ impl Handler<QueryStakes> for ChainManager {
     type Result = <QueryStakes as Message>::Result;
 
     fn handle(&mut self, msg: QueryStakes, _ctx: &mut Self::Context) -> Self::Result {
-        // build address from public key hash
-        let stakes = self.chain_state.stakes.query_stakes(msg.filter);
+        // query stakes from current chain state
+        let mut stakes = self
+            .chain_state
+            .stakes
+            .query_stakes(msg.filter)
+            .map_err(StakesError::from)?;
+        // filter out stake entries whose last mining and witnessing epochs are previous to `epoch`
+        let epoch: u32 = if msg.limits.since >= 0 {
+            msg.limits.since.try_into().inspect_err(|&e| {
+                log::warn!("Invalid 'since' limit on QueryStakes: {}", e);
+            })?
+        } else {
+            (self.current_epoch.unwrap() as i64 + msg.limits.since)
+                .try_into()
+                .unwrap_or_default()
+        };
+        stakes.retain(|stake| {
+            let nonce: u32 = stake.value.nonce.try_into().unwrap_or_default();
+            stake.value.epochs.mining >= epoch && stake.value.epochs.mining != nonce
+                || (stake.value.epochs.witnessing >= epoch
+                    && stake.value.epochs.witnessing != nonce)
+        });
+        if msg.limits.distinct {
+            // if only distinct validators are required, retain only first appearence in the stakes array:
+            let stakes = stakes
+                .into_iter()
+                .unique_by(|stake| stake.key.validator)
+                .collect();
 
-        stakes.map_err(StakesError::from).map_err(Into::into)
+            Ok(stakes)
+        } else {
+            Ok(stakes)
+        }
     }
 }
 
