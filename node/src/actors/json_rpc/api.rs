@@ -43,13 +43,14 @@ use crate::{
         messages::{
             AddCandidates, AddPeers, AddTransaction, AuthorizeStake, BuildDrt, BuildStake,
             BuildStakeParams, BuildStakeResponse, BuildUnstake, BuildUnstakeParams, BuildVtt,
-            ClearPeers, DropAllPeers, EstimatePriority, GetBalance, GetBalanceTarget,
-            GetBlocksEpochRange, GetConsolidatedPeers, GetDataRequestInfo, GetEpoch,
-            GetHighestCheckpointBeacon, GetItemBlock, GetItemSuperblock, GetItemTransaction,
-            GetKnownPeers, GetMemoryTransaction, GetMempool, GetNodeStats, GetProtocolInfo,
-            GetReputation, GetSignalingInfo, GetState, GetSupplyInfo, GetSupplyInfo2, GetUtxoInfo,
-            InitializePeers, IsConfirmedBlock, MagicEither, QueryStakePowers, QueryStakes,
-            QueryStakesFilter, Rewind, SnapshotExport, SnapshotImport, StakeAuthorization,
+            ClearPeers, DropAllPeers, EstimatePriority, GetBalance, GetBalance2, GetBalance2Limits,
+            GetBalanceTarget, GetBlocksEpochRange, GetConsolidatedPeers, GetDataRequestInfo,
+            GetEpoch, GetHighestCheckpointBeacon, GetItemBlock, GetItemSuperblock,
+            GetItemTransaction, GetKnownPeers, GetMemoryTransaction, GetMempool, GetNodeStats,
+            GetProtocolInfo, GetReputation, GetSignalingInfo, GetState, GetSupplyInfo,
+            GetSupplyInfo2, GetUtxoInfo, InitializePeers, IsConfirmedBlock, MagicEither,
+            QueryStakePowers, QueryStakes, Rewind, SnapshotExport, SnapshotImport,
+            StakeAuthorization,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -110,6 +111,9 @@ pub fn attach_regular_methods<H>(
     });
     server.add_actix_method(system, "getBalance", |params: Params| {
         Box::pin(get_balance(params))
+    });
+    server.add_actix_method(system, "getBalance2", |params: Params| {
+        Box::pin(get_balance_2(params.parse()))
     });
     server.add_actix_method(system, "getReputation", |params: Params| {
         Box::pin(get_reputation(params.parse(), false))
@@ -2343,6 +2347,45 @@ pub async fn query_powers(params: Result<QueryPowersParams, Error>) -> JsonRpcRe
         .await
 }
 
+/// Params for get_balance_2
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum GetBalance2Params {
+    /// get balances for specified address
+    Pkh(String),
+    /// get balances for all holders within specified limits
+    All(GetBalance2Limits),
+}
+
+/// Query the amount of nanowits staked by an address.
+pub async fn get_balance_2(params: Result<Option<GetBalance2Params>, Error>) -> JsonRpcResult {
+    // Short-circuit if parameters are wrong
+    let params = params?;
+    // If a withdrawer address is not specified, default to local node address
+    let msg: GetBalance2 = if let Some(params) = params {
+        match params {
+            GetBalance2Params::Pkh(pkh) => GetBalance2::Address(MagicEither::Left(pkh)),
+            GetBalance2Params::All(limits) => GetBalance2::All(limits),
+        }
+    } else {
+        GetBalance2::All(GetBalance2Limits::default())
+    };
+    ChainManager::from_registry()
+        .send(msg)
+        .map(|res| match res {
+            Ok(Ok(stakes)) => serde_json::to_value(stakes).map_err(internal_error),
+            Ok(Err(e)) => {
+                let err = internal_error_s(e);
+                Err(err)
+            }
+            Err(e) => {
+                let err = internal_error_s(e);
+                Err(err)
+            }
+        })
+        .await
+}
+
 #[cfg(test)]
 mod mock_actix {
     use actix::{MailboxError, Message};
@@ -2657,6 +2700,7 @@ mod tests {
                 "createVRF",
                 "dataRequestReport",
                 "getBalance",
+                "getBalance2",
                 "getBlock",
                 "getBlockChain",
                 "getConsensusConstants",

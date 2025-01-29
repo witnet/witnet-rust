@@ -26,6 +26,7 @@ use witnet_data_structures::{
         SuperBlock, SuperBlockVote, SupplyInfo, SupplyInfo2, ValueTransferOutput,
     },
     fee::{deserialize_fee_backwards_compatible, Fee},
+    get_environment,
     proto::versioning::ProtocolInfo,
     radon_report::RadonReport,
     staking::prelude::*,
@@ -33,7 +34,7 @@ use witnet_data_structures::{
         CommitTransaction, DRTransaction, RevealTransaction, StakeTransaction, Transaction,
         UnstakeTransaction, VTTransaction,
     },
-    transaction_factory::NodeBalance,
+    transaction_factory::{NodeBalance, NodeBalance2},
     types::LastBeacon,
     utxo_pool::{UtxoInfo, UtxoSelectionStrategy},
     wit::{Wit, WIT_DECIMAL_PLACES},
@@ -439,6 +440,31 @@ pub struct GetDataRequestInfo {
 
 impl Message for GetDataRequestInfo {
     type Result = Result<DataRequestInfo, failure::Error>;
+}
+
+/// Get Wit/2 balance
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub enum GetBalance2 {
+    /// Get balance info for all addresses in the network.
+    All(GetBalance2Limits),
+    /// Get balance info for a specific address.
+    Address(MagicEither<String, PublicKeyHash>),
+}
+
+/// Limits when querying balances for all holders
+#[derive(Clone, Debug, Default, Eq, Hash, PartialEq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetBalance2Limits {
+    // /// Just count records
+    // pub count: Option<bool>,
+    /// Search for identities holding at least this amount of nanowits
+    pub min_balance: u64,
+    /// Search for identities holding at most this amout of nanowits
+    pub max_balance: Option<u64>,
+}
+
+impl Message for GetBalance2 {
+    type Result = Result<NodeBalance2, failure::Error>;
 }
 
 /// Tells the `getBalance` method whether to get the balance of all addresses, one provided address,
@@ -1496,7 +1522,7 @@ impl Message for crate::actors::messages::GetProtocolInfo {
     type Result = Result<Option<ProtocolInfo>, failure::Error>;
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 /// A value that can either be L, R, where an R can always be obtained through the `do_magic` method.
 pub enum MagicEither<L, R> {
@@ -1534,4 +1560,13 @@ impl<L: Default, R: Default> Default for MagicEither<L, R> {
     fn default() -> Self {
         MagicEither::Left(L::default())
     }
+}
+
+/// Checks whether passed value is a String or a PublicKeyHash, and in case of being
+/// a String, tries to parse it and convert it into a PublicKeyHash value.
+pub fn try_do_magic_into_pkh(
+    address: MagicEither<String, PublicKeyHash>,
+) -> Result<PublicKeyHash, PublicKeyHashParseError> {
+    let trick = |hex_str: String| PublicKeyHash::from_bech32(get_environment(), &hex_str);
+    address.try_do_magic(trick)
 }
