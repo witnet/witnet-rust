@@ -17,9 +17,9 @@ use witnet_data_structures::{
     chain::{
         tapi::ActiveWips, Block, BlockMerkleRoots, CheckpointBeacon, CheckpointVRF,
         ConsensusConstants, ConsensusConstantsWit2, DataRequestOutput, DataRequestStage,
-        DataRequestState, Environment, Epoch, EpochConstants, Hash, Hashable, Input,
-        KeyedSignature, OutputPointer, PublicKeyHash, RADRequest, RADTally, RADType, Reputation,
-        ReputationEngine, SignaturesToVerify, StakeOutput, ValueTransferOutput,
+        DataRequestState, Epoch, EpochConstants, Hash, Hashable, Input, KeyedSignature,
+        OutputPointer, PublicKeyHash, RADRequest, RADTally, RADType, Reputation, ReputationEngine,
+        SignaturesToVerify, StakeOutput, ValueTransferOutput,
     },
     data_request::{
         calculate_reward_collateral_ratio, calculate_tally_change, calculate_witness_reward,
@@ -27,7 +27,7 @@ use witnet_data_structures::{
         data_request_has_too_many_witnesses, DataRequestPool,
     },
     error::{BlockError, DataRequestError, TransactionError},
-    get_environment, get_protocol_version, get_protocol_version_activation_epoch,
+    get_protocol_version, get_protocol_version_activation_epoch,
     proto::versioning::{ProtocolVersion, VersionedHashable},
     radon_report::{RadonReport, ReportContext},
     staking::prelude::{Power, QueryStakesKey, StakeKey, StakesTracker},
@@ -1497,11 +1497,8 @@ pub fn validate_unstake_transaction<'a>(
             }
 
             // TODO: modify this to enable delegated staking with multiple withdrawer addresses on a single validator
-            // TODO: remove this check for mainnet release
             let nonce = stake_entry.first().map(|stake| stake.value.nonce).unwrap();
-            if (get_environment() == Environment::Mainnet || epoch > 22_000)
-                && ut_tx.body.nonce != nonce
-            {
+            if ut_tx.body.nonce != nonce {
                 return Err(TransactionError::UnstakeInvalidNonce {
                     used: ut_tx.body.nonce,
                     current: nonce,

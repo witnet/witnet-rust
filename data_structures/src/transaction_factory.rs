@@ -8,12 +8,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     chain::{
-        DataRequestOutput, Environment, Epoch, EpochConstants, Input, OutputPointer, PublicKeyHash,
-        StakeOutput, ValueTransferOutput,
+        DataRequestOutput, Epoch, EpochConstants, Input, OutputPointer, PublicKeyHash, StakeOutput,
+        ValueTransferOutput,
     },
     error::TransactionError,
     fee::{AbsoluteFee, Fee},
-    get_environment,
     transaction::{
         DRTransactionBody, StakeTransactionBody, UnstakeTransactionBody, VTTransactionBody,
         INPUT_SIZE,
@@ -681,13 +680,11 @@ pub fn transaction_inputs_sum(
         let (epoch_timestamp, _) = epoch_constants.epoch_timestamp(epoch)?;
         let vt_time_lock = i64::try_from(vt_output.time_lock)?;
         if vt_time_lock > epoch_timestamp {
-            if get_environment() == Environment::Mainnet || epoch > 22_000 {
-                return Err(TransactionError::TimeLock {
-                    expected: vt_time_lock,
-                    current: epoch_timestamp,
-                }
-                .into());
+            return Err(TransactionError::TimeLock {
+                expected: vt_time_lock,
+                current: epoch_timestamp,
             }
+            .into());
         } else {
             if !seen_output_pointers.insert(input.output_pointer()) {
                 // If the set already contained this output pointer
