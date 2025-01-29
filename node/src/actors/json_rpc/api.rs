@@ -2243,32 +2243,10 @@ pub async fn authorize_stake(params: Result<AuthorizeStake, Error>) -> JsonRpcRe
 pub async fn query_stakes(params: Result<Option<QueryStakes>, Error>) -> JsonRpcResult {
     // Short-circuit if parameters are wrong
     let params = params?;
-    // If a withdrawer address is not specified, default to local node address
-    let filter: QueryStakesFilter = if let Some(address) = params {
-        match address {
-            QueryStakesParams::All(_) => QueryStakesFilter::All,
-            QueryStakesParams::Validator(validator) => QueryStakesFilter::Validator(
-                PublicKeyHash::from_bech32(get_environment(), &validator)
-                    .map_err(internal_error)?,
-            ),
-            QueryStakesParams::Withdrawer(withdrawer) => QueryStakesFilter::Withdrawer(
-                PublicKeyHash::from_bech32(get_environment(), &withdrawer)
-                    .map_err(internal_error)?,
-            ),
-            QueryStakesParams::Key((validator, withdrawer)) => QueryStakesFilter::Key((
-                PublicKeyHash::from_bech32(get_environment(), &validator)
-                    .map_err(internal_error)?,
-                PublicKeyHash::from_bech32(get_environment(), &withdrawer)
-                    .map_err(internal_error)?,
-            )),
-        }
-    } else {
-        let pk = signature_mngr::public_key().await.map_err(internal_error)?;
-
-        QueryStakesFilter::Validator(PublicKeyHash::from_public_key(&pk))
-    };
+    // Parse params or defaults:
+    let msg = params.unwrap_or(QueryStakes::default());
     ChainManager::from_registry()
-        .send(QueryStakes { filter })
+        .send(msg)
         .map(|res| match res {
             Ok(Ok(stakes)) => serde_json::to_value(stakes).map_err(internal_error),
             Ok(Err(e)) => {
