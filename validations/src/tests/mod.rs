@@ -10114,7 +10114,7 @@ fn unstake_success() {
         value: 1000,
         time_lock: UNSTAKING_DELAY_SECONDS,
     };
-    let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 1);
+    let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 0);
     // Sign with the validator private key instead of the withdrawer private key
     let signature = sign_tx(PRIV_KEY_1, &unstake_tx_body, None);
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
@@ -10150,7 +10150,7 @@ fn unstake_success() {
         value: 1000,
         time_lock: UNSTAKING_DELAY_SECONDS,
     };
-    let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 1);
+    let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 0);
     // Sign with the validator private key instead of the withdrawer private key
     let signature = sign_tx(PRIV_KEY_2, &unstake_tx_body, None);
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
@@ -10183,7 +10183,7 @@ fn unstake_success() {
         value: MIN_STAKE_NANOWITS + 1000,
         time_lock: UNSTAKING_DELAY_SECONDS,
     };
-    let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 1);
+    let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 0);
     // Sign with the validator private key instead of the withdrawer private key
     let signature = sign_tx(PRIV_KEY_2, &unstake_tx_body, None);
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
@@ -10220,7 +10220,7 @@ fn unstake_not_allowed() {
         value: 1,
         time_lock: 0,
     };
-    let unstake_tx_body = UnstakeTransactionBody::new(PublicKeyHash::default(), vto, 0, 1);
+    let unstake_tx_body = UnstakeTransactionBody::new(PublicKeyHash::default(), vto, 0, 0);
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, KeyedSignature::default());
     let x = validate_unstake_transaction(
         &unstake_tx,
@@ -10247,7 +10247,7 @@ fn unstake_more_than_staked() {
         value: MIN_STAKE_NANOWITS + 1,
         time_lock: UNSTAKING_DELAY_SECONDS,
     };
-    let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 1);
+    let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 0);
     let signature = sign_tx(PRIV_KEY_2, &unstake_tx_body, None);
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
 
@@ -10284,7 +10284,7 @@ fn unstake_more_than_staked() {
         value: MIN_STAKE_NANOWITS,
         time_lock: UNSTAKING_DELAY_SECONDS,
     };
-    let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 1, 1);
+    let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 1, 0);
     let signature = sign_tx(PRIV_KEY_2, &unstake_tx_body, None);
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
 
@@ -10326,7 +10326,7 @@ fn unstake_invalid_nonce() {
         value: MIN_STAKE_NANOWITS,
         time_lock: UNSTAKING_DELAY_SECONDS,
     };
-    let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 0);
+    let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 10);
     let signature = sign_tx(PRIV_KEY_2, &unstake_tx_body, None);
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
 
@@ -10344,8 +10344,8 @@ fn unstake_invalid_nonce() {
             assert_eq!(
                 x.unwrap_err().downcast::<TransactionError>().unwrap(),
                 TransactionError::UnstakeInvalidNonce {
-                    used: 0,
-                    current: 1
+                    used: 10,
+                    current: 0
                 }
             );
         } else {
@@ -10368,7 +10368,7 @@ fn unstake_wrong_withdrawer() {
         value: MIN_STAKE_NANOWITS,
         time_lock: UNSTAKING_DELAY_SECONDS,
     };
-    let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 1);
+    let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 0);
     // Sign with the validator private key instead of the withdrawer private key
     let signature = sign_tx(PRIV_KEY_1, &unstake_tx_body, None);
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
@@ -10411,7 +10411,7 @@ fn unstake_below_stake_minimum() {
         value: 1001,
         time_lock: UNSTAKING_DELAY_SECONDS,
     };
-    let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 1);
+    let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 0);
     let signature = sign_tx(PRIV_KEY_2, &unstake_tx_body, None);
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
 
@@ -10453,7 +10453,7 @@ fn unstake_timelock() {
         value: MIN_STAKE_NANOWITS,
         time_lock: 0,
     };
-    let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 1);
+    let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 0);
     let signature = sign_tx(PRIV_KEY_2, &unstake_tx_body, None);
     let unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
 
@@ -10495,7 +10495,7 @@ fn unstake_signature() {
         value: 1000,
         time_lock: UNSTAKING_DELAY_SECONDS,
     };
-    let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 1);
+    let unstake_tx_body = UnstakeTransactionBody::new(validator_pkh, vto, 0, 0);
     let signature = sign_tx(PRIV_KEY_2, &unstake_tx_body, None);
     let mut unstake_tx = UnstakeTransaction::new(unstake_tx_body, signature);
 

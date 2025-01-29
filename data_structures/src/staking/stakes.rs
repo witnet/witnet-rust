@@ -1040,7 +1040,7 @@ mod tests {
                     mining: 100,
                     witnessing: 100
                 },
-                1,
+                100,
             )
         );
 
@@ -1064,7 +1064,7 @@ mod tests {
                     mining: 166,
                     witnessing: 166
                 },
-                2,
+                300,
             )
         );
         assert_eq!(
@@ -1095,7 +1095,7 @@ mod tests {
                     mining: 1_000,
                     witnessing: 1_000
                 },
-                1,
+                1_000,
             )
         );
 
@@ -1379,7 +1379,7 @@ mod tests {
                         mining: 30,
                         witnessing: 30
                     },
-                    1,
+                    30,
                 )
             }])
         );
@@ -1395,7 +1395,7 @@ mod tests {
                         mining: 30,
                         witnessing: 30
                     },
-                    1,
+                    30,
                 )
             }])
         );
@@ -1419,7 +1419,7 @@ mod tests {
                         mining: 30,
                         witnessing: 30
                     },
-                    1,
+                    30,
                 )
             }])
         );
@@ -1511,43 +1511,43 @@ mod tests {
         stakes
             .add_stake(bob_david, 20, 10, true, MIN_STAKE_NANOWITS)
             .unwrap();
-        assert_eq!(stakes.query_nonce(alice_charlie), Ok(1));
-        assert_eq!(stakes.query_nonce(bob_david), Ok(1));
+        assert_eq!(stakes.query_nonce(alice_charlie), Ok(0));
+        assert_eq!(stakes.query_nonce(bob_david), Ok(10));
 
         stakes
             .remove_stake(bob_david, 10, 11, true, MIN_STAKE_NANOWITS)
             .unwrap();
-        assert_eq!(stakes.query_nonce(alice_charlie), Ok(1));
-        assert_eq!(stakes.query_nonce(bob_david), Ok(2));
+        assert_eq!(stakes.query_nonce(alice_charlie), Ok(0));
+        assert_eq!(stakes.query_nonce(bob_david), Ok(11));
 
         stakes
             .add_stake(bob_david, 40, 30, true, MIN_STAKE_NANOWITS)
             .unwrap();
-        assert_eq!(stakes.query_nonce(alice_charlie), Ok(1));
-        assert_eq!(stakes.query_nonce(bob_david), Ok(3));
+        assert_eq!(stakes.query_nonce(alice_charlie), Ok(0));
+        assert_eq!(stakes.query_nonce(bob_david), Ok(30));
 
         // Test nonces not increasing
         stakes
             .remove_stake(bob_david, 10, 31, false, MIN_STAKE_NANOWITS)
             .unwrap();
-        assert_eq!(stakes.query_nonce(alice_charlie), Ok(1));
-        assert_eq!(stakes.query_nonce(bob_david), Ok(3));
+        assert_eq!(stakes.query_nonce(alice_charlie), Ok(0));
+        assert_eq!(stakes.query_nonce(bob_david), Ok(30));
 
         stakes
             .reserve_collateral(bob, 10, MIN_STAKE_NANOWITS)
             .unwrap();
-        assert_eq!(stakes.query_nonce(alice_charlie), Ok(1));
-        assert_eq!(stakes.query_nonce(bob_david), Ok(3));
+        assert_eq!(stakes.query_nonce(alice_charlie), Ok(0));
+        assert_eq!(stakes.query_nonce(bob_david), Ok(30));
 
         stakes
             .add_stake(bob_david, 40, 30, false, MIN_STAKE_NANOWITS)
             .unwrap();
-        assert_eq!(stakes.query_nonce(alice_charlie), Ok(1));
-        assert_eq!(stakes.query_nonce(bob_david), Ok(3));
+        assert_eq!(stakes.query_nonce(alice_charlie), Ok(0));
+        assert_eq!(stakes.query_nonce(bob_david), Ok(30));
 
         stakes.add_reward(bob, 40, 30).unwrap();
-        assert_eq!(stakes.query_nonce(alice_charlie), Ok(1));
-        assert_eq!(stakes.query_nonce(bob_david), Ok(3));
+        assert_eq!(stakes.query_nonce(alice_charlie), Ok(0));
+        assert_eq!(stakes.query_nonce(bob_david), Ok(30));
     }
 
     #[test]
@@ -1713,25 +1713,25 @@ mod tests {
 
         // Add some stake and verify the nonce is ever increasing and unique
         stakes
-            .add_stake(alice_alice, 10, 0, true, MIN_STAKE_NANOWITS)
+            .add_stake(alice_alice, 10, 1, true, MIN_STAKE_NANOWITS)
             .unwrap();
         assert_eq!(stakes.query_nonce(alice_alice), Ok(1));
         stakes
-            .add_stake(bob_alice, 20, 0, true, MIN_STAKE_NANOWITS)
-            .unwrap();
-        assert_eq!(stakes.query_nonce(bob_alice), Ok(1));
-        stakes
-            .remove_stake(bob_alice, 20, 0, true, MIN_STAKE_NANOWITS)
-            .unwrap();
-        stakes
             .add_stake(bob_alice, 20, 1, true, MIN_STAKE_NANOWITS)
             .unwrap();
-        assert_eq!(stakes.query_nonce(bob_alice), Ok(2));
+        assert_eq!(stakes.query_nonce(bob_alice), Ok(1));
         stakes
             .remove_stake(bob_alice, 20, 1, true, MIN_STAKE_NANOWITS)
             .unwrap();
         stakes
             .add_stake(bob_alice, 20, 2, true, MIN_STAKE_NANOWITS)
+            .unwrap();
+        assert_eq!(stakes.query_nonce(bob_alice), Ok(2));
+        stakes
+            .remove_stake(bob_alice, 20, 2, true, MIN_STAKE_NANOWITS)
+            .unwrap();
+        stakes
+            .add_stake(bob_alice, 20, 3, true, MIN_STAKE_NANOWITS)
             .unwrap();
         assert_eq!(stakes.query_nonce(bob_alice), Ok(3));
     }

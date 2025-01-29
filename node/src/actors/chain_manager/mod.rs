@@ -5228,7 +5228,7 @@ mod tests {
         );
 
         // Check unstake nonce
-        assert_eq!(stakes.query_nonce(validator_2.clone()), Ok(102));
+        assert_eq!(stakes.query_nonce(validator_2.clone()), Ok(101));
 
         // Advance time
         block_epoch += 1;
@@ -5293,7 +5293,7 @@ mod tests {
         );
 
         // Check unstake nonce
-        assert_eq!(stakes.query_nonce(validator_2.clone()), Ok(104));
+        assert_eq!(stakes.query_nonce(validator_2.clone()), Ok(103));
 
         // Check hashes are unique due to unique nonces
         assert_ne!(unstake_txn_1.hash(), unstake_txn_2.hash());
