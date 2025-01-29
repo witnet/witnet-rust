@@ -1404,6 +1404,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "getrandom"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "43a49c392881ce6d5c3b8cb70f98717b7c07aabbdff06687b9030dbfbe2725f8"
+dependencies = [
+ "cfg-if 1.0.0",
+ "libc",
+ "wasi 0.13.3+wasi-0.2.2",
+ "windows-targets 0.52.6",
+]
+
+[[package]]
 name = "gimli"
 version = "0.31.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4342,13 +4354,13 @@ checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
 
 [[package]]
 name = "tempfile"
-version = "3.15.0"
+version = "3.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a8a559c81686f576e8cd0290cd2a24a2a9ad80c98b3478856500fcbd7acd704"
+checksum = "38c246215d7d24f48ae091a2902398798e05d978b24315d6efbc00ede9a8bb91"
 dependencies = [
  "cfg-if 1.0.0",
  "fastrand 2.3.0",
- "getrandom 0.2.15",
+ "getrandom 0.3.1",
  "once_cell",
  "rustix",
  "windows-sys 0.59.0",
@@ -5075,6 +5087,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9c8d87e72b64a3b4db28d11ce29237c246188f4f51057d65a7eab63b7987e423"
 
 [[package]]
+name = "wasi"
+version = "0.13.3+wasi-0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "26816d2e1a4a36a2940b96c5296ce403917633dff8f3440e9b236ed6f6bacad2"
+dependencies = [
+ "wit-bindgen-rt",
+]
+
+[[package]]
 name = "wasm-bindgen"
 version = "0.2.100"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5533,8 +5554,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "wit-bindgen-rt"
+version = "0.33.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3268f3d866458b787f390cf61f4bbb563b922d091359f9608842999eaee3943c"
+dependencies = [
+ "bitflags 2.8.0",
+]
+
+[[package]]
 name = "witnet"
-version = "2.0.0-rc.11"
+version = "2.0.0-rc.12"
 dependencies = [
  "ansi_term",
  "bytecount",
@@ -5582,7 +5612,7 @@ dependencies = [
 
 [[package]]
 name = "witnet-centralized-ethereum-bridge"
-version = "2.0.0-rc.11"
+version = "2.0.0-rc.12"
 dependencies = [
  "actix",
  "async-jsonrpc-client",
@@ -5648,7 +5678,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_data_structures"
-version = "2.0.0-rc.11"
+version = "2.0.0-rc.12"
 dependencies = [
  "bech32",
  "bencher",
@@ -5715,7 +5745,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_node"
-version = "2.0.0-rc.11"
+version = "2.0.0-rc.12"
 dependencies = [
  "actix",
  "ansi_term",
@@ -5824,7 +5854,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_toolkit"
-version = "2.0.0-rc.11"
+version = "2.0.0-rc.12"
 dependencies = [
  "failure",
  "hex",
@@ -5869,7 +5899,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_wallet"
-version = "2.0.0-rc.11"
+version = "2.0.0-rc.12"
 dependencies = [
  "actix",
  "async-jsonrpc-client",
