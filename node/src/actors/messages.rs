@@ -359,21 +359,11 @@ impl Message for QueryStakePowers {
 /// Stake key for quering stakes
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[derive(Default)]
-pub enum QueryStakesFilter {
+pub struct QueryStakesFilter {
     /// To search by the validator public key hash
-    Validator(MagicEither<String, PublicKeyHash>),
+    pub validator: Option<MagicEither<String, PublicKeyHash>>,
     /// To search by the withdrawer public key hash
-    Withdrawer(MagicEither<String, PublicKeyHash>),
-    /// To search by validator and withdrawer public key hashes
-    Key(
-        (
-            MagicEither<String, PublicKeyHash>,
-            MagicEither<String, PublicKeyHash>,
-        ),
-    ),
-    /// To query all stake entries
-    #[default]
-    All,
+    pub withdrawer: Option<MagicEither<String, PublicKeyHash>>,
 }
 
 
@@ -411,19 +401,23 @@ where
 {
     type Error = PublicKeyHashParseError;
 
-    fn try_from(query: QueryStakesFilter) -> Result<Self, Self::Error> {
-        Ok(match query {
-            QueryStakesFilter::Key(key) => QueryStakesKey::Key(StakeKey {
-                validator: try_do_magic_into_pkh(key.0)?.into(),
-                withdrawer: try_do_magic_into_pkh(key.1)?.into(),
-            }),
-            QueryStakesFilter::Validator(v) => {
-                QueryStakesKey::Validator(try_do_magic_into_pkh(v)?.into())
-            }
-            QueryStakesFilter::Withdrawer(w) => {
-                QueryStakesKey::Withdrawer(try_do_magic_into_pkh(w)?.into())
-            }
-            QueryStakesFilter::All => QueryStakesKey::All,
+    fn try_from(filter: QueryStakesFilter) -> Result<Self, Self::Error> {
+        Ok(match (filter.validator, filter.withdrawer) {
+            (Some(validator), Some(withdrawer)) => {
+                QueryStakesKey::Key(StakeKey {
+                    validator: try_do_magic_into_pkh(validator)?.into(),
+                    withdrawer: try_do_magic_into_pkh(withdrawer)?.into(),
+                })
+            }, 
+            (Some(validator), None) => {
+                QueryStakesKey::Validator(try_do_magic_into_pkh(validator)?.into())
+            },
+            (None, Some(withdrawer)) => {
+                QueryStakesKey::Withdrawer(try_do_magic_into_pkh(withdrawer)?.into())
+            },
+            (None, None) => {
+                QueryStakesKey::All
+            },
         })
     }
 }
