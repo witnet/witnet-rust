@@ -23,9 +23,10 @@ use witnet_data_structures::{
     transaction::{
         DRTransaction, StakeTransaction, Transaction, UnstakeTransaction, VTTransaction,
     },
-    transaction_factory::{self, NodeBalance},
+    transaction_factory::{self, NodeBalance, NodeBalance2},
     types::LastBeacon,
     utxo_pool::{get_utxo_info, UtxoDiff, UtxoInfo},
+    wit::Wit,
 };
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{
@@ -37,15 +38,16 @@ use crate::{
     actors::{
         chain_manager::{handlers::BlockBatches::*, BlockCandidate},
         messages::{
-            AddBlocks, AddCandidates, AddCommitReveal, AddSuperBlock, AddSuperBlockVote,
-            AddTransaction, Broadcast, BuildDrt, BuildStake, BuildUnstake, BuildVtt,
-            EpochNotification, EstimatePriority, GetBalance, GetBalanceTarget, GetBlocksEpochRange,
-            GetDataRequestInfo, GetHighestCheckpointBeacon, GetMemoryTransaction, GetMempool,
-            GetMempoolResult, GetNodeStats, GetProtocolInfo, GetReputation, GetReputationResult,
-            GetSignalingInfo, GetState, GetSuperBlockVotes, GetSupplyInfo, GetSupplyInfo2,
-            GetUtxoInfo, IsConfirmedBlock, PeersBeacons, QueryStakePowers, QueryStakes,
-            ReputationStats, Rewind, SendLastBeacon, SessionUnitResult, SetLastBeacon,
-            SetPeersLimits, SignalingInfo, SnapshotExport, SnapshotImport, TryMineBlock,
+            try_do_magic_into_pkh, AddBlocks, AddCandidates, AddCommitReveal, AddSuperBlock,
+            AddSuperBlockVote, AddTransaction, Broadcast, BuildDrt, BuildStake, BuildUnstake,
+            BuildVtt, EpochNotification, EstimatePriority, GetBalance, GetBalance2,
+            GetBalanceTarget, GetBlocksEpochRange, GetDataRequestInfo, GetHighestCheckpointBeacon,
+            GetMemoryTransaction, GetMempool, GetMempoolResult, GetNodeStats, GetProtocolInfo,
+            GetReputation, GetReputationResult, GetSignalingInfo, GetState, GetSuperBlockVotes,
+            GetSupplyInfo, GetSupplyInfo2, GetUtxoInfo, IsConfirmedBlock, PeersBeacons,
+            QueryStakePowers, QueryStakes, QueryStakesFilter, ReputationStats, Rewind,
+            SendLastBeacon, SessionUnitResult, SetLastBeacon, SetPeersLimits, SignalingInfo,
+            SnapshotExport, SnapshotImport, TryMineBlock,
         },
         sessions_manager::SessionsManager,
     },
@@ -1675,6 +1677,82 @@ impl Handler<GetDataRequestInfo> for ChainManager {
 
             Box::pin(fut)
         }
+    }
+}
+
+impl Handler<GetBalance2> for ChainManager {
+    type Result = Result<NodeBalance2, failure::Error>;
+
+    fn handle(&mut self, msg: GetBalance2, _ctx: &mut Self::Context) -> Self::Result {
+        if self.sm_state != StateMachine::Synced {
+            return Err(ChainManagerError::NotSynced {
+                current_state: self.sm_state,
+            }
+            .into());
+        }
+        let now = get_timestamp();
+        let balance = match msg {
+            GetBalance2::All(limits) => {
+                let mut balances: HashMap<PublicKeyHash, NodeBalance2> = HashMap::new();
+                for (_output_pointer, (vto, _)) in self.chain_state.unspent_outputs_pool.iter() {
+                    balances
+                        .entry(vto.pkh)
+                        .or_insert(NodeBalance2::One {
+                            locked: 0,
+                            staked: 0,
+                            unlocked: 0,
+                        })
+                        .add_utxo_value(vto.value, vto.time_lock as i64 > now);
+                }
+                let stakes = self.chain_state.stakes.query_stakes(QueryStakesFilter::All);
+                if let Ok(stakes) = stakes {
+                    stakes.iter().for_each(|entry| {
+                        balances
+                            .entry(entry.key.withdrawer)
+                            .or_insert(NodeBalance2::One {
+                                locked: 0,
+                                staked: 0,
+                                unlocked: 0,
+                            })
+                            .add_staked(entry.value.coins.into())
+                    });
+                }
+                balances.retain(|_pkh, balance| {
+                    balance.get_total().unwrap_or_default()
+                        >= Wit::from_nanowits(limits.min_balance)
+                        && balance.get_total().unwrap_or_default()
+                            <= Wit::from_nanowits(limits.max_balance.unwrap_or(u64::MAX))
+                });
+
+                NodeBalance2::Many(balances)
+            }
+            GetBalance2::Address(pkh) => {
+                let mut balance = transaction_factory::get_utxos_balance(
+                    &self.chain_state.unspent_outputs_pool,
+                    try_do_magic_into_pkh(pkh.clone()).map_err(|e| {
+                        log::warn!(
+                            "Failed to convert {:?} into a valid public key hash: {e}",
+                            pkh
+                        );
+                        e
+                    })?,
+                    now,
+                );
+                let stakes = self
+                    .chain_state
+                    .stakes
+                    .query_stakes(QueryStakesFilter::Withdrawer(pkh));
+                if let Ok(stakes) = stakes {
+                    balance.add_staked(stakes.iter().fold(0u64, |staked: u64, entry| {
+                        staked.saturating_add(entry.value.coins.nanowits())
+                    }));
+                }
+
+                balance
+            }
+        };
+
+        Ok(balance)
     }
 }
 

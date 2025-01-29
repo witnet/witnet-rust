@@ -78,6 +78,69 @@ impl NodeBalance {
     }
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(untagged)]
+pub enum NodeBalance2 {
+    One {
+        /// Total locked UTXOs value
+        locked: u64,
+        /// Total withdrawable stake value
+        staked: u64,
+        /// Total unlocked UTXOs value
+        unlocked: u64,
+    },
+    Count(u64),
+    Many(HashMap<PublicKeyHash, NodeBalance2>),
+}
+
+impl NodeBalance2 {
+    pub fn add_utxo_value(&mut self, utxo_value: u64, utxo_locked: bool) {
+        if let NodeBalance2::One {
+                unlocked, locked, ..
+            } = self {
+            if utxo_locked {
+                locked.add_assign(utxo_value);
+            } else {
+                unlocked.add_assign(utxo_value);
+            }
+        }
+    }
+    pub fn add_staked(&mut self, value: u64) {
+        if let NodeBalance2::One { staked, .. } = self {
+            staked.add_assign(value);
+        }
+    }
+    pub fn get_locked(&self) -> Option<Wit> {
+        match self {
+            NodeBalance2::One { locked, .. } => Some(Wit::from_nanowits(*locked)),
+            _ => None,
+        }
+    }
+    pub fn get_unlocked(&self) -> Option<Wit> {
+        match self {
+            NodeBalance2::One { unlocked, .. } => Some(Wit::from_nanowits(*unlocked)),
+            _ => None,
+        }
+    }
+    pub fn get_staked(&self) -> Option<Wit> {
+        match self {
+            NodeBalance2::One { staked, .. } => Some(Wit::from_nanowits(*staked)),
+            _ => None,
+        }
+    }
+    pub fn get_total(&self) -> Option<Wit> {
+        match self {
+            NodeBalance2::One {
+                locked,
+                unlocked,
+                staked,
+                ..
+            } => Some(Wit::from_nanowits(*staked + *unlocked + *locked)),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum TransactionOutputs {
     DataRequest((DataRequestOutput, Option<ValueTransferOutput>)),
@@ -410,6 +473,34 @@ pub fn calculate_weight(
     };
 
     Ok(weight)
+}
+
+/// Get utxos balance
+pub fn get_utxos_balance(
+    all_utxos: &UnspentOutputsPool,
+    pkh: PublicKeyHash,
+    now: i64,
+) -> NodeBalance2 {
+    let mut locked = 0u64;
+    let mut unlocked = 0u64;
+    all_utxos.visit_with_pkh(
+        pkh,
+        |_| {},
+        |x| {
+            let vto = &x.1 .0;
+            if vto.time_lock as i64 <= now {
+                unlocked += vto.value;
+            } else {
+                locked += vto.value;
+            }
+        },
+    );
+
+    NodeBalance2::One {
+        locked,
+        unlocked,
+        staked: 0u64,
+    }
 }
 
 /// Get total balance
