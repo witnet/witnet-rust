@@ -20,7 +20,7 @@ use witnet_data_structures::{
     get_protocol_version,
     proto::versioning::ProtocolVersion,
     refresh_protocol_version,
-    staking::{errors::StakesError, prelude::StakeKey},
+    staking::{errors::StakesError, prelude::StakeKey, stakes::QueryStakesKey},
     transaction::{
         DRTransaction, StakeTransaction, Transaction, UnstakeTransaction, VTTransaction,
     },
@@ -1734,7 +1734,7 @@ impl Handler<GetBalance2> for ChainManager {
                         })
                         .add_utxo_value(vto.value, vto.time_lock as i64 > now);
                 }
-                let stakes = self.chain_state.stakes.query_stakes(QueryStakesFilter::All);
+                let stakes = self.chain_state.stakes.query_stakes(QueryStakesKey::All);
                 if let Ok(stakes) = stakes {
                     stakes.iter().for_each(|entry| {
                         balances
@@ -1757,21 +1757,22 @@ impl Handler<GetBalance2> for ChainManager {
                 NodeBalance2::Many(balances)
             }
             GetBalance2::Address(pkh) => {
+                let pkh = try_do_magic_into_pkh(pkh.clone()).map_err(|e| {
+                    log::warn!(
+                        "Failed to convert {:?} into a valid public key hash: {e}",
+                        pkh
+                    );
+                    e
+                })?;
                 let mut balance = transaction_factory::get_utxos_balance(
                     &self.chain_state.unspent_outputs_pool,
-                    try_do_magic_into_pkh(pkh.clone()).map_err(|e| {
-                        log::warn!(
-                            "Failed to convert {:?} into a valid public key hash: {e}",
-                            pkh
-                        );
-                        e
-                    })?,
+                    pkh,
                     now,
                 );
                 let stakes = self
                     .chain_state
                     .stakes
-                    .query_stakes(QueryStakesFilter::Withdrawer(pkh));
+                    .query_stakes(QueryStakesKey::Validator(pkh));
                 if let Ok(stakes) = stakes {
                     balance.add_staked(stakes.iter().fold(0u64, |staked: u64, entry| {
                         staked.saturating_add(entry.value.coins.nanowits())

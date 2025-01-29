@@ -1955,25 +1955,28 @@ pub fn query_stakes(
     long: bool,
 ) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
-    let params = match (validator, withdrawer) {
-        (Some(validator), Some(withdrawer)) => QueryStakes {
-            filter: QueryStakesFilter::Key((
-                MagicEither::Left(validator),
-                MagicEither::Left(withdrawer),
-            )),
-            limits: QueryStakesLimits::default(),
+    let params = QueryStakes {
+        filter: match (validator, withdrawer) {
+            (Some(validator), Some(withdrawer)) => QueryStakesFilter {
+                validator: Some(MagicEither::Left(validator)),
+                withdrawer: Some(MagicEither::Left(withdrawer)),
+            },
+            (Some(validator), None) => QueryStakesFilter {
+                validator: Some(MagicEither::Left(validator)),
+                withdrawer: None,
+            },
+            (None, Some(withdrawer)) => QueryStakesFilter {
+                validator: None,
+                withdrawer: Some(MagicEither::Left(withdrawer)),
+            },
+            (None, None) => QueryStakesFilter {
+                validator: None,
+                withdrawer: None,
+            },
         },
-        (Some(validator), _) => QueryStakes {
-            filter: QueryStakesFilter::Validator(MagicEither::Left(validator)),
-            limits: QueryStakesLimits::default(),
-        },
-        (_, Some(withdrawer)) => QueryStakes {
-            filter: QueryStakesFilter::Withdrawer(MagicEither::Left(withdrawer)),
-            limits: QueryStakesLimits::default(),
-        },
-        (None, None) => QueryStakes::default(),
+        limits: QueryStakesLimits::default(),
     };
-
+    
     let response = send_request(
         &mut stream,
         &format!(
