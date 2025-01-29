@@ -3202,8 +3202,8 @@ impl TransactionsPool {
         }
     }
 
-    /// Remove unstake transactions that would result in understaking on a validator
-    pub fn remove_understake_transactions(&mut self, transactions: Vec<Hash>) {
+    /// Remove unstake transactions that violate one or more of the unstaking rules
+    pub fn remove_invalid_unstake_transactions(&mut self, transactions: Vec<Hash>) {
         for ut_tx_hash in transactions.iter() {
             if let Some(ut_tx) = self
                 .ut_transactions
