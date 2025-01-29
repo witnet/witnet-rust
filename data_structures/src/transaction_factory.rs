@@ -680,16 +680,14 @@ pub fn transaction_inputs_sum(
         // Verify that commits are only accepted after the time lock expired
         let (epoch_timestamp, _) = epoch_constants.epoch_timestamp(epoch)?;
         let vt_time_lock = i64::try_from(vt_output.time_lock)?;
-        if (get_environment() == Environment::Development
-            || get_environment() == Environment::Testnet)
-            && epoch > 22_000
-            && vt_time_lock > epoch_timestamp
-        {
-            return Err(TransactionError::TimeLock {
-                expected: vt_time_lock,
-                current: epoch_timestamp,
+        if vt_time_lock > epoch_timestamp {
+            if get_environment() == Environment::Mainnet || epoch > 22_000 {
+                return Err(TransactionError::TimeLock {
+                    expected: vt_time_lock,
+                    current: epoch_timestamp,
+                }
+                .into());
             }
-            .into());
         } else {
             if !seen_output_pointers.insert(input.output_pointer()) {
                 // If the set already contained this output pointer

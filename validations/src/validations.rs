@@ -1498,18 +1498,15 @@ pub fn validate_unstake_transaction<'a>(
 
             // TODO: modify this to enable delegated staking with multiple withdrawer addresses on a single validator
             // TODO: remove this check for mainnet release
-            if (get_environment() == Environment::Development
-                || get_environment() == Environment::Testnet)
-                && epoch > 22_000
+            let nonce = stake_entry.first().map(|stake| stake.value.nonce).unwrap();
+            if (get_environment() == Environment::Mainnet || epoch > 22_000)
+                && ut_tx.body.nonce != nonce
             {
-                let nonce = stake_entry.first().map(|stake| stake.value.nonce).unwrap();
-                if ut_tx.body.nonce != nonce {
-                    return Err(TransactionError::UnstakeInvalidNonce {
-                        used: ut_tx.body.nonce,
-                        current: nonce,
-                    }
-                    .into());
+                return Err(TransactionError::UnstakeInvalidNonce {
+                    used: ut_tx.body.nonce,
+                    current: nonce,
                 }
+                .into());
             }
 
             staked_amount
