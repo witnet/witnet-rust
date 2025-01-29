@@ -295,15 +295,8 @@ pub fn exec_cmd(
             node,
             validator,
             withdrawer,
-            all,
             long,
-        } => rpc::query_stakes(
-            node.unwrap_or(default_jsonrpc),
-            validator,
-            withdrawer,
-            all,
-            long,
-        ),
+        } => rpc::query_stakes(node.unwrap_or(default_jsonrpc), validator, withdrawer, long),
         Command::QueryPowers {
             node,
             capability,
@@ -840,8 +833,6 @@ pub enum Command {
         validator: Option<String>,
         #[structopt(short = "w", long = "withdrawer")]
         withdrawer: Option<String>,
-        #[structopt(short = "a", long = "all")]
-        all: bool,
         #[structopt(short = "l", long = "long")]
         long: bool,
     },

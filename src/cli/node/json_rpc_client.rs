@@ -51,12 +51,12 @@ use witnet_node::actors::{
     chain_manager::run_dr_locally,
     json_rpc::api::{
         AddrType, GetBlockChainParams, GetTransactionOutput, PeersResult, QueryPowersParams,
-        QueryPowersRecord, QueryStakesParams,
+        QueryPowersRecord,
     },
     messages::{
         AuthorizeStake, BuildDrt, BuildStakeParams, BuildStakeResponse, BuildUnstakeParams,
-        BuildVtt, GetBalanceTarget, GetReputationResult, MagicEither, SignalingInfo,
-        StakeAuthorization,
+        BuildVtt, GetBalanceTarget, GetReputationResult, MagicEither, QueryStakes,
+        QueryStakesFilter, QueryStakesLimits, SignalingInfo, StakeAuthorization,
     },
 };
 use witnet_rad::types::RadonTypes;
@@ -1952,21 +1952,26 @@ pub fn query_stakes(
     addr: SocketAddr,
     validator: Option<String>,
     withdrawer: Option<String>,
-    all: bool,
     long: bool,
 ) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
-    let params = if all {
-        Some(QueryStakesParams::All(true))
-    } else {
-        match (validator, withdrawer) {
-            (Some(validator), Some(withdrawer)) => {
-                Some(QueryStakesParams::Key((validator, withdrawer)))
-            }
-            (Some(validator), _) => Some(QueryStakesParams::Validator(validator)),
-            (_, Some(withdrawer)) => Some(QueryStakesParams::Withdrawer(withdrawer)),
-            (None, None) => None,
-        }
+    let params = match (validator, withdrawer) {
+        (Some(validator), Some(withdrawer)) => QueryStakes {
+            filter: QueryStakesFilter::Key((
+                MagicEither::Left(validator),
+                MagicEither::Left(withdrawer),
+            )),
+            limits: QueryStakesLimits::default(),
+        },
+        (Some(validator), _) => QueryStakes {
+            filter: QueryStakesFilter::Validator(MagicEither::Left(validator)),
+            limits: QueryStakesLimits::default(),
+        },
+        (_, Some(withdrawer)) => QueryStakes {
+            filter: QueryStakesFilter::Withdrawer(MagicEither::Left(withdrawer)),
+            limits: QueryStakesLimits::default(),
+        },
+        (None, None) => QueryStakes::default(),
     };
 
     let response = send_request(
