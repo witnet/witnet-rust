@@ -358,28 +358,44 @@ impl Message for QueryStakePowers {
 
 /// Stake key for quering stakes
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Default)]
 pub enum QueryStakesFilter {
     /// To search by the validator public key hash
-    Validator(PublicKeyHash),
+    Validator(MagicEither<String, PublicKeyHash>),
     /// To search by the withdrawer public key hash
-    Withdrawer(PublicKeyHash),
+    Withdrawer(MagicEither<String, PublicKeyHash>),
     /// To search by validator and withdrawer public key hashes
-    Key((PublicKeyHash, PublicKeyHash)),
+    Key(
+        (
+            MagicEither<String, PublicKeyHash>,
+            MagicEither<String, PublicKeyHash>,
+        ),
+    ),
     /// To query all stake entries
+    #[default]
     All,
 }
 
-impl Default for QueryStakesFilter {
-    fn default() -> Self {
-        QueryStakesFilter::Validator(PublicKeyHash::default())
-    }
+
+/// Limits when querying stake entries
+#[derive(Clone, Debug, Eq, Hash, PartialEq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+#[derive(Default)]
+pub struct QueryStakesLimits {
+    /// Retrieve only first appearence for every distinct validator
+    pub distinct: bool,
+    /// Either absolute or relative epoch (negative values) when stake entries were last modified
+    pub since: i64,
 }
+
 
 /// Message for querying stakes
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct QueryStakes {
-    /// stake key used to search the stake
+    /// query's where clause
     pub filter: QueryStakesFilter,
+    /// query's limit params
+    pub limits: QueryStakesLimits,
 }
 
 impl Message for QueryStakes {
@@ -389,20 +405,26 @@ impl Message for QueryStakes {
     >;
 }
 
-impl<Address> From<QueryStakesFilter> for QueryStakesKey<Address>
+impl<Address> TryFrom<QueryStakesFilter> for QueryStakesKey<Address>
 where
     Address: Default + Ord + From<PublicKeyHash>,
 {
-    fn from(query: QueryStakesFilter) -> Self {
-        match query {
+    type Error = PublicKeyHashParseError;
+
+    fn try_from(query: QueryStakesFilter) -> Result<Self, Self::Error> {
+        Ok(match query {
             QueryStakesFilter::Key(key) => QueryStakesKey::Key(StakeKey {
-                validator: key.0.into(),
-                withdrawer: key.1.into(),
+                validator: try_do_magic_into_pkh(key.0)?.into(),
+                withdrawer: try_do_magic_into_pkh(key.1)?.into(),
             }),
-            QueryStakesFilter::Validator(v) => QueryStakesKey::Validator(v.into()),
-            QueryStakesFilter::Withdrawer(w) => QueryStakesKey::Withdrawer(w.into()),
+            QueryStakesFilter::Validator(v) => {
+                QueryStakesKey::Validator(try_do_magic_into_pkh(v)?.into())
+            }
+            QueryStakesFilter::Withdrawer(w) => {
+                QueryStakesKey::Withdrawer(try_do_magic_into_pkh(w)?.into())
+            }
             QueryStakesFilter::All => QueryStakesKey::All,
-        }
+        })
     }
 }
 

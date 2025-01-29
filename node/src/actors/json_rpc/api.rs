@@ -2243,22 +2243,8 @@ pub async fn authorize_stake(params: Result<AuthorizeStake, Error>) -> JsonRpcRe
         .await
 }
 
-/// Param for query_stakes
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum QueryStakesParams {
-    /// To query by stake validator
-    Validator(String),
-    /// To query by stake withdrawer
-    Withdrawer(String),
-    /// To query by stake validator and withdrawer
-    Key((String, String)),
-    /// To query all stake entries
-    All(bool),
-}
-
 /// Query the amount of nanowits staked by an address.
-pub async fn query_stakes(params: Result<Option<QueryStakesParams>, Error>) -> JsonRpcResult {
+pub async fn query_stakes(params: Result<Option<QueryStakes>, Error>) -> JsonRpcResult {
     // Short-circuit if parameters are wrong
     let params = params?;
     // If a withdrawer address is not specified, default to local node address
