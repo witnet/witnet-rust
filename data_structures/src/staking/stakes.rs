@@ -360,19 +360,19 @@ where
     }
 
     /// Query the current nonce from a stake entry.
-    pub fn query_nonce<ISK>(&mut self, key: ISK) -> StakesResult<Nonce, Address, Coins, Epoch>
+    pub fn query_nonce<ISK>(&self, key: ISK) -> StakesResult<Nonce, Address, Coins, Epoch>
     where
         ISK: Into<StakeKey<Address>>,
     {
         let key = key.into();
 
-        if let Entry::Occupied(entry) = self.by_key.entry(key.clone()) {
-            let stake = entry.get().value.read()?;
+        let stake = self
+            .by_key
+            .get(&key)
+            .ok_or(StakesError::EntryNotFound { key })?
+            .read_value();
 
-            Ok(stake.nonce)
-        } else {
-            Err(StakesError::EntryNotFound { key })
-        }
+        Ok(stake.nonce)
     }
 
     /// Remove a certain amount of staked coins from a given identity at a given epoch.
