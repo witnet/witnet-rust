@@ -1470,8 +1470,11 @@ pub async fn get_balance(params: Params) -> JsonRpcResult {
         target = params.into();
     };
 
-    let chain_manager_addr = ChainManager::from_registry();
+    if target == GetBalanceTarget::Own {
+        return Err(Error::invalid_params("Providing server's balance is not allowed"));
+    };
 
+    let chain_manager_addr = ChainManager::from_registry();
     chain_manager_addr
         .send(GetBalance { target, simple })
         .map(|res| {
