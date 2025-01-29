@@ -1842,22 +1842,21 @@ impl Handler<GetBalance2> for ChainManager {
                 NodeBalance2::Many(balances)
             }
             GetBalance2::Address(pkh) => {
-                let pkh = try_do_magic_into_pkh(pkh.clone()).map_err(|e| {
-                    log::warn!(
-                        "Failed to convert {:?} into a valid public key hash: {e}",
-                        pkh
-                    );
-                    e
-                })?;
                 let mut balance = transaction_factory::get_utxos_balance(
                     &self.chain_state.unspent_outputs_pool,
-                    pkh,
+                    try_do_magic_into_pkh(pkh.clone()).map_err(|e| {
+                        log::warn!(
+                            "Failed to convert {:?} into a valid public key hash: {e}",
+                            pkh
+                        );
+                        e
+                    })?,
                     now,
                 );
                 let stakes = self
                     .chain_state
                     .stakes
-                    .query_stakes(QueryStakesKey::Withdrawer(pkh));
+                    .query_stakes(QueryStakesFilter::Withdrawer(pkh));
                 if let Ok(stakes) = stakes {
                     balance.add_staked(stakes.iter().fold(0u64, |staked: u64, entry| {
                         staked.saturating_add(entry.value.coins.nanowits())

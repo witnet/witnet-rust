@@ -115,6 +115,9 @@ pub fn attach_regular_methods<H>(
     server.add_actix_method(system, "getBalance2", |params: Params| {
         Box::pin(get_balance_2(params.parse()))
     });
+    server.add_actix_method(system, "getBalance2", |params: Params| {
+        Box::pin(get_balance_2(params.parse()))
+    });
     server.add_actix_method(system, "getReputation", |params: Params| {
         Box::pin(get_reputation(params.parse(), false))
     });
