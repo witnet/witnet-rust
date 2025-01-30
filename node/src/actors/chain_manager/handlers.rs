@@ -1692,7 +1692,7 @@ impl Handler<GetBalance2> for ChainManager {
                 let stakes = self
                     .chain_state
                     .stakes
-                    .query_stakes(QueryStakesKey::Validator(pkh));
+                    .query_stakes(QueryStakesKey::Withdrawer(pkh));
                 if let Ok(stakes) = stakes {
                     balance.add_staked(stakes.iter().fold(0u64, |staked: u64, entry| {
                         staked.saturating_add(entry.value.coins.nanowits())

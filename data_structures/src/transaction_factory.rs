@@ -97,7 +97,8 @@ impl NodeBalance2 {
     pub fn add_utxo_value(&mut self, utxo_value: u64, utxo_locked: bool) {
         if let NodeBalance2::One {
                 unlocked, locked, ..
-            } = self {
+            } = self 
+        {
             if utxo_locked {
                 locked.add_assign(utxo_value);
             } else {
