@@ -25,10 +25,13 @@ use witnet_data_structures::{
     },
     transaction_factory::{self, NodeBalance},
     types::LastBeacon,
-    utxo_pool::{get_utxo_info, UtxoInfo},
+    utxo_pool::{get_utxo_info, UtxoDiff, UtxoInfo},
 };
 use witnet_util::timestamp::get_timestamp;
-use witnet_validations::validations::{block_reward, total_block_reward, validate_rad_request};
+use witnet_validations::validations::{
+    block_reward, total_block_reward, validate_rad_request, validate_stake_transaction,
+    validate_unstake_transaction,
+};
 
 use crate::{
     actors::{
@@ -232,10 +235,87 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                         self.candidates.clear();
                         self.seen_candidates.clear();
 
+                        // Periodically revalidate pending stake transactions since they can become invalid
+                        if get_protocol_version(Some(current_epoch)) >= ProtocolVersion::V1_8
+                            && current_epoch % 10 == 0
+                        {
+                            let utxo_diff = UtxoDiff::new(
+                                &self.chain_state.unspent_outputs_pool,
+                                self.chain_state.block_number(),
+                            );
+                            let min_stake = self
+                                .consensus_constants_wit2
+                                .get_validator_min_stake_nanowits(current_epoch);
+                            let max_stake = self
+                                .consensus_constants_wit2
+                                .get_validator_max_stake_nanowits(current_epoch);
+
+                            let mut invalid_stake_transactions = Vec::<Hash>::new();
+                            for st_tx in self.transactions_pool.st_iter() {
+                                if let Err(e) = validate_stake_transaction(
+                                    st_tx,
+                                    &utxo_diff,
+                                    current_epoch,
+                                    self.epoch_constants.unwrap(),
+                                    &mut vec![],
+                                    &self.chain_state.stakes,
+                                    min_stake,
+                                    max_stake,
+                                ) {
+                                    log::debug!(
+                                        "Removing stake transaction {} as it became invalid: {}",
+                                        st_tx.hash(),
+                                        e
+                                    );
+                                    invalid_stake_transactions.push(st_tx.hash());
+                                    continue;
+                                }
+                            }
+
+                            self.transactions_pool
+                                .remove_invalid_stake_transactions(invalid_stake_transactions);
+                        }
+
+                        // Periodically revalidate pending unstake transactions since they can become invalid
+                        if get_protocol_version(Some(current_epoch)) >= ProtocolVersion::V2_0
+                            && current_epoch % 10 == 0
+                        {
+                            let min_stake = self
+                                .consensus_constants_wit2
+                                .get_validator_min_stake_nanowits(current_epoch);
+                            let unstake_delay = self
+                                .consensus_constants_wit2
+                                .get_unstaking_delay_seconds(current_epoch);
+
+                            let mut invalid_unstake_transactions = Vec::<Hash>::new();
+                            for ut_tx in self.transactions_pool.ut_iter() {
+                                if let Err(e) = validate_unstake_transaction(
+                                    ut_tx,
+                                    current_epoch,
+                                    &self.chain_state.stakes,
+                                    min_stake,
+                                    unstake_delay,
+                                ) {
+                                    log::debug!(
+                                        "Removing unstake transaction {} as it became invalid: {}",
+                                        ut_tx.hash(),
+                                        e
+                                    );
+                                    invalid_unstake_transactions.push(ut_tx.hash());
+                                    continue;
+                                }
+                            }
+
+                            self.transactions_pool
+                                .remove_invalid_unstake_transactions(invalid_unstake_transactions);
+                        }
+
                         log::debug!(
-                            "Transactions pool size: {} value transfer, {} data request",
+                            "Transactions pool size: {} value transfer, {} data request, {} stake, {} unstake",
                             self.transactions_pool.vt_len(),
-                            self.transactions_pool.dr_len()
+                            self.transactions_pool.dr_len(),
+                            self.transactions_pool.st_len(),
+                            self.transactions_pool.ut_len()
                         );
                     }
 
