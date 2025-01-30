@@ -1564,13 +1564,6 @@ impl Handler<QueryStakes> for ChainManager {
             stakes
         };
 
-        log::info!(
-            "queryStakes => found {} entries after filter {:?} w/ params {:?}",
-            stakes.len(),
-            filter,
-            params,
-        );
-
         // applies `offset`, if any, and limits number of returned records to `limit``
         Ok(stakes.into_iter().skip(offset).take(limit).collect())
     }
@@ -1601,10 +1594,9 @@ impl Handler<QueryStakingPowers> for ChainManager {
                 .unique_by(|(_, key, _)| key.validator)
                 .skip(offset)
                 .take(limit)
-                .into_iter()
                 .collect()
         } else {
-            powers.skip(offset).take(limit).into_iter().collect()
+            powers.skip(offset).take(limit).collect()
         };
 
         powers
