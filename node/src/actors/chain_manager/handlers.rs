@@ -43,7 +43,7 @@ use crate::{
             GetMemoryTransaction, GetMempool, GetMempoolResult, GetNodeStats, GetProtocolInfo,
             GetReputation, GetReputationResult, GetSignalingInfo, GetState, GetSuperBlockVotes,
             GetSupplyInfo, GetSupplyInfo2, GetUtxoInfo, IsConfirmedBlock, PeersBeacons,
-            QueryStakePowers, QueryStakes, QueryStakesFilter, ReputationStats, Rewind,
+            QueryStakePowers, QueryStakes, QueryStakesOrderByOptions, ReputationStats, Rewind,
             SendLastBeacon, SessionUnitResult, SetLastBeacon, SetPeersLimits, SignalingInfo,
             SnapshotExport, SnapshotImport, TryMineBlock,
         },
@@ -1463,39 +1463,112 @@ impl Handler<QueryStakes> for ChainManager {
     type Result = <QueryStakes as Message>::Result;
 
     fn handle(&mut self, msg: QueryStakes, _ctx: &mut Self::Context) -> Self::Result {
-        // query stakes from current chain state
+        let filter = msg.filter.unwrap_or_default();
+        let params = msg.params.unwrap_or_default();
+        let since = params.since.unwrap_or_default();
+        let order = params.order.unwrap_or_default();
+        let order_desc = order.reverse.unwrap_or_default();
+        let distinct = params.distinct.unwrap_or_default();
+        let offset = params.offset.unwrap_or_default();
+        let limit = params.limit.unwrap_or(u16::MAX) as usize;
+
+        // fetch filtered stake entries from current chain state:
         let mut stakes = self
             .chain_state
             .stakes
-            .query_stakes(msg.filter)
+            .query_stakes(filter.clone())
             .map_err(StakesError::from)?;
-        // filter out stake entries whose last mining and witnessing epochs are previous to `epoch`
-        let epoch: u32 = if msg.limits.since >= 0 {
-            msg.limits.since.try_into().inspect_err(|&e| {
+
+        // filter out stake entries having a nonce, last mining or witnessing epochs (depending
+        // on actual ordering field) older than calculated `since_epoch`:
+        let since_epoch: u64 = if since >= 0 {
+            since.try_into().inspect_err(|&e| {
                 log::warn!("Invalid 'since' limit on QueryStakes: {}", e);
             })?
         } else {
-            (self.current_epoch.unwrap() as i64 + msg.limits.since)
+            (self.current_epoch.unwrap() as i64 + since)
                 .try_into()
                 .unwrap_or_default()
         };
-        stakes.retain(|stake| {
-            let nonce: u32 = stake.value.nonce.try_into().unwrap_or_default();
-            stake.value.epochs.mining >= epoch && stake.value.epochs.mining != nonce
-                || (stake.value.epochs.witnessing >= epoch
-                    && stake.value.epochs.witnessing != nonce)
-        });
-        if msg.limits.distinct {
-            // if only distinct validators are required, retain only first appearence in the stakes array:
-            let stakes = stakes
+        if since_epoch > 0 {
+            match order.by {
+                QueryStakesOrderByOptions::Coins | QueryStakesOrderByOptions::Nonce => {
+                    stakes.retain(|stake| stake.value.nonce >= since_epoch);
+                }
+                QueryStakesOrderByOptions::Mining => {
+                    stakes.retain(|stake| {
+                        stake.value.epochs.mining as u64 >= since_epoch
+                            && stake.value.epochs.mining as u64 >= stake.value.nonce
+                    });
+                }
+                QueryStakesOrderByOptions::Witnessing => {
+                    stakes.retain(|stake| {
+                        stake.value.epochs.witnessing as u64 >= since_epoch
+                            && stake.value.epochs.witnessing as u64 >= stake.value.nonce
+                    });
+                }
+            }
+        }
+
+        // sort stake entries by specified field, worst case costing n * log (n) ...
+        match order.by {
+            QueryStakesOrderByOptions::Coins => {
+                stakes.sort_by(|a, b| {
+                    if order_desc {
+                        b.value.coins.cmp(&a.value.coins)
+                    } else {
+                        a.value.coins.cmp(&b.value.coins)
+                    }
+                });
+            }
+            QueryStakesOrderByOptions::Nonce => {
+                stakes.sort_by(|a, b| {
+                    if order_desc {
+                        b.value.nonce.cmp(&a.value.nonce)
+                    } else {
+                        a.value.nonce.cmp(&b.value.nonce)
+                    }
+                });
+            }
+            QueryStakesOrderByOptions::Mining => {
+                stakes.sort_by(|a, b| {
+                    if order_desc {
+                        b.value.epochs.mining.cmp(&a.value.epochs.mining)
+                    } else {
+                        a.value.epochs.mining.cmp(&b.value.epochs.mining)
+                    }
+                });
+            }
+            QueryStakesOrderByOptions::Witnessing => {
+                stakes.sort_by(|a, b| {
+                    if order_desc {
+                        b.value.epochs.witnessing.cmp(&a.value.epochs.witnessing)
+                    } else {
+                        a.value.epochs.witnessing.cmp(&b.value.epochs.witnessing)
+                    }
+                });
+            }
+        }
+
+        // if `distinct` is required, retain first appearence per validator:
+        let stakes = if distinct {
+            stakes
                 .into_iter()
                 .unique_by(|stake| stake.key.validator)
-                .collect();
-
-            Ok(stakes)
+                .collect()
         } else {
-            Ok(stakes)
-        }
+            stakes
+        };
+
+        log::info!(
+            "queryStakes => found {} entries after filter {:?} w/ params {:?}",
+            stakes.len(),
+            filter,
+            params,
+        );
+
+        // applies `offset`, if any, and limits number of returned records to `limit``
+        Ok(stakes.into_iter().skip(offset).take(limit).collect())
     }
 }
 
