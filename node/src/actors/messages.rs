@@ -346,14 +346,32 @@ impl Message for StakeAuthorization {
 }
 
 /// Message for querying stakes
-#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-pub struct QueryStakePowers {
-    /// capabilities being searched for
-    pub capabilities: Vec<Capability>,
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QueryStakingPowers {
+    /// Retrieve only first appearence for every distinct validator (default: false)
+    pub distinct: Option<bool>,
+    /// Limits max number of entries to return (default: 0 == u16::MAX)
+    pub limit: Option<u16>,
+    /// Skips first found entries (default: 0)
+    pub offset: Option<usize>,
+    /// Order by specified capability (default: reverse order by coins)
+    pub order_by: Capability,
 }
 
-impl Message for QueryStakePowers {
-    type Result = Vec<(StakeKey<PublicKeyHash>, Vec<Power>)>;
+impl Default for QueryStakingPowers {
+    fn default() -> Self {
+        QueryStakingPowers {
+            distinct: Some(false),
+            limit: Some(u16::MAX),
+            offset: Some(0),
+            order_by: Capability::Mining,
+        }
+    }
+}
+
+impl Message for QueryStakingPowers {
+    type Result = Vec<(usize, StakeKey<PublicKeyHash>, Power)>;
 }
 
 /// Stake key for quering stakes

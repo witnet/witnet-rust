@@ -14,7 +14,7 @@ use ansi_term::Color::{Purple, Red, White, Yellow};
 use failure::{bail, Fail};
 use itertools::Itertools;
 use num_format::{Locale, ToFormattedString};
-use prettytable::{row, Cell, Row, Table};
+use prettytable::{row, Table};
 use qrcode::render::unicode;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
@@ -24,7 +24,7 @@ use witnet_crypto::{
     key::{ExtendedPK, ExtendedSK},
 };
 use witnet_data_structures::{
-    capabilities::{Capability, ALL_CAPABILITIES},
+    capabilities::Capability,
     chain::{
         priority::{PrioritiesEstimate, Priority, PriorityEstimate, TimeToBlock},
         tapi::{current_active_wips, ActiveWips},
@@ -50,13 +50,12 @@ use witnet_data_structures::{
 use witnet_node::actors::{
     chain_manager::run_dr_locally,
     json_rpc::api::{
-        AddrType, GetBlockChainParams, GetTransactionOutput, PeersResult, QueryPowersParams,
-        QueryPowersRecord,
+        AddrType, GetBlockChainParams, GetTransactionOutput, PeersResult, QueryStakingPowersRecord,
     },
     messages::{
         AuthorizeStake, BuildDrt, BuildStakeParams, BuildStakeResponse, BuildUnstakeParams,
         BuildVtt, GetBalanceTarget, GetReputationResult, MagicEither, QueryStakes,
-        QueryStakesFilter, SignalingInfo, StakeAuthorization,
+        QueryStakesFilter, QueryStakingPowers, SignalingInfo, StakeAuthorization,
     },
 };
 use witnet_rad::types::RadonTypes;
@@ -2019,19 +2018,18 @@ pub fn query_stakes(
 pub fn query_powers(
     addr: SocketAddr,
     capability: Option<String>,
-    all: bool,
+    distinct: bool,
 ) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
-    let params = if all {
-        QueryPowersParams::All(true)
-    } else {
-        match capability {
-            Some(c) => match Capability::from_str(&c) {
-                Ok(c) => QueryPowersParams::Capability(c),
-                Err(_) => QueryPowersParams::Capability(Capability::Mining),
-            },
-            None => QueryPowersParams::Capability(Capability::Mining),
-        }
+
+    let mut params = QueryStakingPowers::default();
+    params.distinct = Some(distinct);
+    params.order_by = match capability {
+        Some(c) => match Capability::from_str(&c) {
+            Ok(c) => c,
+            Err(_) => Capability::Mining,
+        },
+        None => Capability::Mining,
     };
 
     let response = send_request(
@@ -2042,42 +2040,22 @@ pub fn query_powers(
         ),
     )?;
 
-    let mut powers: Vec<QueryPowersRecord> = parse_response(&response)?;
-    powers.sort_by_key(|power| Reverse(power.powers[0]));
+    let records: Vec<QueryStakingPowersRecord> = parse_response(&response)?;
 
     let mut powers_table = Table::new();
     powers_table.set_format(*prettytable::format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
-    if all {
-        let mut header = vec![
-            Cell::new("Validator").style_spec("c"),
-            Cell::new("Withdrawer").style_spec("c"),
-        ];
-        for capability in ALL_CAPABILITIES {
-            let capability_str: &'static str = capability.into();
-            header.push(Cell::new(capability_str).style_spec("c"));
-        }
-        powers_table.set_titles(Row::new(header));
-        for power in powers.iter() {
-            let mut row = vec![
-                Cell::new(&power.validator.to_string()),
-                Cell::new(&power.withdrawer.to_string()),
-            ];
-            for p in &power.powers {
-                row.push(Cell::new(&p.to_formatted_string(&Locale::en)).style_spec("r"));
-            }
-            powers_table.add_row(Row::new(row));
-        }
-    } else {
-        let capability_str: &'static str = params.into();
-        powers_table.set_titles(row![c->"Validator", c->"Withdrawer", c->capability_str]);
-        for power in powers.iter() {
-            powers_table.add_row(row![
-                power.validator,
-                power.withdrawer,
-                r->(power.powers[0]).to_formatted_string(&Locale::en),
-            ]);
-        }
+
+    let capability_str: &'static str = params.order_by.into();
+    powers_table.set_titles(row![c->"Ranking", c->"Validator", c->"Withdrawer", c->capability_str]);
+    for record in records.iter() {
+        powers_table.add_row(row![
+            record.ranking,
+            record.validator,
+            record.withdrawer,
+            record.power.to_formatted_string(&Locale::en),
+        ]);
     }
+
     powers_table.printstd();
     println!();
 

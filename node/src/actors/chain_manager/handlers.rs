@@ -20,7 +20,11 @@ use witnet_data_structures::{
     get_protocol_version,
     proto::versioning::ProtocolVersion,
     refresh_protocol_version,
-    staking::{errors::StakesError, prelude::StakeKey, stakes::QueryStakesKey},
+    staking::{
+        errors::StakesError,
+        prelude::{Power, StakeKey},
+        stakes::QueryStakesKey,
+    },
     transaction::{
         DRTransaction, StakeTransaction, Transaction, UnstakeTransaction, VTTransaction,
     },
@@ -43,7 +47,7 @@ use crate::{
             GetMemoryTransaction, GetMempool, GetMempoolResult, GetNodeStats, GetProtocolInfo,
             GetReputation, GetReputationResult, GetSignalingInfo, GetState, GetSuperBlockVotes,
             GetSupplyInfo, GetSupplyInfo2, GetUtxoInfo, IsConfirmedBlock, PeersBeacons,
-            QueryStakePowers, QueryStakes, QueryStakesOrderByOptions, ReputationStats, Rewind,
+            QueryStakes, QueryStakesOrderByOptions, QueryStakingPowers, ReputationStats, Rewind,
             SendLastBeacon, SessionUnitResult, SetLastBeacon, SetPeersLimits, SignalingInfo,
             SnapshotExport, SnapshotImport, TryMineBlock,
         },
@@ -1572,19 +1576,38 @@ impl Handler<QueryStakes> for ChainManager {
     }
 }
 
-impl Handler<QueryStakePowers> for ChainManager {
-    type Result = <QueryStakePowers as Message>::Result;
+impl Handler<QueryStakingPowers> for ChainManager {
+    type Result = <QueryStakingPowers as Message>::Result;
 
-    fn handle(&mut self, msg: QueryStakePowers, _ctx: &mut Self::Context) -> Self::Result {
-        let mut powers = HashMap::new();
+    fn handle(&mut self, msg: QueryStakingPowers, _ctx: &mut Self::Context) -> Self::Result {
         let current_epoch = self.current_epoch.unwrap();
-        for capability in msg.capabilities {
-            for (key, power) in self.chain_state.stakes.by_rank(capability, current_epoch) {
-                powers.entry(key).or_insert(vec![]).push(power);
-            }
-        }
+        let limit = msg.limit.unwrap_or(u16::MAX) as usize;
+        let offset = msg.offset.unwrap_or_default();
 
-        powers.into_iter().collect()
+        // Enumerate power entries order by specified capability,
+        // mapping into a record containing: the ranking, the stake key and current power
+        let powers = self
+            .chain_state
+            .stakes
+            .by_rank(msg.order_by, current_epoch)
+            .enumerate()
+            .map(|(index, record)| (index, record.0, record.1));
+
+        // Skip first `offset` entries and take next `limit`.
+        // If distinct is specified, retain just first appearance per validator.
+        let powers: Vec<(usize, StakeKey<PublicKeyHash>, Power)> = if msg.distinct.unwrap_or(false)
+        {
+            powers
+                .unique_by(|(_, key, _)| key.validator)
+                .skip(offset)
+                .take(limit)
+                .into_iter()
+                .collect()
+        } else {
+            powers.skip(offset).take(limit).into_iter().collect()
+        };
+
+        powers
     }
 }
 
