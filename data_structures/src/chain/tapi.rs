@@ -226,8 +226,8 @@ impl TapiEngine {
                     votes: 0,
                     period: TWO_WEEKS,
                     wip: "WIP0028".to_string(),
-                    // Start signaling on December 14 at 9am UTC
-                    init: 2922240,
+                    // Start signaling on 05 February 2025 at 9am UTC
+                    init: 3_024_000,
                     end: u32::MAX,
                     bit: 9,
                 };
@@ -456,8 +456,8 @@ pub fn in_emergency_period(
                 .collect(),
         )
     } else if Environment::Mainnet == environment
-        && superblock_index > 224_300
-        && superblock_index < 292_224
+        && superblock_index > 302_400
+        && superblock_index < 330_626
     {
         Some(
             FOURTH_EMERGENCY_COMMITTEE
@@ -866,7 +866,7 @@ mod tests {
 
         let (epoch, old_wips) = t.initialize_wip_information(Environment::Mainnet);
         // The first block whose vote must be counted is the one from WIP0028
-        let init_epoch_wip0028 = 2922240;
+        let init_epoch_wip0028 = 3024000;
         assert_eq!(epoch, init_epoch_wip0028);
         // The TapiEngine was just created, there list of old_wips must be empty
         assert_eq!(old_wips, HashSet::new());
