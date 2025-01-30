@@ -357,8 +357,7 @@ impl Message for QueryStakePowers {
 }
 
 /// Stake key for quering stakes
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[derive(Default)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, Default)]
 pub struct QueryStakesFilter {
     /// To search by the validator public key hash
     pub validator: Option<MagicEither<String, PublicKeyHash>>,
@@ -366,26 +365,75 @@ pub struct QueryStakesFilter {
     pub withdrawer: Option<MagicEither<String, PublicKeyHash>>,
 }
 
-
 /// Limits when querying stake entries
-#[derive(Clone, Debug, Eq, Hash, PartialEq, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
-#[derive(Default)]
-pub struct QueryStakesLimits {
-    /// Retrieve only first appearence for every distinct validator
-    pub distinct: bool,
-    /// Either absolute or relative epoch (negative values) when stake entries were last modified
-    pub since: i64,
+pub struct QueryStakesParams {
+    /// Retrieve only first appearence for every distinct validator (default: false)
+    pub distinct: Option<bool>,
+    /// Limits max number of entries to return (default: 0 == u16::MAX)
+    pub limit: Option<u16>,
+    /// Skips first found entries (default: 0)
+    pub offset: Option<usize>,
+    /// Order by specified stake entry field (default: reverse order by coins)
+    pub order: Option<QueryStakesOrderBy>,
+    /// Select entries having either the nonce, last mining or last witnessing epoch,
+    /// greater than specified absolute epoch, or relative epoch if negative (default: 0)
+    pub since: Option<i64>,
 }
 
+impl Default for QueryStakesParams {
+    fn default() -> Self {
+        QueryStakesParams {
+            distinct: Some(false),
+            limit: Some(u16::MAX),
+            offset: Some(0),
+            order: Some(QueryStakesOrderBy::default()),
+            since: Some(0),
+        }
+    }
+}
+
+/// Order by parameter for QueryStakes
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub struct QueryStakesOrderBy {
+    /// Data field to order by
+    pub by: QueryStakesOrderByOptions,
+    /// Reverse order (default: false)
+    pub reverse: Option<bool>,
+}
+
+impl Default for QueryStakesOrderBy {
+    fn default() -> Self {
+        QueryStakesOrderBy {
+            by: QueryStakesOrderByOptions::Coins,
+            reverse: Some(true),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+/// Ordering options for QueryStakes
+pub enum QueryStakesOrderByOptions {
+    /// Order by stake entry coins
+    Coins = 0,
+    /// Order by stake entry nonce
+    Nonce = 1,
+    /// Order by last validation epoch
+    Mining = 2,
+    /// Order by last witnessing epoch
+    Witnessing = 3,
+}
 
 /// Message for querying stakes
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct QueryStakes {
     /// query's where clause
-    pub filter: QueryStakesFilter,
+    pub filter: Option<QueryStakesFilter>,
     /// query's limit params
-    pub limits: QueryStakesLimits,
+    pub params: Option<QueryStakesParams>,
 }
 
 impl Message for QueryStakes {
@@ -403,21 +451,17 @@ where
 
     fn try_from(filter: QueryStakesFilter) -> Result<Self, Self::Error> {
         Ok(match (filter.validator, filter.withdrawer) {
-            (Some(validator), Some(withdrawer)) => {
-                QueryStakesKey::Key(StakeKey {
-                    validator: try_do_magic_into_pkh(validator)?.into(),
-                    withdrawer: try_do_magic_into_pkh(withdrawer)?.into(),
-                })
-            }, 
+            (Some(validator), Some(withdrawer)) => QueryStakesKey::Key(StakeKey {
+                validator: try_do_magic_into_pkh(validator)?.into(),
+                withdrawer: try_do_magic_into_pkh(withdrawer)?.into(),
+            }),
             (Some(validator), None) => {
                 QueryStakesKey::Validator(try_do_magic_into_pkh(validator)?.into())
-            },
+            }
             (None, Some(withdrawer)) => {
                 QueryStakesKey::Withdrawer(try_do_magic_into_pkh(withdrawer)?.into())
-            },
-            (None, None) => {
-                QueryStakesKey::All
-            },
+            }
+            (None, None) => QueryStakesKey::All,
         })
     }
 }

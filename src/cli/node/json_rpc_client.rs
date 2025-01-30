@@ -56,7 +56,7 @@ use witnet_node::actors::{
     messages::{
         AuthorizeStake, BuildDrt, BuildStakeParams, BuildStakeResponse, BuildUnstakeParams,
         BuildVtt, GetBalanceTarget, GetReputationResult, MagicEither, QueryStakes,
-        QueryStakesFilter, QueryStakesLimits, SignalingInfo, StakeAuthorization,
+        QueryStakesFilter, SignalingInfo, StakeAuthorization,
     },
 };
 use witnet_rad::types::RadonTypes;
@@ -1957,26 +1957,23 @@ pub fn query_stakes(
     let mut stream = start_client(addr)?;
     let params = QueryStakes {
         filter: match (validator, withdrawer) {
-            (Some(validator), Some(withdrawer)) => QueryStakesFilter {
+            (Some(validator), Some(withdrawer)) => Some(QueryStakesFilter {
                 validator: Some(MagicEither::Left(validator)),
                 withdrawer: Some(MagicEither::Left(withdrawer)),
-            },
-            (Some(validator), None) => QueryStakesFilter {
+            }),
+            (Some(validator), None) => Some(QueryStakesFilter {
                 validator: Some(MagicEither::Left(validator)),
                 withdrawer: None,
-            },
-            (None, Some(withdrawer)) => QueryStakesFilter {
+            }),
+            (None, Some(withdrawer)) => Some(QueryStakesFilter {
                 validator: None,
                 withdrawer: Some(MagicEither::Left(withdrawer)),
-            },
-            (None, None) => QueryStakesFilter {
-                validator: None,
-                withdrawer: None,
-            },
+            }),
+            (None, None) => None,
         },
-        limits: QueryStakesLimits::default(),
+        params: None,
     };
-    
+
     let response = send_request(
         &mut stream,
         &format!(
