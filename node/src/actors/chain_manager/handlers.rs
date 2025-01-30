@@ -1996,6 +1996,8 @@ impl Handler<GetMempool> for ChainManager {
         let res = GetMempoolResult {
             value_transfer: self.transactions_pool.vt_iter().map(|t| t.hash()).collect(),
             data_request: self.transactions_pool.dr_iter().map(|t| t.hash()).collect(),
+            stake: self.transactions_pool.st_iter().map(|t| t.hash()).collect(),
+            unstake: self.transactions_pool.ut_iter().map(|t| t.hash()).collect(),
         };
 
         Ok(res)
