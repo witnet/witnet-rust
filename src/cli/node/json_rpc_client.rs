@@ -2022,14 +2022,16 @@ pub fn query_powers(
 ) -> Result<(), failure::Error> {
     let mut stream = start_client(addr)?;
 
-    let mut params = QueryStakingPowers::default();
-    params.distinct = Some(distinct);
-    params.order_by = match capability {
-        Some(c) => match Capability::from_str(&c) {
-            Ok(c) => c,
-            Err(_) => Capability::Mining,
+    let params = QueryStakingPowers {
+        distinct: Some(distinct),
+        order_by: match capability {
+            Some(c) => match Capability::from_str(&c) {
+                Ok(c) => c,
+                Err(_) => Capability::Mining,
+            },
+            None => Capability::Mining,
         },
-        None => Capability::Mining,
+        ..Default::default()
     };
 
     let response = send_request(
