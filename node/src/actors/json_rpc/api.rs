@@ -812,7 +812,7 @@ pub async fn get_block(params: Params) -> Result<Value, Error> {
                     "tally" : tt_hashes
                 }));
 
-                if ProtocolVersion::from_epoch(block_epoch) == ProtocolVersion::V2_0 {
+                if ProtocolVersion::from_epoch(block_epoch) >= ProtocolVersion::V1_8 {
                     let st_hashes: Vec<_> = output
                         .txns
                         .stake_txns
@@ -825,7 +825,9 @@ pub async fn get_block(params: Params) -> Result<Value, Error> {
                             .expect("The result of getBlock should be an object")
                             .insert("stake".to_string(), serde_json::json!(st_hashes));
                     }
+                }
 
+                if ProtocolVersion::from_epoch(block_epoch) == ProtocolVersion::V2_0 {
                     let ut_hashes: Vec<_> = output
                         .txns
                         .unstake_txns
@@ -865,7 +867,7 @@ pub async fn get_block(params: Params) -> Result<Value, Error> {
                     "data_request": drt_weights,
                 }));
 
-                if ProtocolVersion::from_epoch(block_epoch) == ProtocolVersion::V2_0 {
+                if ProtocolVersion::from_epoch(block_epoch) >= ProtocolVersion::V1_8 {
                     let st_weights: Vec<_> = output
                         .txns
                         .stake_txns
@@ -878,7 +880,9 @@ pub async fn get_block(params: Params) -> Result<Value, Error> {
                             .expect("The result of getBlock should be an object")
                             .insert("stake".to_string(), st_weights.into());
                     }
+                }
 
+                if ProtocolVersion::from_epoch(block_epoch) >= ProtocolVersion::V2_0 {
                     let ut_weights: Vec<_> = output
                         .txns
                         .unstake_txns
