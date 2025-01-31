@@ -295,20 +295,13 @@ pub fn exec_cmd(
             node,
             validator,
             withdrawer,
-            all,
             long,
-        } => rpc::query_stakes(
-            node.unwrap_or(default_jsonrpc),
-            validator,
-            withdrawer,
-            all,
-            long,
-        ),
+        } => rpc::query_stakes(node.unwrap_or(default_jsonrpc), validator, withdrawer, long),
         Command::QueryPowers {
             node,
             capability,
-            all,
-        } => rpc::query_powers(node.unwrap_or(default_jsonrpc), capability, all),
+            distinct,
+        } => rpc::query_powers(node.unwrap_or(default_jsonrpc), capability, distinct),
         Command::Unstake {
             node,
             operator,
@@ -840,8 +833,6 @@ pub enum Command {
         validator: Option<String>,
         #[structopt(short = "w", long = "withdrawer")]
         withdrawer: Option<String>,
-        #[structopt(short = "a", long = "all")]
-        all: bool,
         #[structopt(short = "l", long = "long")]
         long: bool,
     },
@@ -857,8 +848,8 @@ pub enum Command {
         node: Option<SocketAddr>,
         #[structopt(short = "c", long = "capability")]
         capability: Option<String>,
-        #[structopt(short = "a", long = "all")]
-        all: bool,
+        #[structopt(short = "d", long = "distinct")]
+        distinct: bool,
     },
     #[structopt(name = "unstake", about = "Create an unstake transaction")]
     Unstake {

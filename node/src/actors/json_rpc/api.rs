@@ -19,7 +19,6 @@ use itertools::Itertools;
 use jsonrpc_core::{BoxFuture, Error, Params, Value};
 use jsonrpc_pubsub::{Subscriber, SubscriptionId};
 use serde::{Deserialize, Serialize};
-use strum_macros::IntoStaticStr;
 
 use witnet_crypto::key::KeyPath;
 use witnet_data_structures::{
@@ -43,13 +42,14 @@ use crate::{
         messages::{
             AddCandidates, AddPeers, AddTransaction, AuthorizeStake, BuildDrt, BuildStake,
             BuildStakeParams, BuildStakeResponse, BuildUnstake, BuildUnstakeParams, BuildVtt,
-            ClearPeers, DropAllPeers, EstimatePriority, GetBalance, GetBalanceTarget,
-            GetBlocksEpochRange, GetConsolidatedPeers, GetDataRequestInfo, GetEpoch,
-            GetHighestCheckpointBeacon, GetItemBlock, GetItemSuperblock, GetItemTransaction,
-            GetKnownPeers, GetMemoryTransaction, GetMempool, GetNodeStats, GetProtocolInfo,
-            GetReputation, GetSignalingInfo, GetState, GetSupplyInfo, GetSupplyInfo2, GetUtxoInfo,
-            InitializePeers, IsConfirmedBlock, MagicEither, QueryStakePowers, QueryStakes,
-            QueryStakesFilter, Rewind, SnapshotExport, SnapshotImport, StakeAuthorization,
+            ClearPeers, DropAllPeers, EstimatePriority, GetBalance, GetBalance2, GetBalance2Limits,
+            GetBalanceTarget, GetBlocksEpochRange, GetConsolidatedPeers, GetDataRequestInfo,
+            GetEpoch, GetHighestCheckpointBeacon, GetItemBlock, GetItemSuperblock,
+            GetItemTransaction, GetKnownPeers, GetMemoryTransaction, GetMempool, GetNodeStats,
+            GetProtocolInfo, GetReputation, GetSignalingInfo, GetState, GetSupplyInfo,
+            GetSupplyInfo2, GetUtxoInfo, InitializePeers, IsConfirmedBlock, MagicEither,
+            QueryStakes, QueryStakingPowers, Rewind, SnapshotExport, SnapshotImport,
+            StakeAuthorization,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -110,6 +110,9 @@ pub fn attach_regular_methods<H>(
     });
     server.add_actix_method(system, "getBalance", |params: Params| {
         Box::pin(get_balance(params))
+    });
+    server.add_actix_method(system, "getBalance2", |params: Params| {
+        Box::pin(get_balance_2(params.parse()))
     });
     server.add_actix_method(system, "getReputation", |params: Params| {
         Box::pin(get_reputation(params.parse(), false))
@@ -1462,8 +1465,13 @@ pub async fn get_balance(params: Params) -> JsonRpcResult {
         target = params.into();
     };
 
-    let chain_manager_addr = ChainManager::from_registry();
+    if target == GetBalanceTarget::Own {
+        return Err(Error::invalid_params(
+            "Providing server's balance is not allowed",
+        ));
+    };
 
+    let chain_manager_addr = ChainManager::from_registry();
     chain_manager_addr
         .send(GetBalance { target, simple })
         .map(|res| {
@@ -2232,50 +2240,14 @@ pub async fn authorize_stake(params: Result<AuthorizeStake, Error>) -> JsonRpcRe
         .await
 }
 
-/// Param for query_stakes
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum QueryStakesParams {
-    /// To query by stake validator
-    Validator(String),
-    /// To query by stake withdrawer
-    Withdrawer(String),
-    /// To query by stake validator and withdrawer
-    Key((String, String)),
-    /// To query all stake entries
-    All(bool),
-}
-
 /// Query the amount of nanowits staked by an address.
-pub async fn query_stakes(params: Result<Option<QueryStakesParams>, Error>) -> JsonRpcResult {
+pub async fn query_stakes(params: Result<Option<QueryStakes>, Error>) -> JsonRpcResult {
     // Short-circuit if parameters are wrong
     let params = params?;
-    // If a withdrawer address is not specified, default to local node address
-    let filter: QueryStakesFilter = if let Some(address) = params {
-        match address {
-            QueryStakesParams::All(_) => QueryStakesFilter::All,
-            QueryStakesParams::Validator(validator) => QueryStakesFilter::Validator(
-                PublicKeyHash::from_bech32(get_environment(), &validator)
-                    .map_err(internal_error)?,
-            ),
-            QueryStakesParams::Withdrawer(withdrawer) => QueryStakesFilter::Withdrawer(
-                PublicKeyHash::from_bech32(get_environment(), &withdrawer)
-                    .map_err(internal_error)?,
-            ),
-            QueryStakesParams::Key((validator, withdrawer)) => QueryStakesFilter::Key((
-                PublicKeyHash::from_bech32(get_environment(), &validator)
-                    .map_err(internal_error)?,
-                PublicKeyHash::from_bech32(get_environment(), &withdrawer)
-                    .map_err(internal_error)?,
-            )),
-        }
-    } else {
-        let pk = signature_mngr::public_key().await.map_err(internal_error)?;
-
-        QueryStakesFilter::Validator(PublicKeyHash::from_public_key(&pk))
-    };
+    // Parse params or defaults:
+    let msg = params.unwrap_or(QueryStakes::default());
     ChainManager::from_registry()
-        .send(QueryStakes { filter })
+        .send(msg)
         .map(|res| match res {
             Ok(Ok(stakes)) => serde_json::to_value(stakes).map_err(internal_error),
             Ok(Err(e)) => {
@@ -2290,21 +2262,13 @@ pub async fn query_stakes(params: Result<Option<QueryStakesParams>, Error>) -> J
         .await
 }
 
-/// Param for query_stakes
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, IntoStaticStr, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum QueryPowersParams {
-    /// To query all validators' power for a specific capability
-    Capability(Capability),
-    /// To query all powers
-    All(bool),
-}
-
 /// Format of the output of query_powers
 #[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
-pub struct QueryPowersRecord {
-    /// Current power
-    pub powers: Vec<u64>,
+pub struct QueryStakingPowersRecord {
+    /// Staking power
+    pub power: u64,
+    /// Ranking index (1 .. N)
+    pub ranking: usize,
     /// Validator's stringified pkh
     pub validator: String,
     /// Withdrawer's stringified pkh
@@ -2312,28 +2276,64 @@ pub struct QueryPowersRecord {
 }
 
 /// Query the amount of nanowits staked by an address.
-pub async fn query_powers(params: Result<QueryPowersParams, Error>) -> JsonRpcResult {
+pub async fn query_powers(params: Result<QueryStakingPowers, Error>) -> JsonRpcResult {
     // Short-circuit if parameters are wrong
-    let params = params?;
+    let msg = params?;
 
-    let capabilities = match params {
-        QueryPowersParams::All(_) => ALL_CAPABILITIES.to_vec(),
-        QueryPowersParams::Capability(c) => vec![c],
-    };
     ChainManager::from_registry()
-        .send(QueryStakePowers { capabilities })
+        .send(msg)
         .map(|res| match res {
             Ok(candidates) => {
-                let candidates: Vec<QueryPowersRecord> = candidates
+                let candidates: Vec<QueryStakingPowersRecord> = candidates
                     .iter()
-                    .map(|(key, powers)| QueryPowersRecord {
-                        powers: powers.clone(),
+                    .map(|(ranking, key, power)| QueryStakingPowersRecord {
+                        power: *power,
+                        ranking: *ranking,
                         validator: key.validator.to_string(),
                         withdrawer: key.withdrawer.to_string(),
                     })
                     .collect();
                 let candidates = serde_json::to_value(candidates);
                 candidates.map_err(internal_error)
+            }
+            Err(e) => {
+                let err = internal_error_s(e);
+                Err(err)
+            }
+        })
+        .await
+}
+
+/// Params for get_balance_2
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum GetBalance2Params {
+    /// get balances for specified address
+    Pkh(String),
+    /// get balances for all holders within specified limits
+    All(GetBalance2Limits),
+}
+
+/// Query the amount of nanowits staked by an address.
+pub async fn get_balance_2(params: Result<Option<GetBalance2Params>, Error>) -> JsonRpcResult {
+    // Short-circuit if parameters are wrong
+    let params = params?;
+    // If a withdrawer address is not specified, default to local node address
+    let msg: GetBalance2 = if let Some(params) = params {
+        match params {
+            GetBalance2Params::Pkh(pkh) => GetBalance2::Address(MagicEither::Left(pkh)),
+            GetBalance2Params::All(limits) => GetBalance2::All(limits),
+        }
+    } else {
+        GetBalance2::All(GetBalance2Limits::default())
+    };
+    ChainManager::from_registry()
+        .send(msg)
+        .map(|res| match res {
+            Ok(Ok(stakes)) => serde_json::to_value(stakes).map_err(internal_error),
+            Ok(Err(e)) => {
+                let err = internal_error_s(e);
+                Err(err)
             }
             Err(e) => {
                 let err = internal_error_s(e);
@@ -2657,6 +2657,7 @@ mod tests {
                 "createVRF",
                 "dataRequestReport",
                 "getBalance",
+                "getBalance2",
                 "getBlock",
                 "getBlockChain",
                 "getConsensusConstants",

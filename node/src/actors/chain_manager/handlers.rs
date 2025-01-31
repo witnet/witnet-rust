@@ -9,6 +9,7 @@ use std::{
 use actix::{prelude::*, ActorFutureExt, WrapFuture};
 use futures::future::Either;
 
+use itertools::Itertools;
 use witnet_data_structures::{
     chain::{
         tapi::ActiveWips, Block, ChainInfo, ChainState, CheckpointBeacon, ConsensusConstantsWit2,
@@ -19,13 +20,18 @@ use witnet_data_structures::{
     get_protocol_version,
     proto::versioning::ProtocolVersion,
     refresh_protocol_version,
-    staking::{errors::StakesError, prelude::StakeKey},
+    staking::{
+        errors::StakesError,
+        prelude::{Power, StakeKey},
+        stakes::QueryStakesKey,
+    },
     transaction::{
         DRTransaction, StakeTransaction, Transaction, UnstakeTransaction, VTTransaction,
     },
-    transaction_factory::{self, NodeBalance},
+    transaction_factory::{self, NodeBalance, NodeBalance2},
     types::LastBeacon,
     utxo_pool::{get_utxo_info, UtxoInfo},
+    wit::Wit,
 };
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{block_reward, total_block_reward, validate_rad_request};
@@ -34,15 +40,16 @@ use crate::{
     actors::{
         chain_manager::{handlers::BlockBatches::*, BlockCandidate},
         messages::{
-            AddBlocks, AddCandidates, AddCommitReveal, AddSuperBlock, AddSuperBlockVote,
-            AddTransaction, Broadcast, BuildDrt, BuildStake, BuildUnstake, BuildVtt,
-            EpochNotification, EstimatePriority, GetBalance, GetBalanceTarget, GetBlocksEpochRange,
-            GetDataRequestInfo, GetHighestCheckpointBeacon, GetMemoryTransaction, GetMempool,
-            GetMempoolResult, GetNodeStats, GetProtocolInfo, GetReputation, GetReputationResult,
-            GetSignalingInfo, GetState, GetSuperBlockVotes, GetSupplyInfo, GetSupplyInfo2,
-            GetUtxoInfo, IsConfirmedBlock, PeersBeacons, QueryStakePowers, QueryStakes,
-            ReputationStats, Rewind, SendLastBeacon, SessionUnitResult, SetLastBeacon,
-            SetPeersLimits, SignalingInfo, SnapshotExport, SnapshotImport, TryMineBlock,
+            try_do_magic_into_pkh, AddBlocks, AddCandidates, AddCommitReveal, AddSuperBlock,
+            AddSuperBlockVote, AddTransaction, Broadcast, BuildDrt, BuildStake, BuildUnstake,
+            BuildVtt, EpochNotification, EstimatePriority, GetBalance, GetBalance2,
+            GetBalanceTarget, GetBlocksEpochRange, GetDataRequestInfo, GetHighestCheckpointBeacon,
+            GetMemoryTransaction, GetMempool, GetMempoolResult, GetNodeStats, GetProtocolInfo,
+            GetReputation, GetReputationResult, GetSignalingInfo, GetState, GetSuperBlockVotes,
+            GetSupplyInfo, GetSupplyInfo2, GetUtxoInfo, IsConfirmedBlock, PeersBeacons,
+            QueryStakes, QueryStakesOrderByOptions, QueryStakingPowers, ReputationStats, Rewind,
+            SendLastBeacon, SessionUnitResult, SetLastBeacon, SetPeersLimits, SignalingInfo,
+            SnapshotExport, SnapshotImport, TryMineBlock,
         },
         sessions_manager::SessionsManager,
     },
@@ -1460,26 +1467,139 @@ impl Handler<QueryStakes> for ChainManager {
     type Result = <QueryStakes as Message>::Result;
 
     fn handle(&mut self, msg: QueryStakes, _ctx: &mut Self::Context) -> Self::Result {
-        // build address from public key hash
-        let stakes = self.chain_state.stakes.query_stakes(msg.filter);
+        let filter = msg.filter.unwrap_or_default();
+        let params = msg.params.unwrap_or_default();
+        let since = params.since.unwrap_or_default();
+        let order = params.order.unwrap_or_default();
+        let order_desc = order.reverse.unwrap_or_default();
+        let distinct = params.distinct.unwrap_or_default();
+        let offset = params.offset.unwrap_or_default();
+        let limit = params.limit.unwrap_or(u16::MAX) as usize;
 
-        stakes.map_err(StakesError::from).map_err(Into::into)
-    }
-}
+        // fetch filtered stake entries from current chain state:
+        let mut stakes = self
+            .chain_state
+            .stakes
+            .query_stakes(filter.clone())
+            .map_err(StakesError::from)?;
 
-impl Handler<QueryStakePowers> for ChainManager {
-    type Result = <QueryStakePowers as Message>::Result;
-
-    fn handle(&mut self, msg: QueryStakePowers, _ctx: &mut Self::Context) -> Self::Result {
-        let mut powers = HashMap::new();
-        let current_epoch = self.current_epoch.unwrap();
-        for capability in msg.capabilities {
-            for (key, power) in self.chain_state.stakes.by_rank(capability, current_epoch) {
-                powers.entry(key).or_insert(vec![]).push(power);
+        // filter out stake entries having a nonce, last mining or witnessing epochs (depending
+        // on actual ordering field) older than calculated `since_epoch`:
+        let since_epoch: u64 = if since >= 0 {
+            since.try_into().inspect_err(|&e| {
+                log::warn!("Invalid 'since' limit on QueryStakes: {}", e);
+            })?
+        } else {
+            (self.current_epoch.unwrap() as i64 + since)
+                .try_into()
+                .unwrap_or_default()
+        };
+        if since_epoch > 0 {
+            match order.by {
+                QueryStakesOrderByOptions::Coins | QueryStakesOrderByOptions::Nonce => {
+                    stakes.retain(|stake| stake.value.nonce >= since_epoch);
+                }
+                QueryStakesOrderByOptions::Mining => {
+                    stakes.retain(|stake| {
+                        stake.value.epochs.mining as u64 >= since_epoch
+                            && stake.value.epochs.mining as u64 >= stake.value.nonce
+                    });
+                }
+                QueryStakesOrderByOptions::Witnessing => {
+                    stakes.retain(|stake| {
+                        stake.value.epochs.witnessing as u64 >= since_epoch
+                            && stake.value.epochs.witnessing as u64 >= stake.value.nonce
+                    });
+                }
             }
         }
 
-        powers.into_iter().collect()
+        // sort stake entries by specified field, worst case costing n * log (n) ...
+        match order.by {
+            QueryStakesOrderByOptions::Coins => {
+                stakes.sort_by(|a, b| {
+                    if order_desc {
+                        b.value.coins.cmp(&a.value.coins)
+                    } else {
+                        a.value.coins.cmp(&b.value.coins)
+                    }
+                });
+            }
+            QueryStakesOrderByOptions::Nonce => {
+                stakes.sort_by(|a, b| {
+                    if order_desc {
+                        b.value.nonce.cmp(&a.value.nonce)
+                    } else {
+                        a.value.nonce.cmp(&b.value.nonce)
+                    }
+                });
+            }
+            QueryStakesOrderByOptions::Mining => {
+                stakes.sort_by(|a, b| {
+                    if order_desc {
+                        b.value.epochs.mining.cmp(&a.value.epochs.mining)
+                    } else {
+                        a.value.epochs.mining.cmp(&b.value.epochs.mining)
+                    }
+                });
+            }
+            QueryStakesOrderByOptions::Witnessing => {
+                stakes.sort_by(|a, b| {
+                    if order_desc {
+                        b.value.epochs.witnessing.cmp(&a.value.epochs.witnessing)
+                    } else {
+                        a.value.epochs.witnessing.cmp(&b.value.epochs.witnessing)
+                    }
+                });
+            }
+        }
+
+        // if `distinct` is required, retain first appearence per validator:
+        let stakes = if distinct {
+            stakes
+                .into_iter()
+                .unique_by(|stake| stake.key.validator)
+                .collect()
+        } else {
+            stakes
+        };
+
+        // applies `offset`, if any, and limits number of returned records to `limit``
+        Ok(stakes.into_iter().skip(offset).take(limit).collect())
+    }
+}
+
+impl Handler<QueryStakingPowers> for ChainManager {
+    type Result = <QueryStakingPowers as Message>::Result;
+
+    fn handle(&mut self, msg: QueryStakingPowers, _ctx: &mut Self::Context) -> Self::Result {
+        let current_epoch = self.current_epoch.unwrap();
+        let limit = msg.limit.unwrap_or(u16::MAX) as usize;
+        let offset = msg.offset.unwrap_or_default();
+
+        // Enumerate power entries order by specified capability,
+        // mapping into a record containing: the ranking, the stake key and current power
+        let powers = self
+            .chain_state
+            .stakes
+            .by_rank(msg.order_by, current_epoch)
+            .enumerate()
+            .map(|(index, record)| (index + 1, record.0, record.1));
+
+        // Skip first `offset` entries and take next `limit`.
+        // If distinct is specified, retain just first appearance per validator.
+        let powers: Vec<(usize, StakeKey<PublicKeyHash>, Power)> = if msg.distinct.unwrap_or(false)
+        {
+            powers
+                .unique_by(|(_, key, _)| key.validator)
+                .skip(offset)
+                .take(limit)
+                .collect()
+        } else {
+            powers.skip(offset).take(limit).collect()
+        };
+
+        powers
     }
 }
 
@@ -1595,6 +1715,83 @@ impl Handler<GetDataRequestInfo> for ChainManager {
 
             Box::pin(fut)
         }
+    }
+}
+
+impl Handler<GetBalance2> for ChainManager {
+    type Result = Result<NodeBalance2, failure::Error>;
+
+    fn handle(&mut self, msg: GetBalance2, _ctx: &mut Self::Context) -> Self::Result {
+        if self.sm_state != StateMachine::Synced {
+            return Err(ChainManagerError::NotSynced {
+                current_state: self.sm_state,
+            }
+            .into());
+        }
+        let now = get_timestamp();
+        let balance = match msg {
+            GetBalance2::All(limits) => {
+                let mut balances: HashMap<PublicKeyHash, NodeBalance2> = HashMap::new();
+                for (_output_pointer, (vto, _)) in self.chain_state.unspent_outputs_pool.iter() {
+                    balances
+                        .entry(vto.pkh)
+                        .or_insert(NodeBalance2::One {
+                            locked: 0,
+                            staked: 0,
+                            unlocked: 0,
+                        })
+                        .add_utxo_value(vto.value, vto.time_lock as i64 > now);
+                }
+                let stakes = self.chain_state.stakes.query_stakes(QueryStakesKey::All);
+                if let Ok(stakes) = stakes {
+                    stakes.iter().for_each(|entry| {
+                        balances
+                            .entry(entry.key.withdrawer)
+                            .or_insert(NodeBalance2::One {
+                                locked: 0,
+                                staked: 0,
+                                unlocked: 0,
+                            })
+                            .add_staked(entry.value.coins.into())
+                    });
+                }
+                balances.retain(|_pkh, balance| {
+                    balance.get_total().unwrap_or_default()
+                        >= Wit::from_nanowits(limits.min_balance)
+                        && balance.get_total().unwrap_or_default()
+                            <= Wit::from_nanowits(limits.max_balance.unwrap_or(u64::MAX))
+                });
+
+                NodeBalance2::Many(balances)
+            }
+            GetBalance2::Address(pkh) => {
+                let pkh = try_do_magic_into_pkh(pkh.clone()).map_err(|e| {
+                    log::warn!(
+                        "Failed to convert {:?} into a valid public key hash: {e}",
+                        pkh
+                    );
+                    e
+                })?;
+                let mut balance = transaction_factory::get_utxos_balance(
+                    &self.chain_state.unspent_outputs_pool,
+                    pkh,
+                    now,
+                );
+                let stakes = self
+                    .chain_state
+                    .stakes
+                    .query_stakes(QueryStakesKey::Withdrawer(pkh));
+                if let Ok(stakes) = stakes {
+                    balance.add_staked(stakes.iter().fold(0u64, |staked: u64, entry| {
+                        staked.saturating_add(entry.value.coins.nanowits())
+                    }));
+                }
+
+                balance
+            }
+        };
+
+        Ok(balance)
     }
 }
 

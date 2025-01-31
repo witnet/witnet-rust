@@ -26,6 +26,7 @@ use witnet_data_structures::{
         SuperBlock, SuperBlockVote, SupplyInfo, SupplyInfo2, ValueTransferOutput,
     },
     fee::{deserialize_fee_backwards_compatible, Fee},
+    get_environment,
     proto::versioning::ProtocolInfo,
     radon_report::RadonReport,
     staking::prelude::*,
@@ -33,7 +34,7 @@ use witnet_data_structures::{
         CommitTransaction, DRTransaction, RevealTransaction, StakeTransaction, Transaction,
         UnstakeTransaction, VTTransaction,
     },
-    transaction_factory::NodeBalance,
+    transaction_factory::{NodeBalance, NodeBalance2},
     types::LastBeacon,
     utxo_pool::{UtxoInfo, UtxoSelectionStrategy},
     wit::{Wit, WIT_DECIMAL_PLACES},
@@ -345,40 +346,112 @@ impl Message for StakeAuthorization {
 }
 
 /// Message for querying stakes
-#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-pub struct QueryStakePowers {
-    /// capabilities being searched for
-    pub capabilities: Vec<Capability>,
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QueryStakingPowers {
+    /// Retrieve only first appearence for every distinct validator (default: false)
+    pub distinct: Option<bool>,
+    /// Limits max number of entries to return (default: 0 == u16::MAX)
+    pub limit: Option<u16>,
+    /// Skips first found entries (default: 0)
+    pub offset: Option<usize>,
+    /// Order by specified capability (default: reverse order by coins)
+    pub order_by: Capability,
 }
 
-impl Message for QueryStakePowers {
-    type Result = Vec<(StakeKey<PublicKeyHash>, Vec<Power>)>;
+impl Default for QueryStakingPowers {
+    fn default() -> Self {
+        QueryStakingPowers {
+            distinct: Some(false),
+            limit: Some(u16::MAX),
+            offset: Some(0),
+            order_by: Capability::Mining,
+        }
+    }
+}
+
+impl Message for QueryStakingPowers {
+    type Result = Vec<(usize, StakeKey<PublicKeyHash>, Power)>;
 }
 
 /// Stake key for quering stakes
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub enum QueryStakesFilter {
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, Default)]
+pub struct QueryStakesFilter {
     /// To search by the validator public key hash
-    Validator(PublicKeyHash),
+    pub validator: Option<MagicEither<String, PublicKeyHash>>,
     /// To search by the withdrawer public key hash
-    Withdrawer(PublicKeyHash),
-    /// To search by validator and withdrawer public key hashes
-    Key((PublicKeyHash, PublicKeyHash)),
-    /// To query all stake entries
-    All,
+    pub withdrawer: Option<MagicEither<String, PublicKeyHash>>,
 }
 
-impl Default for QueryStakesFilter {
+/// Limits when querying stake entries
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QueryStakesParams {
+    /// Retrieve only first appearence for every distinct validator (default: false)
+    pub distinct: Option<bool>,
+    /// Limits max number of entries to return (default: 0 == u16::MAX)
+    pub limit: Option<u16>,
+    /// Skips first found entries (default: 0)
+    pub offset: Option<usize>,
+    /// Order by specified stake entry field (default: reverse order by coins)
+    pub order: Option<QueryStakesOrderBy>,
+    /// Select entries having either the nonce, last mining or last witnessing epoch,
+    /// greater than specified absolute epoch, or relative epoch if negative (default: 0)
+    pub since: Option<i64>,
+}
+
+impl Default for QueryStakesParams {
     fn default() -> Self {
-        QueryStakesFilter::Validator(PublicKeyHash::default())
+        QueryStakesParams {
+            distinct: Some(false),
+            limit: Some(u16::MAX),
+            offset: Some(0),
+            order: Some(QueryStakesOrderBy::default()),
+            since: Some(0),
+        }
     }
+}
+
+/// Order by parameter for QueryStakes
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub struct QueryStakesOrderBy {
+    /// Data field to order by
+    pub by: QueryStakesOrderByOptions,
+    /// Reverse order (default: false)
+    pub reverse: Option<bool>,
+}
+
+impl Default for QueryStakesOrderBy {
+    fn default() -> Self {
+        QueryStakesOrderBy {
+            by: QueryStakesOrderByOptions::Coins,
+            reverse: Some(true),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+/// Ordering options for QueryStakes
+pub enum QueryStakesOrderByOptions {
+    /// Order by stake entry coins
+    Coins = 0,
+    /// Order by stake entry nonce
+    Nonce = 1,
+    /// Order by last validation epoch
+    Mining = 2,
+    /// Order by last witnessing epoch
+    Witnessing = 3,
 }
 
 /// Message for querying stakes
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct QueryStakes {
-    /// stake key used to search the stake
-    pub filter: QueryStakesFilter,
+    /// query's where clause
+    pub filter: Option<QueryStakesFilter>,
+    /// query's limit params
+    pub params: Option<QueryStakesParams>,
 }
 
 impl Message for QueryStakes {
@@ -388,20 +461,26 @@ impl Message for QueryStakes {
     >;
 }
 
-impl<Address> From<QueryStakesFilter> for QueryStakesKey<Address>
+impl<Address> TryFrom<QueryStakesFilter> for QueryStakesKey<Address>
 where
     Address: Default + Ord + From<PublicKeyHash>,
 {
-    fn from(query: QueryStakesFilter) -> Self {
-        match query {
-            QueryStakesFilter::Key(key) => QueryStakesKey::Key(StakeKey {
-                validator: key.0.into(),
-                withdrawer: key.1.into(),
+    type Error = PublicKeyHashParseError;
+
+    fn try_from(filter: QueryStakesFilter) -> Result<Self, Self::Error> {
+        Ok(match (filter.validator, filter.withdrawer) {
+            (Some(validator), Some(withdrawer)) => QueryStakesKey::Key(StakeKey {
+                validator: try_do_magic_into_pkh(validator)?.into(),
+                withdrawer: try_do_magic_into_pkh(withdrawer)?.into(),
             }),
-            QueryStakesFilter::Validator(v) => QueryStakesKey::Validator(v.into()),
-            QueryStakesFilter::Withdrawer(w) => QueryStakesKey::Withdrawer(w.into()),
-            QueryStakesFilter::All => QueryStakesKey::All,
-        }
+            (Some(validator), None) => {
+                QueryStakesKey::Validator(try_do_magic_into_pkh(validator)?.into())
+            }
+            (None, Some(withdrawer)) => {
+                QueryStakesKey::Withdrawer(try_do_magic_into_pkh(withdrawer)?.into())
+            }
+            (None, None) => QueryStakesKey::All,
+        })
     }
 }
 
@@ -439,6 +518,31 @@ pub struct GetDataRequestInfo {
 
 impl Message for GetDataRequestInfo {
     type Result = Result<DataRequestInfo, failure::Error>;
+}
+
+/// Get Wit/2 balance
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub enum GetBalance2 {
+    /// Get balance info for all addresses in the network.
+    All(GetBalance2Limits),
+    /// Get balance info for a specific address.
+    Address(MagicEither<String, PublicKeyHash>),
+}
+
+/// Limits when querying balances for all holders
+#[derive(Clone, Debug, Default, Eq, Hash, PartialEq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetBalance2Limits {
+    // /// Just count records
+    // pub count: Option<bool>,
+    /// Search for identities holding at least this amount of nanowits
+    pub min_balance: u64,
+    /// Search for identities holding at most this amout of nanowits
+    pub max_balance: Option<u64>,
+}
+
+impl Message for GetBalance2 {
+    type Result = Result<NodeBalance2, failure::Error>;
 }
 
 /// Tells the `getBalance` method whether to get the balance of all addresses, one provided address,
@@ -1496,7 +1600,7 @@ impl Message for crate::actors::messages::GetProtocolInfo {
     type Result = Result<Option<ProtocolInfo>, failure::Error>;
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 /// A value that can either be L, R, where an R can always be obtained through the `do_magic` method.
 pub enum MagicEither<L, R> {
@@ -1534,4 +1638,13 @@ impl<L: Default, R: Default> Default for MagicEither<L, R> {
     fn default() -> Self {
         MagicEither::Left(L::default())
     }
+}
+
+/// Checks whether passed value is a String or a PublicKeyHash, and in case of being
+/// a String, tries to parse it and convert it into a PublicKeyHash value.
+pub fn try_do_magic_into_pkh(
+    address: MagicEither<String, PublicKeyHash>,
+) -> Result<PublicKeyHash, PublicKeyHashParseError> {
+    let trick = |hex_str: String| PublicKeyHash::from_bech32(get_environment(), &hex_str);
+    address.try_do_magic(trick)
 }

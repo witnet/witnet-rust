@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use strum_macros::{EnumString, IntoStaticStr};
+use strum_macros::{EnumIter, EnumString, IntoStaticStr};
 
 #[repr(u8)]
 #[derive(
@@ -7,8 +7,10 @@ use strum_macros::{EnumString, IntoStaticStr};
     Copy,
     Debug,
     Default,
+    EnumIter,
     EnumString,
     Eq,
+    Hash,
     IntoStaticStr,
     PartialEq,
     serde::Deserialize,
