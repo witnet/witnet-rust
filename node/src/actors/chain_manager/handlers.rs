@@ -1584,7 +1584,7 @@ impl Handler<QueryStakingPowers> for ChainManager {
             .stakes
             .by_rank(msg.order_by, current_epoch)
             .enumerate()
-            .map(|(index, record)| (index, record.0, record.1));
+            .map(|(index, record)| (index + 1, record.0, record.1));
 
         // Skip first `offset` entries and take next `limit`.
         // If distinct is specified, retain just first appearance per validator.
