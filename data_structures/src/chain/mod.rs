@@ -3190,7 +3190,7 @@ impl TransactionsPool {
     }
 
     /// Remove stake transactions that would result in overstaking on a validator
-    pub fn remove_overstake_transactions(&mut self, transactions: Vec<Hash>) {
+    pub fn remove_invalid_stake_transactions(&mut self, transactions: Vec<Hash>) {
         for st_tx_hash in transactions.iter() {
             if let Some(st_tx) = self
                 .st_transactions

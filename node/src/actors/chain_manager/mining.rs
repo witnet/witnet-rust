@@ -33,7 +33,6 @@ use witnet_data_structures::{
     radon_error::RadonError,
     radon_report::{RadonReport, ReportContext, TypeLike},
     staking::{
-        helpers::StakeKey,
         stake::totalize_stakes,
         stakes::{QueryStakesKey, StakesTracker},
     },
@@ -63,7 +62,8 @@ use witnet_validations::{
     validations::{
         block_reward, calculate_liars_and_errors_count_from_tally, dr_transaction_fee,
         merkle_tree_root, run_tally, st_transaction_fee, tally_bytes_on_encode_error,
-        update_utxo_diff, vt_transaction_fee,
+        update_utxo_diff, validate_stake_transaction, validate_unstake_transaction,
+        vt_transaction_fee,
     },
 };
 
@@ -1180,7 +1180,7 @@ pub fn build_block(
 
     if protocol_version > V1_7 {
         let max_st_weight = consensus_constants_wit2.get_maximum_stake_block_weight(epoch);
-        let mut overstake_transactions = Vec::<Hash>::new();
+        let mut invalid_stake_transactions = Vec::<Hash>::new();
         let mut included_validators = HashSet::<PublicKeyHash>::new();
         for st_tx in transactions_pool.st_iter() {
             let validator_pkh = st_tx.body.output.authorization.public_key.pkh();
@@ -1192,37 +1192,28 @@ pub fn build_block(
                 continue;
             }
 
-            // If a set of staking transactions is sent simultaneously to the transactions pool using a staking amount smaller
-            // than 'max_stake' they can all be accepted since they do not introduce overstaking yet. However, accepting all of
-            // them in subsequent blocks could violate the 'max_stake' rule. Thus we still need to check that we do not include
-            // all these staking transactions in a block so we do not produce an invalid block.
-            let stakes_key = QueryStakesKey::Key(StakeKey {
-                validator: st_tx.body.output.key.validator,
-                withdrawer: st_tx.body.output.key.withdrawer,
-            });
+            // Revalidate stake transaction since concurrent stake transactions could have invalidated the transaction
+            // we want to include here which would result in producing an invalid block.
+            let min_stake = consensus_constants_wit2.get_validator_min_stake_nanowits(epoch);
             let max_stake = consensus_constants_wit2.get_validator_max_stake_nanowits(epoch);
-            match stakes.query_stakes(stakes_key) {
-                Ok(stake_entry) => {
-                    // TODO: modify this to enable delegated staking with multiple withdrawer addresses on a single validator
-                    let staked_amount: u64 = stake_entry
-                        .first()
-                        .map(|stake| stake.value.coins)
-                        .unwrap()
-                        .into();
-                    if st_tx.body.output.value + staked_amount > max_stake {
-                        overstake_transactions.push(st_tx.hash());
-                        continue;
-                    }
-                }
-                Err(_) => {
-                    // This should never happen since a staking transaction to a non-existing (validator, withdrawer) pair
-                    // with a value higher than 'max_stake' should not have been accepted in the transactions pool.
-                    if st_tx.body.output.value > max_stake {
-                        overstake_transactions.push(st_tx.hash());
-                        continue;
-                    }
-                }
-            };
+            if let Err(e) = validate_stake_transaction(
+                st_tx,
+                &utxo_diff,
+                epoch,
+                epoch_constants,
+                &mut vec![],
+                stakes,
+                min_stake,
+                max_stake,
+            ) {
+                log::warn!(
+                    "Cannot build block with stake transaction {}: {}",
+                    st_tx.hash(),
+                    e
+                );
+                invalid_stake_transactions.push(st_tx.hash());
+                continue;
+            }
 
             let transaction_weight = st_tx.weight();
             let transaction_fee =
@@ -1262,7 +1253,7 @@ pub fn build_block(
             included_validators.insert(validator_pkh);
         }
 
-        transactions_pool.remove_overstake_transactions(overstake_transactions);
+        transactions_pool.remove_invalid_stake_transactions(invalid_stake_transactions);
     } else {
         transactions_pool.clear_stake_transactions();
     }
@@ -1281,71 +1272,21 @@ pub fn build_block(
                 continue;
             }
 
-            // If a set of unstaking transactions is sent simultaneously to the transactions pool using an amount which leaves
-            // more than 'min_stake' staked they can all be accepted since they do not introduce understaking yet. However,
-            // accepting all of them in subsequent blocks could violate the 'min_stake' rule. Thus we still need to check that
-            // we do not include all these unstaking transactions in a block so we do not produce an invalid block.
-            let stakes_key = QueryStakesKey::Key(StakeKey {
-                validator: ut_tx.body.operator,
-                withdrawer: ut_tx.body.withdrawal.pkh,
-            });
+            // Revalidate unstake transaction since concurrent unstake transactions could have invalidated the transaction
+            // we want to include here which would result in producing an invalid block.
             let min_stake = consensus_constants_wit2.get_validator_min_stake_nanowits(epoch);
-            match stakes.query_stakes(stakes_key) {
-                Ok(stake_entry) => {
-                    // TODO: modify this to enable delegated staking with multiple withdrawer addresses on a single validator
-                    let staked_amount: u64 = stake_entry
-                        .first()
-                        .map(|stake| stake.value.coins)
-                        .unwrap()
-                        .into();
-                    if staked_amount - ut_tx.body.withdrawal.value - ut_tx.body.fee < min_stake {
-                        log::info!(
-                            "Unstaking with {} would result in understaking",
-                            ut_tx.hash()
-                        );
-                        invalid_unstake_transactions.push(ut_tx.hash());
-                        continue;
-                    }
-                }
-                Err(_) => {
-                    // Not finding a stake entry is possible if there are two concurrent unstake transactions where at least
-                    // one of them unstakes all balance before the second one is included in a block. In that case, remove
-                    // the latter one from our transaction pool.
-                    log::info!("Cannot process unstake transaction {} since the full balance was already unstaked",
-                        ut_tx.hash(),
-                    );
-                    invalid_unstake_transactions.push(ut_tx.hash());
-                    continue;
-                }
-            };
-
-            // Double check the nonce before building a block. A nonce that was valid when the transaction was received
-            // and inserted into the transaction pool once validated, may not be anymore when we build the actual block
-            // due to concurrent transactions.
-            let key = StakeKey {
-                validator: ut_tx.body.operator,
-                withdrawer: ut_tx.body.withdrawal.pkh,
-            };
-            match stakes.query_nonce(key) {
-                Ok(nonce) => {
-                    if ut_tx.body.nonce != nonce {
-                        log::info!("Cannot process unstake transaction {} since the nonce does not match: {} != {}",
-                            ut_tx.hash(),
-                            ut_tx.body.nonce,
-                            nonce,
-                        );
-                        invalid_unstake_transactions.push(ut_tx.hash());
-                        continue;
-                    }
-                }
-                Err(_) => {
-                    log::info!("Cannot process unstake transaction {} since the associated stake entry does not exist anymore",
-                        ut_tx.hash()
-                    );
-                    invalid_unstake_transactions.push(ut_tx.hash());
-                    continue;
-                }
-            };
+            let unstake_delay = consensus_constants_wit2.get_unstaking_delay_seconds(epoch);
+            if let Err(e) =
+                validate_unstake_transaction(ut_tx, epoch, stakes, min_stake, unstake_delay)
+            {
+                log::warn!(
+                    "Cannot build block with unstake transaction {}: {}",
+                    ut_tx.hash(),
+                    e
+                );
+                invalid_unstake_transactions.push(ut_tx.hash());
+                continue;
+            }
 
             let transaction_weight = ut_tx.weight();
             let new_ut_weight = ut_weight.saturating_add(transaction_weight);

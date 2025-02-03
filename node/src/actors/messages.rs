@@ -625,6 +625,10 @@ pub struct GetMempoolResult {
     pub value_transfer: Vec<Hash>,
     /// Pending data request transactions
     pub data_request: Vec<Hash>,
+    /// Pending stake transactions
+    pub stake: Vec<Hash>,
+    /// Pending unstake transactions
+    pub unstake: Vec<Hash>,
 }
 
 /// Try to mine a block: signal the ChainManager to check if it can produce a new block

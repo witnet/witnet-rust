@@ -471,11 +471,19 @@ impl SuperBlockState {
         // Override superblock signing committee during the bootstrapping of wit/2
         self.signing_committee = match get_environment() {
             Environment::Mainnet => {
-                // wit/2 activates at 2_922_240 + 14 x 1_920 (TAPI delay) + 7 x 1_920 (instant activation delay) = 2_962_560
-                // disabling the activation committee at 299_712 implies we add an extra 8 weeks worth of time (8 x 4320)
-                // to inplement a decentralized superblock committee selection mechanism. Note that any delay in activating
-                // wit/2 will essentially be subtracted from the extra 8 weeks,
-                if (292_224..299_712).contains(&superblock_index) {
+                // wit/2 activation timeline and superblock bootstrap committee:
+                //      TAPI initialization is scheduled at epoch 3_024_000
+                //      14 x 1_920 epochs for V1_8 activation assuming TAPI passes after two weeks
+                //      300M needs to be staked before V2_0 can be scheduled (unknown delay, assume it is instant)
+                //      7 x 1_920 epochs activation delay for V2_0
+                //      21 epochs for superblock confirmation of all above actions
+                //      3_024_000 + 14 x 1_920 + 7 x 1_920 + 21 = 3_064_341
+                //
+                //      wit/2.0 is now activated with a fixed superblock bootstrap committee
+                //
+                //      8 x 7 x 4320 epochs to implement a decentralized superblock committee selection mechanism
+                //      any delay in activating wit/2.0 will essentially be subtracted from these 8 weeks
+                if (302_400..330_626).contains(&superblock_index) {
                     WIT2_BOOTSTRAP_COMMITTEE
                         .iter()
                         .map(|address| address.parse().expect("Malformed signing committee"))
