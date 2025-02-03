@@ -27,8 +27,8 @@ use witnet_data_structures::{
         tapi::ActiveWips, Block, DataRequestOutput, Epoch, Hash, Hashable, KeyedSignature,
         PublicKeyHash, RADType, StakeOutput, StateMachine, SyncStatus,
     },
-    get_environment,
-    proto::versioning::ProtocolVersion,
+    get_environment, get_protocol_version,
+    proto::versioning::{ProtocolVersion, VersionedHashable},
     staking::prelude::*,
     transaction::Transaction,
     vrf::VrfMessage,
@@ -742,7 +742,7 @@ pub async fn get_block(params: Params) -> Result<Value, Error> {
     match res {
         Ok(Ok(mut output)) => {
             let block_epoch = output.block_header.beacon.checkpoint;
-            let block_hash = output.hash();
+            let block_hash = output.versioned_hash(get_protocol_version(Some(block_epoch)));
 
             let dr_weight = match serde_json::to_value(output.dr_weight()) {
                 Ok(x) => x,
