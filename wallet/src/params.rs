@@ -7,6 +7,7 @@ use std::{
 use witnet_crypto::hash::HashFunction;
 use witnet_data_structures::{
     chain::{CheckpointBeacon, ConsensusConstants, EpochConstants, Hash},
+    proto::versioning::ProtocolInfo,
     witnessing::WitnessingConfig,
 };
 use witnet_net::client::tcp::jsonrpc::Subscribe;
@@ -35,6 +36,7 @@ pub struct Params {
     pub use_unconfirmed_utxos: bool,
     pub pending_transactions_timeout_seconds: u64,
     pub witnessing: WitnessingConfig<witnet_net::Uri>,
+    pub protocol_info: ProtocolInfo,
 }
 
 #[allow(dead_code)]
@@ -50,6 +52,8 @@ pub struct NodeParams {
     pub requests_timeout: Duration,
     /// Subscriptions to real time notifications from the node.
     pub subscriptions: Arc<Mutex<HashMap<String, Subscribe>>>,
+    /// Protocol information that is currently being enforced.
+    pub protocol_info: ProtocolInfo,
 }
 
 impl NodeParams {

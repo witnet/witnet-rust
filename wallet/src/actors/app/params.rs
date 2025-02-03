@@ -1,6 +1,6 @@
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 
-use witnet_data_structures::chain::ConsensusConstants;
+use witnet_data_structures::{chain::ConsensusConstants, proto::versioning::ProtocolInfo};
 use witnet_net::client::tcp::jsonrpc::{GetCurrentNodeUrl, JsonRpcClient, Request};
 
 use crate::actors;
@@ -15,6 +15,7 @@ pub struct Params {
     pub session_expires_in: Duration,
     pub requests_timeout: Duration,
     pub consensus_constants: ConsensusConstants,
+    pub protocol_info: ProtocolInfo,
 }
 
 pub struct NodeClient {
