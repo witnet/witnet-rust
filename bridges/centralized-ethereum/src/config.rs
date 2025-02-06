@@ -126,9 +126,16 @@ pub fn from_file<S: AsRef<Path>>(file: S) -> Result<Config, Box<dyn std::error::
 /// Load configuration from environment variables
 pub fn from_env() -> Result<Config, envy::Error> {
     USING_ENVY.with(|x| x.set(true));
-    let res = envy::prefixed("WITNET_CENTRALIZED_ETHEREUM_BRIDGE_").from_env();
+    let res: Result<Config, envy::Error> =
+        envy::prefixed("WITNET_CENTRALIZED_ETHEREUM_BRIDGE_").from_env();
     USING_ENVY.with(|x| x.set(false));
-
+    if let Ok(ref config) = res {
+        witnet_data_structures::set_environment(if config.witnet_testnet {
+            Environment::Testnet
+        } else {
+            Environment::Mainnet
+        });
+    }
     res
 }
 
