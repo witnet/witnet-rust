@@ -1570,7 +1570,7 @@ impl Handler<QueryStakes> for ChainManager {
                 log::warn!("Invalid 'since' limit on QueryStakes: {}", e);
             })?
         } else {
-            (self.current_epoch.unwrap() as i64 + since)
+            (i64::from(self.current_epoch.unwrap()) + since)
                 .try_into()
                 .unwrap_or_default()
         };
@@ -1581,14 +1581,14 @@ impl Handler<QueryStakes> for ChainManager {
                 }
                 QueryStakesOrderByOptions::Mining => {
                     stakes.retain(|stake| {
-                        stake.value.epochs.mining as u64 >= since_epoch
-                            && stake.value.epochs.mining as u64 >= stake.value.nonce
+                        u64::from(stake.value.epochs.mining) >= since_epoch
+                            && u64::from(stake.value.epochs.mining) >= stake.value.nonce
                     });
                 }
                 QueryStakesOrderByOptions::Witnessing => {
                     stakes.retain(|stake| {
-                        stake.value.epochs.witnessing as u64 >= since_epoch
-                            && stake.value.epochs.witnessing as u64 >= stake.value.nonce
+                        u64::from(stake.value.epochs.witnessing) >= since_epoch
+                            && u64::from(stake.value.epochs.witnessing) >= stake.value.nonce
                     });
                 }
             }
