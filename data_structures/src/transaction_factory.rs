@@ -480,7 +480,7 @@ pub fn calculate_weight(
 pub fn get_utxos_balance(
     all_utxos: &UnspentOutputsPool,
     pkh: PublicKeyHash,
-    now: i64,
+    now: u64,
 ) -> NodeBalance2 {
     let mut locked = 0u64;
     let mut unlocked = 0u64;
@@ -489,7 +489,7 @@ pub fn get_utxos_balance(
         |_| {},
         |x| {
             let vto = &x.1 .0;
-            if vto.time_lock as i64 <= now {
+            if vto.time_lock <= now {
                 unlocked += vto.value;
             } else {
                 locked += vto.value;

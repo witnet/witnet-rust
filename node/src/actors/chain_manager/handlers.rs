@@ -1798,6 +1798,7 @@ impl Handler<GetDataRequestInfo> for ChainManager {
     }
 }
 
+#[allow(clippy::cast_sign_loss)]
 impl Handler<GetBalance2> for ChainManager {
     type Result = Result<NodeBalance2, failure::Error>;
 
@@ -1808,7 +1809,7 @@ impl Handler<GetBalance2> for ChainManager {
             }
             .into());
         }
-        let now = get_timestamp();
+        let now = get_timestamp() as u64;
         let balance = match msg {
             GetBalance2::All(limits) => {
                 let mut balances: HashMap<PublicKeyHash, NodeBalance2> = HashMap::new();
@@ -1820,7 +1821,7 @@ impl Handler<GetBalance2> for ChainManager {
                             staked: 0,
                             unlocked: 0,
                         })
-                        .add_utxo_value(vto.value, vto.time_lock as i64 > now);
+                        .add_utxo_value(vto.value, vto.time_lock > now);
                 }
                 let stakes = self.chain_state.stakes.query_stakes(QueryStakesKey::All);
                 if let Ok(stakes) = stakes {
