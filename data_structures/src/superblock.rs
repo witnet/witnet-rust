@@ -21,8 +21,21 @@ use crate::{
     Environment,
 };
 
-/// TODO: Committee for superblock indices during the bootstrapping of wit/2
-const WIT2_BOOTSTRAP_COMMITTEE: [&str; 0] = [];
+/// TODO: Add nodes to the committee for superblock voting during the bootstrapping of wit/2
+const WIT2_BOOTSTRAP_COMMITTEE: [&str; 12] = [
+    "wit1pfj66p7n2x7dgrwh4cf0ylhd959e8v9evfh09z",
+    "wit18ac3gly2xln0mtpp2k5rvs05rph2skef6ywnwd",
+    "wit1gdn3d07njg0klyvldl8tq07h8ltm93uytgjj6x",
+    "wit1llz4vw9mszjqud5pqavf84208entwz73lxekzm",
+    "wit1nez044farf7qgqsulcm7jhzsfxtn39uknjq0xs",
+    "wit1mczm944722tjvh2md4r6rnls08m0ctgapgew9d",
+    "wit137kuzsnljkf6tpzv6dggkldjf5qte3qeh54vv0",
+    "wit1huz7l0dkq9h6chh0d0geum9fnxjcq7pk2kfh7y",
+    "wit1xz7vzhtvmuul922f24tayzf0dz64ellw4yczx6",
+    "wit1nawuk8f2hckz6ct9wlzg95fhg3kyjzlrrd99qz",
+    "wit1trkx2ptcxe57yyuql6hxy25r7twg7yc2x4pkfw",
+    "wit1sp8xnclrhm4j5lrzxwnxerdetzsjqw88kwr05f",
+];
 
 /// Committee for superblock indices during the bootstrapping of wit/2
 const WIT2_BOOTSTRAP_COMMITTEE_TEST: [&str; 4] = [
@@ -471,11 +484,18 @@ impl SuperBlockState {
         // Override superblock signing committee during the bootstrapping of wit/2
         self.signing_committee = match get_environment() {
             Environment::Mainnet => {
-                // wit/2 activates at 2_922_240 + 14 x 1_920 (TAPI delay) + 7 x 1_920 (instant activation delay) = 2_962_560
-                // disabling the activation committee at 299_712 implies we add an extra 8 weeks worth of time (8 x 4320)
-                // to inplement a decentralized superblock committee selection mechanism. Note that any delay in activating
-                // wit/2 will essentially be subtracted from the extra 8 weeks,
-                if (292_224..299_712).contains(&superblock_index) {
+                // wit/2 activation timeline and superblock bootstrap committee:
+                //      Release is scheduled at 11th of February, V1_8 activation enters into force at epoch 3_048_960
+                //      A stake threshold of 300M needs to be reached before V2_0 will be scheduled (assume this takes a week)
+                //      Add 7 x 1_920 epochs to take into account the activation delay for V2_0
+                //      3_048_960 + 7 x 1_920 + 7 x 1_920 = 3_075_840
+                //
+                //      wit/2.0 should now activated with a fixed superblock bootstrap committee
+                //
+                //      Add 8 x 7 x 4320 epochs to implement a decentralized superblock committee selection mechanism
+                //      Any delay in activating wit/2.0 will essentially be subtracted from these 8 weeks
+                //      3_075_840 + 8 x 7 x 4320 = 3_317_760
+                if (304_896..331_776).contains(&superblock_index) {
                     WIT2_BOOTSTRAP_COMMITTEE
                         .iter()
                         .map(|address| address.parse().expect("Malformed signing committee"))

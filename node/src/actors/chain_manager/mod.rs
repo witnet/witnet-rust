@@ -1130,14 +1130,11 @@ impl ChainManager {
                 self.chain_state.block_chain.insert(block_epoch, block_hash);
 
                 // Update votes counter for WIPs
-                let checkpoints_period = chain_info.consensus_constants.checkpoints_period;
                 self.chain_state.tapi_engine.update_bit_counter(
                     block_signals,
                     block_epoch,
                     block_epoch,
                     &HashSet::default(),
-                    checkpoints_period,
-                    chain_info,
                 );
 
                 match self.sm_state {
@@ -2621,21 +2618,14 @@ impl ChainManager {
         }
         .into_actor(self)
         .and_then(move |block_headers, act, _ctx| {
-            if let Some(chain_info) = act.chain_state.chain_info.as_mut() {
-                let checkpoints_period = chain_info.consensus_constants.checkpoints_period;
-                for block_header in block_headers {
-                    act.chain_state.tapi_engine.update_bit_counter(
-                        block_header.signals,
-                        block_header.beacon.checkpoint,
-                        block_header.beacon.checkpoint,
-                        &old_wips,
-                        checkpoints_period,
-                        chain_info,
-                    );
-                }
-            } else {
-                log::error!("Could not get chain info");
-            };
+            for block_header in block_headers {
+                act.chain_state.tapi_engine.update_bit_counter(
+                    block_header.signals,
+                    block_header.beacon.checkpoint,
+                    block_header.beacon.checkpoint,
+                    &old_wips,
+                );
+            }
 
             actix::fut::ok(())
         });

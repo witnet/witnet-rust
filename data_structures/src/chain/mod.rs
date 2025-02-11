@@ -305,7 +305,7 @@ impl ConsensusConstantsWit2 {
                 80 + 21 // One hour + one superepoch for final confirmation
             }
             _ => {
-                13_440 + 21 // 1 week + one superepoch for final confirmation
+                13_440 // 1 week
             }
         }
     }

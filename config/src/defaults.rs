@@ -482,7 +482,12 @@ pub trait Defaults {
     }
 
     fn protocol_versions(&self) -> HashMap<ProtocolVersion, (Epoch, u16)> {
-        [(ProtocolVersion::V1_7, (0, 45))].into_iter().collect()
+        [
+            (ProtocolVersion::V1_7, (0, 45)),
+            (ProtocolVersion::V1_8, (3_048_960, 45)),
+        ]
+        .into_iter()
+        .collect()
     }
 }
 
