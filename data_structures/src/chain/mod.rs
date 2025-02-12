@@ -43,7 +43,7 @@ use crate::{
     },
     get_environment, get_protocol_version, get_protocol_version_activation_epoch,
     proto::{
-        versioning::{ProtocolInfo, ProtocolVersion, Versioned, VersionedHashable},
+        versioning::{ProtocolVersion, Versioned, VersionedHashable},
         ProtobufConvert,
     },
     staking::prelude::*,
@@ -76,9 +76,6 @@ pub trait Hashable {
 /// Data structure holding critical information about the chain state and protocol constants
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Default)]
 pub struct ChainInfo {
-    /// Keeps track of protocol versions and their related data (e.g. activation epoch)
-    pub protocol: ProtocolInfo,
-
     /// Blockchain valid environment
     pub environment: Environment,
 

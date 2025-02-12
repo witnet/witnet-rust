@@ -1032,13 +1032,6 @@ impl ChainManager {
                             scheduled_epoch,
                             checkpoint_period,
                         );
-                        // Register the 2_0 protocol into chain state (namely, chain info) so that
-                        // the scheduled activation data eventually gets persisted into storage.
-                        chain_info.protocol.register(
-                            scheduled_epoch,
-                            ProtocolVersion::V2_0,
-                            checkpoint_period,
-                        );
 
                         if let Some(epoch_constants) = &mut self.epoch_constants {
                             match epoch_constants.set_values_for_wit2(
@@ -3856,7 +3849,7 @@ mod tests {
             KeyedSignature, OutputPointer, PartialConsensusConstants, PublicKey, SecretKey,
             Signature, StakeOutput, ValueTransferOutput,
         },
-        proto::versioning::{ProtocolInfo, VersionedHashable},
+        proto::versioning::VersionedHashable,
         transaction::{
             CommitTransaction, DRTransaction, MintTransaction, RevealTransaction, StakeTransaction,
             StakeTransactionBody, UnstakeTransaction, UnstakeTransactionBody, VTTransaction,
@@ -4016,7 +4009,6 @@ mod tests {
                     hash_prev_block: Hash::SHA256([1; 32]),
                 },
                 highest_vrf_output: CheckpointVRF::default(),
-                protocol: ProtocolInfo::default(),
             });
 
             assert_eq!(
@@ -4438,7 +4430,6 @@ mod tests {
                     hash_prev_block: Hash::SHA256([1; 32]),
                 },
                 highest_vrf_output: CheckpointVRF::default(),
-                protocol: ProtocolInfo::default(),
             });
             chain_manager.chain_state.reputation_engine = Some(ReputationEngine::new(1000));
             chain_manager.vrf_ctx = Some(VrfCtx::secp256k1().unwrap());
@@ -4573,7 +4564,6 @@ mod tests {
                     hash_prev_block: Hash::SHA256([1; 32]),
                 },
                 highest_vrf_output: CheckpointVRF::default(),
-                protocol: ProtocolInfo::default(),
             });
             let out_ptr = OutputPointer {
                 transaction_id: "0000000000000000000000000000000000000000000000000000000000000001"
@@ -4685,7 +4675,6 @@ mod tests {
                 hash_prev_block: Hash::SHA256([1; 32]),
             },
             highest_vrf_output: CheckpointVRF::default(),
-            protocol: ProtocolInfo::default(),
         });
         chain_manager.chain_state.stakes = stakes;
 

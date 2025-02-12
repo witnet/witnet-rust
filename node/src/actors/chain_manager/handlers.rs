@@ -12,12 +12,12 @@ use futures::future::Either;
 use itertools::Itertools;
 use witnet_data_structures::{
     chain::{
-        tapi::ActiveWips, Block, ChainInfo, ChainState, CheckpointBeacon, ConsensusConstantsWit2,
+        tapi::ActiveWips, Block, ChainState, CheckpointBeacon, ConsensusConstantsWit2,
         DataRequestInfo, Epoch, Hash, Hashable, NodeStats, PublicKeyHash, SuperBlockVote,
         SupplyInfo, SupplyInfo2, ValueTransferOutput,
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
-    get_protocol_version,
+    get_protocol_info, get_protocol_version, get_protocol_version_activation_epoch,
     proto::versioning::ProtocolVersion,
     refresh_protocol_version,
     staking::{
@@ -143,12 +143,8 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
         // The best candidate must be cleared on every epoch
         let best_candidate = self.best_candidate.take();
 
-        // Make sure that the protocol version in the chain state is kept up to date
+        // Update the global protocol version state if necessary
         let expected_protocol_version = get_protocol_version(self.current_epoch);
-        if let Some(ChainInfo { protocol, .. }) = &mut self.chain_state.chain_info {
-            protocol.current_version = expected_protocol_version;
-        }
-        // Also update the global protocol version state if necessary
         let current_protocol_version = get_protocol_version(None);
         if expected_protocol_version != current_protocol_version {
             refresh_protocol_version(current_epoch);
@@ -2038,11 +2034,8 @@ impl Handler<GetSupplyInfo2> for ChainManager {
         let current_staked_supply = self.chain_state.stakes.total_staked().nanowits();
 
         let wit1_block_reward = chain_info.consensus_constants.initial_block_reward;
-        let wit2_activated = chain_info.protocol.current_version == ProtocolVersion::V2_0;
-        let wit2_activation_epoch = chain_info
-            .protocol
-            .all_versions
-            .get_activation_epoch(chain_info.protocol.current_version);
+        let wit2_activated = get_protocol_version(None) == ProtocolVersion::V2_0;
+        let wit2_activation_epoch = get_protocol_version_activation_epoch(ProtocolVersion::V2_0);
         let wit2_block_reward =
             ConsensusConstantsWit2::default().get_validator_block_reward(current_epoch);
 
@@ -2438,12 +2431,7 @@ impl Handler<GetProtocolInfo> for ChainManager {
     type Result = <GetProtocolInfo as Message>::Result;
 
     fn handle(&mut self, _msg: GetProtocolInfo, _ctx: &mut Self::Context) -> Self::Result {
-        let chain_info = &self.chain_state.chain_info;
-
-        match chain_info {
-            None => Ok(None),
-            Some(ChainInfo { protocol, .. }) => Ok(Some(protocol.clone())),
-        }
+        Ok(Some(get_protocol_info()))
     }
 }
 

@@ -78,16 +78,32 @@ fn migrate_chain_state_v3_to_v4(old_chain_state_bytes: &[u8]) -> Vec<u8> {
     .concat()
 }
 
+fn migrate_chain_state_v4_to_v5(old_chain_state_bytes: &[u8]) -> Vec<u8> {
+    let db_version: u32 = 5;
+    let db_version_bytes = db_version.to_le_bytes();
+
+    // Removal of fields in ChainState v5:
+    let protocol_info = ProtocolInfo::default();
+    let protocol_info_bytes = serialize(&protocol_info).unwrap();
+
+    [
+        &db_version_bytes,
+        &old_chain_state_bytes[4..5],
+        &old_chain_state_bytes[5 + protocol_info_bytes.len()..],
+    ]
+    .concat()
+}
+
 fn migrate_chain_state(mut bytes: Vec<u8>) -> Result<ChainState, failure::Error> {
     loop {
         let version = check_chain_state_version(&bytes);
-        log::debug!("Chain state version as read from storage is {:?}", version);
+        log::info!("Chain state version as read from storage is {:?}", version);
 
         match version {
             Ok(0) => {
                 // Migrate from v0 to v2
                 bytes = migrate_chain_state_v0_to_v2(&bytes);
-                log::debug!("Successfully migrated ChainState v0 to v2");
+                log::info!("Successfully migrated ChainState v0 to v2");
             }
             Ok(2) => {
                 // Migrate from v2 to v3
@@ -96,14 +112,19 @@ fn migrate_chain_state(mut bytes: Vec<u8>) -> Result<ChainState, failure::Error>
                 // and the UTXOs are stored in separate keys. But that operation is done in the
                 // ChainManager on initialization, here we just update the db_version field.
                 migrate_chain_state_v2_to_v3(&mut bytes);
-                log::debug!("Successfully migrated ChainState v2 to v3");
+                log::info!("Successfully migrated ChainState v2 to v3");
             }
             Ok(3) => {
                 // Migrate from v3 to v4
                 bytes = migrate_chain_state_v3_to_v4(&bytes);
-                log::debug!("Successfully migrated ChainState v3 to v4");
+                log::info!("Successfully migrated ChainState v3 to v4");
             }
             Ok(4) => {
+                // Migrate from v3 to v4
+                bytes = migrate_chain_state_v4_to_v5(&bytes);
+                log::info!("Successfully migrated ChainState v4 to v5");
+            }
+            Ok(5) => {
                 // Latest version
                 // Skip the first 4 bytes because they are used to encode db_version
                 return match deserialize(&bytes[4..]) {
@@ -207,7 +228,7 @@ pub fn put_chain_state_in_batch<K>(
 where
     K: serde::Serialize + 'static,
 {
-    let db_version: u32 = 4;
+    let db_version: u32 = 5;
     // The first byte of the ChainState db_version must never be 0 or 1,
     // because that can be confused with version 0.
     assert!(db_version.to_le_bytes()[0] >= 2);
