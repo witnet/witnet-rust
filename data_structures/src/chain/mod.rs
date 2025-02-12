@@ -327,7 +327,7 @@ impl ConsensusConstantsWit2 {
     /// Maximum weight units that a block can devote to `StakeTransaction`s.
     pub fn get_maximum_stake_block_weight(self, epoch: Epoch) -> u32 {
         if get_protocol_version(Some(epoch)) > ProtocolVersion::V1_7 {
-            10_000
+            20_000
         } else {
             0
         }
