@@ -78,6 +78,22 @@ fn migrate_chain_state_v3_to_v4(old_chain_state_bytes: &[u8]) -> Vec<u8> {
     .concat()
 }
 
+fn migrate_chain_state_v4_to_v5(old_chain_state_bytes: &[u8]) -> Vec<u8> {
+    let db_version: u32 = 5;
+    let db_version_bytes = db_version.to_le_bytes();
+
+    // Removal of fields in ChainState v5:
+    let protocol_info = ProtocolInfo::default();
+    let protocol_info_bytes = serialize(&protocol_info).unwrap();
+
+    [
+        &db_version_bytes,
+        &old_chain_state_bytes[4..5],
+        &old_chain_state_bytes[5 + protocol_info_bytes.len()..],
+    ]
+    .concat()
+}
+
 fn migrate_chain_state(mut bytes: Vec<u8>) -> Result<ChainState, failure::Error> {
     loop {
         let version = check_chain_state_version(&bytes);
@@ -104,6 +120,11 @@ fn migrate_chain_state(mut bytes: Vec<u8>) -> Result<ChainState, failure::Error>
                 log::debug!("Successfully migrated ChainState v3 to v4");
             }
             Ok(4) => {
+                // Migrate from v3 to v4
+                bytes = migrate_chain_state_v4_to_v5(&bytes);
+                log::debug!("Successfully migrated ChainState v4 to v5");
+            }
+            Ok(5) => {
                 // Latest version
                 // Skip the first 4 bytes because they are used to encode db_version
                 return match deserialize(&bytes[4..]) {

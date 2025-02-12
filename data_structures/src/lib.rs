@@ -127,6 +127,19 @@ pub fn set_environment(environment: Environment) {
 }
 
 /// Protocol version that we are running.
+pub fn get_protocol_info() -> ProtocolInfo {
+    // This unwrap is safe as long as the lock is not poisoned.
+    // The lock can only become poisoned when a writer panics.
+    let protocol_info = PROTOCOL.read().unwrap();
+
+    ProtocolInfo {
+        current_version: protocol_info.current_version,
+        all_versions: protocol_info.all_versions.clone(),
+        all_checkpoints_periods: protocol_info.all_checkpoints_periods.clone(),
+    }
+}
+
+/// Protocol version that we are running.
 pub fn get_protocol_version(epoch: Option<Epoch>) -> ProtocolVersion {
     // This unwrap is safe as long as the lock is not poisoned.
     // The lock can only become poisoned when a writer panics.
@@ -166,10 +179,6 @@ pub fn load_protocol_info(info: ProtocolInfo) {
     log::info!("Loading protocol versions data in bulk: {:?}", info);
     let mut protocol_info = PROTOCOL.write().unwrap();
     *protocol_info = info;
-}
-
-pub fn initialize_default(default_checkpoint_period: u16) {
-    register_protocol_version(ProtocolVersion::default(), 0, default_checkpoint_period);
 }
 
 pub fn clear_protocol_info() {

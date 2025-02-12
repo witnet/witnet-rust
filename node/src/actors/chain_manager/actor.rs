@@ -13,9 +13,7 @@ use witnet_data_structures::{
     },
     data_request::DataRequestPool,
     get_environment, get_protocol_version_activation_epoch, get_protocol_version_period,
-    initialize_default, load_protocol_info,
     proto::versioning::ProtocolVersion,
-    refresh_protocol_version,
     staking::prelude::*,
     superblock::SuperBlockState,
     types::LastBeacon,
@@ -264,7 +262,6 @@ impl ChainManager {
                                 checkpoint: 0,
                                 hash_prev_vrf: hash_prev_block,
                             },
-                            ..ChainInfo::default()
                         };
 
                         let bootstrap_committee = chain_info
@@ -375,20 +372,6 @@ impl ChainManager {
                     chain_info.highest_block_checkpoint.checkpoint,
                     chain_info.highest_block_checkpoint.hash_prev_block
                 );
-
-                // Load protocol info into global state (overwrites whatever was set through
-                // configuration). If possible, derives the current protocol version from that
-                // info and the current epoch. This essentially allows a node to catch up with
-                // a new protocol version if the transition happened while it was down.
-                load_protocol_info(chain_info.protocol.clone());
-                // If the protocol info we loaded above originates from a default initialization
-                // of chain info, the default protocol versions are not registered yet. We cannot
-                // use the Default trait to fix this because we do not have access to the required
-                // checkpoint period from consensus constants in the data structures module.
-                if get_protocol_version_activation_epoch(ProtocolVersion::default()) == u32::MAX {
-                    initialize_default(consensus_constants.checkpoints_period);
-                }
-                refresh_protocol_version(chain_info.highest_block_checkpoint.checkpoint);
 
                 // We may need to update the epoch constants in both the sessions and epoch manager to
                 // correctly calculate the current epoch after wit/2 is activated while the configuration
