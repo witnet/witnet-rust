@@ -10,9 +10,8 @@ use crate::{
 };
 use witnet_data_structures::{
     chain::{
-        DataRequestInfo, Hash, OutputPointer, PublicKeyHash, StakeOutput, ValueTransferOutput,
-    },
-    transaction::Transaction,
+        DataRequestInfo, Hash, KeyedSignature, OutputPointer, PublicKeyHash, StakeOutput, ValueTransferOutput 
+    }, staking::prelude::StakeKey, transaction::Transaction
 };
 use witnet_util::timestamp::get_timestamp;
 
@@ -220,13 +219,13 @@ pub struct MintData {
     pub outputs: Vec<Output>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
-pub struct StakeKey<Address> {
-    /// A validator address.
-    pub validator: Address,
-    /// A withdrawer address.
-    pub withdrawer: Address,
-}
+// #[derive(Clone, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+// pub struct StakeKey<Address> {
+//     /// A validator address.
+//     pub validator: Address,
+//     /// A withdrawer address.
+//     pub withdrawer: Address,
+// }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct StakeData {
@@ -377,6 +376,40 @@ impl From<OutputInfo> for ValueTransferOutput {
     }
 }
 
+
+/// UTXO information including amount, address and time lock
+#[derive(Clone, Debug, Eq, Deserialize, PartialEq, Serialize)]
+pub struct StakeOutputInfo {
+    /// Amount of the UTXO
+    #[serde(
+        serialize_with = "u64_to_string",
+        deserialize_with = "number_from_string"
+    )]
+    pub amount: u64,
+    /// key 
+    pub key: StakeKey<PublicKeyHash>,
+    /// authorization
+    pub authorization: KeyedSignature,
+}
+
+impl From<StakeOutputInfo> for StakeOutput{
+    fn from(
+        StakeOutputInfo {
+            amount,
+            key ,
+            authorization 
+        }: StakeOutputInfo,
+    ) -> Self {
+        Self {
+            authorization,
+            value: amount,
+            key
+        }
+
+    }
+}
+
+
 #[derive(Clone, Debug, Eq, PartialEq, Default, Serialize, Deserialize)]
 pub struct Beacon {
     #[serde(
@@ -396,8 +429,8 @@ impl fmt::Display for Beacon {
 
 pub type UtxoSet = HashMap<OutPtr, OutputInfo>;
 
-// // TODO: check where keychain is initialized and initialized / 2
-// pub type StakeOutputSet = HashMap<OutPtr, StakeOutput>;
+// TODO: check where keychain is initialized and initialized / 2
+pub type StakeOutputSet = HashMap<StakeKey<PublicKeyHash>, StakeOutput>;
 
 /// Map of output pointer to timestamp.
 /// Used to mark outputs that have been recently used in a transaction.

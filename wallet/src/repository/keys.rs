@@ -150,6 +150,12 @@ pub fn account_utxo_set(account_index: u32) -> Key<String, model::UtxoSet> {
     Key::new(format!("account-{}-utxo-set", account_index))
 }
 
+/// An account's UTXO set.
+#[inline]
+pub fn account_stake_output_set(account_index: u32) -> Key<String, model::StakeOutputSet> {
+    Key::new(format!("account-{}-stake-output-set", account_index))
+}
+
 /// An account's next index to use for generating an address.
 #[inline]
 pub fn account_next_index(account_index: u32, keychain: u32) -> Key<String, u32> {
