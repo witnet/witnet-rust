@@ -10,8 +10,11 @@ use crate::{
 };
 use witnet_data_structures::{
     chain::{
-        DataRequestInfo, Hash, KeyedSignature, OutputPointer, PublicKeyHash, StakeOutput, ValueTransferOutput 
-    }, staking::prelude::StakeKey, transaction::Transaction
+        DataRequestInfo, Hash, KeyedSignature, OutputPointer, PublicKeyHash, StakeOutput,
+        ValueTransferOutput,
+    },
+    staking::prelude::StakeKey,
+    transaction::Transaction,
 };
 use witnet_util::timestamp::get_timestamp;
 
@@ -76,6 +79,12 @@ pub struct BalanceInfo {
         deserialize_with = "number_from_string"
     )]
     pub locked: u64,
+    /// Staked funds
+    #[serde(
+        serialize_with = "u64_to_string",
+        deserialize_with = "number_from_string"
+    )]
+    pub staked: u64,
 }
 
 /// List of wallet balances (confirmed, unconfirmed and pending)
@@ -218,14 +227,6 @@ pub struct TallyData {
 pub struct MintData {
     pub outputs: Vec<Output>,
 }
-
-// #[derive(Clone, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
-// pub struct StakeKey<Address> {
-//     /// A validator address.
-//     pub validator: Address,
-//     /// A withdrawer address.
-//     pub withdrawer: Address,
-// }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct StakeData {
@@ -376,39 +377,23 @@ impl From<OutputInfo> for ValueTransferOutput {
     }
 }
 
-
-/// UTXO information including amount, address and time lock
+/// FIXME authorization is not being used but we may need it in the future
+/// when we support creating stake and unstake tx from the wallet and
+/// we could need them in the storage to avoid syncing the whole wallet 
+/// Stake information including amount, key and authorization
 #[derive(Clone, Debug, Eq, Deserialize, PartialEq, Serialize)]
 pub struct StakeOutputInfo {
-    /// Amount of the UTXO
+    /// Staked amount 
     #[serde(
         serialize_with = "u64_to_string",
         deserialize_with = "number_from_string"
     )]
     pub amount: u64,
-    /// key 
+    /// Stake key
     pub key: StakeKey<PublicKeyHash>,
-    /// authorization
+    /// Stake authorization
     pub authorization: KeyedSignature,
 }
-
-impl From<StakeOutputInfo> for StakeOutput{
-    fn from(
-        StakeOutputInfo {
-            amount,
-            key ,
-            authorization 
-        }: StakeOutputInfo,
-    ) -> Self {
-        Self {
-            authorization,
-            value: amount,
-            key
-        }
-
-    }
-}
-
 
 #[derive(Clone, Debug, Eq, PartialEq, Default, Serialize, Deserialize)]
 pub struct Beacon {
@@ -429,7 +414,6 @@ impl fmt::Display for Beacon {
 
 pub type UtxoSet = HashMap<OutPtr, OutputInfo>;
 
-// TODO: check where keychain is initialized and initialized / 2
 pub type StakeOutputSet = HashMap<StakeKey<PublicKeyHash>, StakeOutput>;
 
 /// Map of output pointer to timestamp.

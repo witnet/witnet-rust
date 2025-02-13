@@ -720,7 +720,8 @@ impl App {
                             let sink = act.state.get_sink(&session_id);
                             if let Some(balance_movement) = balance_movement.clone() {
                                 // We send a notification to the client
-                                let events = Some(vec![types::Event::Movement(balance_movement)]);
+                                let events =
+                                    Some(vec![types::Event::Movement(Box::new(balance_movement))]);
                                 act.params
                                     .worker
                                     .do_send(NotifyStatus(wallet, sink, events));

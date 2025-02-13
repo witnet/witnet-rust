@@ -19,12 +19,20 @@ use witnet_data_structures::{
     chain::{
         CheckpointBeacon, DataRequestOutput, Environment, Epoch, EpochConstants, Hash, Hashable,
         Input, KeyedSignature, OutputPointer, PublicKeyHash, StakeOutput, ValueTransferOutput,
-    }, fee::{AbsoluteFee, Fee}, get_environment, proto::versioning::{ProtocolInfo, VersionedHashable}, radon_error::RadonError, staking::prelude::StakeKey, transaction::{
+    },
+    fee::{AbsoluteFee, Fee},
+    get_environment,
+    proto::versioning::{ProtocolInfo, VersionedHashable},
+    radon_error::RadonError,
+    staking::prelude::StakeKey,
+    transaction::{
         DRTransaction, DRTransactionBody, TallyTransaction, Transaction, VTTransaction,
         VTTransactionBody,
-    }, transaction_factory::{
+    },
+    transaction_factory::{
         insert_change_output, CollectedOutputs, OutputsCollection, TransactionInfo,
-    }, utxo_pool::UtxoSelectionStrategy
+    },
+    utxo_pool::UtxoSelectionStrategy,
 };
 use witnet_rad::{error::RadError, types::RadonTypes};
 use witnet_util::timestamp::get_timestamp;
@@ -49,7 +57,7 @@ struct AccountMutation {
     utxo_inserts: Vec<(model::OutPtr, model::OutputInfo)>,
     utxo_removals: Vec<model::OutPtr>,
     stake_output_inserts: Vec<model::StakeOutputInfo>,
-    stake_output_removals: Vec<StakeOutputInfo>
+    stake_output_removals: Vec<StakeOutputInfo>,
 }
 
 /// Struct that keep the unspent outputs pool and the own unspent outputs pool
@@ -303,7 +311,8 @@ where
 
         let transaction_next_id = db.get_or_default(&keys::transaction_next_id(account))?;
         let utxo_set: model::UtxoSet = db.get_or_default(&keys::account_utxo_set(account))?;
-        let stake_output_set: model::StakeOutputSet = db.get_or_default(&keys::account_stake_output_set(account))?;
+        let stake_output_set: model::StakeOutputSet =
+            db.get_or_default(&keys::account_stake_output_set(account))?;
         let timestamp =
             u64::try_from(get_timestamp()).expect("Get timestamp should return a positive value");
         let balance_info = db
@@ -312,12 +321,12 @@ where
                 // compute balance from utxo set if is not cached in the
                 // database, this is mostly used for testing where overflow
                 // checks are enabled
-                utxo_set
+                let mut balance_info = utxo_set
                     .values()
                     .map(|balance| (balance.amount, balance.time_lock))
                     .fold(
                         model::BalanceInfo::default(),
-                        |mut acc, (amount, time_lock)| {
+                        |mut acc: model::BalanceInfo, (amount, time_lock)| {
                             if timestamp >= time_lock {
                                 acc.available =
                                     acc.available.checked_add(amount).expect("balance overflow");
@@ -328,7 +337,14 @@ where
 
                             acc
                         },
-                    )
+                    );
+
+                balance_info.staked = stake_output_set
+                    .values()
+                    .map(|stake_output| stake_output.value)
+                    .sum();
+
+                balance_info
             });
         let balance = model::WalletBalance {
             local: 0,
@@ -944,6 +960,11 @@ where
                     acc
                 },
             );
+        state.balance.unconfirmed.staked = state
+            .stake_output_set
+            .values()
+            .map(|stake_output| stake_output.value)
+            .sum();
 
         let addresses = addresses.into_values().collect();
 
@@ -1020,6 +1041,7 @@ where
         Ok(block_balance_movements)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn _persist_block_txns(
         &self,
         balance_movements: Vec<model::BalanceMovement>,
@@ -1061,6 +1083,7 @@ where
         // Write account state
         batch.put(&keys::transaction_next_id(account), transaction_next_id)?;
         batch.put(&keys::account_utxo_set(account), utxo_set)?;
+        batch.put(&keys::account_stake_output_set(account), stake_output_set)?;
         batch.put(&keys::account_balance(account), balance)?;
 
         // Persist addresses
@@ -1436,13 +1459,49 @@ where
             state.utxo_set.insert(pointer.clone(), key_balance.clone());
         }
 
-        // // Update memory state: `stake_output_set`
-        // for pointer in &account_mutation.stake_output_removals{
-        //     state.stake_output_set.remove(pointer);
-        // }
-        // for ( stake_output_info) in &account_mutation.stake_output_inserts{
-        //     state.stake_output_set.insert(pointer.clone(), stake_output_info.clone());
-        // }
+        // FIXME: only one stake output per transaction is supported. It doesn't need to be a vec
+        // Update memory state: `stake_output_set`
+        for stake_output_remove in &account_mutation.stake_output_removals {
+            let output = state.stake_output_set.get(&stake_output_remove.key);
+            if let Some(output) = output {
+                if output.value == stake_output_remove.amount {
+                    state.stake_output_set.remove(&output.key.clone());
+                } else {
+                    state.stake_output_set.insert(
+                        output.key.clone(),
+                        StakeOutput {
+                            value: output
+                                .value
+                                .checked_sub(stake_output_remove.amount)
+                                .ok_or(Error::TransactionValueOverflow)?,
+                            authorization: output.authorization.clone(),
+                            key: output.key.clone(),
+                        },
+                    );
+                }
+            }
+        }
+
+        for stake_output_insert in &account_mutation.stake_output_inserts {
+            let output = state.stake_output_set.get(&stake_output_insert.key);
+
+            let amount = if let Some(output) = output {
+                output
+                    .value
+                    .checked_sub(stake_output_insert.amount)
+                    .ok_or(Error::TransactionValueOverflow)?
+            } else {
+                stake_output_insert.amount
+            };
+            state.stake_output_set.insert(
+                stake_output_insert.key.clone(),
+                StakeOutput {
+                    value: amount,
+                    authorization: stake_output_insert.authorization.clone(),
+                    key: stake_output_insert.key.clone(),
+                },
+            );
+        }
 
         // Update `transaction_next_id`
         state.transaction_next_id = state
@@ -1472,7 +1531,6 @@ where
                             e.insert(old_address)
                         }
                     };
-                    // TODO: add here stakeoutput logic?
                     // Build the new address information
                     let info = &old_address.info;
                     let mut received_payments = info.received_payments.clone();
@@ -1695,7 +1753,7 @@ where
         let mut utxo_inserts: Vec<(model::OutPtr, model::OutputInfo)> = vec![];
         let mut resolved_inputs: Vec<ValueTransferOutput> = vec![];
         let mut stake_output_inserts: Vec<model::StakeOutputInfo> = vec![];
-        let stake_output_removals: Vec<model::StakeOutputInfo> = vec![];
+        let mut stake_output_removals: Vec<model::StakeOutputInfo> = vec![];
 
         let mut input_amount: u64 = 0;
         for input in inputs.iter() {
@@ -1777,7 +1835,6 @@ where
         }
 
         if let Some(stake_output) = stake_output {
- 
             let stake_output_info = model::StakeOutputInfo {
                 authorization: stake_output.authorization,
                 key: stake_output.key,
@@ -1786,8 +1843,19 @@ where
             stake_output_inserts.push(stake_output_info);
         }
 
-        // TODO: handle stake output removals with the unstake transactions
-
+        if let Transaction::Unstake(unstake) = &txn.transaction {
+            let stake_output_info = model::StakeOutputInfo {
+                // FIXME assess if we can simplify stakeOutputInfo removing  the authorization
+                // field or we need to keep it for future use during staking implementation
+                authorization: KeyedSignature::default(),
+                key: StakeKey {
+                    withdrawer: unstake.body.withdrawal.pkh,
+                    validator: unstake.body.operator,
+                },
+                amount: unstake.body.withdrawal.value,
+            };
+            stake_output_removals.push(stake_output_info);
+        }
 
         // If UTXO set has not changed, then there is no balance movement derived from the transaction being processed
         if utxo_inserts.is_empty() && utxo_removals.is_empty() {

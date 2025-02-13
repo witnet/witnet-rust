@@ -14,7 +14,7 @@ pub struct StateSnapshot {
     pub transaction_next_id: u32,
     /// Current UTXO set (including pending movements)
     pub utxo_set: model::UtxoSet,
-    /// Current stake output set(including pending movements)
+    /// Current stake output set (including pending movements)
     pub stake_output_set: model::StakeOutputSet,
 }
 
@@ -75,7 +75,7 @@ pub struct State {
     pub transaction_next_id: u32,
     /// Current UTXO set (including pending movements)
     pub utxo_set: model::UtxoSet,
-    /// Current StakeOutput set (including pending movements)
+    /// Current StakeOutput set (including pending movements). Used to track the staking balances.
     pub stake_output_set: model::StakeOutputSet,
     /// Outputs that have been locally tagged as used. This prevents double spending
     /// an output while a first spending transaction is pending.

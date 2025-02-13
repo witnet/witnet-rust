@@ -161,5 +161,6 @@ pub fn default_params() -> params::Params {
         use_unconfirmed_utxos: true,
         pending_transactions_timeout_seconds: 10 * 45,
         witnessing: WitnessingConfig::default(),
+        protocol_info: ProtocolInfo::default(),
     }
 }

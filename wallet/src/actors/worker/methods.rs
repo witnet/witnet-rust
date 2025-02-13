@@ -1250,7 +1250,7 @@ impl Worker {
         // Notify about the new block and every single balance movement found within.
         let mut events = vec![types::Event::Block(block_info)];
         for balance_movement in balance_movements {
-            events.push(types::Event::Movement(balance_movement));
+            events.push(types::Event::Movement(Box::new(balance_movement)));
         }
         self.notify_client(wallet, sink, Some(events)).ok();
 

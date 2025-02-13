@@ -150,7 +150,7 @@ pub fn account_utxo_set(account_index: u32) -> Key<String, model::UtxoSet> {
     Key::new(format!("account-{}-utxo-set", account_index))
 }
 
-/// An account's UTXO set.
+/// An account's stake output set.
 #[inline]
 pub fn account_stake_output_set(account_index: u32) -> Key<String, model::StakeOutputSet> {
     Key::new(format!("account-{}-stake-output-set", account_index))

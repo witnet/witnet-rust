@@ -243,7 +243,7 @@ pub enum Event {
     /// A list of hashes of blocks that are now considered orphaned.
     BlocksOrphan(Vec<String>),
     /// A new movement (transaction) affecting balance.
-    Movement(model::BalanceMovement),
+    Movement(Box<model::BalanceMovement>),
     /// Node status has changed
     NodeStatus(StateMachine),
     /// Node disconnected

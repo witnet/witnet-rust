@@ -316,6 +316,7 @@ fn test_balance() {
     let new_balance = model::BalanceInfo {
         available: 99u64,
         locked: 0u64,
+        staked: 99u64,
     };
     db.put(&keys::account_balance(0), new_balance).unwrap();
 
@@ -507,6 +508,7 @@ fn test_create_transaction_components_which_value_overflows() {
     let new_balance = model::BalanceInfo {
         available: u64::MAX,
         locked: 0u64,
+        staked: 0u64,
     };
 
     let db = HashMapDb::default();
@@ -542,7 +544,6 @@ fn test_create_transaction_components_which_value_overflows() {
     );
 }
 
-// @remind
 #[test]
 fn test_create_vtt_does_not_spend_utxos() {
     let pkh = factories::pkh();
@@ -566,6 +567,7 @@ fn test_create_vtt_does_not_spend_utxos() {
     let new_balance = model::BalanceInfo {
         available: 1u64,
         locked: 0u64,
+        staked: 0u64,
     };
 
     let db = HashMapDb::default();
@@ -627,6 +629,7 @@ fn test_create_vtt_does_not_spend_utxos() {
         model::BalanceInfo {
             available: 1,
             locked: 0,
+            staked: 0,
         },
         db.get(&keys::account_balance(0)).unwrap()
     );
@@ -659,6 +662,7 @@ fn test_create_data_request_does_not_spend_utxos() {
     let new_balance = model::BalanceInfo {
         available: 1u64,
         locked: 0u64,
+        staked: 0u64,
     };
 
     let db = HashMapDb::default();
@@ -736,6 +740,7 @@ fn test_index_transaction_output_affects_balance() {
         model::BalanceInfo {
             available: 0,
             locked: 0,
+            staked: 0,
         },
         db.get_or_default(&keys::account_balance(0)).unwrap()
     );
@@ -759,6 +764,7 @@ fn test_index_transaction_output_affects_balance() {
         model::BalanceInfo {
             available: 1,
             locked: 0,
+            staked: 0,
         },
         db.get(&keys::account_balance(0)).unwrap()
     );
@@ -772,6 +778,7 @@ fn test_index_transaction_input_affects_balance() {
         model::BalanceInfo {
             available: 0,
             locked: 0,
+            staked: 0,
         },
         db.get_or_default(&keys::account_balance(0)).unwrap()
     );
@@ -814,6 +821,7 @@ fn test_index_transaction_input_affects_balance() {
         model::BalanceInfo {
             available: 1,
             locked: 0,
+            staked: 0,
         },
         db.get(&keys::account_balance(0)).unwrap()
     );
@@ -827,6 +835,7 @@ fn test_index_transaction_updates_address_info() {
         model::BalanceInfo {
             available: 0,
             locked: 0,
+            staked: 0,
         },
         db.get_or_default(&keys::account_balance(0)).unwrap()
     );
@@ -869,6 +878,7 @@ fn test_index_transaction_updates_address_info_two_outputs_same_address() {
         model::BalanceInfo {
             available: 0,
             locked: 0,
+            staked: 0,
         },
         db.get_or_default(&keys::account_balance(0)).unwrap()
     );
@@ -914,6 +924,7 @@ fn test_index_transaction_updates_address_info_two_transactions_same_address() {
         model::BalanceInfo {
             available: 0,
             locked: 0,
+            staked: 0,
         },
         db.get_or_default(&keys::account_balance(0)).unwrap()
     );
@@ -1456,6 +1467,7 @@ fn test_create_vt_components_weighted_fee() {
     let new_balance = model::BalanceInfo {
         available: 20000u64,
         locked: 0u64,
+        staked: 0u64,
     };
 
     let db = HashMapDb::default();
@@ -1528,6 +1540,7 @@ fn test_create_vt_components_weighted_fee_2() {
     let new_balance = model::BalanceInfo {
         available: 2800u64,
         locked: 0u64,
+        staked: 0u64,
     };
 
     let db = HashMapDb::default();
@@ -1600,6 +1613,7 @@ fn test_create_vt_components_weighted_fee_3() {
     let new_balance = model::BalanceInfo {
         available: 801u64,
         locked: 0u64,
+        staked: 0u64,
     };
     let db = HashMapDb::default();
     db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
@@ -1690,6 +1704,7 @@ fn test_create_vt_components_weighted_fee_4() {
     let new_balance = model::BalanceInfo {
         available: 70003u64,
         locked: 0u64,
+        staked: 0u64,
     };
 
     let db = HashMapDb::default();
@@ -1781,6 +1796,7 @@ fn test_create_vt_components_weighted_fee_5() {
     let new_balance = model::BalanceInfo {
         available: 3700u64,
         locked: 0u64,
+        staked: 0u64,
     };
     let db = HashMapDb::default();
     db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
@@ -1877,6 +1893,7 @@ fn test_create_vt_components_weighted_fee_6() {
     let new_balance = model::BalanceInfo {
         available: 1300u64,
         locked: 0u64,
+        staked: 0u64,
     };
     let db = HashMapDb::default();
     db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
@@ -1924,6 +1941,7 @@ fn test_create_vt_components_weighted_fee_without_outputs() {
     let new_balance = model::BalanceInfo {
         available: 0u64,
         locked: 0u64,
+        staked: 0u64,
     };
     let db = HashMapDb::default();
     db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
@@ -1982,6 +2000,7 @@ fn test_create_vt_components_weighted_fee_with_too_large_fee() {
     let new_balance = model::BalanceInfo {
         available: 1u64,
         locked: 0u64,
+        staked: 0u64,
     };
     let db = HashMapDb::default();
     db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
@@ -2045,6 +2064,7 @@ fn test_create_vt_weight_too_large() {
     let new_balance = model::BalanceInfo {
         available: 200u64,
         locked: 0u64,
+        staked: 0u64,
     };
     let db = HashMapDb::default();
     db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
@@ -2105,6 +2125,7 @@ fn test_create_dr_components_weighted_fee_1() {
     let new_balance = model::BalanceInfo {
         available: 2000u64,
         locked: 0u64,
+        staked: 0u64,
     };
     let db = HashMapDb::default();
     db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
@@ -2152,6 +2173,7 @@ fn test_create_dr_components_weighted_fee_2_not_enough_funds() {
     let new_balance = model::BalanceInfo {
         available: 2u64,
         locked: 0u64,
+        staked: 0u64,
     };
     let db = HashMapDb::default();
     db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
@@ -2202,6 +2224,7 @@ fn test_create_dr_components_weighted_fee_3_funds_splitted() {
     let new_balance = model::BalanceInfo {
         available: 2000u64,
         locked: 0u64,
+        staked: 0u64,
     };
     let db = HashMapDb::default();
     db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
@@ -2265,6 +2288,7 @@ fn test_create_dr_components_weighted_fee_3_funds_splitted() {
     let new_balance_2 = model::BalanceInfo {
         available: u64::from(weight) * 3 / 2,
         locked: 0u64,
+        staked: 0u64,
     };
 
     let db_2 = HashMapDb::default();
@@ -2295,6 +2319,7 @@ fn test_create_dr_components_weighted_fee_without_outputs() {
     let new_balance = model::BalanceInfo {
         available: 0u64,
         locked: 0u64,
+        staked: 0u64,
     };
     let db = HashMapDb::default();
     db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
@@ -2349,6 +2374,7 @@ fn test_create_dr_components_weighted_fee_weight_too_large() {
     let new_balance = model::BalanceInfo {
         available: 1000u64,
         locked: 0u64,
+        staked: 0u64,
     };
     let db = HashMapDb::default();
     db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
@@ -2401,6 +2427,7 @@ fn test_create_dr_components_weighted_fee_fee_too_large() {
     let new_balance = model::BalanceInfo {
         available: 2000u64,
         locked: 0u64,
+        staked: 0u64,
     };
     let db = HashMapDb::default();
     db.put(&keys::account_utxo_set(0), utxo_set).unwrap();
@@ -2466,6 +2493,7 @@ fn test_create_transaction_components_filter_from_address() {
     let new_balance = model::BalanceInfo {
         available: 10_000 + 10_000,
         locked: 0u64,
+        staked: 0u64,
     };
 
     let db = HashMapDb::default();
@@ -2539,6 +2567,7 @@ fn test_create_transaction_components_filter_from_address_2() {
     let new_balance = model::BalanceInfo {
         available: 10_000 + 10_000,
         locked: 0u64,
+        staked: 0u64,
     };
 
     let db = HashMapDb::default();
@@ -2612,6 +2641,7 @@ fn test_create_transaction_components_filter_from_address_3() {
     let new_balance = model::BalanceInfo {
         available: 10_000 + 10_000,
         locked: 0u64,
+        staked: 0u64,
     };
 
     let db = HashMapDb::default();
@@ -2686,6 +2716,7 @@ fn test_create_transaction_components_does_not_use_unconfirmed_utxos() {
     let new_balance = model::BalanceInfo {
         available: 7,
         locked: 0u64,
+        staked: 0u64,
     };
 
     let db = HashMapDb::default();
@@ -2789,6 +2820,7 @@ fn test_create_transaction_components_uses_unconfirmed_utxos() {
     let new_balance = model::BalanceInfo {
         available: 7,
         locked: 0u64,
+        staked: 0u64,
     };
 
     let db = HashMapDb::default();
@@ -2963,6 +2995,7 @@ fn test_create_transaction_components_does_not_use_unconfirmed_utxos_and_selecti
     let new_balance = model::BalanceInfo {
         available: 7,
         locked: 0u64,
+        staked: 0u64,
     };
 
     let db = HashMapDb::default();
