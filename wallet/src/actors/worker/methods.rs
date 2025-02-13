@@ -156,10 +156,14 @@ impl Worker {
                     .expect("It should always found a superconsolidated block");
                 let get_gen_future = self.get_block(gen_entry.1.clone());
                 let (block, _confirmed) = futures::executor::block_on(get_gen_future)?;
-
+                let protocol_version = self
+                    .node
+                    .protocol_info
+                    .all_versions
+                    .version_for_epoch(block.block_header.beacon.checkpoint);
                 CheckpointBeacon {
                     checkpoint: block.block_header.beacon.checkpoint,
-                    hash_prev_block: block.hash(),
+                    hash_prev_block: block.versioned_hash(protocol_version),
                 }
             }
             // Use provided epoch as birth date
@@ -181,10 +185,14 @@ impl Worker {
                 );
                 let get_gen_future = self.get_block(gen_entry.1.clone());
                 let (block, _confirmed_1) = futures::executor::block_on(get_gen_future)?;
-
+                let protocol_version = self
+                    .node
+                    .protocol_info
+                    .all_versions
+                    .version_for_epoch(block.block_header.beacon.checkpoint);
                 CheckpointBeacon {
                     checkpoint: block.block_header.beacon.checkpoint,
-                    hash_prev_block: block.hash(),
+                    hash_prev_block: block.versioned_hash(protocol_version),
                 }
             }
             None => {
@@ -986,7 +994,13 @@ impl Worker {
         let wallet_data = wallet.public_data()?;
         let last_sync = wallet_data.last_sync;
         let last_confirmed = wallet_data.last_confirmed;
-        let protocol_version = ProtocolVersion::from_epoch(block_beacon.checkpoint);
+        let checkpoint = block.block_header.beacon.checkpoint;
+        let protocol_version = self
+            .node
+            .protocol_info
+            .all_versions
+            .version_for_epoch(checkpoint);
+
         let (needs_clear_pending, needs_indexing) = if block_beacon.hash_prev_block
             == last_sync.hash_prev_block
             && (block_beacon.checkpoint == 0 || block_beacon.checkpoint > last_sync.checkpoint)
