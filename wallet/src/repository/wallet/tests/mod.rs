@@ -542,6 +542,7 @@ fn test_create_transaction_components_which_value_overflows() {
     );
 }
 
+// @remind
 #[test]
 fn test_create_vtt_does_not_spend_utxos() {
     let pkh = factories::pkh();
@@ -1107,6 +1108,7 @@ fn test_update_wallet_with_values() {
     );
 }
 
+// @remind
 #[test]
 fn test_get_transaction() {
     let (wallet, _db) = factories::wallet(None);
@@ -1177,6 +1179,7 @@ fn test_get_transaction() {
     assert!(wallet.get_transaction(0, 1).is_ok());
 }
 
+// @remind
 #[test]
 fn test_get_transactions() {
     let (wallet, _db) = factories::wallet(None);
@@ -1328,6 +1331,7 @@ fn test_create_vtt_with_locked_balance() {
     );
 }
 
+// @remind
 #[test]
 fn test_create_vtt_with_multiple_outputs() {
     let (wallet, _db) = factories::wallet(None);

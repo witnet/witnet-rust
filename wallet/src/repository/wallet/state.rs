@@ -73,6 +73,8 @@ pub struct State {
     pub transaction_next_id: u32,
     /// Current UTXO set (including pending movements)
     pub utxo_set: model::UtxoSet,
+    /// Current StakeOutput set (including pending movements)
+    // pub stake_output_set: model::StakeOutputSet,
     /// Outputs that have been locally tagged as used. This prevents double spending
     /// an output while a first spending transaction is pending.
     pub used_outputs: model::UsedOutputs,

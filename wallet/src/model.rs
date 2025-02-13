@@ -9,7 +9,9 @@ use crate::{
     types::{number_from_string, u32_to_string, u64_to_string},
 };
 use witnet_data_structures::{
-    chain::{DataRequestInfo, Hash, OutputPointer, PublicKeyHash, ValueTransferOutput},
+    chain::{
+        DataRequestInfo, Hash, OutputPointer, PublicKeyHash, StakeOutput, ValueTransferOutput,
+    },
     transaction::Transaction,
 };
 use witnet_util::timestamp::get_timestamp;
@@ -92,7 +94,7 @@ pub struct WalletBalance {
     pub unconfirmed: BalanceInfo,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ExtendedKeyedSignature {
     pub signature: String,
     pub public_key: String,
@@ -187,8 +189,10 @@ pub enum TransactionData {
     Mint(MintData),
     #[serde(rename = "commit")]
     Commit(VtData),
-    // #[serde(rename = "stake")]
-    // Stake(StakeData),
+    #[serde(rename = "stake")]
+    Stake(StakeData),
+    #[serde(rename = "unstake")]
+    Unstake(UnstakeData),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -214,6 +218,26 @@ pub struct TallyData {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct MintData {
     pub outputs: Vec<Output>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+pub struct StakeKey<Address> {
+    /// A validator address.
+    pub validator: Address,
+    /// A withdrawer address.
+    pub withdrawer: Address,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct StakeData {
+    pub inputs: Vec<Input>,
+    pub output: StakeOutput,
+    pub change: Option<Output>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct UnstakeData {
+    pub withdrawal: Output,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -371,6 +395,9 @@ impl fmt::Display for Beacon {
 }
 
 pub type UtxoSet = HashMap<OutPtr, OutputInfo>;
+
+// // TODO: check where keychain is initialized and initialized / 2
+// pub type StakeOutputSet = HashMap<OutPtr, StakeOutput>;
 
 /// Map of output pointer to timestamp.
 /// Used to mark outputs that have been recently used in a transaction.

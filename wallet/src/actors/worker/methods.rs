@@ -7,11 +7,11 @@ use serde_json::{json, Value};
 use witnet_crypto::{key::ExtendedSK, mnemonic};
 use witnet_data_structures::{
     chain::{
-        Block, CheckpointBeacon, DataRequestInfo, Hashable, OutputPointer, RADRequest,
-        StateMachine, ValueTransferOutput,
+        Block, CheckpointBeacon, DataRequestInfo, OutputPointer, RADRequest, StateMachine,
+        ValueTransferOutput,
     },
     fee::AbsoluteFee,
-    proto::versioning::{ProtocolVersion, VersionedHashable},
+    proto::versioning::VersionedHashable,
     transaction::Transaction,
 };
 use witnet_futures_utils::TryFutureExt2;
@@ -574,6 +574,14 @@ impl Worker {
                 Transaction::Tally(tally) => Some(IndexTransactionQuery::DataRequestReport(
                     tally.dr_pointer.to_string(),
                 )),
+                Transaction::Stake(st) => Some(IndexTransactionQuery::InputTransactions(
+                    st.body
+                        .inputs
+                        .iter()
+                        .map(|input| *input.output_pointer())
+                        .collect(),
+                )),
+                Transaction::Unstake(_ut) => None,
                 _ => None,
             })
             .collect();
@@ -631,46 +639,68 @@ impl Worker {
         let result: Result<Vec<ValueTransferOutput>> = transactions
             .iter()
             .zip(output_pointers)
-            .map(|(txn, output)| match txn {
+            .filter_map(|(txn, output)| match txn {
                 Transaction::ValueTransfer(vt) => vt
                     .body
                     .outputs
                     .get(output.output_index as usize)
                     .cloned()
-                    .ok_or_else(|| {
-                        Error::OutputIndexNotFound(output.output_index, format!("{:?}", txn))
+                    .map(Ok)
+                    .or_else(|| {
+                        Some(Err(Error::OutputIndexNotFound(
+                            output.output_index,
+                            format!("{:?}", txn),
+                        )))
                     }),
                 Transaction::DataRequest(dr) => dr
                     .body
                     .outputs
                     .get(output.output_index as usize)
                     .cloned()
-                    .ok_or_else(|| {
-                        Error::OutputIndexNotFound(output.output_index, format!("{:?}", txn))
+                    .map(Ok)
+                    .or_else(|| {
+                        Some(Err(Error::OutputIndexNotFound(
+                            output.output_index,
+                            format!("{:?}", txn),
+                        )))
                     }),
                 Transaction::Tally(tally) => tally
                     .outputs
                     .get(output.output_index as usize)
                     .cloned()
-                    .ok_or_else(|| {
-                        Error::OutputIndexNotFound(output.output_index, format!("{:?}", txn))
+                    .map(Ok)
+                    .or_else(|| {
+                        Some(Err(Error::OutputIndexNotFound(
+                            output.output_index,
+                            format!("{:?}", txn),
+                        )))
                     }),
                 Transaction::Mint(mint) => mint
                     .outputs
                     .get(output.output_index as usize)
                     .cloned()
-                    .ok_or_else(|| {
-                        Error::OutputIndexNotFound(output.output_index, format!("{:?}", txn))
+                    .map(Ok)
+                    .or_else(|| {
+                        Some(Err(Error::OutputIndexNotFound(
+                            output.output_index,
+                            format!("{:?}", txn),
+                        )))
                     }),
                 Transaction::Commit(commit) => commit
                     .body
                     .outputs
                     .get(output.output_index as usize)
                     .cloned()
-                    .ok_or_else(|| {
-                        Error::OutputIndexNotFound(output.output_index, format!("{:?}", txn))
+                    .map(Ok)
+                    .or_else(|| {
+                        Some(Err(Error::OutputIndexNotFound(
+                            output.output_index,
+                            format!("{:?}", txn),
+                        )))
                     }),
-                _ => Err(Error::TransactionTypeNotSupported),
+                Transaction::Stake(st) => st.body.change.clone().map(Ok),
+                Transaction::Unstake(ut) => Some(Ok(ut.body.withdrawal.clone())),
+                _ => Some(Err(Error::TransactionTypeNotSupported)),
             })
             .collect();
 
@@ -1159,7 +1189,12 @@ impl Worker {
         wallet: &types::SessionWallet,
         sink: types::DynamicSink,
     ) -> Result<CheckpointBeacon> {
-        let block_hash = block.hash();
+        let protocol_version = self
+            .node
+            .protocol_info
+            .all_versions
+            .version_for_epoch(block.block_header.beacon.checkpoint);
+        let block_hash = block.versioned_hash(protocol_version);
 
         // Immediately update the local reference to the node's last beacon
         let block_own_beacon = CheckpointBeacon {
@@ -1173,6 +1208,13 @@ impl Worker {
         let vtt_txns = block
             .txns
             .value_transfer_txns
+            .iter()
+            .cloned()
+            .map(Transaction::from);
+        let stake_txns = block.txns.stake_txns.iter().cloned().map(Transaction::from);
+        let unstake_txns = block
+            .txns
+            .unstake_txns
             .iter()
             .cloned()
             .map(Transaction::from);
@@ -1194,6 +1236,8 @@ impl Worker {
             .chain(dr_txns)
             .chain(commit_txns)
             .chain(tally_txns)
+            .chain(stake_txns)
+            .chain(unstake_txns)
             .chain(std::iter::once(Transaction::Mint(block.txns.mint.clone())));
 
         let block_info = model::Beacon {
