@@ -11,10 +11,10 @@ use witnet_crypto::hash::calculate_sha256;
 use crate::{
     chain::{
         tapi::ActiveWips, DataRequestInfo, DataRequestOutput, DataRequestStage, DataRequestState,
-        Epoch, Hash, Hashable, PublicKeyHash, ValueTransferOutput,
+        Environment, Epoch, Hash, Hashable, PublicKeyHash, ValueTransferOutput,
     },
     error::{DataRequestError, TransactionError},
-    get_protocol_version_activation_epoch,
+    get_environment, get_protocol_version_activation_epoch,
     proto::versioning::{ProtocolVersion, VersionedHashable},
     radon_report::{RadonReport, Stage, TypeLike},
     transaction::{CommitTransaction, DRTransaction, RevealTransaction, TallyTransaction},
@@ -579,7 +579,10 @@ pub fn data_request_has_too_many_witnesses(
     if ProtocolVersion::from_epoch_opt(epoch) < ProtocolVersion::V2_0 {
         false
     } else {
-        usize::from(dr_output.witnesses) > validator_count / 4
+        match get_environment() {
+            Environment::Mainnet => usize::from(dr_output.witnesses) > validator_count / 4,
+            _ => usize::from(dr_output.witnesses) > validator_count / 2,
+        }
     }
 }
 
