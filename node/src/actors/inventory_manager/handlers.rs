@@ -135,18 +135,27 @@ impl InventoryManager {
             Hash::SHA256(x) => x.to_vec(),
         };
 
-        let fut = storage_mngr::get::<_, Block>(&key)
+        // This closure fills in the missing bytes for backwards-compatibility of blocks encoded
+        // with V1_X using bincode. In particular, it checks whether the serialized bytes contain
+        // staking/unstaking merkle roots
+        let fix = |bytes: Vec<u8>| {
+            if bytes[260..264] == [0x51, 0x00, 0x00, 0x00] {
+                [&bytes[..260], &vec![0u8; 72], &bytes[260..], &vec![0u8; 16]].concat()
+            } else {
+                bytes
+            }
+        };
+
+        // Uses `mapped_get` to alter the bytes before deserialization. Please note that this is
+        // not a proper migration, but rather a workaround that has a little performance penalty
+        let fut = storage_mngr::mapped_get::<_, Block, _>(&key, fix)
             .into_actor(self)
             .then(move |res, _, _| match res {
                 Ok(opt) => match opt {
                     None => fut::err(InventoryManagerError::ItemNotFound),
                     Some(block) => fut::ok(block),
                 },
-                Err(e) => {
-                    log::error!("Couldn't get item from storage: {}", e);
-
-                    fut::err(InventoryManagerError::MailBoxError(e))
-                }
+                Err(e) => fut::err(InventoryManagerError::MailBoxError(e)),
             });
 
         Box::pin(fut)
@@ -390,6 +399,10 @@ impl Handler<GetItemSuperblock> for InventoryManager {
 mod tests {
     use std::sync::Arc;
 
+    use crate::{
+        actors::chain_manager::mining::build_block, config_mngr, storage_mngr,
+        utils::test_actix_system,
+    };
     use witnet_config::config::{Config, StorageBackend};
     use witnet_data_structures::{
         chain::{
@@ -401,11 +414,6 @@ mod tests {
         transaction::{Transaction, VTTransaction, VTTransactionBody},
         utxo_pool::UnspentOutputsPool,
         vrf::BlockEligibilityClaim,
-    };
-
-    use crate::{
-        actors::chain_manager::mining::build_block, config_mngr, storage_mngr,
-        utils::test_actix_system,
     };
 
     use super::*;

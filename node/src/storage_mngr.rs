@@ -52,6 +52,21 @@ where
     K: serde::Serialize,
     T: serde::de::DeserializeOwned + 'static,
 {
+    mapped_get(key, |bytes| bytes)
+}
+
+/// Get value associated to a key, with the superpower of mutating the bytes on the fly before
+/// attempting deserialization. This allows for pseudo-migration of data structures that were
+/// stored using a former implementation or serialization method.
+pub fn mapped_get<K, T, F>(
+    key: &K,
+    mapper: F,
+) -> impl Future<Output = Result<Option<T>, failure::Error>>
+where
+    K: serde::Serialize,
+    T: serde::de::DeserializeOwned + 'static,
+    F: FnMut(Vec<u8>) -> Vec<u8>,
+{
     // Check that we don't accidentally use this function with some certain special types
     if TypeId::of::<T>() == TypeId::of::<ChainState>() {
         panic!("Please use get_chain_state instead");
@@ -65,7 +80,7 @@ where
     };
 
     let fut = async move {
-        let opt = addr.send(Get(key_bytes)).await??;
+        let opt = addr.send(Get(key_bytes)).await??.map(mapper);
 
         match opt {
             Some(bytes) => match deserialize(bytes.as_slice()) {
