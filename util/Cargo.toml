@@ -7,7 +7,7 @@ workspace = ".."
 
 [dependencies]
 chrono = "0.4.10"
-humantime = "2.0.1"
+humantime = "2.0.2"
 lazy_static = "1.4.0"
 log = "0.4.8"
 ntp = { git = "https://github.com/witnet/ntp" }
