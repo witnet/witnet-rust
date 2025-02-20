@@ -47,6 +47,12 @@ pub trait Database {
         K: AsRef<[u8]>,
         V: serde::de::DeserializeOwned;
 
+    fn get_opt_with<K, V, F>(&self, key: &Key<K, V>, with: F) -> Result<Option<V>>
+    where
+        K: AsRef<[u8]>,
+        V: serde::de::DeserializeOwned,
+        F: Fn(&[u8]) -> Vec<u8>;
+
     #[allow(dead_code)]
     fn contains<K, V>(&self, key: &Key<K, V>) -> Result<bool>
     where

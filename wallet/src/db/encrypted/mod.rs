@@ -44,7 +44,16 @@ impl Database for EncryptedDb {
     fn get_opt<K, V>(&self, key: &Key<K, V>) -> Result<Option<V>>
     where
         K: AsRef<[u8]>,
-        V: serde::de::DeserializeOwned,
+        V: DeserializeOwned,
+    {
+        self.get_opt_with(key, |bytes| Vec::from(bytes))
+    }
+
+    fn get_opt_with<K, V, F>(&self, key: &Key<K, V>, with: F) -> Result<Option<V>>
+    where
+        K: AsRef<[u8]>,
+        V: DeserializeOwned,
+        F: Fn(&[u8]) -> Vec<u8>,
     {
         let prefix_key = self.prefixer.prefix(key);
         let enc_key = self.engine.encrypt(&prefix_key)?;
@@ -52,7 +61,7 @@ impl Database for EncryptedDb {
 
         match res {
             Some(dbvec) => {
-                let value = self.engine.decrypt(dbvec.as_ref())?;
+                let value = self.engine.decrypt_with(&dbvec, with)?;
 
                 Ok(Some(value))
             }

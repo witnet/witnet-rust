@@ -54,9 +54,18 @@ impl Database for HashMapDb {
         K: AsRef<[u8]>,
         V: serde::de::DeserializeOwned,
     {
+        self.get_opt_with(key, |bytes| Vec::from(bytes))
+    }
+
+    fn get_opt_with<K, V, F>(&self, key: &Key<K, V>, with: F) -> Result<Option<V>>
+    where
+        K: AsRef<[u8]>,
+        V: DeserializeOwned,
+        F: Fn(&[u8]) -> Vec<u8>,
+    {
         let k = key.as_ref().to_vec();
         let res = match RefCell::borrow(&self.rc).get(&k) {
-            Some(value) => Some(bincode::deserialize(value.as_ref())?),
+            Some(bytes) => Some(bincode::deserialize(&with(bytes))?),
             None => None,
         };
 

@@ -315,8 +315,15 @@ where
             db.get_or_default(&keys::account_stake_output_set(account))?;
         let timestamp =
             u64::try_from(get_timestamp()).expect("Get timestamp should return a positive value");
+        let v2_balance_fix = |bytes: &[u8]| {
+            if bytes.len() == 16 {
+                [&bytes[..], &vec![0u8; 8]].concat()
+            } else {
+                Vec::from(bytes)
+            }
+        };
         let balance_info = db
-            .get_opt(&keys::account_balance(account))?
+            .get_opt_with(&keys::account_balance(account), v2_balance_fix)?
             .unwrap_or_else(|| {
                 // compute balance from utxo set if is not cached in the
                 // database, this is mostly used for testing where overflow

@@ -1,6 +1,6 @@
-use std::sync::Arc;
-
 use super::*;
+use serde::de::DeserializeOwned;
+use std::sync::Arc;
 
 mod write_batch;
 
@@ -29,12 +29,22 @@ impl Database for PlainDb {
     fn get_opt<K, V>(&self, key: &Key<K, V>) -> Result<Option<V>>
     where
         K: AsRef<[u8]>,
-        V: serde::de::DeserializeOwned,
+        V: DeserializeOwned,
+    {
+        self.get_opt_with(key, |bytes| Vec::from(bytes))
+    }
+
+    fn get_opt_with<K, V, F>(&self, key: &Key<K, V>, with: F) -> Result<Option<V>>
+    where
+        K: AsRef<[u8]>,
+        V: DeserializeOwned,
+        F: Fn(&[u8]) -> Vec<u8>,
     {
         let res = self.as_ref().get(key)?;
         match res {
             Some(dbvec) => {
-                let value = bincode::deserialize(dbvec.as_ref())?;
+                let mapped = with(&dbvec);
+                let value = bincode::deserialize(&mapped)?;
                 Ok(Some(value))
             }
             None => Ok(None),

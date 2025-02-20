@@ -379,11 +379,11 @@ impl From<OutputInfo> for ValueTransferOutput {
 
 /// FIXME authorization is not being used but we may need it in the future
 /// when we support creating stake and unstake tx from the wallet and
-/// we could need them in the storage to avoid syncing the whole wallet 
+/// we could need them in the storage to avoid syncing the whole wallet
 /// Stake information including amount, key and authorization
 #[derive(Clone, Debug, Eq, Deserialize, PartialEq, Serialize)]
 pub struct StakeOutputInfo {
-    /// Staked amount 
+    /// Staked amount
     #[serde(
         serialize_with = "u64_to_string",
         deserialize_with = "number_from_string"
