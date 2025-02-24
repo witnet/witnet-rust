@@ -140,7 +140,7 @@ impl InventoryManager {
         // staking/unstaking merkle roots
         let fix = |bytes: Vec<u8>| {
             if bytes[260..264] == [0x51, 0x00, 0x00, 0x00] {
-                [&bytes[..260], &vec![0u8; 72], &bytes[260..], &vec![0u8; 16]].concat()
+                [&bytes[..260], &[0u8; 72], &bytes[260..], &[0u8; 16]].concat()
             } else {
                 bytes
             }

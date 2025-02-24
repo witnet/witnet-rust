@@ -317,7 +317,7 @@ where
             u64::try_from(get_timestamp()).expect("Get timestamp should return a positive value");
         let v2_balance_fix = |bytes: &[u8]| {
             if bytes.len() == 16 {
-                [&bytes[..], &vec![0u8; 8]].concat()
+                [bytes, &[0u8; 8]].concat()
             } else {
                 Vec::from(bytes)
             }
