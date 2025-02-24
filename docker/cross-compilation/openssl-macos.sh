@@ -28,9 +28,6 @@ main() {
         -fPIC \
         ${@:1}
 
-    # Modify the generated Makefile to use arm64
-    perl -pi -e 's/-arch x86_64/-arch arm64/g' Makefile
-
     # Build using all available cores
     KERNEL_BITS=64 make -j$(sysctl -n hw.ncpu)
 
