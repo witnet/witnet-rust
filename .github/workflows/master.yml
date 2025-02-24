@@ -140,7 +140,7 @@ jobs:
 
       - name: Build Macos Binary
         env:
-          MACOSX_DEPLOYMENT_TARGET: "10.14"
+          MACOSX_DEPLOYMENT_TARGET: "10.12"
           OPENSSL_STATIC: "1"
           OPENSSL_DIR: "/usr/local/openssl"
         run: |
