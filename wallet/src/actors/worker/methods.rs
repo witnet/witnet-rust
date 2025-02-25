@@ -1065,6 +1065,21 @@ impl Worker {
 
             // Wallet pending state might be invalid and it should be cleared for future blocks
             (true, false)
+        } else if block_beacon.checkpoint == 3048961
+            && block_beacon.hash_prev_block
+                == witnet_data_structures::chain::Hash::from(Vec::from(
+                    hex::decode("f83b42c391bbc2084651c3258af6f6830574e405c146ebe0989990c1071acf54")
+                        .unwrap(),
+                ))
+            && last_sync.hash_prev_block
+                == witnet_data_structures::chain::Hash::from(Vec::from(
+                    hex::decode("1a36ef15698405b5f9ea3b42efcf7469a4b4572a7826f7c9855835c0adf233cd")
+                        .unwrap(),
+                ))
+        {
+            log::warn!("Dealing with special V1_7 → V1_8 synchronization case");
+
+            (false, true)
         } else {
             log::warn!(
                 "Tried to process a block #{} that does not build directly on top our local (#{}) or confirmed tip (#{})",
