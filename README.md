@@ -1,10 +1,10 @@
 <div align="center">
     <h1><img src="https://raw.githubusercontent.com/witnet/witnet-rust/master/.github/header.png" alt="Witnet-rust"/></a></h1>
-    <a href="https://gitter.im/witnet/witnet-rust?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge"><img src="https://badges.gitter.im/witnet/witnet-rust.svg" alt="Join the chat at https://gitter.im/witnet/witnet-rust" /></a>
-    <a href="https://travis-ci.com/witnet/witnet-rust"><img src="https://travis-ci.com/witnet/witnet-rust.svg?branch=master" alt="Build Status" /></a>
-    <a href="https://github.com/witnet/witnet-rust/blob/master/LICENSE"><img src="https://img.shields.io/github/license/witnet/witnet-rust.svg" alt="GPLv3 Licensed" /></a>
+    <img alt="Discord" src="https://img.shields.io/discord/492453503390842880?style=flat&logo=discord&label=Discord&labelColor=grey&link=https%3A%2F%2Fdiscord.gg%2F7Kz2mhHnZf">
+    <a href="https://github.com/witnet/witnet-rust/actions"><img src="https://github.com/witnet/witnet-rust/actions/workflows/master.yml/badge.svg" alt="Build Status" /></a>
     <a href="https://github.com/witnet/witnet-rust/graphs/contributors"><img src="https://img.shields.io/github/contributors/witnet/witnet-rust.svg" alt="GitHub contributors" /></a>
     <a href="https://github.com/witnet/witnet-rust/commits/master"><img src="https://img.shields.io/github/last-commit/witnet/witnet-rust.svg" alt="Github last commit" /></a>
+    <a href="https://github.com/witnet/witnet-rust/blob/master/LICENSE"><img src="https://img.shields.io/github/license/witnet/witnet-rust.svg" alt="GPLv3 Licensed" /></a>
     <br/><br/>
     <p><strong>witnet-rust</strong> is an open source implementation of the Witnet Decentralized Oracle Network protocol written in Rust.</p>
 </div>
@@ -29,7 +29,7 @@ Members of the Witnet project also develop and maintain these other related Rust
 
 _DISCLAIMER: This is experimental software running on experimental network protocols. Be careful!_
 
-- All the main components are in place—but they need yet to be battle tested before mainnet. 
+- All the main components are in place—but they need yet to be battle tested before mainnet.
 - `Testnet-1` is live. [Here's the roadmap][roadmap] and this is [how to run a node].
 - The Witnet community is doing its best to make `witnet-rust` rock solid as soon as possible.
 - [Contributions](CONTRIBUTING.md) are more than welcome.
@@ -42,6 +42,9 @@ Detailed installation instructions can be found in the [installation guide][inst
 
 - To get involved, read our [contributing guide][contributing].
 - You can find us on [Discord].
+
+[![](https://dcbadge.limes.pink/api/server/7Kz2mhHnZf)](https://discord.gg/7Kz2mhHnZf)
+
 
 ## Project documentation
 
@@ -68,5 +71,5 @@ Witnet-rust is published under the [GNU General Public License v3.0][license].
 [install]: https://docs.witnet.io/try/run-a-node/
 [Contributing]: https://github.com/witnet/witnet-rust/blob/master/CONTRIBUTING.md
 [RADON]: https://docs.witnet.io/protocol/data-requests/overview/#the-rad-engine
-[Discord]: https://discord.gg/FDPPv7H
+[Discord]: https://discord.gg/7Kz2mhHnZf
 [license]: https://github.com/witnet/witnet-rust/blob/master/LICENSE
