@@ -485,6 +485,7 @@ pub trait Defaults {
         [
             (ProtocolVersion::V1_7, (0, 45)),
             (ProtocolVersion::V1_8, (3_048_960, 45)),
+            (ProtocolVersion::V2_0, (3_108_950, 20)),
         ]
         .into_iter()
         .collect()
