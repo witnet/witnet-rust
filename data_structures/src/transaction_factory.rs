@@ -864,6 +864,14 @@ pub fn build_st(
     let inputs = used_pointers.collect::<Vec<_>>();
     let body = StakeTransactionBody::new(inputs, output, change);
 
+    let txn_weight = body.weight();
+    if txn_weight > max_weight {
+        return Err(TransactionError::StakeWeightLimitExceeded {
+            weight: txn_weight,
+            max_weight,
+        });
+    }
+
     Ok(body)
 }
 

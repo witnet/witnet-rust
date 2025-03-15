@@ -312,6 +312,12 @@ pub enum TransactionError {
         stake, max_stake
     )]
     StakeAboveMaximum { max_stake: u64, stake: u64 },
+    /// Stake weight limit exceeded
+    #[fail(
+        display = "Stake Transaction weight ({}) exceeds the limit ({})",
+        weight, max_weight
+    )]
+    StakeWeightLimitExceeded { weight: u32, max_weight: u32 },
     /// Unstaking more than the total staked
     #[fail(
         display = "Tried to unstake more coins than the current stake ({} > {})",
