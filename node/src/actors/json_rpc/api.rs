@@ -88,6 +88,7 @@ where
 /// Attach the regular JSON-RPC methods to a multi-transport server.
 pub fn attach_regular_methods<H>(
     server: &mut impl witty_jsonrpc::server::ActixServer<H>,
+    sensitive_methods_enabled: bool,
     system: &Option<actix::System>,
 ) where
     H: witty_jsonrpc::handler::Handler,
@@ -108,8 +109,8 @@ pub fn attach_regular_methods<H>(
     server.add_actix_method(system, "dataRequestReport", |params: Params| {
         Box::pin(data_request_report(params.parse()))
     });
-    server.add_actix_method(system, "getBalance", |params: Params| {
-        Box::pin(get_balance(params))
+    server.add_actix_method(system, "getBalance", move |params: Params| {
+        Box::pin(get_balance(params, sensitive_methods_enabled))
     });
     server.add_actix_method(system, "getBalance2", |params: Params| {
         Box::pin(get_balance_2(params.parse()))
@@ -469,7 +470,7 @@ pub fn attach_api<H>(
 ) where
     H: witty_jsonrpc::handler::Handler,
 {
-    attach_regular_methods(server, system);
+    attach_regular_methods(server, enable_sensitive_methods, system);
     attach_sensitive_methods(server, enable_sensitive_methods, system);
     attach_subscriptions(server, subscriptions, system);
 }
@@ -1449,7 +1450,7 @@ impl From<GetBalanceParams> for GetBalanceTarget {
 }
 
 /// Get balance
-pub async fn get_balance(params: Params) -> JsonRpcResult {
+pub async fn get_balance(params: Params, sensitive_methods_enabled: bool) -> JsonRpcResult {
     let (target, simple): (GetBalanceTarget, bool);
 
     // Handle parameters as an array with a first obligatory PublicKeyHash field plus an optional bool field
@@ -1469,9 +1470,9 @@ pub async fn get_balance(params: Params) -> JsonRpcResult {
         target = params.into();
     };
 
-    if target == GetBalanceTarget::Own {
+    if target == GetBalanceTarget::Own && !sensitive_methods_enabled {
         return Err(Error::invalid_params(
-            "Providing server's balance is not allowed",
+            "Providing own node's balance is not allowed when sensitive methods are disabled",
         ));
     };
 
