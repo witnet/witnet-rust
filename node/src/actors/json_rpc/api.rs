@@ -40,16 +40,7 @@ use crate::{
         inventory_manager::{InventoryManager, InventoryManagerError},
         json_rpc::Subscriptions,
         messages::{
-            AddCandidates, AddPeers, AddTransaction, AuthorizeStake, BuildDrt, BuildStake,
-            BuildStakeParams, BuildStakeResponse, BuildUnstake, BuildUnstakeParams, BuildVtt,
-            ClearPeers, DropAllPeers, EstimatePriority, GetBalance, GetBalance2, GetBalance2Limits,
-            GetBalanceTarget, GetBlocksEpochRange, GetConsolidatedPeers, GetDataRequestInfo,
-            GetEpoch, GetHighestCheckpointBeacon, GetItemBlock, GetItemSuperblock,
-            GetItemTransaction, GetKnownPeers, GetMemoryTransaction, GetMempool, GetNodeStats,
-            GetProtocolInfo, GetReputation, GetSignalingInfo, GetState, GetSupplyInfo,
-            GetSupplyInfo2, GetUtxoInfo, InitializePeers, IsConfirmedBlock, MagicEither,
-            QueryStakes, QueryStakingPowers, Rewind, SnapshotExport, SnapshotImport,
-            StakeAuthorization,
+            AddCandidates, AddPeers, AddTransaction, AuthorizeStake, BuildDrt, BuildStake, BuildStakeParams, BuildStakeResponse, BuildUnstake, BuildUnstakeParams, BuildVtt, ClearPeers, DropAllPeers, EstimatePriority, GetBalance, GetBalance2, GetBalance2Limits, GetBalanceTarget, GetBlocksEpochRange, GetConsolidatedPeers, GetDataRequestInfo, GetEpoch, GetHighestCheckpointBeacon, GetItemBlock, GetItemSuperblock, GetItemTransaction, GetKnownPeers, GetMemoryTransaction, GetMempool, GetNodeStats, GetProtocolInfo, GetReputation, GetSignalingInfo, GetState, GetSupplyInfo, GetSupplyInfo2, GetUtxoInfo, InitializePeers, IsConfirmedBlock, MagicEither, QueryStakes, QueryStakingPowers, Rewind, SnapshotExport, SnapshotImport, StakeAuthorization
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -1459,7 +1450,7 @@ pub async fn get_balance(params: Params, sensitive_methods_enabled: bool) -> Jso
     // Handle parameters as an array with a first obligatory PublicKeyHash field plus an optional bool field
     if let Params::Array(params) = params {
         if let Some(Value::String(target_param)) = params.first() {
-            target = GetBalanceTarget::from_str(target_param).map_err(internal_error)?;
+            target = GetBalanceTarget::from_str(&target_param).map_err(internal_error)?;
         } else {
             return Err(Error::invalid_params(
                 "First argument of `get_balance` must have type `PublicKeyHash`",
