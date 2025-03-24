@@ -4,9 +4,9 @@
     "inputs": [
       {
         "indexed": false,
-        "internalType": "uint256",
+        "internalType": "uint64",
         "name": "queryId",
-        "type": "uint256"
+        "type": "uint64"
       },
       {
         "indexed": false,
@@ -47,9 +47,9 @@
   {
     "inputs": [
       {
-        "internalType": "uint256[]",
+        "internalType": "uint64[]",
         "name": "witnetQueryIds",
-        "type": "uint256[]"
+        "type": "uint64[]"
       },
       {
         "internalType": "bytes",
@@ -86,12 +86,12 @@
   {
     "inputs": [
       {
-        "internalType": "uint256[]",
+        "internalType": "uint64[]",
         "name": "queryIds",
-        "type": "uint256[]"
+        "type": "uint64[]"
       }
     ],
-    "name": "extractWitnetDataRequests",
+    "name": "extractRadonRequests",
     "outputs": [
       {
         "internalType": "bytes[]",
@@ -104,25 +104,12 @@
   },
   {
     "inputs": [],
-    "name": "factory",
-    "outputs": [
-      {
-        "internalType": "contract WitnetRequestFactory",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "getNextQueryId",
     "outputs": [
       {
-        "internalType": "uint256",
+        "internalType": "uint64",
         "name": "",
-        "type": "uint256"
+        "type": "uint64"
       }
     ],
     "stateMutability": "view",
@@ -131,15 +118,15 @@
   {
     "inputs": [
       {
-        "internalType": "uint256[]",
+        "internalType": "uint64[]",
         "name": "queryIds",
-        "type": "uint256[]"
+        "type": "uint64[]"
       }
     ],
     "name": "getQueryStatusBatch",
     "outputs": [
       {
-        "internalType": "enum WitnetV2.QueryStatus[]",
+        "internalType": "enum Witnet.QueryStatus[]",
         "name": "",
         "type": "uint8[]"
       }
@@ -152,7 +139,7 @@
     "name": "registry",
     "outputs": [
       {
-        "internalType": "contract WitnetRequestBytecodes",
+        "internalType": "interface IWitOracleRadonRegistry",
         "name": "",
         "type": "address"
       }
@@ -163,9 +150,9 @@
   {
     "inputs": [
       {
-        "internalType": "uint256",
+        "internalType": "uint64",
         "name": "witnetQueryId",
-        "type": "uint256"
+        "type": "uint64"
       },
       {
         "internalType": "bytes32",
@@ -192,14 +179,14 @@
   {
     "inputs": [
       {
-        "internalType": "uint256",
+        "internalType": "uint64",
         "name": "witnetQueryId",
-        "type": "uint256"
+        "type": "uint64"
       },
       {
-        "internalType": "uint32",
+        "internalType": "uint64",
         "name": "witnetQueryResultTimestamp",
-        "type": "uint32"
+        "type": "uint64"
       },
       {
         "internalType": "bytes32",
@@ -228,14 +215,14 @@
       {
         "components": [
           {
-            "internalType": "uint256",
+            "internalType": "uint64",
             "name": "queryId",
-            "type": "uint256"
+            "type": "uint64"
           },
           {
-            "internalType": "uint32",
+            "internalType": "uint64",
             "name": "queryResultTimestamp",
-            "type": "uint32"
+            "type": "uint64"
           },
           {
             "internalType": "bytes32",
@@ -280,9 +267,9 @@
   {
     "inputs": [
       {
-        "internalType": "uint256",
+        "internalType": "uint64",
         "name": "queryId",
-        "type": "uint256"
+        "type": "uint64"
       }
     ],
     "name": "upgradeQueryEvmReward",

@@ -164,7 +164,7 @@ impl EthPoller {
                             let dr_bytecodes: Result<Vec<Bytes>, web3::contract::Error> =
                                 wrb_contract
                                     .query(
-                                        "extractWitnetDataRequests",
+                                        "extractRadonRequests",
                                         posted_ids.clone(),
                                         None,
                                         contract::Options::default(),
