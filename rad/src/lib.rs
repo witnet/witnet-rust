@@ -875,6 +875,8 @@ pub mod fromx {
 mod tests {
     use std::convert::TryFrom;
 
+    use tokio;
+
     use serde_cbor::Value;
     use witnet_data_structures::{
         chain::RADFilter,
@@ -1928,5 +1930,68 @@ mod tests {
         let expected_result = RadError::InconsistentSource;
 
         assert_eq!(actual_result, expected_result);
+    }
+
+    #[test]
+    fn test_witnet_http_client() {
+        // Set up proxy addresses in this vector
+        let proxies = vec![];
+
+        let mut transports = vec![];
+        for proxy in proxies {
+            match Uri::try_from(proxy) {
+                Ok(uri) => transports.push(uri),
+                Err(_) => {
+                    log::error!("Could not convert {} to witnet_rad::Uri", proxy);
+                }
+            }
+        }
+
+        let retrieve = RADRetrieve {
+            kind: RADType::HttpGet,
+            url: "https://www.bitstamp.net/api/ticker/".to_string(),
+            script: vec![130, 24, 119, 130, 24, 100, 100, 108, 97, 115, 116],
+            body: vec![],
+            headers: vec![],
+        };
+
+        for transport in &transports {
+            match WitnetHttpClient::new(Some(transport.clone()), true) {
+                Ok(client) => {
+                    tokio::runtime::Builder::new_current_thread()
+                        .enable_all()
+                        .build()
+                        .unwrap()
+                        .block_on(async {
+                            let report = run_retrieval_report(
+                                &retrieve,
+                                RadonScriptExecutionSettings::disable_all(),
+                                current_active_wips(),
+                                Some(client),
+                            )
+                            .await;
+
+                            // Assert report is ok
+                            assert!(report.is_ok());
+
+                            // Check the type
+                            fn type_of<T>(_: T) -> &'static str {
+                                std::any::type_name::<T>()
+                            }
+                            assert_eq!(
+                                type_of(report.unwrap().result),
+                                "witnet_rad::types::RadonTypes"
+                            );
+                        });
+                }
+                Err(e) => {
+                    println!(
+                        "Encountered error for proxy {:?}: {}",
+                        transport,
+                        e.to_string()
+                    );
+                }
+            }
+        }
     }
 }
