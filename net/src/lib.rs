@@ -7,7 +7,8 @@
 #![deny(unused_mut)]
 #![deny(missing_docs)]
 
-pub use isahc::http::Uri;
+/// Wrapper around reqwest::Url to define our own URL type
+pub type Uri = reqwest::Url;
 
 pub mod client;
 pub mod server;

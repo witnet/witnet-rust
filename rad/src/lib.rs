@@ -2,7 +2,8 @@
 
 extern crate witnet_data_structures;
 
-use futures::{executor::block_on, future::join_all, AsyncReadExt};
+use futures::{executor::block_on, future::join_all};
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue, USER_AGENT};
 use serde::Serialize;
 pub use serde_cbor::{to_vec as cbor_to_vec, Value as CborValue};
 #[cfg(test)]
@@ -30,7 +31,7 @@ use crate::{
 };
 use core::convert::From;
 use std::collections::BTreeMap;
-use witnet_net::client::http::{WitnetHttpBody, WitnetHttpRequest};
+use witnet_net::client::http::WitnetHttpBody;
 
 pub mod conditions;
 pub mod error;
@@ -276,49 +277,78 @@ async fn http_response(
         }
     };
 
-    let request = WitnetHttpRequest::build(|builder| {
-        // Populate the builder and generate the body for different types of retrievals
-        let (builder, body) = match retrieve.kind {
-            RADType::HttpGet => (
-                builder.method("GET").uri(&retrieve.url),
-                WitnetHttpBody::empty(),
+    // Populate the builder and generate the body for different types of retrievals
+    let mut request_builder = match retrieve.kind {
+        RADType::HttpGet => client
+            .clone()
+            .get(
+                witnet_net::Uri::parse(&retrieve.url).map_err(|e| RadError::UrlParseError {
+                    url: retrieve.url.clone(),
+                    inner: e,
+                })?,
             ),
-            RADType::HttpPost => {
-                // Using `Vec<u8>` as the body sets the content type header to `application/octet-stream`
-                (
-                    builder.method("POST").uri(&retrieve.url),
-                    WitnetHttpBody::from(retrieve.body.clone()),
-                )
-            }
-            RADType::HttpHead => (
-                builder.method("HEAD").uri(&retrieve.url),
-                WitnetHttpBody::empty(),
+        RADType::HttpPost => client
+            .clone()
+            .post(
+                witnet_net::Uri::parse(&retrieve.url).map_err(|e| RadError::UrlParseError {
+                    url: retrieve.url.clone(),
+                    inner: e,
+                })?,
             ),
-            _ => panic!(
-                "Called http_response with invalid retrieval kind {:?}",
-                retrieve.kind
+        RADType::HttpHead => client
+            .clone()
+            .head(
+                witnet_net::Uri::parse(&retrieve.url).map_err(|e| RadError::UrlParseError {
+                    url: retrieve.url.clone(),
+                    inner: e,
+                })?,
             ),
-        };
+        _ => panic!(
+            "Called http_response with invalid retrieval kind {:?}",
+            retrieve.kind
+        ),
+    };
 
-        // Add random user agent
-        let mut builder = builder.header("User-Agent", UserAgent::random());
+    // Using `Vec<u8>` as the body sets the content type header to `application/octet-stream` {
+    request_builder = match retrieve.kind {
+        RADType::HttpPost => request_builder.body(WitnetHttpBody::from(retrieve.body.clone())),
+        _ => request_builder,
+    };
 
-        // Add extra_headers from retrieve.headers
-        for (name, value) in &retrieve.headers {
-            // Handle invalid header names and values with a specific and friendly error message
-            validate_header(name, value)?;
-
-            builder = builder.header(name, value);
+    let mut headers = HeaderMap::new();
+    // Add random user agent
+    match HeaderValue::from_str(UserAgent::random()) {
+        Ok(value) => {
+            headers.insert(USER_AGENT, value);
         }
+        Err(e) => log::warn!("Got invalid user agent {}", e),
+    };
 
-        // Finally attach the body to complete building the HTTP request
-        builder.body(body).map_err(|e| RadError::HttpOther {
-            message: e.to_string(),
-        })
-    })?;
+    // Add extra_headers from retrieve.headers
+    for (name, value) in &retrieve.headers {
+        // Handle invalid header names and values with a specific and friendly error message
+        validate_header(name, value)?;
+
+        // Create actual header name and value using reqwest
+        let name = HeaderName::try_from(name).map_err(|e| RadError::InvalidHttpHeader {
+            name: name.to_string(),
+            value: value.to_string(),
+            error: e.to_string(),
+        })?;
+
+        let value = HeaderValue::from_str(value).map_err(|e| RadError::InvalidHttpHeader {
+            name: name.to_string(),
+            value: value.to_string(),
+            error: e.to_string(),
+        })?;
+
+        headers.insert(name, value);
+    }
+
+    request_builder = request_builder.headers(headers);
 
     let response = client
-        .send(request)
+        .send(request_builder)
         .await
         .map_err(|x| RadError::HttpOther {
             message: x.to_string(),
@@ -333,13 +363,9 @@ async fn http_response(
 
     // If at some point we want to support the retrieval of non-UTF8 data (e.g. raw bytes), this is
     // where we need to decide how to read the response body
-    let (_parts, mut body) = response.into_parts();
-    let mut response_string = String::default();
-    body.read_to_string(&mut response_string)
-        .await
-        .map_err(|x| RadError::HttpOther {
-            message: x.to_string(),
-        })?;
+    let response_string = response.text().await.map_err(|x| RadError::HttpOther {
+        message: x.to_string(),
+    })?;
 
     let result = run_retrieval_with_data_report(retrieve, &response_string, context, settings);
 
@@ -437,7 +463,7 @@ pub async fn run_paranoid_retrieval(
         .map(|transport| {
             let follow_redirects = active_wips.wip0025();
 
-            WitnetHttpClient::new(transport, follow_redirects)
+            WitnetHttpClient::new(transport.clone(), follow_redirects)
                 .map_err(|err| RadError::HttpOther {
                     message: err.to_string(),
                 })

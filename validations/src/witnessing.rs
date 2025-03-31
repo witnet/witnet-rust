@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use core::{
     convert::{From, TryInto},
     fmt,
@@ -17,8 +19,8 @@ pub fn validate_witnessing_config<T, T2>(
 ) -> Result<WitnessingConfig<T2>, WitnessingConfigError>
 where
     T: Clone + fmt::Debug + fmt::Display,
-    T2: Clone + fmt::Debug + fmt::Display + TryFrom<String>,
-    <T2 as TryFrom<String>>::Error: fmt::Display,
+    T2: Clone + fmt::Debug + fmt::Display + FromStr,
+    <T2 as FromStr>::Err: fmt::Display,
 {
     let mut valid = Vec::<Option<T2>>::new();
     let mut invalid = Vec::<(String, TransportAddressError)>::new();
@@ -99,8 +101,8 @@ impl From<url::ParseError> for TransportAddressError {
 pub fn validate_transport_address<T, T2>(address: T) -> Result<T2, TransportAddressError>
 where
     T: Clone + fmt::Display,
-    T2: Clone + fmt::Display + TryFrom<String>,
-    <T2 as TryFrom<String>>::Error: fmt::Display,
+    T2: Clone + fmt::Display + FromStr,
+    <T2 as FromStr>::Err: fmt::Display,
 {
     // Fail if the address can't be parsed
     let parsed: url::Url = address
@@ -123,7 +125,7 @@ where
         Err(TransportAddressError::MissingPort)?;
     }
 
-    let address_as_t2 = T2::try_from(address.to_string())
+    let address_as_t2 = T2::from_str(address.to_string().as_str())
         .map_err(|e| TransportAddressError::Other(e.to_string()))?;
 
     Ok(address_as_t2)

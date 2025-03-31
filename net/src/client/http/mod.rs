@@ -1,28 +1,29 @@
-use isahc::prelude::*;
-
 use failure::Fail;
-use isahc::config::RedirectPolicy;
-use isahc::http;
-use isahc::http::request::Builder;
+use reqwest;
 
 /// Maximum number of HTTP redirects to follow
-const MAX_REDIRECTS: u32 = 4;
+const MAX_REDIRECTS: usize = 4;
 
 /// A surf-alike HTTP client that additionally supports proxies (HTTP(S), SOCKS4 and SOCKS5)
 #[derive(Clone, Debug)]
 pub struct WitnetHttpClient {
-    client: isahc::HttpClient,
+    client: reqwest::Client,
 }
 
 impl WitnetHttpClient {
     /// Simple wrapper around `isahc::HttpClient::send_async`.
     pub async fn send(
         &self,
-        request: WitnetHttpRequest,
+        request: reqwest::RequestBuilder,
     ) -> Result<WitnetHttpResponse, WitnetHttpError> {
+        let req = match request.build() {
+            Ok(req) => req,
+            Err(e) => return Err(WitnetHttpError::HttpRequestError { msg: e.to_string() }),
+        };
+
         Ok(WitnetHttpResponse::from(
             self.client
-                .send_async(request.req)
+                .execute(req)
                 .await
                 .map_err(|e| WitnetHttpError::HttpRequestError { msg: e.to_string() })?,
         ))
@@ -95,107 +96,115 @@ pub enum WitnetHttpError {
 impl WitnetHttpClient {
     /// Create a new `WitnetHttpClient`
     pub fn new(
-        proxy: impl Into<Option<isahc::http::Uri>>,
+        proxy: Option<reqwest::Url>,
         follow_redirects: bool,
     ) -> Result<Self, WitnetHttpError> {
-        // Build an `isahc::HttpClient`. Will use the proxy URI, if any
-        let client = isahc::HttpClient::builder()
-            .proxy(proxy)
-            .redirect_policy(if follow_redirects {
-                RedirectPolicy::Limit(MAX_REDIRECTS)
-            } else {
-                RedirectPolicy::None
-            })
-            .build()
-            .map_err(|err| WitnetHttpError::ClientBuildError {
-                msg: err.to_string(),
-            })?;
+        let redirect_policy = if follow_redirects {
+            reqwest::redirect::Policy::limited(MAX_REDIRECTS)
+        } else {
+            reqwest::redirect::Policy::none()
+        };
+
+        let client;
+        match proxy {
+            Some(proxy) => {
+                let proxy = reqwest::Proxy::http(proxy).map_err(|err| {
+                    WitnetHttpError::ClientBuildError {
+                        msg: err.to_string(),
+                    }
+                })?;
+                client = reqwest::Client::builder()
+                    .proxy(proxy)
+                    .redirect(redirect_policy)
+                    .build()
+                    .map_err(|err| WitnetHttpError::ClientBuildError {
+                        msg: err.to_string(),
+                    })?;
+            }
+            None => {
+                client = reqwest::Client::builder()
+                    .redirect(redirect_policy)
+                    .build()
+                    .map_err(|err| WitnetHttpError::ClientBuildError {
+                        msg: err.to_string(),
+                    })?;
+            }
+        };
 
         Ok(Self { client })
+    }
+
+    /// Build an HTTP GET request
+    pub fn get(self, url: reqwest::Url) -> reqwest::RequestBuilder {
+        self.client.get(url)
+    }
+
+    /// Build an HTTP POST request
+    pub fn post(self, url: reqwest::Url) -> reqwest::RequestBuilder {
+        self.client.post(url)
+    }
+
+    /// Build an HTTP HEAD request
+    pub fn head(self, url: reqwest::Url) -> reqwest::RequestBuilder {
+        self.client.head(url)
     }
 }
 
 /// Alias for the specific type of body that we use.
-pub type WitnetHttpBody = isahc::AsyncBody;
-/// Alias for our request builder.
-pub type WitnetHttpRequestBuilder = http::request::Builder;
-type Request = http::Request<WitnetHttpBody>;
+pub type WitnetHttpBody = reqwest::Body;
 
-/// Enables interoperability between `isahc::Request` and `surf::http::Request`.
-pub struct WitnetHttpRequest {
-    req: isahc::Request<WitnetHttpBody>,
-}
-
-impl WitnetHttpRequest {
-    /// Allows creating a `WitnetHttpRequest` using the same API from `http::request::Builder`.
-    pub fn build<F, E>(mut f: F) -> Result<Self, E>
-    where
-        F: FnMut(WitnetHttpRequestBuilder) -> Result<Request, E>,
-    {
-        Ok(Self {
-            req: f(Builder::new())?,
-        })
-    }
-}
-
-impl From<isahc::Request<isahc::AsyncBody>> for WitnetHttpRequest {
-    fn from(req: isahc::Request<isahc::AsyncBody>) -> Self {
-        Self { req }
-    }
-}
-
-/// Enables interoperability between `isahc::Response` and `surf::http::Response`.
+/// Wrapper around reqwest::Response
 pub struct WitnetHttpResponse {
-    res: isahc::Response<isahc::AsyncBody>,
+    res: reqwest::Response,
 }
 
 impl WitnetHttpResponse {
     #[inline]
-    /// Simple wrapper around `isahc::Response::status`.
-    pub fn inner(self) -> isahc::Response<isahc::AsyncBody> {
+    /// Simple wrapper around `reqwest::Response::status`.
+    pub fn inner(self) -> reqwest::Response {
         self.res
     }
 }
 
-impl From<isahc::Response<isahc::AsyncBody>> for WitnetHttpResponse {
+impl From<reqwest::Response> for WitnetHttpResponse {
     #[inline]
-    fn from(res: isahc::Response<isahc::AsyncBody>) -> Self {
+    fn from(res: reqwest::Response) -> Self {
         Self { res }
     }
 }
 
-/// Enables interoperability between `isahc::http::Method` and `surf::http::Method`.
+/// Wrapper around reqwest::Method
 pub struct WitnetHttpMethod {
-    method: isahc::http::Method,
+    method: reqwest::Method,
 }
 
-impl From<isahc::http::Method> for WitnetHttpMethod {
+impl From<reqwest::Method> for WitnetHttpMethod {
     #[inline]
-    fn from(method: isahc::http::Method) -> Self {
+    fn from(method: reqwest::Method) -> Self {
         Self { method }
     }
 }
 
-impl From<WitnetHttpMethod> for isahc::http::Method {
+impl From<WitnetHttpMethod> for reqwest::Method {
     #[inline]
     fn from(method: WitnetHttpMethod) -> Self {
         method.method
     }
 }
 
-/// Enables interoperability between `isahc::http::version::Version` and `surf::http::Version`.
+/// Wrapper around reqwest::Version
 pub struct WitnetHttpVersion {
-    version: isahc::http::version::Version,
+    version: reqwest::Version,
 }
 
-impl From<isahc::http::version::Version> for WitnetHttpVersion {
+impl From<reqwest::Version> for WitnetHttpVersion {
     #[inline]
-    fn from(version: isahc::http::version::Version) -> Self {
+    fn from(version: reqwest::Version) -> Self {
         Self { version }
     }
 }
 
-impl From<WitnetHttpVersion> for isahc::http::version::Version {
+impl From<WitnetHttpVersion> for reqwest::Version {
     #[inline]
     fn from(version: WitnetHttpVersion) -> Self {
         version.version
