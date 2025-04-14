@@ -64,6 +64,13 @@ db_path = ".witnet/storage"
 [jsonrpc]
 # Enables or disables the JSON-RPC server altogether. This is needed for using the CLI methods of the node.
 enabled = true
+# Enables or disables JSON-RPC methods that have privacy or security concerns (checking balances, spending coins ,etc.)
+# - Nodes that expose their JSON-RPC to the public MUST set this to `false` to block any malicious 3rd party usage.
+# - Nodes that share their host with other software SHOULD set this to `false` as well, to block other processes from
+#   abusing it.
+# - Nodes running on docker are just fine to set this as `false` as long as they don't bind the JSON-RPC port to an
+#   external interface.
+enable_sensitive_methods = true
 # The addresses (IP and port) which the JSON-RPC server binds to.
 # WARNING: these should be kept to a local, private address (e.g. 127.0.0.1) to prevent any device in your local network
 # (and potentially, the internet) from messing with your JSON-RPC server.
