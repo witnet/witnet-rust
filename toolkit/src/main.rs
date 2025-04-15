@@ -28,7 +28,8 @@ mod cli;
 ///
 /// This basically handles the core functionality of the CLI, and ensures that the process exits
 /// gracefully.
-fn main() {
+#[tokio::main]
+async fn main() {
     let command = Command::from_args();
     let exit_code = cli::process_command(command);
     std::process::exit(exit_code);
