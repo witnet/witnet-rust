@@ -1935,11 +1935,11 @@ mod tests {
     #[test]
     fn test_witnet_http_client() {
         // Set up proxy addresses in this vector
-        let proxies = vec![];
+        let proxies = Vec::<Uri>::new();
 
         let mut transports = vec![];
         for proxy in proxies {
-            match Uri::try_from(proxy) {
+            match Uri::try_from(proxy.clone()) {
                 Ok(uri) => transports.push(uri),
                 Err(_) => {
                     log::error!("Could not convert {} to witnet_rad::Uri", proxy);
