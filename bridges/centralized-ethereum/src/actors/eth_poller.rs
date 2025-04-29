@@ -193,7 +193,7 @@ impl EthPoller {
                             "Fail to get status of queries #{} to #{}: {}",
                             init_index,
                             next_dr_id,
-                            queries_status.unwrap_err().to_string()
+                            queries_status.unwrap_err()
                         );
                     }
                 }

@@ -105,11 +105,10 @@ where
 }
 
 fn staggered(take: usize) -> impl Iterator<Item = u32> {
-    iter::repeat(10000)
-        .take(take)
-        .chain(iter::repeat(1000).take(take))
-        .chain(iter::repeat(100).take(take))
-        .chain(iter::repeat(10).take(take))
+    iter::repeat_n(10000, take)
+        .chain(iter::repeat_n(1000, take))
+        .chain(iter::repeat_n(100, take))
+        .chain(iter::repeat_n(10, take))
 }
 
 fn all_unique(n: u32) -> impl Iterator<Item = u32> {
@@ -117,7 +116,7 @@ fn all_unique(n: u32) -> impl Iterator<Item = u32> {
 }
 
 fn all_equal(n: usize) -> impl Iterator<Item = u32> {
-    iter::repeat(1).take(n)
+    iter::repeat_n(1, n)
 }
 
 fn b_staggered_10000(b: &mut Bencher) {

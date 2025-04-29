@@ -239,10 +239,10 @@ where
     ///
     /// * `subscript_index` is used to distinguish the different subscripts in one RADON script.
     /// * `operator_index` is the index of the operator inside the subscript: the partial result.
-    ///     The first element is always the input value, and the last element is the result of the
-    ///     subscript.
+    ///   The first element is always the input value, and the last element is the result of the
+    ///   subscript.
     /// * `element_index` is the index of the element inside the array that serves as the input of
-    ///     the subscript.
+    ///   the subscript.
     pub subscript_partial_results: Vec<Vec<Vec<RT>>>,
 }
 

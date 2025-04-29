@@ -21,7 +21,6 @@ use witnet_data_structures::{
     proto::versioning::ProtocolVersion,
     refresh_protocol_version,
     staking::{
-        errors::StakesError,
         prelude::{Power, StakeKey},
         stakes::QueryStakesKey,
     },
@@ -861,7 +860,7 @@ impl PeersBeacons {
                     b.as_ref()
                         .map(|last_beacon| last_beacon.highest_superblock_checkpoint)
                 })
-                .chain(std::iter::repeat(None).take(num_missing_peers)),
+                .chain(std::iter::repeat_n(None, num_missing_peers)),
             consensus_threshold,
         )
         // Flatten result:
@@ -1023,7 +1022,7 @@ impl Handler<PeersBeacons> for ChainManager {
         let peers_needed_for_consensus = outbound_limit
             .map(|x| {
                 // ceil(x * consensus_threshold / 100)
-                (usize::from(x) * consensus_threshold + 99) / 100
+                (usize::from(x) * consensus_threshold).div_ceil(100)
             })
             .unwrap_or(1);
 
@@ -1553,11 +1552,7 @@ impl Handler<QueryStakes> for ChainManager {
         let limit = params.limit.unwrap_or(u16::MAX) as usize;
 
         // fetch filtered stake entries from current chain state:
-        let mut stakes = self
-            .chain_state
-            .stakes
-            .query_stakes(filter.clone())
-            .map_err(StakesError::from)?;
+        let mut stakes = self.chain_state.stakes.query_stakes(filter.clone())?;
 
         // filter out stake entries having a nonce, last mining or witnessing epochs (depending
         // on actual ordering field) older than calculated `since_epoch`:

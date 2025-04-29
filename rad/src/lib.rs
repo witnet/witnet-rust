@@ -875,8 +875,6 @@ pub mod fromx {
 mod tests {
     use std::convert::TryFrom;
 
-    use tokio;
-
     use serde_cbor::Value;
     use witnet_data_structures::{
         chain::RADFilter,
@@ -1985,11 +1983,7 @@ mod tests {
                         });
                 }
                 Err(e) => {
-                    println!(
-                        "Encountered error for proxy {:?}: {}",
-                        transport,
-                        e.to_string()
-                    );
+                    println!("Encountered error for proxy {:?}: {}", transport, e);
                 }
             }
         }

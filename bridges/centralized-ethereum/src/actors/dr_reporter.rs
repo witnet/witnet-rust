@@ -311,7 +311,7 @@ impl Handler<DrReporterMsg> for DrReporter {
                         // Error in call_with_confirmations
                         log::error!(
                             "{}: {:?}",
-                            format!("Cannot call reportResultBatch{:?}", &batched_report),
+                            format_args!("Cannot call reportResultBatch{:?}", &batched_report),
                             e
                         );
                     }

@@ -80,9 +80,9 @@ impl Operable for RadonBoolean {
         match call {
             (RadonOpCodes::Identity, None) => identity(RadonTypes::from(self.clone())),
             (RadonOpCodes::BooleanNegate, None) => Ok(boolean_operators::negate(self).into()),
-            (RadonOpCodes::BooleanAsString, None) => boolean_operators::to_string(self.clone())
-                .map(RadonTypes::from)
-                .map_err(Into::into),
+            (RadonOpCodes::BooleanAsString, None) => {
+                boolean_operators::to_string(self.clone()).map(RadonTypes::from)
+            }
             (op_code, args) => Err(RadError::UnsupportedOperator {
                 input_type: RADON_BOOLEAN_TYPE_NAME.to_string(),
                 operator: op_code.to_string(),

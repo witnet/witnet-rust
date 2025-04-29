@@ -110,11 +110,10 @@ fn be<I>(
 }
 
 fn staggered() -> impl Iterator<Item = u32> {
-    iter::repeat(10000)
-        .take(50)
-        .chain(iter::repeat(1000).take(50))
-        .chain(iter::repeat(100).take(50))
-        .chain(iter::repeat(10).take(50))
+    iter::repeat_n(10000, 50)
+        .chain(iter::repeat_n(1000, 50))
+        .chain(iter::repeat_n(100, 50))
+        .chain(iter::repeat_n(10, 50))
 }
 
 fn no_cache_empty_rep_eng_1w(b: &mut Bencher) {

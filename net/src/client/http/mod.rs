@@ -105,30 +105,28 @@ impl WitnetHttpClient {
             reqwest::redirect::Policy::none()
         };
 
-        let client;
-        match proxy {
+        let client = match proxy {
             Some(proxy) => {
                 let proxy = reqwest::Proxy::http(proxy).map_err(|err| {
                     WitnetHttpError::ClientBuildError {
                         msg: err.to_string(),
                     }
                 })?;
-                client = reqwest::Client::builder()
+
+                reqwest::Client::builder()
                     .proxy(proxy)
                     .redirect(redirect_policy)
                     .build()
                     .map_err(|err| WitnetHttpError::ClientBuildError {
                         msg: err.to_string(),
-                    })?;
+                    })?
             }
-            None => {
-                client = reqwest::Client::builder()
-                    .redirect(redirect_policy)
-                    .build()
-                    .map_err(|err| WitnetHttpError::ClientBuildError {
-                        msg: err.to_string(),
-                    })?;
-            }
+            None => reqwest::Client::builder()
+                .redirect(redirect_policy)
+                .build()
+                .map_err(|err| WitnetHttpError::ClientBuildError {
+                    msg: err.to_string(),
+                })?,
         };
 
         Ok(Self { client })

@@ -116,9 +116,9 @@ impl Operable for RadonFloat {
             (RadonOpCodes::FloatAbsolute, None) => {
                 Ok(RadonTypes::from(float_operators::absolute(self)))
             }
-            (RadonOpCodes::FloatAsString, None) => float_operators::to_string(self.clone())
-                .map(RadonTypes::from)
-                .map_err(Into::into),
+            (RadonOpCodes::FloatAsString, None) => {
+                float_operators::to_string(self.clone()).map(RadonTypes::from)
+            }
             (RadonOpCodes::FloatCeiling, None) => {
                 Ok(RadonTypes::from(float_operators::ceiling(self)))
             }

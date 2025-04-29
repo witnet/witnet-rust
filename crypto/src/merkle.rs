@@ -47,7 +47,7 @@ fn merkle_tree_root_with_hashing_function<T: Copy>(hash_concat: fn(T, T) -> T, h
         n => {
             // n nodes: split into 2 and calculate the root for each half
             // split at the first power of two greater or equal to n / 2
-            let (left, right) = hashes.split_at(((n + 1) / 2).next_power_of_two());
+            let (left, right) = hashes.split_at(n.div_ceil(2).next_power_of_two());
             let left_hash = merkle_tree_root_with_hashing_function(hash_concat, left);
             let right_hash = merkle_tree_root_with_hashing_function(hash_concat, right);
 

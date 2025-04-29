@@ -441,10 +441,7 @@ async fn fetch_wit_info(
     let req = jsonrpc::Request::method("getPkh").timeout(Duration::from_secs(5));
     let res = wit_client.send(req).await;
     let wit_account = match res {
-        Ok(Ok(res)) => match serde_json::from_value::<String>(res) {
-            Ok(pkh) => Some(pkh),
-            Err(_) => None,
-        },
+        Ok(Ok(res)) => serde_json::from_value::<String>(res).ok(),
         Ok(Err(_)) => None,
         Err(err) => {
             log::debug!("fetch_wit_info => method: getPkh; error: {}", err);
