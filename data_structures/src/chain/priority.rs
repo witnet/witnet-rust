@@ -387,6 +387,10 @@ pub struct Priorities {
     pub vtt_highest: Priority,
     /// The lowest priority used by data requests transactions in a block.
     pub vtt_lowest: Option<Priority>,
+    /// The highest priority used by stake transactions in a block.
+    pub st_highest: Priority,
+    /// The lowest priority used by stake transactions in a block.
+    pub st_lowest: Option<Priority>,
 }
 
 impl Priorities {
@@ -425,6 +429,24 @@ impl Priorities {
             self.vtt_lowest = Some(priority);
         }
     }
+
+    /// Process the priority of a stake transaction, and update the highest and lowest
+    /// values accordingly, if the provided value is higher or lower than the previously set values.
+    #[inline]
+    pub fn digest_st_priority(&mut self, priority: Priority) {
+        // Update highest
+        if priority > self.st_highest {
+            self.st_highest = priority;
+        }
+        // Update lowest
+        if let Some(st_lowest) = &self.st_lowest {
+            if &priority < st_lowest {
+                self.st_lowest = Some(priority);
+            }
+        } else if priority != 0 {
+            self.st_lowest = Some(priority);
+        }
+    }
 }
 
 impl fmt::Debug for Priorities {
@@ -459,6 +481,10 @@ impl Visitor for PriorityVisitor {
                 self.0
                     .digest_vtt_priority(Priority::from_absolute_fee_weight(*fee, *weight));
             }
+            Transaction::Stake(_) => {
+                self.0
+                    .digest_st_priority(Priority::from_absolute_fee_weight(*fee, *weight));
+            }
             _ => (),
         }
     }
@@ -492,6 +518,11 @@ pub struct PrioritiesEstimate {
     pub vtt_medium: PriorityEstimate,
     pub vtt_high: PriorityEstimate,
     pub vtt_opulent: PriorityEstimate,
+    pub st_stinky: PriorityEstimate,
+    pub st_low: PriorityEstimate,
+    pub st_medium: PriorityEstimate,
+    pub st_high: PriorityEstimate,
+    pub st_opulent: PriorityEstimate,
 }
 
 impl fmt::Display for PrioritiesEstimate {
@@ -513,6 +544,16 @@ impl fmt::Display for PrioritiesEstimate {
 ║  Opulent │ {:>13} │ {:<28}  ║
 ╠══════════════════════════════════════════════════════════╣
 ║ Value transfer transactions                              ║
+╟──────────┬───────────────┬───────────────────────────────║
+║     Tier │ Time-to-block │ Priority                      ║
+╟──────────┼───────────────┼───────────────────────────────║
+║   Stinky │ {:>13} │ {:<28}  ║
+║      Low │ {:>13} │ {:<28}  ║
+║   Medium │ {:>13} │ {:<28}  ║
+║     High │ {:>13} │ {:<28}  ║
+║  Opulent │ {:>13} │ {:<28}  ║
+╠══════════════════════════════════════════════════════════╣
+║ Stake transactions                                       ║
 ╟──────────┬───────────────┬───────────────────────────────║
 ║     Tier │ Time-to-block │ Priority                      ║
 ╟──────────┼───────────────┼───────────────────────────────║
@@ -544,6 +585,16 @@ impl fmt::Display for PrioritiesEstimate {
             self.vtt_high.priority.to_string(),
             self.vtt_opulent.time_to_block.to_string(),
             self.vtt_opulent.priority.to_string(),
+            self.st_stinky.time_to_block.to_string(),
+            self.st_stinky.priority.to_string(),
+            self.st_low.time_to_block.to_string(),
+            self.st_low.priority.to_string(),
+            self.st_medium.time_to_block.to_string(),
+            self.st_medium.priority.to_string(),
+            self.st_high.time_to_block.to_string(),
+            self.st_high.priority.to_string(),
+            self.st_opulent.time_to_block.to_string(),
+            self.st_opulent.priority.to_string(),
         )
     }
 }
@@ -642,15 +693,16 @@ pub mod strategies {
         // Create counters for measuring frequency of priorities separately for DRTs and VTTs.
         let mut drt_counter = counter::Counter::<u64>::new();
         let mut vtt_counter = counter::Counter::<u64>::new();
+        let mut st_counter = counter::Counter::<u64>::new();
 
         // This is a first pass over the priorities in the engine, just to find out the absolute
         // minimum and maximum among all the lowest priorities, i.e. what was the priority for the
         // less prioritized transaction in the blocks with the lowest and highest priority
         // requirements.
-        let (drt_lowest_absolute, drt_highest_absolute, vtt_lowest_absolute, vtt_highest_absolute) =
+        let (drt_lowest_absolute, drt_highest_absolute, vtt_lowest_absolute, vtt_highest_absolute, st_lowest_absolute, st_highest_absolute) =
             priorities.clone().fold(
-                (f64::MAX, 0.0f64, f64::MAX, 0.0f64),
-                |(drt_lowest, drt_highest, vtt_lowest, vtt_highest), priorities| {
+                (f64::MAX, 0.0f64, f64::MAX, 0.0f64, f64::MAX, 0.0f64),
+                |(drt_lowest, drt_highest, vtt_lowest, vtt_highest, st_lowest, st_highest), priorities| {
                     let drt_min = priorities
                         .drt_lowest
                         .unwrap_or(priorities.drt_highest)
@@ -659,12 +711,17 @@ pub mod strategies {
                         .vtt_lowest
                         .unwrap_or(priorities.vtt_highest)
                         .as_f64();
-
+                    let st_min = priorities
+                        .st_lowest
+                        .unwrap_or(priorities.st_highest)
+                        .as_f64();
                     (
                         drt_lowest.min(drt_min),
                         drt_highest.max(drt_min),
                         vtt_lowest.min(vtt_min),
                         vtt_highest.max(vtt_min),
+                        st_lowest.min(st_min),
+                        st_highest.max(st_min),
                     )
                 },
             );
@@ -672,6 +729,7 @@ pub mod strategies {
         // The size of each bucket in nWitWu (nano wits per weight unit)
         let drt_buckets_size = (drt_highest_absolute - drt_lowest_absolute) / buckets_count;
         let vtt_buckets_size = (vtt_highest_absolute - vtt_lowest_absolute) / buckets_count;
+        let st_buckets_size = (st_highest_absolute - st_lowest_absolute) / buckets_count;
 
         // Now we are ready to map priorities to buckets and insert the bucket numbers into the
         // lossy counter.
@@ -680,6 +738,8 @@ pub mod strategies {
             drt_lowest,
             vtt_highest,
             vtt_lowest,
+            st_highest,
+            st_lowest,
         } in priorities
         {
             // This calculates the buckets in which the lowest values should be inserted.
@@ -688,6 +748,9 @@ pub mod strategies {
                 .round() as u64;
             let vtt_bucket = ((vtt_lowest.unwrap_or(*vtt_highest).as_f64() - vtt_lowest_absolute)
                 / vtt_buckets_size)
+                .round() as u64;
+            let st_bucket = ((st_lowest.unwrap_or(*st_highest).as_f64() - st_lowest_absolute)
+                / st_buckets_size)
                 .round() as u64;
 
             // For a perfect calculation, all values lower than the lowest bucket index
@@ -704,11 +767,16 @@ pub mod strategies {
             for bucket in vtt_bucket * 90 / 100..=vtt_bucket {
                 vtt_counter.add(bucket);
             }
+            for bucket in st_bucket * 90 / 100..=st_bucket {
+                st_counter.add(bucket);
+            }
         }
 
         // Make an estimation for each of the targeted time-to-blocks.
         let mut drt_priorities: Vec<Priority> = vec![];
         let mut vtt_priorities: Vec<Priority> = vec![];
+        let mut st_priorities: Vec<Priority> = vec![];
+
         for minutes in target_minutes.into_iter() {
             // Derive the frequency threshold for this targeted time-to-block.
             let epochs = f64::from(minutes) * 60.0 / f64::from(seconds_per_epoch);
@@ -718,6 +786,7 @@ pub mod strategies {
             // Run the frequency query on the lossy counters.
             let drt_elements = drt_counter.query(threshold);
             let vtt_elements = vtt_counter.query(threshold);
+            let st_elements = st_counter.query(threshold);
 
             // The priority is calculated by reverting the buckets mapping performed before, i.e.
             // mapping the bucket index back to a priority value.
@@ -725,9 +794,12 @@ pub mod strategies {
             let drt_priority = Priority::from(drt_lowest_absolute + drt_bucket * drt_buckets_size);
             let vtt_bucket = vtt_elements.max().unwrap_or_default() as f64;
             let vtt_priority = Priority::from(vtt_lowest_absolute + vtt_bucket * vtt_buckets_size);
+            let st_bucket = st_elements.max().unwrap_or_default() as f64;
+            let st_priority = Priority::from(st_lowest_absolute + st_bucket * st_buckets_size);
 
             drt_priorities.push(drt_priority);
             vtt_priorities.push(vtt_priority);
+            st_priorities.push(st_priority);
         }
 
         let drt_stinky = PriorityEstimate {
@@ -770,6 +842,26 @@ pub mod strategies {
             priority: cmp::max(vtt_priorities[4], Priority::default_opulent()),
             time_to_block: TimeToBlock::from_secs(u64::from(target_minutes[4]) * 60),
         };
+        let st_stinky = PriorityEstimate {
+            priority: cmp::max(st_priorities[0], Priority::default_stinky()),
+            time_to_block: TimeToBlock::from_secs(u64::from(target_minutes[0]) * 60),
+        };
+        let st_low = PriorityEstimate {
+            priority: cmp::max(st_priorities[1], Priority::default_low()),
+            time_to_block: TimeToBlock::from_secs(u64::from(target_minutes[1]) * 60),
+        };
+        let st_medium = PriorityEstimate {
+            priority: cmp::max(st_priorities[2], Priority::default_medium()),
+            time_to_block: TimeToBlock::from_secs(u64::from(target_minutes[2]) * 60),
+        };
+        let st_high = PriorityEstimate {
+            priority: cmp::max(st_priorities[3], Priority::default_high()),
+            time_to_block: TimeToBlock::from_secs(u64::from(target_minutes[3]) * 60),
+        };
+        let st_opulent = PriorityEstimate {
+            priority: cmp::max(st_priorities[4], Priority::default_opulent()),
+            time_to_block: TimeToBlock::from_secs(u64::from(target_minutes[4]) * 60),
+        };
 
         PrioritiesEstimate {
             drt_stinky,
@@ -782,6 +874,11 @@ pub mod strategies {
             vtt_medium,
             vtt_high,
             vtt_opulent,
+            st_stinky,
+            st_low,
+            st_medium,
+            st_high,
+            st_opulent,
         }
     }
 }
@@ -916,6 +1013,28 @@ mod tests {
         assert_eq!(priorities.vtt_highest, 7);
         assert_eq!(priorities.vtt_lowest, Some(3.into()));
     }
+    #[test]
+    fn st_priorities_digestion() {
+        let mut priorities = Priorities::default();
+        assert_eq!(priorities.st_highest, 0);
+        assert_eq!(priorities.st_lowest, None);
+
+        priorities.digest_st_priority(0.into());
+        assert_eq!(priorities.st_highest, 0);
+        assert_eq!(priorities.st_lowest, None);
+
+        priorities.digest_st_priority(5.into());
+        assert_eq!(priorities.st_highest, 5);
+        assert_eq!(priorities.st_lowest, Some(5.into()));
+
+        priorities.digest_st_priority(7.into());
+        assert_eq!(priorities.st_highest, 7);
+        assert_eq!(priorities.st_lowest, Some(5.into()));
+
+        priorities.digest_st_priority(3.into());
+        assert_eq!(priorities.st_highest, 7);
+        assert_eq!(priorities.st_lowest, Some(3.into()));
+    }
 
     // "Aligned" here means that the `PriorityEngine` capacity will match that of its inner
     // `VecDeque`, which only happens for capacities `c` satisfying `c = ℕ ^ 2 + 1`.
@@ -928,6 +1047,8 @@ mod tests {
                 drt_lowest: None,
                 vtt_highest: Priority::from(i * 2),
                 vtt_lowest: None,
+                st_highest: Priority::from(i * 3),
+                st_lowest: None,
             })
             .collect_vec();
 
@@ -952,6 +1073,8 @@ mod tests {
                 drt_lowest: None,
                 vtt_highest: Priority::from(i * 2),
                 vtt_lowest: None,
+                st_highest: Priority::from(i * 3),
+                st_lowest: None,
             })
             .collect_vec();
 
@@ -1030,6 +1153,26 @@ mod tests {
                 priority: Priority(OrderedFloat(683.3155683232975)),
                 time_to_block: TimeToBlock(60),
             },
+            st_stinky: PriorityEstimate {
+                priority: Priority(OrderedFloat(99.58023815374057)),
+                time_to_block: TimeToBlock(21600),
+            },
+            st_low: PriorityEstimate {
+                priority: Priority(OrderedFloat(504.6210794958821)),
+                time_to_block: TimeToBlock(3600),
+            },
+            st_medium: PriorityEstimate {
+                priority: Priority(OrderedFloat(588.011840948676)),
+                time_to_block: TimeToBlock(900),
+            },
+            st_high: PriorityEstimate {
+                priority: Priority(OrderedFloat(635.6637046359867)),
+                time_to_block: TimeToBlock(300),
+            },
+            st_opulent: PriorityEstimate {
+                priority: Priority(OrderedFloat(683.3155683232975)),
+                time_to_block: TimeToBlock(60),
+            },
         };
 
         assert_eq!(estimate, expected);
@@ -1044,6 +1187,8 @@ mod tests {
                 drt_lowest: Some(Priority::from_absolute_fee_weight(1_000, 1)),
                 vtt_highest: Priority::from_absolute_fee_weight(1_000_000, 1),
                 vtt_lowest: Some(Priority::from_absolute_fee_weight(1_000, 1)),
+                st_highest: Priority::from_absolute_fee_weight(1_000_000, 1),
+                st_lowest: Some(Priority::from_absolute_fee_weight(1_000, 1)),
             };
             100
         ];
@@ -1092,6 +1237,26 @@ mod tests {
                 priority: Priority(OrderedFloat(1000.0)),
                 time_to_block: TimeToBlock(60),
             },
+            st_stinky: PriorityEstimate {
+                priority: Priority(OrderedFloat(1000.0)),
+                time_to_block: TimeToBlock(21600),
+            },
+            st_low: PriorityEstimate {
+                priority: Priority(OrderedFloat(1000.0)),
+                time_to_block: TimeToBlock(3600),
+            },
+            st_medium: PriorityEstimate {
+                priority: Priority(OrderedFloat(1000.0)),
+                time_to_block: TimeToBlock(900),
+            },
+            st_high: PriorityEstimate {
+                priority: Priority(OrderedFloat(1000.0)),
+                time_to_block: TimeToBlock(300),
+            },
+            st_opulent: PriorityEstimate {
+                priority: Priority(OrderedFloat(1000.0)),
+                time_to_block: TimeToBlock(60),
+            },
         };
 
         assert_eq!(estimate, expected);
@@ -1105,6 +1270,8 @@ mod tests {
                 drt_lowest: Some(Priority::from_absolute_fee_weight(1_000, 1)),
                 vtt_highest: Priority::from_absolute_fee_weight(1_000_000, 1),
                 vtt_lowest: Some(Priority::from_absolute_fee_weight(1_000, 1)),
+                st_highest: Priority::from_absolute_fee_weight(1_000_000, 1),
+                st_lowest: Some(Priority::from_absolute_fee_weight(1_000, 1)),
             };
             DEFAULT_QUEUE_CAPACITY_EPOCHS
         ];
@@ -1117,6 +1284,8 @@ mod tests {
             drt_lowest: Some(Priority::from_absolute_fee_weight(1, 1)),
             vtt_highest: Priority::from_absolute_fee_weight(1_000_000, 1),
             vtt_lowest: Some(Priority::from_absolute_fee_weight(1, 1)),
+            st_highest: Priority::from_absolute_fee_weight(1_000_000, 1),
+            st_lowest: Some(Priority::from_absolute_fee_weight(1, 1)),
         });
 
         let estimate2 = engine.estimate_priority(Duration::from_secs(45)).unwrap();
@@ -1181,6 +1350,27 @@ mod tests {
                 vtt_opulent: PriorityEstimate {
                     priority: Priority(OrderedFloat(0.5)),
                     time_to_block: TimeToBlock(60)
+                },
+                // fixme
+                st_stinky: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.17393312762758165)),
+                    time_to_block: TimeToBlock(21600)
+                },
+                st_low: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.2)),
+                    time_to_block: TimeToBlock(3600)
+                },
+                st_medium: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.3)),
+                    time_to_block: TimeToBlock(900)
+                },
+                st_high: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.4)),
+                    time_to_block: TimeToBlock(300)
+                },
+                st_opulent: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.5)),
+                    time_to_block: TimeToBlock(60)
                 }
             }
         )
@@ -1231,6 +1421,26 @@ mod tests {
                     time_to_block: TimeToBlock(300)
                 },
                 vtt_opulent: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.5216648016084563)),
+                    time_to_block: TimeToBlock(60)
+                },
+                st_stinky: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.17393312762758165)),
+                    time_to_block: TimeToBlock(21600)
+                },
+                st_low: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.2)),
+                    time_to_block: TimeToBlock(3600)
+                },
+                st_medium: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.3)),
+                    time_to_block: TimeToBlock(900)
+                },
+                st_high: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.48854749932456354)),
+                    time_to_block: TimeToBlock(300)
+                },
+                st_opulent: PriorityEstimate {
                     priority: Priority(OrderedFloat(0.5216648016084563)),
                     time_to_block: TimeToBlock(60)
                 }
@@ -1285,6 +1495,26 @@ mod tests {
                 vtt_opulent: PriorityEstimate {
                     priority: Priority(OrderedFloat(0.5789020418264195)),
                     time_to_block: TimeToBlock(60)
+                },
+                st_stinky: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.1)),
+                    time_to_block: TimeToBlock(21600)
+                },
+                st_low: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.4339473292851176)),
+                    time_to_block: TimeToBlock(3600)
+                },
+                st_medium: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.5119998668073571)),
+                    time_to_block: TimeToBlock(900)
+                },
+                st_high: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.5454509543168883)),
+                    time_to_block: TimeToBlock(300)
+                },
+                st_opulent: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.5789020418264195)),
+                    time_to_block: TimeToBlock(60)
                 }
             }
         )
@@ -1337,6 +1567,26 @@ mod tests {
                 vtt_opulent: PriorityEstimate {
                     priority: Priority(OrderedFloat(0.6269231539367797)),
                     time_to_block: TimeToBlock(60)
+                },
+                st_stinky: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.4282576876167673)),
+                    time_to_block: TimeToBlock(21600)
+                },
+                st_low: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.5217473188261849)),
+                    time_to_block: TimeToBlock(3600)
+                },
+                st_medium: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.5568059305297165)),
+                    time_to_block: TimeToBlock(900)
+                },
+                st_high: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.5801783383320709)),
+                    time_to_block: TimeToBlock(300)
+                },
+                st_opulent: PriorityEstimate {
+                    priority: Priority(OrderedFloat(0.6269231539367797)),
+                    time_to_block: TimeToBlock(60)
                 }
             }
         )
@@ -1361,7 +1611,7 @@ mod tests {
         let sigma = (max - min) / 5.0;
         let normal = Normal::new(middle, sigma).unwrap();
         let mut prng = StdRng::seed_from_u64(0);
-        let (mut a, mut b, mut c, mut d) = (middle, middle, middle, middle);
+        let (mut a, mut b, mut c, mut d, mut e, mut f) = (middle, middle, middle, middle, middle, middle);
         let smoothing = smoothing.unwrap_or_default();
 
         let mut output = vec![];
@@ -1370,6 +1620,8 @@ mod tests {
             let mut bb = normal.sample(&mut prng);
             let mut cb = normal.sample(&mut prng);
             let mut db = normal.sample(&mut prng);
+            let mut eb = normal.sample(&mut prng);
+            let mut fb = normal.sample(&mut prng);
 
             if ab < bb {
                 (ab, bb) = (bb, ab)
@@ -1377,12 +1629,17 @@ mod tests {
             if cb < db {
                 (cb, db) = (db, cb)
             }
+            if eb < fb {
+                (eb, fb) = (fb, eb)
+            }
 
-            (a, b, c, d) = (
+            (a, b, c, d, e, f) = (
                 (a * smoothing + ab) / (1.0 + smoothing),
                 (b * smoothing + bb) / (1.0 + smoothing),
                 (c * smoothing + cb) / (1.0 + smoothing),
                 (d * smoothing + db) / (1.0 + smoothing),
+                (e * smoothing + eb) / (1.0 + smoothing),
+                (f * smoothing + fb) / (1.0 + smoothing),
             );
 
             output.push(Priorities {
@@ -1390,6 +1647,8 @@ mod tests {
                 drt_lowest: Some(Priority::from(b)),
                 vtt_highest: Priority::from(c),
                 vtt_lowest: Some(Priority::from(d)),
+                st_highest: Priority::from(e),
+                st_lowest: Some(Priority::from(f)),
             })
         }
 
