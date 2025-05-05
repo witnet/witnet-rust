@@ -482,18 +482,29 @@ impl SuperBlockState {
         // Override superblock signing committee during the bootstrapping of wit/2
         self.signing_committee = match get_environment() {
             Environment::Mainnet => {
-                // wit/2 activation timeline and superblock bootstrap committee:
-                //      Release is scheduled at 11th of February, V1_8 activation enters into force at epoch 3_048_960
-                //      A stake threshold of 300M needs to be reached before V2_0 will be scheduled (assume this takes a week)
-                //      Add 7 x 1_920 epochs to take into account the activation delay for V2_0
-                //      3_048_960 + 7 x 1_920 + 7 x 1_920 = 3_075_840
+                // wit/2.0 and wit/2.1 activation timeline and superblock bootstrap committee:
                 //
-                //      wit/2.0 should now activated with a fixed superblock bootstrap committee
+                // Release is scheduled at 11th of February, V1_8 activation enters into force at
+                // epoch 3_048_960.
+                // A stake threshold of 300M needs to be reached before V2_0 will be scheduled
+                // (assume this takes a week).
+                // Add 7 x 1_920 epochs to take into account the activation delay for V2_0:
+                // 3_048_960 + 7 x 1_920 + 7 x 1_920 = 3_075_840
+                // 
+                // After that, wit/2.0 should be activated with a fixed superblock bootstrap
+                // committee.
                 //
-                //      Add 8 x 7 x 4320 epochs to implement a decentralized superblock committee selection mechanism
-                //      Any delay in activating wit/2.0 will essentially be subtracted from these 8 weeks
-                //      3_075_840 + 8 x 7 x 4320 = 3_317_760
-                if (304_896..331_776).contains(&superblock_index) {
+                // Add 8 x 7 x 4320 epochs to implement a decentralized superblock committee
+                // selection mechanism.
+                // Any delay in activating wit/2.0 will essentially be subtracted from these 8
+                // weeks:
+                // 3_075_840 + 8 x 7 x 4320 = 3_317_760
+                //
+                // EDIT: the introduction of a decentralized superblock committee selection
+                // mechanism was delayed 8 more weeks to allow fore gathering more insight on how
+                // PoS is working in practice, to make sure that the mechanism is secure with the
+                // actual network facts, not only assumptions.
+                if (304_896..355_968).contains(&superblock_index) {
                     WIT2_BOOTSTRAP_COMMITTEE
                         .iter()
                         .map(|address| address.parse().expect("Malformed signing committee"))
