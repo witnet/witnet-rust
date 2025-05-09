@@ -1239,83 +1239,83 @@ mod tests {
 
         let expected = PrioritiesEstimate {
             drt_stinky: PriorityEstimate {
-                priority: Priority(OrderedFloat(115.34829276116884)),
+                priority: Priority(OrderedFloat(179.58806455633322)),
                 time_to_block: TimeToBlock(21600),
             },
             drt_low: PriorityEstimate {
-                priority: Priority(OrderedFloat(509.5555102919566)),
+                priority: Priority(OrderedFloat(506.93216838191876)),
                 time_to_block: TimeToBlock(3600),
             },
             drt_medium: PriorityEstimate {
-                priority: Priority(OrderedFloat(598.5700432827797)),
+                priority: Priority(OrderedFloat(588.7681943383152)),
                 time_to_block: TimeToBlock(900),
             },
             drt_high: PriorityEstimate {
-                priority: Priority(OrderedFloat(636.7191288502753)),
+                priority: Priority(OrderedFloat(635.5316377419701)),
                 time_to_block: TimeToBlock(300),
             },
             drt_opulent: PriorityEstimate {
-                priority: Priority(OrderedFloat(674.8682144177709)),
+                priority: Priority(OrderedFloat(682.2950811456253)),
                 time_to_block: TimeToBlock(60),
             },
             vtt_stinky: PriorityEstimate {
-                priority: Priority(OrderedFloat(99.58023815374057)),
+                priority: Priority(OrderedFloat(98.69972086291244)),
                 time_to_block: TimeToBlock(21600),
             },
             vtt_low: PriorityEstimate {
-                priority: Priority(OrderedFloat(504.6210794958821)),
+                priority: Priority(OrderedFloat(504.0641403072455)),
                 time_to_block: TimeToBlock(3600),
             },
             vtt_medium: PriorityEstimate {
-                priority: Priority(OrderedFloat(588.011840948676)),
+                priority: Priority(OrderedFloat(590.0505323105889)),
                 time_to_block: TimeToBlock(900),
             },
             vtt_high: PriorityEstimate {
-                priority: Priority(OrderedFloat(635.6637046359867)),
+                priority: Priority(OrderedFloat(626.9018431691647)),
                 time_to_block: TimeToBlock(300),
             },
             vtt_opulent: PriorityEstimate {
-                priority: Priority(OrderedFloat(683.3155683232975)),
+                priority: Priority(OrderedFloat(663.7531540277403)),
                 time_to_block: TimeToBlock(60),
             },
             st_stinky: PriorityEstimate {
-                priority: Priority(OrderedFloat(99.58023815374057)),
+                priority: Priority(OrderedFloat(147.6148469637572)),
                 time_to_block: TimeToBlock(21600),
             },
             st_low: PriorityEstimate {
-                priority: Priority(OrderedFloat(504.6210794958821)),
+                priority: Priority(OrderedFloat(498.5057734262123)),
                 time_to_block: TimeToBlock(3600),
             },
             st_medium: PriorityEstimate {
-                priority: Priority(OrderedFloat(588.011840948676)),
+                priority: Priority(OrderedFloat(589.0582705778136)),
                 time_to_block: TimeToBlock(900),
             },
             st_high: PriorityEstimate {
-                priority: Priority(OrderedFloat(635.6637046359867)),
+                priority: Priority(OrderedFloat(634.3345191536143)),
                 time_to_block: TimeToBlock(300),
             },
             st_opulent: PriorityEstimate {
-                priority: Priority(OrderedFloat(683.3155683232975)),
+                priority: Priority(OrderedFloat(668.2917055854648)),
                 time_to_block: TimeToBlock(60),
             },
             ut_stinky: PriorityEstimate {
-                priority: Priority(OrderedFloat(99.58023815374057)),
+                priority: Priority(OrderedFloat(94.15754187923238)),
                 time_to_block: TimeToBlock(21600),
             },
             ut_low: PriorityEstimate {
-                priority: Priority(OrderedFloat(504.6210794958821)),
+                priority: Priority(OrderedFloat(500.257601935986)),
                 time_to_block: TimeToBlock(3600),
             },
             ut_medium: PriorityEstimate {
-                priority: Priority(OrderedFloat(588.011840948676)),
+                priority: Priority(OrderedFloat(589.0919900734009)),
                 time_to_block: TimeToBlock(900),
             },
             ut_high: PriorityEstimate {
-                priority: Priority(OrderedFloat(635.6637046359867)),
+                priority: Priority(OrderedFloat(627.1638707037214)),
                 time_to_block: TimeToBlock(300),
             },
             ut_opulent: PriorityEstimate {
-                priority: Priority(OrderedFloat(683.3155683232975)),
+                priority: Priority(OrderedFloat(690.6170050875892)),
                 time_to_block: TimeToBlock(60),
             },
         };
@@ -1483,11 +1483,11 @@ mod tests {
             estimate,
             PrioritiesEstimate {
                 drt_stinky: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.2891084568633235)),
+                    priority: Priority(OrderedFloat(0.26012197586104785)),
                     time_to_block: TimeToBlock(21600)
                 },
                 drt_low: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.2891084568633235)),
+                    priority: Priority(OrderedFloat(0.26012197586104785)),
                     time_to_block: TimeToBlock(3600)
                 },
                 drt_medium: PriorityEstimate {
@@ -1503,11 +1503,11 @@ mod tests {
                     time_to_block: TimeToBlock(60)
                 },
                 vtt_stinky: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.17393312762758165)),
+                    priority: Priority(OrderedFloat(0.20368096121383047)),
                     time_to_block: TimeToBlock(21600)
                 },
                 vtt_low: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.2)),
+                    priority: Priority(OrderedFloat(0.20368096121383047)),
                     time_to_block: TimeToBlock(3600)
                 },
                 vtt_medium: PriorityEstimate {
@@ -1522,13 +1522,12 @@ mod tests {
                     priority: Priority(OrderedFloat(0.5)),
                     time_to_block: TimeToBlock(60)
                 },
-                // fixme
                 st_stinky: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.17393312762758165)),
+                    priority: Priority(OrderedFloat(0.29729848625684224)),
                     time_to_block: TimeToBlock(21600)
                 },
                 st_low: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.2)),
+                    priority: Priority(OrderedFloat(0.29729848625684224)),
                     time_to_block: TimeToBlock(3600)
                 },
                 st_medium: PriorityEstimate {
@@ -1544,11 +1543,11 @@ mod tests {
                     time_to_block: TimeToBlock(60)
                 },
                 ut_stinky: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.17393312762758165)),
+                    priority: Priority(OrderedFloat(0.28632348839778504)),
                     time_to_block: TimeToBlock(21600)
                 },
                 ut_low: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.2)),
+                    priority: Priority(OrderedFloat(0.28632348839778504)),
                     time_to_block: TimeToBlock(3600)
                 },
                 ut_medium: PriorityEstimate {
@@ -1576,7 +1575,7 @@ mod tests {
             estimate,
             PrioritiesEstimate {
                 drt_stinky: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.18979375840681975)),
+                    priority: Priority(OrderedFloat(0.15702925083789035)),
                     time_to_block: TimeToBlock(21600)
                 },
                 drt_low: PriorityEstimate {
@@ -1584,19 +1583,19 @@ mod tests {
                     time_to_block: TimeToBlock(3600)
                 },
                 drt_medium: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.3)),
+                    priority: Priority(OrderedFloat(0.3965049190709514)),
                     time_to_block: TimeToBlock(900)
                 },
                 drt_high: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.49456907863619215)),
+                    priority: Priority(OrderedFloat(0.5118080185905735)),
                     time_to_block: TimeToBlock(300)
                 },
                 drt_opulent: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5357549327212425)),
+                    priority: Priority(OrderedFloat(0.573894302947293)),
                     time_to_block: TimeToBlock(60)
                 },
                 vtt_stinky: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.17393312762758165)),
+                    priority: Priority(OrderedFloat(0.17218454876604591)),
                     time_to_block: TimeToBlock(21600)
                 },
                 vtt_low: PriorityEstimate {
@@ -1608,15 +1607,15 @@ mod tests {
                     time_to_block: TimeToBlock(900)
                 },
                 vtt_high: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.48854749932456354)),
+                    priority: Priority(OrderedFloat(0.4950574537029726)),
                     time_to_block: TimeToBlock(300)
                 },
                 vtt_opulent: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5216648016084563)),
+                    priority: Priority(OrderedFloat(0.5561415167991479)),
                     time_to_block: TimeToBlock(60)
                 },
                 st_stinky: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.17393312762758165)),
+                    priority: Priority(OrderedFloat(0.15748499378925293)),
                     time_to_block: TimeToBlock(21600)
                 },
                 st_low: PriorityEstimate {
@@ -1624,19 +1623,19 @@ mod tests {
                     time_to_block: TimeToBlock(3600)
                 },
                 st_medium: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.3)),
+                    priority: Priority(OrderedFloat(0.3541458525647886)),
                     time_to_block: TimeToBlock(900)
                 },
                 st_high: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.48854749932456354)),
+                    priority: Priority(OrderedFloat(0.47929367178558413)),
                     time_to_block: TimeToBlock(300)
                 },
                 st_opulent: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5216648016084563)),
+                    priority: Priority(OrderedFloat(0.5597458412846669)),
                     time_to_block: TimeToBlock(60)
                 },
                 ut_stinky: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.17393312762758165)),
+                    priority: Priority(OrderedFloat(0.1906048021048631)),
                     time_to_block: TimeToBlock(21600)
                 },
                 ut_low: PriorityEstimate {
@@ -1648,11 +1647,11 @@ mod tests {
                     time_to_block: TimeToBlock(900)
                 },
                 ut_high: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.48854749932456354)),
+                    priority: Priority(OrderedFloat(0.4762393097434008)),
                     time_to_block: TimeToBlock(300)
                 },
                 ut_opulent: PriorityEstimate {
-                   priority: Priority(OrderedFloat(0.5216648016084563)),
+                    priority: Priority(OrderedFloat(0.5317793528953387)),
                     time_to_block: TimeToBlock(60)
                 }
             }
@@ -1668,23 +1667,23 @@ mod tests {
             estimate,
             PrioritiesEstimate {
                 drt_stinky: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.13668844087951934)),
+                    priority: Priority(OrderedFloat(0.15702925083789035)),
                     time_to_block: TimeToBlock(21600)
                 },
                 drt_low: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.43886803485024795)),
+                    priority: Priority(OrderedFloat(0.44074006217140804)),
                     time_to_block: TimeToBlock(3600)
                 },
                 drt_medium: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5093766067767512)),
+                    priority: Priority(OrderedFloat(0.509221982148464)),
                     time_to_block: TimeToBlock(900)
                 },
                 drt_high: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5496672193061817)),
+                    priority: Priority(OrderedFloat(0.5483545078496388)),
                     time_to_block: TimeToBlock(300)
                 },
                 drt_opulent: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.6000304849679698)),
+                    priority: Priority(OrderedFloat(0.5874870335508137)),
                     time_to_block: TimeToBlock(60)
                 },
                 vtt_stinky: PriorityEstimate {
@@ -1692,59 +1691,59 @@ mod tests {
                     time_to_block: TimeToBlock(21600)
                 },
                 vtt_low: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.4339473292851176)),
+                    priority: Priority(OrderedFloat(0.423089514147716)),
                     time_to_block: TimeToBlock(3600)
                 },
                 vtt_medium: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5119998668073571)),
+                    priority: Priority(OrderedFloat(0.5103411710981076)),
                     time_to_block: TimeToBlock(900)
                 },
                 vtt_high: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5454509543168883)),
+                    priority: Priority(OrderedFloat(0.5539669995733034)),
                     time_to_block: TimeToBlock(300)
                 },
                 vtt_opulent: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5789020418264195)),
+                    priority: Priority(OrderedFloat(0.5757799138109014)),
                     time_to_block: TimeToBlock(60)
                 },
                 st_stinky: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.1)),
+                    priority: Priority(OrderedFloat(0.1440263044618641)),
                     time_to_block: TimeToBlock(21600)
                 },
                 st_low: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.4339473292851176)),
+                    priority: Priority(OrderedFloat(0.43073047444064677)),
                     time_to_block: TimeToBlock(3600)
                 },
                 st_medium: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5119998668073571)),
+                    priority: Priority(OrderedFloat(0.5071849197683221)),
                     time_to_block: TimeToBlock(900)
                 },
                 st_high: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5454509543168883)),
+                    priority: Priority(OrderedFloat(0.5454121424321599)),
                     time_to_block: TimeToBlock(300)
                 },
                 st_opulent: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5789020418264195)),
+                    priority: Priority(OrderedFloat(0.5836393650959976)),
                     time_to_block: TimeToBlock(60)
                 },
                 ut_stinky: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.1)),
+                    priority: Priority(OrderedFloat(0.11341166631027368)),
                     time_to_block: TimeToBlock(21600)
                 },
                 ut_low: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.4339473292851176)),
+                    priority: Priority(OrderedFloat(0.42834810653370786)),
                     time_to_block: TimeToBlock(3600)
                 },
                 ut_medium: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5119998668073571)),
+                    priority: Priority(OrderedFloat(0.5096220265913683)),
                     time_to_block: TimeToBlock(900)
                 },
                 ut_high: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5454509543168883)),
+                    priority: Priority(OrderedFloat(0.540099746612991)),
                     time_to_block: TimeToBlock(300)
                 },
                 ut_opulent: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5789020418264195)),
+                    priority: Priority(OrderedFloat(0.6010551866562364)),
                     time_to_block: TimeToBlock(60)
                 }
             }
@@ -1760,83 +1759,83 @@ mod tests {
             estimate,
             PrioritiesEstimate {
                 drt_stinky: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.43338175330931106)),
+                    priority: Priority(OrderedFloat(0.43619650230369633)),
                     time_to_block: TimeToBlock(21600)
                 },
                 drt_low: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5181512711463944)),
+                    priority: Priority(OrderedFloat(0.5225426358242867)),
                     time_to_block: TimeToBlock(3600)
                 },
                 drt_medium: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.560536030064936)),
+                    priority: Priority(OrderedFloat(0.5595481216188254)),
                     time_to_block: TimeToBlock(900)
                 },
                 drt_high: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5923245992538423)),
+                    priority: Priority(OrderedFloat(0.5965536074133642)),
                     time_to_block: TimeToBlock(300)
                 },
                 drt_opulent: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.6241131684427486)),
+                    priority: Priority(OrderedFloat(0.6335590932079028)),
                     time_to_block: TimeToBlock(60)
                 },
                 vtt_stinky: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.4282576876167673)),
+                    priority: Priority(OrderedFloat(0.4277241336946116)),
                     time_to_block: TimeToBlock(21600)
                 },
                 vtt_low: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5217473188261849)),
+                    priority: Priority(OrderedFloat(0.5188610598114269)),
                     time_to_block: TimeToBlock(3600)
                 },
                 vtt_medium: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5568059305297165)),
+                    priority: Priority(OrderedFloat(0.5530374071052326)),
                     time_to_block: TimeToBlock(900)
                 },
                 vtt_high: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5801783383320709)),
+                    priority: Priority(OrderedFloat(0.5872137543990384)),
                     time_to_block: TimeToBlock(300)
                 },
                 vtt_opulent: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.6269231539367797)),
+                    priority: Priority(OrderedFloat(0.6099979859282423)),
                     time_to_block: TimeToBlock(60)
                 },
                 st_stinky: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.4282576876167673)),
+                    priority: Priority(OrderedFloat(0.42594491039416227)),
                     time_to_block: TimeToBlock(21600)
                 },
                 st_low: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5217473188261849)),
+                    priority: Priority(OrderedFloat(0.5171826715544424)),
                     time_to_block: TimeToBlock(3600)
                 },
                 st_medium: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5568059305297165)),
+                    priority: Priority(OrderedFloat(0.5577327876256781)),
                     time_to_block: TimeToBlock(900)
                 },
                 st_high: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5801783383320709)),
+                    priority: Priority(OrderedFloat(0.5881453746791048)),
                     time_to_block: TimeToBlock(300)
                 },
                 st_opulent: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.6269231539367797)),
+                    priority: Priority(OrderedFloat(0.6084204327147227)),
                     time_to_block: TimeToBlock(60)
                 },
                 ut_stinky: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.4282576876167673)),
+                    priority: Priority(OrderedFloat(0.4347914213819278)),
                     time_to_block: TimeToBlock(21600)
                 },
                 ut_low: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5217473188261849)),
+                    priority: Priority(OrderedFloat(0.512825964594247)),
                     time_to_block: TimeToBlock(3600)
                 },
                 ut_medium: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5568059305297165)),
+                    priority: Priority(OrderedFloat(0.5574171321441437)),
                     time_to_block: TimeToBlock(900)
                 },
                 ut_high: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.5801783383320709)),
+                    priority: Priority(OrderedFloat(0.5908605078065662)),
                     time_to_block: TimeToBlock(300)
                 },
                 ut_opulent: PriorityEstimate {
-                    priority: Priority(OrderedFloat(0.6269231539367797)),
+                    priority: Priority(OrderedFloat(0.6243038834689887)),
                     time_to_block: TimeToBlock(60)
                 }
             }
@@ -1862,7 +1861,9 @@ mod tests {
         let sigma = (max - min) / 5.0;
         let normal = Normal::new(middle, sigma).unwrap();
         let mut prng = StdRng::seed_from_u64(0);
-        let (mut a, mut b, mut c, mut d, mut e, mut f, mut g, mut h) = (middle, middle, middle, middle, middle, middle, middle, middle);
+        let (mut a, mut b, mut c, mut d, mut e, mut f, mut g, mut h) = (
+            middle, middle, middle, middle, middle, middle, middle, middle,
+        );
         let smoothing = smoothing.unwrap_or_default();
 
         let mut output = vec![];
