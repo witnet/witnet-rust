@@ -490,7 +490,7 @@ impl SuperBlockState {
                 // (assume this takes a week).
                 // Add 7 x 1_920 epochs to take into account the activation delay for V2_0:
                 // 3_048_960 + 7 x 1_920 + 7 x 1_920 = 3_075_840
-                // 
+                //
                 // After that, wit/2.0 should be activated with a fixed superblock bootstrap
                 // committee.
                 //

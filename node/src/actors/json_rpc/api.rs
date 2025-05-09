@@ -1023,18 +1023,18 @@ pub struct GetTransactionOutput {
     pub transaction: Transaction,
     /// Weight of the transaction
     pub weight: u32,
-    /// Hash of the block that contains this transaction in hex format,
-    /// or "pending" if the transaction has not been included in any block yet
-    pub block_hash: String,
     /// Epoch of the block that contains this transaction, or None if the transaction has not been
     /// included in any block yet
     pub block_epoch: Option<Epoch>,
+    /// Hash of the block that contains this transaction in hex format,
+    /// or "pending" if the transaction has not been included in any block yet
+    pub block_hash: String,
+    /// Timestamp of the block that contains this transaction, or None not included yet
+    pub block_timestamp: Option<i64>,
     /// True if the block that includes this transaction has been confirmed by a superblock
     pub confirmed: bool,
     /// Number of epochs since this transaction got included in a block
     pub confirmations: Option<u32>,
-    /// Timestamp of the block that contains this transaction, or None not included yet
-    pub block_timestamp: Option<i64>,
 }
 
 /// Get transaction by hash
