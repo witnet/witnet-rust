@@ -752,38 +752,65 @@ pub mod strategies {
         // minimum and maximum among all the lowest priorities, i.e. what was the priority for the
         // less prioritized transaction in the blocks with the lowest and highest priority
         // requirements.
-        let (drt_lowest_absolute, drt_highest_absolute, vtt_lowest_absolute, vtt_highest_absolute, st_lowest_absolute, st_highest_absolute, ut_lowest_absolute, ut_highest_absolute) =
-            priorities.clone().fold(
-                (f64::MAX, 0.0f64, f64::MAX, 0.0f64, f64::MAX, 0.0f64, f64::MAX, 0.0f64),
-                |(drt_lowest, drt_highest, vtt_lowest, vtt_highest, st_lowest, st_highest, ut_lowest, ut_highest), priorities| {
-                    let drt_min = priorities
-                        .drt_lowest
-                        .unwrap_or(priorities.drt_highest)
-                        .as_f64();
-                    let vtt_min = priorities
-                        .vtt_lowest
-                        .unwrap_or(priorities.vtt_highest)
-                        .as_f64();
-                    let st_min = priorities
-                        .st_lowest
-                        .unwrap_or(priorities.st_highest)
-                        .as_f64();
-                    let ut_min = priorities
-                        .ut_lowest
-                        .unwrap_or(priorities.ut_highest)
-                        .as_f64();
-                    (
-                        drt_lowest.min(drt_min),
-                        drt_highest.max(drt_min),
-                        vtt_lowest.min(vtt_min),
-                        vtt_highest.max(vtt_min),
-                        st_lowest.min(st_min),
-                        st_highest.max(st_min),
-                        ut_lowest.min(ut_min),
-                        ut_highest.max(ut_min),
-                    )
-                },
-            );
+        let (
+            drt_lowest_absolute,
+            drt_highest_absolute,
+            vtt_lowest_absolute,
+            vtt_highest_absolute,
+            st_lowest_absolute,
+            st_highest_absolute,
+            ut_lowest_absolute,
+            ut_highest_absolute,
+        ) = priorities.clone().fold(
+            (
+                f64::MAX,
+                0.0f64,
+                f64::MAX,
+                0.0f64,
+                f64::MAX,
+                0.0f64,
+                f64::MAX,
+                0.0f64,
+            ),
+            |(
+                drt_lowest,
+                drt_highest,
+                vtt_lowest,
+                vtt_highest,
+                st_lowest,
+                st_highest,
+                ut_lowest,
+                ut_highest,
+            ),
+             priorities| {
+                let drt_min = priorities
+                    .drt_lowest
+                    .unwrap_or(priorities.drt_highest)
+                    .as_f64();
+                let vtt_min = priorities
+                    .vtt_lowest
+                    .unwrap_or(priorities.vtt_highest)
+                    .as_f64();
+                let st_min = priorities
+                    .st_lowest
+                    .unwrap_or(priorities.st_highest)
+                    .as_f64();
+                let ut_min = priorities
+                    .ut_lowest
+                    .unwrap_or(priorities.ut_highest)
+                    .as_f64();
+                (
+                    drt_lowest.min(drt_min),
+                    drt_highest.max(drt_min),
+                    vtt_lowest.min(vtt_min),
+                    vtt_highest.max(vtt_min),
+                    st_lowest.min(st_min),
+                    st_highest.max(st_min),
+                    ut_lowest.min(ut_min),
+                    ut_highest.max(ut_min),
+                )
+            },
+        );
 
         // The size of each bucket in nWitWu (nano wits per weight unit)
         let drt_buckets_size = (drt_highest_absolute - drt_lowest_absolute) / buckets_count;
