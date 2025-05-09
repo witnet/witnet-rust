@@ -44,11 +44,11 @@ use crate::{
             BuildStakeParams, BuildStakeResponse, BuildUnstake, BuildUnstakeParams, BuildVtt,
             ClearPeers, DropAllPeers, EstimatePriority, GetBalance, GetBalance2, GetBalance2Limits,
             GetBalanceTarget, GetBlocksEpochRange, GetConsolidatedPeers, GetDataRequestInfo,
-            GetEpoch, GetHighestCheckpointBeacon, GetItemBlock, GetItemSuperblock,
-            GetItemTransaction, GetKnownPeers, GetMemoryTransaction, GetMempool, GetNodeStats,
-            GetProtocolInfo, GetReputation, GetSignalingInfo, GetState, GetSupplyInfo,
-            GetSupplyInfo2, GetUtxoInfo, InitializePeers, IsConfirmedBlock, MagicEither,
-            QueryStakes, QueryStakingPowers, Rewind, SnapshotExport, SnapshotImport,
+            GetEpoch, GetEpochConstants, GetHighestCheckpointBeacon, GetItemBlock,
+            GetItemSuperblock, GetItemTransaction, GetKnownPeers, GetMemoryTransaction, GetMempool,
+            GetNodeStats, GetProtocolInfo, GetReputation, GetSignalingInfo, GetState,
+            GetSupplyInfo, GetSupplyInfo2, GetUtxoInfo, InitializePeers, IsConfirmedBlock,
+            MagicEither, QueryStakes, QueryStakingPowers, Rewind, SnapshotExport, SnapshotImport,
             StakeAuthorization,
         },
         peers_manager::PeersManager,
@@ -1031,6 +1031,10 @@ pub struct GetTransactionOutput {
     pub block_epoch: Option<Epoch>,
     /// True if the block that includes this transaction has been confirmed by a superblock
     pub confirmed: bool,
+    /// Number of epochs since this transaction got included in a block
+    pub confirmations: Option<u32>,
+    /// Timestamp of the block that contains this transaction, or None not included yet
+    pub block_timestamp: Option<i64>,
 }
 
 /// Get transaction by hash
@@ -1038,6 +1042,20 @@ pub async fn get_transaction(hash: Result<(Hash,), Error>) -> JsonRpcResult {
     let hash = match hash {
         Ok(x) => x.0,
         Err(e) => return Err(e),
+    };
+
+    // Get current epoch
+    let current_epoch = match EpochManager::from_registry().send(GetEpoch).await {
+        Ok(Ok(current_epoch)) => current_epoch,
+        Ok(Err(e)) => return Err(internal_error(e)),
+        Err(e) => return Err(internal_error(e)),
+    };
+
+    // Get epoch constants
+    let epoch_constants = match EpochManager::from_registry().send(GetEpochConstants).await {
+        Ok(Some(epoch_constats)) => epoch_constats,
+        Err(e) => return Err(internal_error(e)),
+        _ => return Err(internal_error("")),
     };
 
     let inventory_manager = InventoryManager::from_registry();
@@ -1099,12 +1117,19 @@ pub async fn get_transaction(hash: Result<(Hash,), Error>) -> JsonRpcResult {
                 _ => transaction,
             };
 
+            let block_timestamp = match epoch_constants.epoch_timestamp(block_epoch) {
+                Err(err) => return Err(internal_error(err)),
+                Ok((timestamp, _)) => timestamp,
+            };
+
             let output = GetTransactionOutput {
                 transaction: new_transaction,
                 weight,
                 block_hash: block_hash.to_string(),
                 block_epoch: Some(block_epoch),
+                block_timestamp: Some(block_timestamp),
                 confirmed,
+                confirmations: Some(current_epoch.saturating_sub(block_epoch)),
             };
             let value = match serde_json::to_value(output) {
                 Ok(x) => x,
@@ -1129,7 +1154,9 @@ pub async fn get_transaction(hash: Result<(Hash,), Error>) -> JsonRpcResult {
                         weight,
                         block_hash: "pending".to_string(),
                         block_epoch: None,
+                        block_timestamp: None,
                         confirmed: false,
+                        confirmations: None,
                     };
                     let value = match serde_json::to_value(output) {
                         Ok(x) => x,
