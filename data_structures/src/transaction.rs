@@ -1,8 +1,9 @@
 use std::convert::TryFrom;
+use std::str::FromStr;
 use std::sync::{Arc, RwLock};
 
 use protobuf::Message;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use witnet_crypto::{
     hash::calculate_sha256, merkle::FullMerkleTree, secp256k1::Message as Secp256k1Message,
@@ -863,12 +864,36 @@ impl UnstakeTransaction {
 pub struct UnstakeTransactionBody {
     pub operator: PublicKeyHash,
     pub withdrawal: ValueTransferOutput,
+    #[serde(deserialize_with = "number_from_string")]
     pub fee: u64,
+    #[serde(deserialize_with = "number_from_string")]
     pub nonce: u64,
 
     #[protobuf_convert(skip)]
     #[serde(skip)]
     hash: MemoHash,
+}
+
+pub fn number_from_string<'de, T, D>(deserializer: D) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: FromStr + serde::Deserialize<'de>,
+    <T as FromStr>::Err: std::fmt::Display,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum StringOrInt<T> {
+        String(String),
+        Number(T),
+    }
+    if deserializer.is_human_readable() {
+        match StringOrInt::<T>::deserialize(deserializer)? {
+            StringOrInt::String(s) => s.parse::<T>().map_err(serde::de::Error::custom),
+            StringOrInt::Number(i) => Ok(i),
+        }
+    } else {
+        T::deserialize(deserializer)
+    }
 }
 
 impl UnstakeTransactionBody {
