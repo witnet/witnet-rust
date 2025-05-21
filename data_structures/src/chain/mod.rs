@@ -11,12 +11,12 @@ use std::{
 
 use bech32::{FromBase32, ToBase32};
 use bls_signatures_rs::{bn256, bn256::Bn256, MultiSignature};
+use core::fmt::Display;
 use ethereum_types::U256;
 use failure::Fail;
 use futures::future::BoxFuture;
 use ordered_float::OrderedFloat;
 use serde::{Deserialize, Deserializer, Serialize};
-use core::fmt::Display;
 
 use partial_struct::PartialStruct;
 use witnet_crypto::{
@@ -1605,26 +1605,12 @@ pub struct ValueTransferOutput {
     /// Address that will receive the value
     pub pkh: PublicKeyHash,
     /// Transferred value in nanowits
-    #[serde(
-        serialize_with = "u64_to_string",
-        deserialize_with = "number_from_string"
-    )]
+    #[serde(deserialize_with = "number_from_string")]
     pub value: u64,
     /// The value attached to a time-locked output cannot be spent before the specified
     /// timestamp. That is, they cannot be used as an input in any transaction of a
     /// subsequent block proposed for an epoch whose opening timestamp predates the time lock.
     pub time_lock: u64,
-}
-
-pub fn u64_to_string<S>(val: &u64, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    if serializer.is_human_readable() {
-        serializer.serialize_str(&val.to_string())
-    } else {
-        serializer.serialize_u64(*val)
-    }
 }
 
 pub fn number_from_string<'de, T, D>(deserializer: D) -> Result<T, D::Error>
@@ -1668,10 +1654,12 @@ pub struct DataRequestOutput {
     /// Data request structure
     pub data_request: RADRequest,
     /// Reward in nanowits that will be earned by honest witnesses
+    #[serde(deserialize_with = "number_from_string")]
     pub witness_reward: u64,
     /// Number of witnesses that will resolve this data request
     pub witnesses: u16,
     /// This fee will be earn by the miner when include commits and/or reveals in the block
+    #[serde(deserialize_with = "number_from_string")]
     pub commit_and_reveal_fee: u64,
     /// The minimum percentage of non-error reveals required to consider this data request as
     /// "resolved" instead of as "error".
@@ -1683,6 +1671,7 @@ pub struct DataRequestOutput {
     /// this data request.
     /// This field must be >= collateral_minimum, or zero.
     /// If zero, it will be treated as collateral_minimum.
+    #[serde(deserialize_with = "number_from_string")]
     pub collateral: u64,
 }
 
@@ -1732,6 +1721,7 @@ impl DataRequestOutput {
 pub struct StakeOutput {
     pub authorization: KeyedSignature,
     pub key: StakeKey<PublicKeyHash>,
+    #[serde(deserialize_with = "number_from_string")]
     pub value: u64,
 }
 
