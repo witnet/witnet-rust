@@ -139,7 +139,7 @@ impl InventoryManager {
         // with V1_X using bincode. In particular, it checks whether the serialized bytes contain
         // staking/unstaking merkle roots
         let fix = |bytes: Vec<u8>| {
-            if bytes[260..264] == [0x51, 0x00, 0x00, 0x00] {
+            if bytes.len() >= 263 && bytes[260..264] == [0x51, 0x00, 0x00, 0x00] {
                 [&bytes[..260], &[0u8; 72], &bytes[260..], &[0u8; 16]].concat()
             } else {
                 bytes
