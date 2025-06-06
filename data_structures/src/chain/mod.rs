@@ -15,7 +15,8 @@ use ethereum_types::U256;
 use failure::Fail;
 use futures::future::BoxFuture;
 use ordered_float::OrderedFloat;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
+use core::fmt::Display;
 
 use partial_struct::PartialStruct;
 use witnet_crypto::{
@@ -1604,11 +1605,48 @@ pub struct ValueTransferOutput {
     /// Address that will receive the value
     pub pkh: PublicKeyHash,
     /// Transferred value in nanowits
+    #[serde(
+        serialize_with = "u64_to_string",
+        deserialize_with = "number_from_string"
+    )]
     pub value: u64,
     /// The value attached to a time-locked output cannot be spent before the specified
     /// timestamp. That is, they cannot be used as an input in any transaction of a
     /// subsequent block proposed for an epoch whose opening timestamp predates the time lock.
     pub time_lock: u64,
+}
+
+pub fn u64_to_string<S>(val: &u64, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    if serializer.is_human_readable() {
+        serializer.serialize_str(&val.to_string())
+    } else {
+        serializer.serialize_u64(*val)
+    }
+}
+
+pub fn number_from_string<'de, T, D>(deserializer: D) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: FromStr + serde::Deserialize<'de>,
+    <T as FromStr>::Err: Display,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum StringOrInt<T> {
+        String(String),
+        Number(T),
+    }
+    if deserializer.is_human_readable() {
+        match StringOrInt::<T>::deserialize(deserializer)? {
+            StringOrInt::String(s) => s.parse::<T>().map_err(serde::de::Error::custom),
+            StringOrInt::Number(i) => Ok(i),
+        }
+    } else {
+        T::deserialize(deserializer)
+    }
 }
 
 impl ValueTransferOutput {
