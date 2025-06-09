@@ -8,6 +8,7 @@ use witnet_data_structures::{
         versioning::{ProtocolVersion, VersionedHashable},
         ProtobufConvert,
     },
+    serialization_helpers::number_from_string,
     transaction::Transaction,
 };
 
@@ -19,8 +20,8 @@ use crate::{
     model::TransactionMetadata,
     types::{
         self, fee_compat, from_generic_type, from_generic_type_vec, into_generic_type,
-        into_generic_type_vec, number_from_string, u32_to_string, DataRequestOutputHelper, FeeType,
-        TransactionHelper, VttOutputParamsHelper,
+        into_generic_type_vec, u32_to_string, DataRequestOutputHelper, FeeType, TransactionHelper,
+        VttOutputParamsHelper,
     },
 };
 

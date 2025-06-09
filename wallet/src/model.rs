@@ -6,13 +6,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     account,
-    types::{number_from_string, u32_to_string, u64_to_string},
+    types::{u32_to_string, u64_to_string},
 };
 use witnet_data_structures::{
     chain::{
         DataRequestInfo, Hash, KeyedSignature, OutputPointer, PublicKeyHash, StakeOutput,
         ValueTransferOutput,
     },
+    serialization_helpers::number_from_string,
     staking::prelude::StakeKey,
     transaction::Transaction,
 };

@@ -76,7 +76,7 @@ pub mod witnessing;
 
 /// Serialization boilerplate to allow serializing some data structures as
 /// strings or bytes depending on the serializer.
-mod serialization_helpers;
+pub mod serialization_helpers;
 
 /// Provides convenient constants, structs and methods for handling values denominated in Wit.
 pub mod wit;

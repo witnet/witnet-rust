@@ -20,6 +20,7 @@ use witnet_data_structures::{
         RADRequest, Signature, StateMachine, SuperBlock, ValueTransferOutput,
     },
     fee::Fee,
+    serialization_helpers::number_from_string,
     transaction::{
         CommitTransaction, DRTransaction, DRTransactionBody, MintTransaction, RevealTransaction,
         StakeTransaction, TallyTransaction, Transaction, UnstakeTransaction, VTTransaction,
@@ -685,28 +686,6 @@ where
         serializer.serialize_str(&val.to_string())
     } else {
         serializer.serialize_u64(*val)
-    }
-}
-
-pub fn number_from_string<'de, T, D>(deserializer: D) -> Result<T, D::Error>
-where
-    D: Deserializer<'de>,
-    T: FromStr + serde::Deserialize<'de>,
-    <T as FromStr>::Err: Display,
-{
-    #[derive(Deserialize)]
-    #[serde(untagged)]
-    enum StringOrInt<T> {
-        String(String),
-        Number(T),
-    }
-    if deserializer.is_human_readable() {
-        match StringOrInt::<T>::deserialize(deserializer)? {
-            StringOrInt::String(s) => s.parse::<T>().map_err(serde::de::Error::custom),
-            StringOrInt::Number(i) => Ok(i),
-        }
-    } else {
-        T::deserialize(deserializer)
     }
 }
 

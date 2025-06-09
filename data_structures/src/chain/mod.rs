@@ -47,6 +47,7 @@ use crate::{
         versioning::{ProtocolVersion, Versioned, VersionedHashable},
         ProtobufConvert,
     },
+    serialization_helpers::number_from_string,
     staking::prelude::*,
     superblock::SuperBlockState,
     transaction::{
@@ -1611,28 +1612,6 @@ pub struct ValueTransferOutput {
     /// timestamp. That is, they cannot be used as an input in any transaction of a
     /// subsequent block proposed for an epoch whose opening timestamp predates the time lock.
     pub time_lock: u64,
-}
-
-pub fn number_from_string<'de, T, D>(deserializer: D) -> Result<T, D::Error>
-where
-    D: Deserializer<'de>,
-    T: FromStr + serde::Deserialize<'de>,
-    <T as FromStr>::Err: Display,
-{
-    #[derive(Deserialize)]
-    #[serde(untagged)]
-    enum StringOrInt<T> {
-        String(String),
-        Number(T),
-    }
-    if deserializer.is_human_readable() {
-        match StringOrInt::<T>::deserialize(deserializer)? {
-            StringOrInt::String(s) => s.parse::<T>().map_err(serde::de::Error::custom),
-            StringOrInt::Number(i) => Ok(i),
-        }
-    } else {
-        T::deserialize(deserializer)
-    }
 }
 
 impl ValueTransferOutput {

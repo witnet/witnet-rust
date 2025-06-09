@@ -14,6 +14,7 @@ use crate::{
     get_environment,
     utxo_pool::UtxoSelectionStrategy,
 };
+use serde::de::Error;
 use serde::{
     de::{self, IntoDeserializer, MapAccess, SeqAccess, Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
@@ -609,5 +610,27 @@ impl<'de> Deserialize<'de> for RADRetrieve {
             // Deserialize by reading the format version. Ensures backwards compatibility.
             RADRetrieveSerializationHelperVersioned::deserialize(deserializer).map(Into::into)
         }
+    }
+}
+
+pub fn number_from_string<'de, T, D>(deserializer: D) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: FromStr + serde::Deserialize<'de>,
+    <T as FromStr>::Err: std::fmt::Display,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum StringOrInt<T> {
+        String(String),
+        Number(T),
+    }
+    if deserializer.is_human_readable() {
+        match StringOrInt::<T>::deserialize(deserializer)? {
+            StringOrInt::String(s) => s.parse::<T>().map_err(serde::de::Error::custom),
+            StringOrInt::Number(i) => Ok(i),
+        }
+    } else {
+        T::deserialize(deserializer)
     }
 }

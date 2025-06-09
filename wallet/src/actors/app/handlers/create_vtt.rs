@@ -6,6 +6,7 @@ use witnet_data_structures::{
     chain::{Environment, Hashable, OutputPointer, PublicKeyHash, ValueTransferOutput},
     fee::{deserialize_fee_backwards_compatible, AbsoluteFee, Fee},
     proto::ProtobufConvert,
+    serialization_helpers::number_from_string,
     transaction::Transaction,
     utxo_pool::UtxoSelectionStrategy,
 };
@@ -15,8 +16,7 @@ use crate::{
     model::TransactionMetadata,
     types::{
         self, fee_compat, from_generic_type, from_generic_type_vec, into_generic_type,
-        into_generic_type_vec, number_from_string, u32_to_string, FeeType, TransactionHelper,
-        VttOutputParamsHelper,
+        into_generic_type_vec, u32_to_string, FeeType, TransactionHelper, VttOutputParamsHelper,
     },
 };
 use itertools::Itertools;
