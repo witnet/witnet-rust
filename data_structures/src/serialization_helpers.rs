@@ -634,3 +634,21 @@ where
         T::deserialize(deserializer)
     }
 }
+
+#[test]
+fn test_number_from_string() {
+    use serde_json;
+    #[derive(Debug, Deserialize, PartialEq, Serialize)]
+    struct NewType {
+        #[serde(deserialize_with = "number_from_string")]
+        inner: u64,
+    };
+
+    let deserialized: NewType =
+        serde_json::from_str(r##"{"inner": 18446744073709551615}"##).unwrap();
+    assert_eq!(deserialized, NewType { inner: u64::MAX });
+
+    let deserialized: NewType =
+        serde_json::from_str(r##"{"inner": "18446744073709551615"}"##).unwrap();
+    assert_eq!(deserialized, NewType { inner: u64::MAX });
+}
