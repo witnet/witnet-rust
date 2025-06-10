@@ -275,9 +275,23 @@ impl VTTransactionBody {
         }
     }
 
+    /// Calculates the added value of all the transaction outputs.
     pub fn value(&self) -> u64 {
         self.outputs
             .iter()
+            .map(ValueTransferOutput::value)
+            .reduce(|acc, value| acc + value)
+            .unwrap_or_default()
+    }
+
+    /// Calculates the added value of the transaction outputs that point to the same recipient as
+    /// that of the first transaction output.
+    pub fn first_recipient_value(&self) -> u64 {
+        let recipient = self.outputs[0].pkh;
+
+        self.outputs
+            .iter()
+            .filter(|output| output.pkh == recipient)
             .map(ValueTransferOutput::value)
             .reduce(|acc, value| acc + value)
             .unwrap_or_default()

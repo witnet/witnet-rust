@@ -20,19 +20,6 @@ use jsonrpc_core::{BoxFuture, Error, Params, Value};
 use jsonrpc_pubsub::{Subscriber, SubscriptionId};
 use serde::{Deserialize, Serialize};
 
-use witnet_crypto::key::KeyPath;
-use witnet_data_structures::{
-    chain::{
-        tapi::ActiveWips, Block, DataRequestOutput, Epoch, Hash, Hashable, KeyedSignature,
-        PublicKeyHash, RADType, StakeOutput, StateMachine, SyncStatus,
-    },
-    get_environment, get_protocol_version,
-    proto::versioning::{ProtocolVersion, VersionedHashable},
-    staking::prelude::*,
-    transaction::Transaction,
-    vrf::VrfMessage,
-};
-
 use crate::{
     actors::{
         chain_manager::{run_dr_locally, ChainManager, ChainManagerError},
@@ -56,6 +43,18 @@ use crate::{
     },
     config_mngr, signature_mngr,
     utils::Force,
+};
+use witnet_crypto::key::KeyPath;
+use witnet_data_structures::{
+    chain::{
+        tapi::ActiveWips, Block, DataRequestOutput, Epoch, EpochConstants, Hash, Hashable,
+        KeyedSignature, PublicKeyHash, RADType, StakeOutput, StateMachine, SyncStatus,
+    },
+    get_environment, get_protocol_version,
+    proto::versioning::{ProtocolVersion, VersionedHashable},
+    staking::prelude::*,
+    transaction::{Transaction, VTTransaction},
+    vrf::VrfMessage,
 };
 
 #[cfg(test)]
@@ -2373,6 +2372,128 @@ pub async fn get_balance_2(params: Result<Option<GetBalance2Params>, Error>) -> 
             }
         })
         .await
+}
+
+/// Different modes for the `get_value_transfer` method.
+#[derive(Debug, Default, Deserialize, PartialEq, Serialize)]
+pub enum GetValueTransferMode {
+    /// Full mode: returns the same information as the `get_transaction` method.
+    #[default]
+    #[serde(rename = "full")]
+    Full,
+    /// Simple mode: returns only basic data in a more easily consumable form.
+    #[serde(rename = "simple")]
+    Simple,
+    /// Ethereal mode: same as simple mode, but uses hexadecimal addresses instead of Bech32.
+    #[serde(rename = "ethereal")]
+    Ethereal,
+}
+
+/// Parameters for the `get_value_transfer` method.
+#[derive(Debug, Deserialize, Serialize)]
+pub struct GetValueTransferParams {
+    hash: MagicEither<String, Hash>,
+    mode: GetValueTransferMode,
+}
+
+/// Full output for the `get_value_transfer` method.
+///
+/// This is used with the `full` mode.
+#[derive(Debug, Deserialize, Serialize)]
+pub struct GetValueTransferFullOutput {
+    transaction: VTTransaction,
+}
+
+/// Abridged output for the `get_value_transfer` method.
+///
+/// This is used with the `simple` and `ethereal` modes.
+///
+/// The `recipient` and `sender` fields are expected to be Bech32 addresses or hexadecimal bytes,
+/// depending on whether the mode is `simple` or `ethereal`:
+/// - `simple` mode uses Bech32
+/// - `ethereal` mode uses hexadecimal
+#[derive(Debug, Deserialize, Serialize)]
+pub struct GetValueTransferSimpleOutput {
+    recipient: String,
+    sender: String,
+    timestamp: Option<i64>,
+    value: u64,
+}
+
+/// Joins both potential outputs for the `get_value_transfer` method.
+#[derive(Debug, Deserialize, Serialize)]
+pub enum GetValueTransfersOutput {
+    /// Full mode, resembling the response of `get_transaction`.
+    Full(GetValueTransferFullOutput),
+    /// Simple mode, more easily consumable from 3rd party (d)apps.
+    Simple(GetValueTransferSimpleOutput),
+}
+
+/// Query transaction status data for value transfer transactions
+pub async fn get_value_transfer(params: Result<GetValueTransferParams, Error>) -> JsonRpcResult {
+    let params = params?;
+    let hash = params
+        .hash
+        .try_do_magic(|string| hex::decode(string).map(Hash::from))
+        .map_err(internal_error)?;
+    // This method piggybacks on the `get_transaction` method for fetching all the transaction facts
+    let transaction = get_transaction(Ok((hash,))).await?;
+    let transaction: GetTransactionOutput =
+        serde_json::from_value(transaction).map_err(internal_error)?;
+
+    // Only makes sense to continue if the provided hash belongs to a value transfer transaction
+    if let Transaction::ValueTransfer(vtt) = transaction.transaction {
+        let output = if params.mode == GetValueTransferMode::Full {
+            // For the "full" mode, the response resembles that of `get_transaction`
+            GetValueTransfersOutput::Full(GetValueTransferFullOutput { transaction: vtt })
+        } else {
+            // For all the other modes, we need to pick all the different bits of info and assemble
+            // them into a single output data structure
+
+            // The timestamp can be only derived from the block epoch once the epoch constants are
+            // known (this is specially relevant after the V2_0+ fork)
+            let epoch_constants: EpochConstants =
+                match EpochManager::from_registry().send(GetEpochConstants).await {
+                    Ok(Some(epoch_constats)) => epoch_constats,
+                    Err(e) => Err(internal_error(e))?,
+                    _ => Err(internal_error(""))?,
+                };
+            let timestamp = match transaction.block_epoch {
+                Some(block_epoch) => epoch_constants
+                    .epoch_timestamp(block_epoch)
+                    .ok()
+                    .map(|(timestamp, _)| timestamp),
+                None => None,
+            };
+
+            // Only adds up the value of the outputs that point to the same recipient as the first
+            // output found in the transaction
+            let value = vtt.body.first_recipient_value();
+
+            // Both the recipient and sender addresses are encoded differently depending on which
+            // mode we are at:
+            // - "simple" mode uses Bech32
+            // - "ethereal" mode uses hexadecimal
+            let recipient_pkh = vtt.body.outputs[0].pkh;
+            let sender_pkh = vtt.signatures[0].public_key.pkh();
+            let (recipient, sender) = if params.mode == GetValueTransferMode::Ethereal {
+                (recipient_pkh.to_hex(), sender_pkh.to_hex())
+            } else {
+                (recipient_pkh.to_string(), sender_pkh.to_string())
+            };
+
+            GetValueTransfersOutput::Simple(GetValueTransferSimpleOutput {
+                recipient,
+                sender,
+                timestamp,
+                value,
+            })
+        };
+
+        serde_json::to_value(output).map_err(internal_error)
+    } else {
+        Err(internal_error_s("wrong transaction type"))
+    }
 }
 
 #[cfg(test)]
