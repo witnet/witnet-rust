@@ -104,6 +104,9 @@ pub fn attach_regular_methods<H>(
     server.add_actix_method(system, "getTransaction", |params: Params| {
         Box::pin(get_transaction(params.parse()))
     });
+    server.add_actix_method(system, "getValueTransfer", |params: Params| {
+        Box::pin(get_value_transfer(params.parse()))
+    });
     server.add_actix_method(system, "syncStatus", |_params: Params| Box::pin(status()));
     server.add_actix_method(system, "dataRequestReport", |params: Params| {
         Box::pin(data_request_report(params.parse()))
@@ -2823,6 +2826,7 @@ mod tests {
                 "getSupplyInfo",
                 "getTransaction",
                 "getUtxoInfo",
+                "getValueTransfer",
                 "initializePeers",
                 "inventory",
                 "knownPeers",
