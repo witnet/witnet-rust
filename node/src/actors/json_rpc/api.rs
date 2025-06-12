@@ -2437,7 +2437,7 @@ pub async fn get_value_transfer(params: Result<GetValueTransferParams, Error>) -
     let params = params?;
     let hash = params
         .hash
-        .try_do_magic(|string| hex::decode(string).map(Hash::from))
+        .try_do_magic(|string| Hash::from_str(&string))
         .map_err(internal_error)?;
     // This method piggybacks on the `get_transaction` method for fetching all the transaction facts
     let transaction = get_transaction(Ok((hash,))).await?;
