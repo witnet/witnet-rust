@@ -2387,9 +2387,6 @@ pub enum GetValueTransferMode {
     /// Simple mode: returns only basic data in a more easily consumable form.
     #[serde(rename = "simple")]
     Simple,
-    /// Ethereal mode: same as simple mode, but uses hexadecimal addresses instead of Bech32.
-    #[serde(rename = "ethereal")]
-    Ethereal,
 }
 
 /// Parameters for the `get_value_transfer` method.
@@ -2409,12 +2406,7 @@ pub struct GetValueTransferFullOutput {
 
 /// Abridged output for the `get_value_transfer` method.
 ///
-/// This is used with the `simple` and `ethereal` modes.
-///
-/// The `recipient` and `sender` fields are expected to be Bech32 addresses or hexadecimal bytes,
-/// depending on whether the mode is `simple` or `ethereal`:
-/// - `simple` mode uses Bech32
-/// - `ethereal` mode uses hexadecimal
+/// This is used with the `simple` mode.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct GetValueTransferSimpleOutput {
     recipient: String,
@@ -2425,6 +2417,7 @@ pub struct GetValueTransferSimpleOutput {
 
 /// Joins both potential outputs for the `get_value_transfer` method.
 #[derive(Debug, Deserialize, Serialize)]
+#[serde(untagged)]
 pub enum GetValueTransfersOutput {
     /// Full mode, resembling the response of `get_transaction`.
     Full(GetValueTransferFullOutput),
@@ -2472,18 +2465,8 @@ pub async fn get_value_transfer(params: Result<GetValueTransferParams, Error>) -
             // Only adds up the value of the outputs that point to the same recipient as the first
             // output found in the transaction
             let value = vtt.body.first_recipient_value();
-
-            // Both the recipient and sender addresses are encoded differently depending on which
-            // mode we are at:
-            // - "simple" mode uses Bech32
-            // - "ethereal" mode uses hexadecimal
-            let recipient_pkh = vtt.body.outputs[0].pkh;
-            let sender_pkh = vtt.signatures[0].public_key.pkh();
-            let (recipient, sender) = if params.mode == GetValueTransferMode::Ethereal {
-                (recipient_pkh.to_hex(), sender_pkh.to_hex())
-            } else {
-                (recipient_pkh.to_string(), sender_pkh.to_string())
-            };
+            let recipient = vtt.body.outputs[0].pkh.to_string();
+            let sender = vtt.signatures[0].public_key.pkh().to_string();
 
             GetValueTransfersOutput::Simple(GetValueTransferSimpleOutput {
                 recipient,
