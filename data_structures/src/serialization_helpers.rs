@@ -14,7 +14,6 @@ use crate::{
     get_environment,
     utxo_pool::UtxoSelectionStrategy,
 };
-use serde::de::Error;
 use serde::{
     de::{self, IntoDeserializer, MapAccess, SeqAccess, Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
@@ -642,7 +641,7 @@ fn test_number_from_string() {
     struct NewType {
         #[serde(deserialize_with = "number_from_string")]
         inner: u64,
-    };
+    }
 
     let deserialized: NewType =
         serde_json::from_str(r##"{"inner": 18446744073709551615}"##).unwrap();

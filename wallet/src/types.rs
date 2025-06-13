@@ -2,11 +2,9 @@ use std::{
     collections::HashSet,
     convert::TryFrom,
     fmt,
-    str::FromStr,
     sync::{Arc, RwLock},
 };
 
-use core::fmt::Display;
 use failure::Fail;
 use serde::{Deserialize, Deserializer, Serialize};
 use witnet_crypto::{

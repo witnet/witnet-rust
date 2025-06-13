@@ -11,12 +11,11 @@ use std::{
 
 use bech32::{FromBase32, ToBase32};
 use bls_signatures_rs::{bn256, bn256::Bn256, MultiSignature};
-use core::fmt::Display;
 use ethereum_types::U256;
 use failure::Fail;
 use futures::future::BoxFuture;
 use ordered_float::OrderedFloat;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 
 use partial_struct::PartialStruct;
 use witnet_crypto::{
@@ -1623,6 +1622,12 @@ impl ValueTransferOutput {
     #[inline]
     pub fn weight(&self) -> u32 {
         OUTPUT_SIZE
+    }
+
+    #[inline]
+    pub fn is_metadata(&self) -> bool {
+        // There's the assumption that 1-nanoWit dusty outputs are most likely covert metadata
+        self.value == 1
     }
 }
 
