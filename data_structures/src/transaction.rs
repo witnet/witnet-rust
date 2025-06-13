@@ -313,6 +313,15 @@ impl VTTransactionBody {
 
         inputs_weight.saturating_add(outputs_weight)
     }
+
+    /// Extract potentially covert metadata hidden into the recipient of outputs valued 1 nanoWit.
+    pub fn metadata(&self) -> Vec<[u8; 20]> {
+        self.outputs
+            .iter()
+            .filter(|output| output.is_metadata())
+            .map(|output| output.pkh.hash)
+            .collect()
+    }
 }
 
 /// Proof of transaction inclusion in a block.

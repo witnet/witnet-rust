@@ -2379,13 +2379,14 @@ pub async fn get_balance_2(params: Result<Option<GetBalance2Params>, Error>) -> 
 
 /// Different modes for the `get_value_transfer` method.
 #[derive(Debug, Default, Deserialize, PartialEq, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum GetValueTransferMode {
+    /// Ethereal mode: similar to simple mode, but serializes stuff with EVM-friendly data types.
+    Ethereal,
     /// Full mode: returns the same information as the `get_transaction` method.
     #[default]
-    #[serde(rename = "full")]
     Full,
     /// Simple mode: returns only basic data in a more easily consumable form.
-    #[serde(rename = "simple")]
     Simple,
 }
 
@@ -2393,7 +2394,57 @@ pub enum GetValueTransferMode {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct GetValueTransferParams {
     hash: MagicEither<String, Hash>,
+    #[serde(default)]
     mode: GetValueTransferMode,
+    #[serde(default)]
+    force: bool,
+}
+
+/// Enumerates all the states in which a value transfer transaction can be.
+#[derive(Debug, Default, Deserialize, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ValueTransferStatus {
+    /// A transaction that never made it into a block (e.g. double spent, replaced by fee, etc.)
+    Cancelled,
+    /// A transaction that is written into the block chain forever.
+    /// Includes block epoch and number of confirmations.
+    Final(Epoch, Epoch),
+    /// A transaction that is written into a block but is waiting for finality (could still be
+    /// reverted).
+    /// Includes block epoch and number of confirmations.
+    InBlock(Epoch, Epoch),
+    /// A transaction that is still in the mempool, waiting to join a block.
+    #[default]
+    Pending,
+    /// A transaction that was included into a block that was eventually reverted.
+    Reverted,
+}
+
+impl ValueTransferStatus {
+    /// Obtain a small number telling which is the status.
+    pub fn discriminant(&self) -> u8 {
+        use ValueTransferStatus::*;
+
+        match self {
+            Cancelled => 0,
+            Final(_, _) => 1,
+            InBlock(_, _) => 2,
+            Pending => 3,
+            Reverted => 4,
+        }
+    }
+}
+
+/// Extremely abridged output for the `get_value_transfer` method.
+///
+/// This is used with the `ethereal` mode.
+#[derive(Debug, Deserialize, Serialize)]
+pub struct GetValueTransferEtherealOutput {
+    finalized: u8,
+    metadata: String,
+    recipient: String,
+    sender: String,
+    value: u64,
 }
 
 /// Full output for the `get_value_transfer` method.
@@ -2401,6 +2452,7 @@ pub struct GetValueTransferParams {
 /// This is used with the `full` mode.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct GetValueTransferFullOutput {
+    status: ValueTransferStatus,
     transaction: VTTransaction,
 }
 
@@ -2409,8 +2461,10 @@ pub struct GetValueTransferFullOutput {
 /// This is used with the `simple` mode.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct GetValueTransferSimpleOutput {
+    metadata: Vec<String>,
     recipient: String,
     sender: String,
+    status: ValueTransferStatus,
     timestamp: Option<i64>,
     value: u64,
 }
@@ -2419,6 +2473,8 @@ pub struct GetValueTransferSimpleOutput {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(untagged)]
 pub enum GetValueTransfersOutput {
+    /// Ethereal mode, extremely abridged.
+    Ethereal(GetValueTransferEtherealOutput),
     /// Full mode, resembling the response of `get_transaction`.
     Full(GetValueTransferFullOutput),
     /// Simple mode, more easily consumable from 3rd party (d)apps.
@@ -2432,16 +2488,48 @@ pub async fn get_value_transfer(params: Result<GetValueTransferParams, Error>) -
         .hash
         .try_do_magic(|string| Hash::from_str(&string))
         .map_err(internal_error)?;
+
+    // Unless forced, we need to make sure that the node is fully synchronized, otherwise the
+    // transaction statuses might be off
+    if !params.force {
+        let sync_status = status().await?;
+        let sync_status: SyncStatus =
+            serde_json::from_value(sync_status).map_err(internal_error)?;
+
+        if sync_status.node_state != StateMachine::Synced {
+            return Err(internal_error_s("The node is not synced yet. But you can use the `force: true` flag if you know what you are doing."));
+        }
+    }
     // This method piggybacks on the `get_transaction` method for fetching all the transaction facts
     let transaction = get_transaction(Ok((hash,))).await?;
     let transaction: GetTransactionOutput =
         serde_json::from_value(transaction).map_err(internal_error)?;
+    // Assess the status based on inclusion in a block, confirmations, etc.
+    let status = if let Some(block_epoch) = transaction.block_epoch {
+        let confirmations = transaction.confirmations.unwrap_or_default();
+        if transaction.confirmed {
+            ValueTransferStatus::Final(block_epoch, confirmations)
+        } else {
+            // We can safely assume that a transaction that has enough confirmations (epochs ever
+            // since) but is not really confirmed by the superblock protocol has been reverted
+            if confirmations > 20 {
+                ValueTransferStatus::Reverted
+            } else {
+                ValueTransferStatus::InBlock(block_epoch, confirmations)
+            }
+        }
+    } else {
+        ValueTransferStatus::Pending
+    };
 
     // Only makes sense to continue if the provided hash belongs to a value transfer transaction
     if let Transaction::ValueTransfer(vtt) = transaction.transaction {
         let output = if params.mode == GetValueTransferMode::Full {
             // For the "full" mode, the response resembles that of `get_transaction`
-            GetValueTransfersOutput::Full(GetValueTransferFullOutput { transaction: vtt })
+            GetValueTransfersOutput::Full(GetValueTransferFullOutput {
+                status,
+                transaction: vtt,
+            })
         } else {
             // For all the other modes, we need to pick all the different bits of info and assemble
             // them into a single output data structure
@@ -2467,13 +2555,35 @@ pub async fn get_value_transfer(params: Result<GetValueTransferParams, Error>) -
             let value = vtt.body.first_recipient_value();
             let recipient = vtt.body.outputs[0].pkh.to_string();
             let sender = vtt.signatures[0].public_key.pkh().to_string();
+            let metadata = vtt
+                .body
+                .metadata()
+                .iter()
+                .map(|bytes| hex::encode(bytes))
+                .collect();
 
-            GetValueTransfersOutput::Simple(GetValueTransferSimpleOutput {
-                recipient,
-                sender,
-                timestamp,
-                value,
-            })
+            if params.mode == GetValueTransferMode::Ethereal {
+                // Ethereal mode needs some extra processing of the output to simplify data types
+                let finalized = status.discriminant();
+                let metadata = metadata.join("");
+
+                GetValueTransfersOutput::Ethereal(GetValueTransferEtherealOutput {
+                    finalized,
+                    metadata,
+                    recipient,
+                    sender,
+                    value,
+                })
+            } else {
+                GetValueTransfersOutput::Simple(GetValueTransferSimpleOutput {
+                    metadata,
+                    recipient,
+                    sender,
+                    status,
+                    timestamp,
+                    value,
+                })
+            }
         };
 
         serde_json::to_value(output).map_err(internal_error)

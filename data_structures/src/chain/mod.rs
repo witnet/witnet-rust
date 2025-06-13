@@ -1623,6 +1623,12 @@ impl ValueTransferOutput {
     pub fn weight(&self) -> u32 {
         OUTPUT_SIZE
     }
+
+    #[inline]
+    pub fn is_metadata(&self) -> bool {
+        // There's the assumption that 1-nanoWit dusty outputs are most likely covert metadata
+        self.value == 1
+    }
 }
 
 /// Data request output transaction data structure
