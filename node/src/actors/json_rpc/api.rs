@@ -2541,7 +2541,7 @@ pub async fn get_value_transfer(params: Result<GetValueTransferParams, Error>) -
             let recipient = vtt
                 .body
                 .outputs
-                .get(0)
+                .first()
                 .map(|output| output.pkh.to_string())
                 .unwrap_or_default();
             let sender = vtt.signatures[0].public_key.pkh().to_string();
@@ -2549,7 +2549,7 @@ pub async fn get_value_transfer(params: Result<GetValueTransferParams, Error>) -
                 .body
                 .metadata()
                 .iter()
-                .map(|bytes| hex::encode(bytes))
+                .map(hex::encode)
                 .collect::<Vec<_>>();
 
             if params.mode == GetValueTransferMode::Ethereal {

@@ -288,7 +288,7 @@ impl VTTransactionBody {
     /// that of the first transaction output.
     pub fn first_recipient_value(&self) -> u64 {
         // We can't assume that a VTT contains outputs
-        if let Some(recipient) = self.outputs.get(0) {
+        if let Some(recipient) = self.outputs.first() {
             self.outputs
                 .iter()
                 .filter(|output| output.pkh == recipient.pkh)
