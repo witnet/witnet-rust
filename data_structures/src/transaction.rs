@@ -287,14 +287,17 @@ impl VTTransactionBody {
     /// Calculates the added value of the transaction outputs that point to the same recipient as
     /// that of the first transaction output.
     pub fn first_recipient_value(&self) -> u64 {
-        let recipient = self.outputs[0].pkh;
-
-        self.outputs
-            .iter()
-            .filter(|output| output.pkh == recipient)
-            .map(ValueTransferOutput::value)
-            .reduce(|acc, value| acc + value)
-            .unwrap_or_default()
+        // We can't assume that a VTT contains outputs
+        if let Some(recipient) = self.outputs.get(0) {
+            self.outputs
+                .iter()
+                .filter(|output| output.pkh == recipient.pkh)
+                .map(ValueTransferOutput::value)
+                .reduce(|acc, value| acc + value)
+                .unwrap_or_default()
+        } else {
+            0
+        }
     }
 
     /// Value Transfer transaction weight. It is calculated as:

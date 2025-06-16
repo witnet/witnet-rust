@@ -2534,33 +2534,23 @@ pub async fn get_value_transfer(params: Result<GetValueTransferParams, Error>) -
             // For all the other modes, we need to pick all the different bits of info and assemble
             // them into a single output data structure
 
-            // The timestamp can be only derived from the block epoch once the epoch constants are
-            // known (this is specially relevant after the V2_0+ fork)
-            let epoch_constants: EpochConstants =
-                match EpochManager::from_registry().send(GetEpochConstants).await {
-                    Ok(Some(epoch_constats)) => epoch_constats,
-                    Err(e) => Err(internal_error(e))?,
-                    _ => Err(internal_error(""))?,
-                };
-            let timestamp = match transaction.block_epoch {
-                Some(block_epoch) => epoch_constants
-                    .epoch_timestamp(block_epoch)
-                    .ok()
-                    .map(|(timestamp, _)| timestamp),
-                None => None,
-            };
-
             // Only adds up the value of the outputs that point to the same recipient as the first
             // output found in the transaction
             let value = vtt.body.first_recipient_value();
-            let recipient = vtt.body.outputs[0].pkh.to_string();
+            // If there's no outputs, there's no recipient
+            let recipient = vtt
+                .body
+                .outputs
+                .get(0)
+                .map(|output| output.pkh.to_string())
+                .unwrap_or_default();
             let sender = vtt.signatures[0].public_key.pkh().to_string();
             let metadata = vtt
                 .body
                 .metadata()
                 .iter()
                 .map(|bytes| hex::encode(bytes))
-                .collect();
+                .collect::<Vec<_>>();
 
             if params.mode == GetValueTransferMode::Ethereal {
                 // Ethereal mode needs some extra processing of the output to simplify data types
@@ -2575,6 +2565,22 @@ pub async fn get_value_transfer(params: Result<GetValueTransferParams, Error>) -
                     value,
                 })
             } else {
+                // The timestamp can be only derived from the block epoch once the epoch constants are
+                // known (this is specially relevant after the V2_0+ fork)
+                let epoch_constants: EpochConstants =
+                    match EpochManager::from_registry().send(GetEpochConstants).await {
+                        Ok(Some(epoch_constats)) => epoch_constats,
+                        Err(e) => Err(internal_error(e))?,
+                        _ => Err(internal_error(""))?,
+                    };
+                let timestamp = match transaction.block_epoch {
+                    Some(block_epoch) => epoch_constants
+                        .epoch_timestamp(block_epoch)
+                        .ok()
+                        .map(|(timestamp, _)| timestamp),
+                    None => None,
+                };
+
                 GetValueTransfersOutput::Simple(GetValueTransferSimpleOutput {
                     metadata,
                     recipient,
