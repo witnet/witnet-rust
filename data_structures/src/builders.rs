@@ -1,6 +1,6 @@
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 
-use rand::{thread_rng, Rng};
+use rand::RngCore;
 
 use witnet_util::timestamp::get_timestamp;
 
@@ -164,7 +164,7 @@ impl Message {
 ////////////////////////////////////////////////////////////////////////////////////////
 /// Function to get a random nonce
 fn random_nonce() -> u64 {
-    thread_rng().gen()
+    rand::rng().next_u64()
 }
 
 /// Function that returns the dynamic user agent

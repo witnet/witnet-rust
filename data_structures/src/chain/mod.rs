@@ -1,3 +1,10 @@
+use bech32::{Bech32, Hrp};
+use bls_signatures_rs::{bn256, bn256::Bn256, MultiSignature};
+use ethereum_types::U256;
+use failure::Fail;
+use futures::future::BoxFuture;
+use ordered_float::OrderedFloat;
+use serde::{Deserialize, Serialize};
 use std::{
     cell::{Cell, RefCell},
     cmp::Ordering,
@@ -8,14 +15,6 @@ use std::{
     ops::{AddAssign, SubAssign},
     str::FromStr,
 };
-
-use bech32::{FromBase32, ToBase32};
-use bls_signatures_rs::{bn256, bn256::Bn256, MultiSignature};
-use ethereum_types::U256;
-use failure::Fail;
-use futures::future::BoxFuture;
-use ordered_float::OrderedFloat;
-use serde::{Deserialize, Serialize};
 
 use partial_struct::PartialStruct;
 use witnet_crypto::{
@@ -1493,7 +1492,7 @@ pub enum PublicKeyHashParseError {
 
     /// Failed to parse string as Bech32
     #[fail(display = "Failed to deserialize Bech32: {}", _0)]
-    Bech32(#[cause] bech32::Error),
+    Bech32(#[cause] bech32::DecodeError),
 }
 
 impl FromStr for PublicKeyHash {
@@ -1550,7 +1549,8 @@ impl PublicKeyHash {
     pub fn bech32(&self, environment: Environment) -> String {
         // This unwrap is safe because every PKH will serialize correctly,
         // and every possible prefix is valid according the Bech32 rules
-        bech32::encode(environment.bech32_prefix(), self.hash.to_base32()).unwrap()
+        let hrp = Hrp::parse_unchecked(environment.bech32_prefix());
+        bech32::encode::<Bech32>(hrp, &self.hash).unwrap()
     }
 
     /// Deserialize PKH according to Bech32, checking prefix to avoid mixing mainnet and testned addresses
@@ -1558,18 +1558,18 @@ impl PublicKeyHash {
         environment: Environment,
         address: &str,
     ) -> Result<Self, PublicKeyHashParseError> {
-        let (prefix, pkh_u5) = bech32::decode(address).map_err(PublicKeyHashParseError::Bech32)?;
-        let pkh_vec = Vec::from_base32(&pkh_u5).map_err(PublicKeyHashParseError::Bech32)?;
+        let (prefix, pkh) = bech32::decode(address).map_err(PublicKeyHashParseError::Bech32)?;
 
-        let expected_prefix = environment.bech32_prefix();
+        let expected_prefix_str = String::from(environment.bech32_prefix());
+        let expected_prefix = Hrp::parse_unchecked(&expected_prefix_str);
 
         if prefix != expected_prefix {
             Err(PublicKeyHashParseError::WrongEnvironment {
-                prefix,
+                prefix: expected_prefix_str,
                 expected_environment: environment,
             })
         } else {
-            Self::from_bytes(&pkh_vec)
+            Self::from_bytes(&pkh)
         }
     }
 }
