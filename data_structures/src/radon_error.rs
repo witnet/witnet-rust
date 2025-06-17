@@ -1,7 +1,6 @@
-use std::io::Cursor;
+use std::{error::Error, io::Cursor};
 
-use cbor::{types::Tag, value::Value as CborValue, GenericEncoder};
-use failure::Fail;
+use cbor::{GenericEncoder, types::Tag, value::Value as CborValue};
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::Serialize;
 use serde_cbor::Value as SerdeCborValue;
@@ -85,13 +84,13 @@ impl Default for RadonErrors {
 
 /// This trait identifies a structure that can be used as an error type for `RadonError` and
 /// `RadonReport`.
-pub trait ErrorLike: Clone + Fail {
+pub trait ErrorLike: Clone + Error {
     /// Encode the error as an array of `SerdeCborValue`
-    fn encode_cbor_array(&self) -> Result<Vec<SerdeCborValue>, failure::Error>;
+    fn encode_cbor_array(&self) -> Result<Vec<SerdeCborValue>, anyhow::Error>;
     /// Decode the error from an array of `SerdeCborValue`
     fn decode_cbor_array(
         serde_cbor_array: Vec<SerdeCborValue>,
-    ) -> Result<RadonError<Self>, failure::Error>;
+    ) -> Result<RadonError<Self>, anyhow::Error>;
 }
 
 /// This structure is aimed to be the error type for the `result` field of `witnet_data_structures::radon_report::Report`.
@@ -116,7 +115,7 @@ where
 
     /// Encode `RadonError` as tagged CBOR value with tag 39.
     /// Returns the result as `CborValue`.
-    pub fn encode_tagged_value(&self) -> Result<CborValue, failure::Error> {
+    pub fn encode_tagged_value(&self) -> Result<CborValue, anyhow::Error> {
         let values: Vec<CborValue> = self
             .inner
             .encode_cbor_array()?
@@ -135,7 +134,7 @@ where
 
     /// Encode `RadonErorr` as tagged CBOR value with tag 39.
     /// Returns the result as bytes.
-    pub fn encode_tagged_bytes(&self) -> Result<Vec<u8>, failure::Error> {
+    pub fn encode_tagged_bytes(&self) -> Result<Vec<u8>, anyhow::Error> {
         let mut encoder = GenericEncoder::new(Cursor::new(Vec::new()));
         encoder.value(&self.encode_tagged_value()?)?;
 

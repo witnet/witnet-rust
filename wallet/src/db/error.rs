@@ -1,20 +1,20 @@
-use failure::Fail;
+use thiserror::Error;
 
-#[derive(Debug, Fail)]
-#[fail(display = "Database Error")]
+#[derive(Debug, Error)]
+#[error("Database Error")]
 pub enum Error {
-    #[fail(display = "mutex poison error")]
+    #[error("mutex poison error")]
     MutexPoison,
-    #[fail(display = "db key not found (key: {:?})", key)]
+    #[error("db key not found (key: {key:?})")]
     DbKeyNotFound { key: String },
-    #[fail(display = "rocksdb failed: {}", _0)]
-    Rocksdb(#[cause] rocksdb::Error),
-    #[fail(display = "bincode failed: {}", _0)]
-    Bincode(#[cause] bincode::Error),
-    #[fail(display = "cipher failed {}", _0)]
-    Cipher(#[cause] witnet_crypto::cipher::Error),
-    #[fail(display = "{}", _0)]
-    Failure(#[cause] failure::Error),
+    #[error("rocksdb failed: {0}")]
+    Rocksdb(rocksdb::Error),
+    #[error("bincode failed: {0}")]
+    Bincode(bincode::Error),
+    #[error("cipher failed {0}")]
+    Cipher(witnet_crypto::cipher::Error),
+    #[error("{0}")]
+    Failure(anyhow::Error),
 }
 
 impl From<rocksdb::Error> for Error {
@@ -29,8 +29,8 @@ impl From<bincode::Error> for Error {
     }
 }
 
-impl From<failure::Error> for Error {
-    fn from(err: failure::Error) -> Self {
+impl From<anyhow::Error> for Error {
+    fn from(err: anyhow::Error) -> Self {
         Error::Failure(err)
     }
 }

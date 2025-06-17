@@ -4,7 +4,7 @@ use actix::prelude::*;
 use serde::{Deserialize, Serialize};
 use witnet_data_structures::{
     chain::{Environment, Hashable, OutputPointer, PublicKeyHash, ValueTransferOutput},
-    fee::{deserialize_fee_backwards_compatible, AbsoluteFee, Fee},
+    fee::{AbsoluteFee, Fee, deserialize_fee_backwards_compatible},
     proto::ProtobufConvert,
     serialization_helpers::number_from_string,
     transaction::Transaction,
@@ -15,8 +15,8 @@ use crate::{
     actors::{app, worker},
     model::TransactionMetadata,
     types::{
-        self, fee_compat, from_generic_type, from_generic_type_vec, into_generic_type,
-        into_generic_type_vec, u32_to_string, FeeType, TransactionHelper, VttOutputParamsHelper,
+        self, FeeType, TransactionHelper, VttOutputParamsHelper, fee_compat, from_generic_type,
+        from_generic_type_vec, into_generic_type, into_generic_type_vec, u32_to_string,
     },
 };
 use itertools::Itertools;
@@ -203,7 +203,7 @@ pub fn validate_output_addresses(
 mod tests {
     use witnet_data_structures::chain::{Environment, PublicKeyHash, ValueTransferOutput};
 
-    use crate::actors::app::{validate_output_addresses, VttOutputParams};
+    use crate::actors::app::{VttOutputParams, validate_output_addresses};
 
     #[test]
     fn test_validate_addresses() {

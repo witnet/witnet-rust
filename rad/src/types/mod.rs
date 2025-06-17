@@ -6,12 +6,12 @@ use std::{
 
 use cbor::value::Value as CborValue;
 use serde::{Serialize, Serializer};
-use serde_cbor::{to_vec, Value};
+use serde_cbor::{Value, to_vec};
 use serde_json::Value as JsonValue;
 use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::{
-    chain::{tapi::ActiveWips, Hash},
-    radon_error::{try_from_cbor_value_for_serde_cbor_value, RadonError},
+    chain::{Hash, tapi::ActiveWips},
+    radon_error::{RadonError, try_from_cbor_value_for_serde_cbor_value},
     radon_report::{RadonReport, ReportContext, TypeLike},
 };
 
@@ -332,7 +332,8 @@ impl TryFrom<RadonTypes> for Value {
             RadonTypes::Boolean(radon_boolean) => radon_boolean.try_into(),
             RadonTypes::Bytes(radon_bytes) => radon_bytes.try_into(),
             RadonTypes::RadonError(error) => panic!(
-                "Should never try to build a `serde_cbor::Value` from `RadonTypes::RadonError`. Error was: {:?}", error
+                "Should never try to build a `serde_cbor::Value` from `RadonTypes::RadonError`. Error was: {:?}",
+                error
             ),
             RadonTypes::Float(radon_float) => radon_float.try_into(),
             RadonTypes::Integer(radon_integer) => radon_integer.try_into(),

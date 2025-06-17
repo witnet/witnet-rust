@@ -6,11 +6,11 @@ use crate::{
 use actix::prelude::*;
 use std::{collections::HashSet, sync::Arc, time::Duration};
 use web3::{
-    contract::{self, tokens::Tokenize, Contract},
-    ethabi::{ethereum_types::H256, Token},
+    Web3,
+    contract::{self, Contract, tokens::Tokenize},
+    ethabi::{Token, ethereum_types::H256},
     transports::Http,
     types::{H160, U256},
-    Web3,
 };
 use web3_unit_converter::Unit;
 use witnet_data_structures::{chain::Hash, radon_error::RadonErrors};

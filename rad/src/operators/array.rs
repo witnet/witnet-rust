@@ -4,16 +4,16 @@ use std::{
     iter,
 };
 
-use serde_cbor::value::{from_value, Value};
+use serde_cbor::value::{Value, from_value};
 use witnet_data_structures::radon_report::{RadonReport, ReportContext, Stage};
 
 use crate::{
     error::RadError,
     filters::{self, RadonFilters},
-    operators::{string, RadonOpCodes},
+    operators::{RadonOpCodes, string},
     reducers::{self, RadonReducers},
-    script::{execute_radon_script, unpack_subscript, RadonCall, RadonScriptExecutionSettings},
-    types::{array::RadonArray, integer::RadonInteger, string::RadonString, RadonType, RadonTypes},
+    script::{RadonCall, RadonScriptExecutionSettings, execute_radon_script, unpack_subscript},
+    types::{RadonType, RadonTypes, array::RadonArray, integer::RadonInteger, string::RadonString},
 };
 
 pub fn count(input: &RadonArray) -> RadonInteger {
@@ -290,7 +290,7 @@ pub fn sort(
         _ => {
             return Err(RadError::UnsupportedSortOp {
                 array: input.clone(),
-            })
+            });
         }
     };
 
@@ -418,8 +418,8 @@ mod tests {
             },
         },
         types::{
-            boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat, integer::RadonInteger,
-            map::RadonMap, RadonTypes,
+            RadonTypes, boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat,
+            integer::RadonInteger, map::RadonMap,
         },
     };
 

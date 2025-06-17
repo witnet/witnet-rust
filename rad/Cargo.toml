@@ -2,7 +2,7 @@
 name = "witnet_rad"
 version = "0.3.2"
 authors = ["Witnet Foundation <info@witnet.foundation>"]
-edition = "2021"
+edition = "2024"
 workspace = ".."
 description = "RAD component"
 
@@ -13,9 +13,9 @@ rocksdb-backend = ["witnet_data_structures/rocksdb-backend"]
 tokio = "1.44.1"
 
 [dependencies]
+anyhow = "1.0.98"
 cbor-codec = { git = "https://github.com/witnet/cbor-codec.git", branch = "feat/ldexpf-shim" }
-failure = "0.1.8"
-futures = "0.3.4"
+futures = "0.3.31"
 hex = "0.4.1"
 if_rust_version = "1.0.0"
 # the http crate is used to perform additional validations before passing arguments to the surf http client
@@ -23,13 +23,14 @@ if_rust_version = "1.0.0"
 http = "0.2.1"
 log = "0.4.8"
 minidom = { git = "https://github.com/witnet/xmpp-rs", rev = "bc8a33ff5da95ee4039ad7ee3376c100d9e35c74" }
-num_enum = "0.4.2"
-ordered-float = "3.0"
+num_enum = "0.7.3"
+ordered-float = "3.9.2"
 rand = "0.7.3"
 reqwest = { version = "0.12.15", features = ["socks"] }
 serde = "1.0.111"
 serde_cbor = "0.11.2"
 serde_json = "1.0.96"
+thiserror = "2.0.12"
 # the url crate is used to perform additional validations before passing arguments to the surf http client
 # the version of url must be kept in sync with the version used by surf in the `witnet_net` crate
 url = "2.1.1"

@@ -1,7 +1,7 @@
 use std::{cmp::Ordering, convert::TryFrom};
 
 use witnet_data_structures::{
-    chain::{tapi::ActiveWips, RADTally},
+    chain::{RADTally, tapi::ActiveWips},
     radon_error::RadonError,
     radon_report::{RadonReport, ReportContext, Stage, TallyMetaData},
 };
@@ -12,7 +12,7 @@ use crate::{
     reducers::mode::mode,
     run_tally_report,
     script::RadonScriptExecutionSettings,
-    types::{array::RadonArray, RadonType, RadonTypes},
+    types::{RadonType, RadonTypes, array::RadonArray},
 };
 
 /// An `Either`-like structure that covers the two possible return types of the
@@ -126,9 +126,13 @@ pub fn evaluate_tally_precondition_clause(
                         if achieved_consensus >= minimum_consensus {
                             match mode(&errors_array)? {
                                 RadonTypes::RadonError(errors_mode) => {
-                                    Ok(TallyPreconditionClauseResult::MajorityOfErrors { errors_mode })
+                                    Ok(TallyPreconditionClauseResult::MajorityOfErrors {
+                                        errors_mode,
+                                    })
                                 }
-                                _ => unreachable!("Mode of `RadonArray` containing only `RadonError`s cannot possibly be different from `RadonError`"),
+                                _ => unreachable!(
+                                    "Mode of `RadonArray` containing only `RadonError`s cannot possibly be different from `RadonError`"
+                                ),
                             }
                         } else {
                             Err(RadError::InsufficientConsensus {
@@ -309,11 +313,7 @@ pub fn construct_report_from_clause_result(
 
 fn update_liars(liars: &mut Vec<bool>, item: RadonTypes, condition: bool) -> Option<RadonTypes> {
     liars.push(!condition);
-    if condition {
-        Some(item)
-    } else {
-        None
-    }
+    if condition { Some(item) } else { None }
 }
 
 /// Create report with error result and mark all revealers as errors and liars

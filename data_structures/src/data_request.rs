@@ -10,8 +10,8 @@ use witnet_crypto::hash::calculate_sha256;
 
 use crate::{
     chain::{
-        tapi::ActiveWips, DataRequestInfo, DataRequestOutput, DataRequestStage, DataRequestState,
-        Epoch, Hash, Hashable, PublicKeyHash, ValueTransferOutput,
+        DataRequestInfo, DataRequestOutput, DataRequestStage, DataRequestState, Epoch, Hash,
+        Hashable, PublicKeyHash, ValueTransferOutput, tapi::ActiveWips,
     },
     error::{DataRequestError, TransactionError},
     get_protocol_version_activation_epoch,
@@ -153,7 +153,7 @@ impl DataRequestPool {
         epoch: Epoch,
         data_request: DRTransaction,
         block_hash: Option<Hash>,
-    ) -> Result<(), failure::Error> {
+    ) -> Result<(), anyhow::Error> {
         let dr_hash = data_request.versioned_hash(ProtocolVersion::from_epoch(epoch));
         if data_request.signatures.is_empty() {
             return Err(TransactionError::SignatureNotFound.into());
@@ -178,7 +178,7 @@ impl DataRequestPool {
         pkh: PublicKeyHash,
         commit: CommitTransaction,
         block_hash: &Hash,
-    ) -> Result<(), failure::Error> {
+    ) -> Result<(), anyhow::Error> {
         let tx_hash = commit.versioned_hash(ProtocolVersion::from_epoch(epoch));
         log::debug!("Adding commit tx {}: {:?}", tx_hash, commit);
         // For a commit output, we need to get the corresponding data request input
@@ -205,7 +205,7 @@ impl DataRequestPool {
         pkh: PublicKeyHash,
         reveal: RevealTransaction,
         block_hash: &Hash,
-    ) -> Result<(), failure::Error> {
+    ) -> Result<(), anyhow::Error> {
         let tx_hash = reveal.versioned_hash(ProtocolVersion::from_epoch(epoch));
         // For a commit output, we need to get the corresponding data request input
         let dr_pointer = reveal.body.dr_pointer;
@@ -229,7 +229,7 @@ impl DataRequestPool {
         &mut self,
         tally: TallyTransaction,
         block_hash: &Hash,
-    ) -> Result<(), failure::Error> {
+    ) -> Result<(), anyhow::Error> {
         let dr_info = Self::resolve_data_request(&mut self.data_request_pool, tally, block_hash)?;
 
         // Since this method does not have access to the storage, we save the
@@ -245,10 +245,10 @@ impl DataRequestPool {
         data_request_pool: &mut HashMap<Hash, DataRequestState>,
         tally_tx: TallyTransaction,
         block_hash: &Hash,
-    ) -> Result<DataRequestInfo, failure::Error> {
+    ) -> Result<DataRequestInfo, anyhow::Error> {
         let dr_pointer = tally_tx.dr_pointer;
 
-        let dr_state: Result<DataRequestState, failure::Error> =
+        let dr_state: Result<DataRequestState, anyhow::Error> =
             data_request_pool.remove(&dr_pointer).ok_or_else(|| {
                 DataRequestError::AddTallyFail {
                     block_hash: *block_hash,
@@ -360,7 +360,7 @@ impl DataRequestPool {
         commit_transaction: &CommitTransaction,
         epoch: Epoch,
         block_hash: &Hash,
-    ) -> Result<(), failure::Error> {
+    ) -> Result<(), anyhow::Error> {
         let pkh = PublicKeyHash::from_public_key(&commit_transaction.signatures[0].public_key);
         self.add_commit(epoch, pkh, commit_transaction.clone(), block_hash)
     }
@@ -371,7 +371,7 @@ impl DataRequestPool {
         reveal_transaction: &RevealTransaction,
         epoch: Epoch,
         block_hash: &Hash,
-    ) -> Result<(), failure::Error> {
+    ) -> Result<(), anyhow::Error> {
         let pkh = PublicKeyHash::from_public_key(&reveal_transaction.signatures[0].public_key);
         self.add_reveal(epoch, pkh, reveal_transaction.clone(), block_hash)
     }
@@ -383,7 +383,7 @@ impl DataRequestPool {
         dr_transaction: &DRTransaction,
         epoch: Epoch,
         block_hash: Option<Hash>,
-    ) -> Result<(), failure::Error> {
+    ) -> Result<(), anyhow::Error> {
         // A data request output should have a valid value transfer input
         // Which we assume valid as it should have been already verified
 
@@ -395,7 +395,7 @@ impl DataRequestPool {
         &mut self,
         tally_transaction: &TallyTransaction,
         block_hash: &Hash,
-    ) -> Result<(), failure::Error> {
+    ) -> Result<(), anyhow::Error> {
         self.add_tally(tally_transaction.clone(), block_hash)
     }
 
@@ -596,11 +596,7 @@ fn saturating_div_ceil(lhs: u64, rhs: u64) -> u64 {
     let d = lhs / rhs;
     let r = lhs % rhs;
 
-    if r > 0 {
-        d + 1
-    } else {
-        d
-    }
+    if r > 0 { d + 1 } else { d }
 }
 
 /// Count how many commitments will be considered "errors" and how many will
@@ -653,8 +649,20 @@ where
         let liars = &tally_metadata.liars;
         let errors = &tally_metadata.errors;
 
-        assert_eq!(reveals_count, liars.len(), "Length of liars vector collected from tally ({}) does not match actual count of reveals ({})", reveals_count, liars.len());
-        assert_eq!(reveals_count, errors.len(), "Length of errors vector collected from tally ({}) does not match actual count of reveals ({})", reveals_count, errors.len());
+        assert_eq!(
+            reveals_count,
+            liars.len(),
+            "Length of liars vector collected from tally ({}) does not match actual count of reveals ({})",
+            reveals_count,
+            liars.len()
+        );
+        assert_eq!(
+            reveals_count,
+            errors.len(),
+            "Length of errors vector collected from tally ({}) does not match actual count of reveals ({})",
+            reveals_count,
+            errors.len()
+        );
 
         let (liars_count, errors_count) = calculate_errors_and_liars_count(errors, liars);
 
@@ -970,11 +978,12 @@ mod tests {
         );
 
         // The data request was removed from the data_requests_by_epoch map
-        assert!(!p
-            .data_requests_by_epoch
-            .get(&epoch)
-            .map(|x| x.contains(&dr_pointer))
-            .unwrap_or(false));
+        assert!(
+            !p.data_requests_by_epoch
+                .get(&epoch)
+                .map(|x| x.contains(&dr_pointer))
+                .unwrap_or(false)
+        );
 
         (fake_block_hash, p, dr_pointer)
     }

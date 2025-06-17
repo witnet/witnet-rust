@@ -28,7 +28,7 @@ pub fn exec(
         cmd,
         ..
     }: Cli,
-) -> Result<(), failure::Error> {
+) -> Result<(), anyhow::Error> {
     let mut log_opts = LogOptions::default();
     let config_path = config.or_else(config::dirs::find_config);
     let config = get_config(&config_path)?;
@@ -71,7 +71,7 @@ fn exec_cmd(
     command: Command,
     config_path: Option<PathBuf>,
     config: config::config::Config,
-) -> Result<(), failure::Error> {
+) -> Result<(), anyhow::Error> {
     match command {
         Command::Node(cmd) => node::exec_cmd(cmd, config_path, config),
         Command::Wallet(cmd) => wallet::exec_cmd(cmd, config),
@@ -159,7 +159,7 @@ fn init_logger(opts: LogOptions) {
     logger_builder.init();
 }
 
-fn get_config(path: &Option<PathBuf>) -> Result<config::config::Config, failure::Error> {
+fn get_config(path: &Option<PathBuf>) -> Result<config::config::Config, anyhow::Error> {
     match path {
         Some(p) => {
             println!("Loading config from: {}", p.display());

@@ -6,7 +6,7 @@ use actix::{
 use witnet_data_structures::types::Message as WitnetMessage;
 use witnet_p2p::sessions::{SessionStatus, SessionType};
 
-use super::{handlers::EveryEpochPayload, Session};
+use super::{Session, handlers::EveryEpochPayload};
 use crate::actors::{
     chain_manager::ChainManager,
     epoch_manager::{EpochManager, EpochManagerError::CheckpointZeroInTheFuture},

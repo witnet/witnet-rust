@@ -1,5 +1,5 @@
-use failure::Fail;
 use reqwest;
+use thiserror::Error;
 
 /// Maximum number of HTTP redirects to follow
 const MAX_REDIRECTS: usize = 4;
@@ -31,28 +31,22 @@ impl WitnetHttpClient {
 }
 
 /// Errors for WitnetHttpClient and other auxiliary structures in this module.
-#[derive(Clone, Debug, Eq, Fail, PartialEq)]
+#[derive(Clone, Debug, Eq, Error, PartialEq)]
 pub enum WitnetHttpError {
     /// Error when trying to build a WitnetHttpClient.
-    #[fail(
-        display = "Error when trying to build a WitnetHttpClient. Underlying error: {}",
-        msg
-    )]
+    #[error("Error when trying to build a WitnetHttpClient. Underlying error: {msg}")]
     ClientBuildError {
         /// An error message.
         msg: String,
     },
     /// HTTP request error.
-    #[fail(display = "HTTP request error. Underlying error: {}", msg)]
+    #[error("HTTP request error. Underlying error: {msg}")]
     HttpRequestError {
         /// An error message.
         msg: String,
     },
     /// The provided proxy URI is invalid.
-    #[fail(
-        display = "The provided proxy address is not a valid URI ({}). Underlying error: {}",
-        address, msg
-    )]
+    #[error("The provided proxy address is not a valid URI ({address}). Underlying error: {msg}")]
     InvalidProxyUri {
         /// The provided invalid address.
         address: String,
@@ -60,10 +54,7 @@ pub enum WitnetHttpError {
         msg: String,
     },
     /// Found an unknown HTTP status code.
-    #[fail(
-        display = "Unknown HTTP status code ({}). Underlying error: {}",
-        code, msg
-    )]
+    #[error("Unknown HTTP status code ({code}). Underlying error: {msg}")]
     UnknownStatusCode {
         /// The unknown status code.
         code: u16,
@@ -71,22 +62,19 @@ pub enum WitnetHttpError {
         msg: String,
     },
     /// Found an unknown HTTP version.
-    #[fail(display = "Unknown HTTP version ({})", version)]
+    #[error("Unknown HTTP version ({version})")]
     UnknownVersion {
         /// The unknown HTTP version.
         version: String,
     },
     /// Tried to process an HTTP request with an unsupported HTTP method.
-    #[fail(
-        display = "Tried to process an HTTP request with an unsupported HTTP method {}",
-        method
-    )]
+    #[error("Tried to process an HTTP request with an unsupported HTTP method {method}")]
     UnsupportedMethod {
         /// The unsupported HTTP method.
         method: String,
     },
     /// Error taking body from request.
-    #[fail(display = "Error taking body from request: {}", msg)]
+    #[error("Error taking body from request: {msg}")]
     TakeBodyError {
         /// An error message
         msg: String,

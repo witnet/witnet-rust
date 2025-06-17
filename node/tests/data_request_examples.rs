@@ -3,13 +3,13 @@ use std::{collections::HashMap, convert::TryFrom, fs};
 use serde::{Deserialize, Serialize};
 
 use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
-use witnet_data_structures::chain::{tapi::all_wips_active, DataRequestOutput};
+use witnet_data_structures::chain::{DataRequestOutput, tapi::all_wips_active};
 use witnet_node::actors::messages::BuildDrt;
 use witnet_rad::{
     script::RadonScriptExecutionSettings,
     types::{
-        bytes::RadonBytes, float::RadonFloat, integer::RadonInteger, string::RadonString,
-        RadonTypes,
+        RadonTypes, bytes::RadonBytes, float::RadonFloat, integer::RadonInteger,
+        string::RadonString,
     },
 };
 use witnet_validations::validations::{validate_data_request_output, validate_rad_request};
@@ -44,7 +44,7 @@ fn generate_example_json(build_drt: BuildDrt) -> String {
 fn run_dr_locally_with_data(
     dr: &DataRequestOutput,
     data: &[&str],
-) -> Result<RadonTypes, failure::Error> {
+) -> Result<RadonTypes, anyhow::Error> {
     // Validate RADON: if the dr cannot be included in a witnet block, this should fail.
     validate_rad_request(&dr.data_request, &all_wips_active())?;
     // Validate other parameters such as collateral and reward
@@ -244,8 +244,8 @@ mod examples {
     };
     use witnet_node::actors::messages::BuildDrt;
     use witnet_rad::{
-        cbor_to_vec, filters::RadonFilters, operators::RadonOpCodes, reducers::RadonReducers,
-        CborValue as Value,
+        CborValue as Value, cbor_to_vec, filters::RadonFilters, operators::RadonOpCodes,
+        reducers::RadonReducers,
     };
 
     pub fn bitcoin_price() -> BuildDrt {

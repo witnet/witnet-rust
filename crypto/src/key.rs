@@ -5,7 +5,7 @@
 //! ```
 //! # use witnet_crypto::{key, mnemonic};
 //! let passphrase = "".into();
-//! let seed = mnemonic::MnemonicGen::new().generate().seed(&passphrase);
+//! let seed = mnemonic::MnemonicGenerator::new().generate().seed(&passphrase);
 //! let ext_key = key::MasterKeyGen::new(seed).generate();
 //! ```
 use std::{
@@ -17,70 +17,51 @@ use std::{
 
 use bech32::{FromBase32, ToBase32 as _};
 use byteorder::{BigEndian, ReadBytesExt as _};
-use failure::Fail;
 use hmac::{Hmac, Mac};
 use secp256k1::{PublicKey, SecretKey};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-
+use thiserror::Error;
 use witnet_protected::Protected;
 
 /// The error type for [generate_master](generate_master)
-#[derive(Debug, PartialEq, Eq, Fail)]
+#[derive(Debug, PartialEq, Eq, Error)]
 pub enum MasterKeyGenError {
     /// Invalid hmac key length
-    #[fail(display = "The length of the hmac key is invalid")]
+    #[error("The length of the hmac key is invalid")]
     InvalidKeyLength,
     /// Invalid seed length
-    #[fail(display = "The length of the seed is invalid, must be between 128/256 bits")]
+    #[error("The length of the seed is invalid, must be between 128/256 bits")]
     InvalidSeedLength,
 }
 
 /// Error type for errors ocurring when serializing an extended secret
 /// key.
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub enum KeyError {
     /// Error that might happen when serializing the key.
-    #[fail(display = "Serialization error: {}", _0)]
-    Serialization(#[cause] failure::Error),
+    #[error("Serialization error: {0}")]
+    Serialization(String),
     /// Error that might happen when decoding the key.
-    #[fail(display = "Decoding error: {}", _0)]
-    Deserialization(#[cause] failure::Error),
-}
-
-impl KeyError {
-    /// Turn an std::error::Error into a serialization error.
-    pub fn serialization_err<E>(err: E) -> Self
-    where
-        E: std::error::Error + Sync + Send + 'static,
-    {
-        Self::Serialization(failure::Error::from_boxed_compat(Box::new(err)))
-    }
-
-    /// Turn an std::error::Error into a deserialization error.
-    pub fn deserialization_err<E>(err: E) -> Self
-    where
-        E: std::error::Error + Sync + Send + 'static,
-    {
-        Self::Deserialization(failure::Error::from_boxed_compat(Box::new(err)))
-    }
+    #[error("Decoding error: {0}")]
+    Deserialization(String),
 }
 
 impl From<io::Error> for KeyError {
     fn from(err: io::Error) -> Self {
-        Self::serialization_err(err)
+        Self::Serialization(err.to_string())
     }
 }
 
 impl From<hex::FromHexError> for KeyError {
     fn from(err: hex::FromHexError) -> Self {
-        Self::deserialization_err(err)
+        Self::Deserialization(err.to_string())
     }
 }
 
 impl From<secp256k1::Error> for KeyError {
     fn from(err: secp256k1::Error) -> Self {
-        Self::deserialization_err(err)
+        Self::Deserialization(err.to_string())
     }
 }
 
@@ -141,19 +122,19 @@ where
     }
 }
 /// Error returned trying to derivate a key
-#[derive(Debug, PartialEq, Eq, Fail)]
+#[derive(Debug, PartialEq, Eq, Error)]
 pub enum KeyDerivationError {
     /// Invalid hmac key length
-    #[fail(display = "The length of the hmac key is invalid")]
+    #[error("The length of the hmac key is invalid")]
     InvalidKeyLength,
     /// Invalid seed length
-    #[fail(display = "The length of the seed is invalid, must be between 128/512 bits")]
+    #[error("The length of the seed is invalid, must be between 128/512 bits")]
     InvalidSeedLength,
     /// A secret key is greater than the curve order
-    #[fail(display = "The secret key is greater than the curve order")]
+    #[error("The secret key is greater than the curve order")]
     SecretLargerThanCurveOrder,
     /// Secp256k1 internal error
-    #[fail(display = "Error in secp256k1 crate")]
+    #[error("Error in secp256k1 crate: {0}")]
     Secp256k1Error(secp256k1::Error),
 }
 
@@ -184,16 +165,15 @@ impl ExtendedSK {
 
     /// Create a new extended secret key from the given slip32-encoded string.
     pub fn from_slip32(slip32: &str) -> Result<(Self, KeyPath), KeyError> {
-        let (hrp, data) = bech32::decode(slip32).map_err(KeyError::deserialization_err)?;
+        let (hrp, data) =
+            bech32::decode(slip32).map_err(|err| KeyError::Deserialization(err.to_string()))?;
 
         if hrp.as_str() != "xprv" {
-            return Err(KeyError::Deserialization(failure::format_err!(
-                "prefix is not \"xprv\""
-            )));
+            return Err(KeyError::Deserialization("prefix is not \"xprv\"".into()));
         }
 
-        let bytes: Vec<u8> =
-            FromBase32::from_base32(&data).map_err(KeyError::deserialization_err)?;
+        let bytes: Vec<u8> = FromBase32::from_base32(&data)
+            .map_err(|err: bech32::Error| KeyError::Deserialization(err.to_string()))?;
         let actual_len = bytes.len();
         let mut cursor = io::Cursor::new(bytes);
         let depth = cursor.read_u8()? as usize;
@@ -201,10 +181,9 @@ impl ExtendedSK {
         let expected_len = len + 66; // 66 = 1 (depth) 32 (chain code) + 33 (private key)
 
         if expected_len != actual_len {
-            return Err(KeyError::Deserialization(failure::format_err!(
+            return Err(KeyError::Deserialization(format!(
                 "invalid data length, expected: {}, got: {}",
-                expected_len,
-                actual_len
+                expected_len, actual_len
             )));
         }
 
@@ -232,10 +211,7 @@ impl ExtendedSK {
     pub fn to_slip32(&self, path: &KeyPath) -> Result<String, KeyError> {
         let depth = path.depth();
         let depth = u8::try_from(depth).map_err(|_| {
-            KeyError::Serialization(failure::format_err!(
-                "path depth '{}' is greater than 255",
-                depth,
-            ))
+            KeyError::Serialization(format!("path depth '{}' is greater than 255", depth,))
         })?;
 
         let capacity = 1     // 1 byte for depth
@@ -255,7 +231,7 @@ impl ExtendedSK {
         slice.write_all(self.secret().as_ref())?;
 
         let encoded = bech32::encode("xprv", bytes.as_ref().to_base32())
-            .map_err(KeyError::serialization_err)?;
+            .map_err(|err| KeyError::Serialization(err.to_string()))?;
 
         Ok(encoded)
     }

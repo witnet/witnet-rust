@@ -1,5 +1,5 @@
 use witnet_data_structures::{
-    chain::{tapi::TapiEngine, ChainState},
+    chain::{ChainState, tapi::TapiEngine},
     proto::versioning::ProtocolInfo,
     staking::stakes::StakesTracker,
     utxo_pool::UtxoWriteBatch,
@@ -9,7 +9,7 @@ use super::*;
 
 macro_rules! as_failure {
     ($e:expr) => {
-        failure::Error::from_boxed_compat(Box::new($e))
+        anyhow::Error::from_boxed(Box::new($e))
     };
 }
 
@@ -94,7 +94,7 @@ fn migrate_chain_state_v4_to_v5(old_chain_state_bytes: &[u8]) -> Vec<u8> {
     .concat()
 }
 
-fn migrate_chain_state(mut bytes: Vec<u8>) -> Result<ChainState, failure::Error> {
+fn migrate_chain_state(mut bytes: Vec<u8>) -> Result<ChainState, anyhow::Error> {
     loop {
         let version = check_chain_state_version(&bytes);
         log::info!("Chain state version as read from storage is {:?}", version);
@@ -133,14 +133,14 @@ fn migrate_chain_state(mut bytes: Vec<u8>) -> Result<ChainState, failure::Error>
                 };
             }
             Ok(unknown_version) => {
-                return Err(failure::format_err!(
+                return Err(anyhow::format_err!(
                     "Error when reading ChainState from database: version {} not supported",
                     unknown_version
                 ));
             }
             Err(()) => {
                 // Error reading version (end of file?)
-                return Err(failure::format_err!(
+                return Err(anyhow::format_err!(
                     "Error when reading ChainState version from database: unexpected end of file"
                 ));
             }
@@ -152,10 +152,10 @@ fn migrate_chain_state(mut bytes: Vec<u8>) -> Result<ChainState, failure::Error>
 fn get_versioned<K, V, F>(
     key: &K,
     migration_fn: F,
-) -> impl Future<Output = Result<Option<V>, failure::Error>>
+) -> impl Future<Output = Result<Option<V>, anyhow::Error>> + use<K, V, F>
 where
     K: serde::Serialize,
-    F: FnOnce(Vec<u8>) -> Result<V, failure::Error>,
+    F: FnOnce(Vec<u8>) -> Result<V, anyhow::Error>,
 {
     let addr = StorageManagerAdapter::from_registry();
 
@@ -177,13 +177,11 @@ where
 }
 
 /// Get value associated to key
-pub fn get_chain_state<K>(
-    key: &K,
-) -> impl Future<Output = Result<Option<ChainState>, failure::Error>>
+pub fn get_chain_state<K>(key: K) -> impl Future<Output = Result<Option<ChainState>, anyhow::Error>>
 where
     K: serde::Serialize,
 {
-    get_versioned(key, migrate_chain_state)
+    get_versioned(&key, migrate_chain_state)
 }
 
 /// Put a value associated to the key into the storage, preceded by a 4-byte version tag
@@ -192,7 +190,7 @@ fn put_versioned_to_batch<K>(
     value: &ChainState,
     db_version: u32,
     batch: &mut UtxoWriteBatch,
-) -> Result<(), failure::Error>
+) -> Result<(), anyhow::Error>
 where
     K: serde::Serialize,
 {
@@ -224,7 +222,7 @@ pub fn put_chain_state_in_batch<K>(
     key: &K,
     chain_state: &ChainState,
     mut batch: UtxoWriteBatch,
-) -> impl Future<Output = Result<(), failure::Error>> + 'static
+) -> impl Future<Output = Result<(), anyhow::Error>> + 'static
 where
     K: serde::Serialize + 'static,
 {

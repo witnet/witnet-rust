@@ -3,13 +3,13 @@
 //! This module integrates the `vrf` crate with the data structures used in witnet.
 use serde::{Deserialize, Serialize};
 use vrf::{
-    openssl::{CipherSuite, ECVRF},
     VRF,
+    openssl::{CipherSuite, ECVRF},
 };
 
 use crate::{
     chain::{CheckpointVRF, Hash, HashParseError, PublicKey, PublicKeyHash, SecretKey},
-    proto::{schema::witnet, ProtobufConvert},
+    proto::{ProtobufConvert, schema::witnet},
 };
 
 /// VRF context using SECP256K1 curve
@@ -18,7 +18,7 @@ pub struct VrfCtx(ECVRF);
 
 impl VrfCtx {
     /// Initialize a VRF context for the SECP256K1 curve
-    pub fn secp256k1() -> Result<Self, failure::Error> {
+    pub fn secp256k1() -> Result<Self, anyhow::Error> {
         let vrf = ECVRF::from_suite(CipherSuite::SECP256K1_SHA256_TAI)?;
 
         Ok(Self(vrf))
@@ -28,7 +28,7 @@ impl VrfCtx {
 /// A VRF Proof is a unique, deterministic way to sign a message with a public key.
 /// It is used to prevent one identity from creating multiple different proofs of eligibility.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, ProtobufConvert, Hash)]
-#[protobuf_convert(pb = "witnet::VrfProof")]
+#[protobuf_convert(source = "witnet::VrfProof")]
 pub struct VrfProof {
     proof: Vec<u8>,
     public_key: PublicKey,
@@ -40,7 +40,7 @@ impl VrfProof {
         vrf: &mut VrfCtx,
         secret_key: &SecretKey,
         message: &VrfMessage,
-    ) -> Result<(VrfProof, Hash), failure::Error> {
+    ) -> Result<(VrfProof, Hash), anyhow::Error> {
         // The public key is derived from the secret key
         let public_key_bytes = vrf.0.derive_public_key(&secret_key.bytes)?;
         let public_key = PublicKey::try_from_slice(&public_key_bytes)?;
@@ -60,11 +60,7 @@ impl VrfProof {
     }
 
     /// Verify the proof. The message must be exactly the same as the one used to create the proof.
-    pub fn verify(
-        &self,
-        vrf: &mut VrfCtx,
-        message: &VrfMessage,
-    ) -> Result<Vec<u8>, failure::Error> {
+    pub fn verify(&self, vrf: &mut VrfCtx, message: &VrfMessage) -> Result<Vec<u8>, anyhow::Error> {
         Ok(vrf
             .0
             .verify(&self.public_key.to_bytes(), &self.proof, &message.0)?)
@@ -81,7 +77,7 @@ impl VrfProof {
     }
 
     /// Create a VRF proof for a given message
-    pub fn proof_to_hash(&self, vrf: &mut VrfCtx) -> Result<Hash, failure::Error> {
+    pub fn proof_to_hash(&self, vrf: &mut VrfCtx) -> Result<Hash, anyhow::Error> {
         let proof_hash = vrf.0.proof_to_hash(&self.proof)?;
         if proof_hash.len() != 32 {
             Err(HashParseError::InvalidLength(proof_hash.len()).into())
@@ -143,7 +139,7 @@ impl VrfMessage {
 
 /// Block mining eligibility claim
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default, Hash)]
-#[protobuf_convert(pb = "witnet::BlockEligibilityClaim")]
+#[protobuf_convert(source = "witnet::BlockEligibilityClaim")]
 pub struct BlockEligibilityClaim {
     /// A Verifiable Random Function proof of the eligibility for a given epoch and public key
     pub proof: VrfProof,
@@ -155,7 +151,7 @@ impl BlockEligibilityClaim {
         vrf: &mut VrfCtx,
         secret_key: &SecretKey,
         vrf_input: CheckpointVRF,
-    ) -> Result<Self, failure::Error> {
+    ) -> Result<Self, anyhow::Error> {
         let message = VrfMessage::block_mining(vrf_input);
         Ok(Self {
             proof: VrfProof::create(vrf, secret_key, &message)?.0,
@@ -167,7 +163,7 @@ impl BlockEligibilityClaim {
         &self,
         vrf: &mut VrfCtx,
         vrf_input: CheckpointVRF,
-    ) -> Result<Hash, failure::Error> {
+    ) -> Result<Hash, anyhow::Error> {
         self.proof
             .verify(vrf, &VrfMessage::block_mining(vrf_input))
             .map(|v| {
@@ -180,14 +176,14 @@ impl BlockEligibilityClaim {
 
     /// Output the hash of the VRF proof.
     /// This hash will become the input to future VRF create functions that compute eligibilities.
-    pub fn proof_to_hash(&self, vrf: &mut VrfCtx) -> Result<Hash, failure::Error> {
+    pub fn proof_to_hash(&self, vrf: &mut VrfCtx) -> Result<Hash, anyhow::Error> {
         self.proof.proof_to_hash(vrf)
     }
 }
 
 /// Structure used to serialize the parameters needed for the `DataRequestEligibilityClaim` (V1_X)
 #[derive(Debug, ProtobufConvert)]
-#[protobuf_convert(pb = "witnet::DataRequestVrfMessage")]
+#[protobuf_convert(source = "witnet::DataRequestVrfMessage")]
 struct DataRequestVrfMessage {
     vrf_input: CheckpointVRF,
     dr_hash: Hash,
@@ -196,7 +192,7 @@ struct DataRequestVrfMessage {
 
 /// Data request eligibility claim
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default, Hash)]
-#[protobuf_convert(pb = "witnet::DataRequestEligibilityClaim")]
+#[protobuf_convert(source = "witnet::DataRequestEligibilityClaim")]
 pub struct DataRequestEligibilityClaim {
     /// A Verifiable Random Function proof of the eligibility for a given epoch, public key and data request
     pub proof: VrfProof,
@@ -209,7 +205,7 @@ impl DataRequestEligibilityClaim {
         secret_key: &SecretKey,
         vrf_input: CheckpointVRF,
         dr_hash: Hash,
-    ) -> Result<Self, failure::Error> {
+    ) -> Result<Self, anyhow::Error> {
         let message = VrfMessage::data_request_v1(vrf_input, dr_hash);
         Ok(Self {
             proof: VrfProof::create(vrf, secret_key, &message)?.0,
@@ -222,7 +218,7 @@ impl DataRequestEligibilityClaim {
         vrf: &mut VrfCtx,
         vrf_input: CheckpointVRF,
         dr_hash: Hash,
-    ) -> Result<Hash, failure::Error> {
+    ) -> Result<Hash, anyhow::Error> {
         let vrf_mesage = VrfMessage::data_request_v1(vrf_input, dr_hash);
 
         self.verify_message(vrf, vrf_mesage)
@@ -235,7 +231,7 @@ impl DataRequestEligibilityClaim {
         vrf_input: CheckpointVRF,
         dr_hash: Hash,
         first_withdrawer: Option<PublicKeyHash>,
-    ) -> Result<Hash, failure::Error> {
+    ) -> Result<Hash, anyhow::Error> {
         let vrf_mesage = VrfMessage::data_request_v2(vrf_input, dr_hash, first_withdrawer);
 
         self.verify_message(vrf, vrf_mesage)
@@ -245,7 +241,7 @@ impl DataRequestEligibilityClaim {
         &self,
         vrf: &mut VrfCtx,
         vrf_message: VrfMessage,
-    ) -> Result<Hash, failure::Error> {
+    ) -> Result<Hash, anyhow::Error> {
         self.proof.verify(vrf, &vrf_message).map(|v| {
             let mut sha256 = [0; 32];
             sha256.copy_from_slice(&v);

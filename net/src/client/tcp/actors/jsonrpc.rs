@@ -10,12 +10,12 @@ use std::{
 
 use actix::prelude::*;
 use async_jsonrpc_client::{
-    transports::{shared::EventLoopHandle, tcp::TcpSocket},
     DuplexTransport, ErrorKind as TransportErrorKind, Transport as _,
+    transports::{shared::EventLoopHandle, tcp::TcpSocket},
 };
 use futures::StreamExt;
 use futures_util::compat::Compat01As03;
-use rand::seq::SliceRandom;
+use rand::seq::IteratorRandom;
 use serde::Serialize;
 use serde_json::value;
 
@@ -66,6 +66,7 @@ impl JsonRpcClient {
         log::info!("Configuring JSONRPC client with URLs: {:?}", &urls);
         let timestamp = Instant::now();
         let url = urls
+            .iter()
             .choose(&mut rand::thread_rng())
             .ok_or(Error::NoUrl)?
             .clone();
@@ -96,7 +97,8 @@ impl JsonRpcClient {
         let reconnection_cooldown = self.connection.backoff;
         if timestamp.duration_since(self.connection.timestamp) < reconnection_cooldown {
             log::debug!(
-                "Ignoring reconnect request: last reconnection attempt was less than {} seconds ago", reconnection_cooldown.as_secs_f32()
+                "Ignoring reconnect request: last reconnection attempt was less than {} seconds ago",
+                reconnection_cooldown.as_secs_f32()
             );
             return;
         }
@@ -438,8 +440,7 @@ impl StreamHandler<Result<NotifySubscriptionId, Error>> for JsonRpcClient {
                 value,
             }) => {
                 if let Ok(subscriptions) = (*self.active_subscriptions).lock() {
-                    if let Some(Subscribe(ref request, ref recipient)) =
-                        subscriptions.get(&subscription_id)
+                    if let Some(Subscribe(request, recipient)) = subscriptions.get(&subscription_id)
                     {
                         let topic = subscription_topic_from_request(request);
                         recipient.do_send(NotifySubscriptionTopic { topic, value });
@@ -496,7 +497,7 @@ where
             // 2. If the drawn item is equal to the formerly drawn item, return the item at position
             //    0 instead.
             // 3. Otherwise, return the randomly drawn item.
-            let mut pick = input[1..].choose(&mut rand::thread_rng())?;
+            let mut pick = input[1..].iter().choose(&mut rand::thread_rng())?;
             if matches!(old, Some(old) if &old == pick) {
                 pick = &input[0]
             }

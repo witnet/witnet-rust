@@ -1,6 +1,6 @@
 use crate::{
     error::RadError,
-    operators::{bytes as bytes_operators, identity, Operable, RadonOpCodes},
+    operators::{Operable, RadonOpCodes, bytes as bytes_operators, identity},
     script::RadonCall,
     types::{RadonType, RadonTypes},
 };

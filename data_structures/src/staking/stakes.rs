@@ -1,5 +1,5 @@
 use std::{
-    collections::{btree_map::Entry, BTreeMap},
+    collections::{BTreeMap, btree_map::Entry},
     fmt::{Debug, Display},
     iter::Sum,
     ops::{Add, AddAssign, Div, Mul, Rem, Sub},
@@ -15,7 +15,7 @@ use crate::{
     chain::{Epoch, PublicKeyHash},
     get_environment,
     transaction::{StakeTransaction, UnstakeTransaction},
-    wit::{PrecisionLoss, Wit, WIT_DECIMAL_PLACES},
+    wit::{PrecisionLoss, WIT_DECIMAL_PLACES, Wit},
 };
 
 use super::prelude::*;

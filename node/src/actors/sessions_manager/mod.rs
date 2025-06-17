@@ -24,7 +24,7 @@ use crate::{
     },
     utils::stop_system_if_panicking,
 };
-use failure::Fail;
+use thiserror::Error;
 use witnet_config::config::Config;
 use witnet_data_structures::{
     chain::{CheckpointBeacon, Epoch, EpochConstants},
@@ -66,19 +66,13 @@ impl Drop for SessionsManager {
     }
 }
 
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 enum NotSendingPeersBeaconsBecause {
-    #[fail(
-        display = "Not sending PeersBeacons message because it was already sent during this epoch"
-    )]
+    #[error("Not sending PeersBeacons message because it was already sent during this epoch")]
     AlreadySent,
-    #[fail(
-        display = "Not sending PeersBeacons message because of lack of peers (still bootstrapping)"
-    )]
+    #[error("Not sending PeersBeacons message because of lack of peers (still bootstrapping)")]
     BootstrapNeeded,
-    #[fail(
-        display = "Not sending PeersBeacons message because not enough peers sent their beacons"
-    )]
+    #[error("Not sending PeersBeacons message because not enough peers sent their beacons")]
     NotEnoughBeacons,
 }
 

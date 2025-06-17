@@ -6,14 +6,14 @@
 use std::path::Path;
 
 use actix::prelude::*;
-use failure::bail;
+use anyhow::bail;
 use futures::Future;
 use futures_util::FutureExt;
-use rand::{thread_rng, Rng};
+use rand::Rng;
 
 use witnet_crypto::{
     key::{ExtendedPK, ExtendedSK, MasterKeyGen},
-    mnemonic::MnemonicGen,
+    mnemonic::MnemonicGenerator,
     signature,
 };
 use witnet_data_structures::{
@@ -31,7 +31,7 @@ use witnet_validations::validations;
 use crate::{
     actors::storage_keys::{BN256_SECRET_KEY, MASTER_KEY},
     config_mngr, storage_mngr,
-    utils::{stop_system_if_panicking, FlattenResult},
+    utils::{FlattenResult, stop_system_if_panicking},
 };
 
 /// Sign a transaction using this node's private key.
@@ -40,7 +40,7 @@ use crate::{
 pub fn sign_transaction<T>(
     tx: &T,
     inputs_len: usize,
-) -> impl Future<Output = Result<Vec<KeyedSignature>, failure::Error>>
+) -> impl Future<Output = Result<Vec<KeyedSignature>, anyhow::Error>> + use<'_, T>
 where
     T: MemoizedHashable + Hashable,
 {
@@ -63,6 +63,18 @@ where
     }
 }
 
+/// Sign a transaction's hash using this node's private key.
+/// This function assumes that all the inputs have the same public key hash:
+/// the hash of the public key of the node.
+pub async fn sign_transaction_hash(
+    hash: Hash,
+    inputs_len: usize,
+) -> Result<Vec<KeyedSignature>, anyhow::Error> {
+    sign_data(hash.data())
+        .await
+        .map(move |signature| vec![signature; inputs_len])
+}
+
 /// Start the signature manager
 pub fn start() {
     let addr = SignatureManagerAdapter::start_default();
@@ -72,7 +84,7 @@ pub fn start() {
 /// Sign a piece of (Hashable) data with the stored key.
 ///
 /// This might fail if the manager has not been initialized with a key
-pub fn sign<T>(data: &T) -> impl Future<Output = Result<KeyedSignature, failure::Error>>
+pub fn sign<T>(data: &T) -> impl Future<Output = Result<KeyedSignature, anyhow::Error>>
 where
     T: Hashable,
 {
@@ -84,7 +96,7 @@ where
 /// Sign a piece of data with the stored key.
 ///
 /// This might fail if the manager has not been initialized with a key
-pub async fn sign_data(data: [u8; 32]) -> Result<KeyedSignature, failure::Error> {
+pub async fn sign_data(data: [u8; 32]) -> Result<KeyedSignature, anyhow::Error> {
     let addr = SignatureManagerAdapter::from_registry();
     addr.send(Sign(data.to_vec())).flatten_err().await
 }
@@ -92,7 +104,7 @@ pub async fn sign_data(data: [u8; 32]) -> Result<KeyedSignature, failure::Error>
 /// Sign a piece of (Hashable) data with the stored key.
 ///
 /// This might fail if the manager has not been initialized with a key
-pub async fn bn256_sign(message: Vec<u8>) -> Result<Bn256KeyedSignature, failure::Error> {
+pub async fn bn256_sign(message: Vec<u8>) -> Result<Bn256KeyedSignature, anyhow::Error> {
     let addr = SignatureManagerAdapter::from_registry();
     addr.send(Bn256Sign(message)).flatten_err().await
 }
@@ -100,7 +112,7 @@ pub async fn bn256_sign(message: Vec<u8>) -> Result<Bn256KeyedSignature, failure
 /// Get the public key hash.
 ///
 /// This might fail if the manager has not been initialized with a key
-pub async fn pkh() -> Result<PublicKeyHash, failure::Error> {
+pub async fn pkh() -> Result<PublicKeyHash, anyhow::Error> {
     let addr = SignatureManagerAdapter::from_registry();
     addr.send(GetPkh).flatten_err().await
 }
@@ -108,7 +120,7 @@ pub async fn pkh() -> Result<PublicKeyHash, failure::Error> {
 /// Get the public key.
 ///
 /// This might fail if the manager has not been initialized with a key
-pub async fn public_key() -> Result<PublicKey, failure::Error> {
+pub async fn public_key() -> Result<PublicKey, anyhow::Error> {
     let addr = SignatureManagerAdapter::from_registry();
     addr.send(GetPublicKey).flatten_err().await
 }
@@ -116,7 +128,7 @@ pub async fn public_key() -> Result<PublicKey, failure::Error> {
 /// Get the BN256 public key.
 ///
 /// This might fail if the manager has not been initialized with a key
-pub async fn bn256_public_key() -> Result<Bn256PublicKey, failure::Error> {
+pub async fn bn256_public_key() -> Result<Bn256PublicKey, anyhow::Error> {
     let addr = SignatureManagerAdapter::from_registry();
     addr.send(GetBn256PublicKey).flatten_err().await
 }
@@ -124,7 +136,7 @@ pub async fn bn256_public_key() -> Result<Bn256PublicKey, failure::Error> {
 /// Get the public key and secret key.
 ///
 /// This might fail if the manager has not been initialized with a key
-pub async fn key_pair() -> Result<(ExtendedPK, ExtendedSK), failure::Error> {
+pub async fn key_pair() -> Result<(ExtendedPK, ExtendedSK), anyhow::Error> {
     let addr = SignatureManagerAdapter::from_registry();
     addr.send(GetKeyPair).flatten_err().await
 }
@@ -132,19 +144,19 @@ pub async fn key_pair() -> Result<(ExtendedPK, ExtendedSK), failure::Error> {
 /// Get the BN256 public key and secret key.
 ///
 /// This might fail if the manager has not been initialized with a key
-pub async fn bn256_key_pair() -> Result<(Bn256PublicKey, Bn256SecretKey), failure::Error> {
+pub async fn bn256_key_pair() -> Result<(Bn256PublicKey, Bn256SecretKey), anyhow::Error> {
     let addr = SignatureManagerAdapter::from_registry();
     addr.send(GetBn256KeyPair).flatten_err().await
 }
 
 /// Create a VRF proof for the provided message with the stored key
-pub async fn vrf_prove(message: VrfMessage) -> Result<(VrfProof, Hash), failure::Error> {
+pub async fn vrf_prove(message: VrfMessage) -> Result<(VrfProof, Hash), anyhow::Error> {
     let addr = SignatureManagerAdapter::from_registry();
     addr.send(VrfProve(message)).flatten_err().await
 }
 
 /// Verify signatures async
-pub async fn verify_signatures(message: Vec<SignaturesToVerify>) -> Result<(), failure::Error> {
+pub async fn verify_signatures(message: Vec<SignaturesToVerify>) -> Result<(), anyhow::Error> {
     let addr = SignatureManagerAdapter::from_registry();
     addr.send(VerifySignatures(message)).flatten_err().await
 }
@@ -190,7 +202,7 @@ struct VrfProve(VrfMessage);
 
 struct VerifySignatures(Vec<SignaturesToVerify>);
 
-async fn persist_master_key(master_key: ExtendedSK) -> Result<(), failure::Error> {
+async fn persist_master_key(master_key: ExtendedSK) -> Result<(), anyhow::Error> {
     let master_key = ExtendedSecretKey::from(master_key);
 
     storage_mngr::put(&MASTER_KEY, &master_key)
@@ -200,7 +212,7 @@ async fn persist_master_key(master_key: ExtendedSK) -> Result<(), failure::Error
         .await
 }
 
-async fn persist_bn256_key(bn256_secret_key: Bn256SecretKey) -> Result<(), failure::Error> {
+async fn persist_bn256_key(bn256_secret_key: Bn256SecretKey) -> Result<(), anyhow::Error> {
     storage_mngr::put(&BN256_SECRET_KEY, &bn256_secret_key)
         .inspect(|_| {
             log::trace!("Successfully persisted the BN256 secret key into storage");
@@ -208,11 +220,11 @@ async fn persist_bn256_key(bn256_secret_key: Bn256SecretKey) -> Result<(), failu
         .await
 }
 
-async fn create_master_key() -> Result<ExtendedSK, failure::Error> {
+async fn create_master_key() -> Result<ExtendedSK, anyhow::Error> {
     log::info!("Generating and persisting a new master key for this node");
 
     // Create a new master key
-    let mnemonic = MnemonicGen::new().generate();
+    let mnemonic = MnemonicGenerator::new().generate();
     let seed = mnemonic.seed(&ProtectedString::new(""));
     match MasterKeyGen::new(seed).generate() {
         Ok(master_key) => persist_master_key(master_key.clone())
@@ -222,9 +234,9 @@ async fn create_master_key() -> Result<ExtendedSK, failure::Error> {
     }
 }
 
-async fn create_bn256_key() -> Result<Bn256SecretKey, failure::Error> {
+async fn create_bn256_key() -> Result<Bn256SecretKey, anyhow::Error> {
     // The secret key is 32 bytes
-    let secret: [u8; 32] = thread_rng().gen();
+    let secret: [u8; 32] = rand::thread_rng().r#gen();
     let bls_secret = match Bn256SecretKey::from_slice(&secret) {
         Ok(bls_secret) => bls_secret,
         Err(e) => {
@@ -265,47 +277,47 @@ impl Actor for SignatureManager {
 }
 
 impl Message for SetKey {
-    type Result = Result<(), failure::Error>;
+    type Result = Result<(), anyhow::Error>;
 }
 
 impl Message for SetBn256Key {
-    type Result = Result<(), failure::Error>;
+    type Result = Result<(), anyhow::Error>;
 }
 
 impl Message for Sign {
-    type Result = Result<KeyedSignature, failure::Error>;
+    type Result = Result<KeyedSignature, anyhow::Error>;
 }
 
 impl Message for Bn256Sign {
-    type Result = Result<Bn256KeyedSignature, failure::Error>;
+    type Result = Result<Bn256KeyedSignature, anyhow::Error>;
 }
 
 impl Message for GetPkh {
-    type Result = Result<PublicKeyHash, failure::Error>;
+    type Result = Result<PublicKeyHash, anyhow::Error>;
 }
 
 impl Message for GetPublicKey {
-    type Result = Result<PublicKey, failure::Error>;
+    type Result = Result<PublicKey, anyhow::Error>;
 }
 
 impl Message for GetBn256PublicKey {
-    type Result = Result<Bn256PublicKey, failure::Error>;
+    type Result = Result<Bn256PublicKey, anyhow::Error>;
 }
 
 impl Message for GetKeyPair {
-    type Result = Result<(ExtendedPK, ExtendedSK), failure::Error>;
+    type Result = Result<(ExtendedPK, ExtendedSK), anyhow::Error>;
 }
 
 impl Message for GetBn256KeyPair {
-    type Result = Result<(Bn256PublicKey, Bn256SecretKey), failure::Error>;
+    type Result = Result<(Bn256PublicKey, Bn256SecretKey), anyhow::Error>;
 }
 
 impl Message for VrfProve {
-    type Result = Result<(VrfProof, Hash), failure::Error>;
+    type Result = Result<(VrfProof, Hash), anyhow::Error>;
 }
 
 impl Message for VerifySignatures {
-    type Result = Result<(), failure::Error>;
+    type Result = Result<(), anyhow::Error>;
 }
 
 impl Handler<SetKey> for SignatureManager {
@@ -380,7 +392,9 @@ impl Handler<GetPkh> for SignatureManager {
     fn handle(&mut self, _msg: GetPkh, _ctx: &mut Self::Context) -> Self::Result {
         match &self.keypair {
             Some((_secret, public)) => Ok(PublicKeyHash::from_public_key(&public.key.into())),
-            None => bail!("Tried to retrieve the public key hash for node's main keypair from Signature Manager, but it contains none (looks like it was not initialized properly)"),
+            None => bail!(
+                "Tried to retrieve the public key hash for node's main keypair from Signature Manager, but it contains none (looks like it was not initialized properly)"
+            ),
         }
     }
 }
@@ -391,7 +405,9 @@ impl Handler<GetPublicKey> for SignatureManager {
     fn handle(&mut self, _msg: GetPublicKey, _ctx: &mut Self::Context) -> Self::Result {
         match &self.keypair {
             Some((_secret, public)) => Ok(public.key.into()),
-            None => bail!("Tried to retrieve the public key for node's main keypair from Signature Manager, but it contains none (looks like it was not initialized properly)"),
+            None => bail!(
+                "Tried to retrieve the public key for node's main keypair from Signature Manager, but it contains none (looks like it was not initialized properly)"
+            ),
         }
     }
 }
@@ -402,7 +418,9 @@ impl Handler<GetBn256PublicKey> for SignatureManager {
     fn handle(&mut self, _msg: GetBn256PublicKey, _ctx: &mut Self::Context) -> Self::Result {
         match &self.bls_keypair {
             Some((_secret, public)) => Ok(public.clone()),
-            None => bail!("Tried to retrieve the public key for node's BLS keypair from Signature Manager, but it contains none (looks like it was not initialized properly)"),
+            None => bail!(
+                "Tried to retrieve the public key for node's BLS keypair from Signature Manager, but it contains none (looks like it was not initialized properly)"
+            ),
         }
     }
 }
@@ -412,10 +430,10 @@ impl Handler<GetKeyPair> for SignatureManager {
 
     fn handle(&mut self, _msg: GetKeyPair, _ctx: &mut Self::Context) -> Self::Result {
         match &self.keypair {
-            Some((secret, public)) => {
-                Ok((public.clone(), secret.clone()))
-            },
-            None => bail!("Tried to retrieve the public and secret key for node's main keypair from Signature Manager, but it contains none (looks like it was not initialized properly)"),
+            Some((secret, public)) => Ok((public.clone(), secret.clone())),
+            None => bail!(
+                "Tried to retrieve the public and secret key for node's main keypair from Signature Manager, but it contains none (looks like it was not initialized properly)"
+            ),
         }
     }
 }
@@ -425,10 +443,10 @@ impl Handler<GetBn256KeyPair> for SignatureManager {
 
     fn handle(&mut self, _msg: GetBn256KeyPair, _ctx: &mut Self::Context) -> Self::Result {
         match &self.bls_keypair {
-            Some((secret, public)) => {
-                Ok((public.clone(), secret.clone()))
-            },
-            None => bail!("Tried to retrieve the public and secret key for node's BLS keypair from Signature Manager, but it contains none (looks like it was not initialized properly)"),
+            Some((secret, public)) => Ok((public.clone(), secret.clone())),
+            None => bail!(
+                "Tried to retrieve the public and secret key for node's BLS keypair from Signature Manager, but it contains none (looks like it was not initialized properly)"
+            ),
         }
     }
 }
@@ -447,14 +465,12 @@ impl Handler<VrfProve> for SignatureManager {
                 let sk = SecretKey::from(secret.secret_key);
                 VrfProof::create(vrf, &sk, &message)
             }
-            Self {
-                keypair: None,
-                ..
-            } => bail!("Signature Manager cannot create VRF proofs because it contains no key"),
-            Self {
-                vrf_ctx: None,
-                ..
-            } => bail!("Signature Manager cannot create VRF proofs because it does not contain a vrf context"),
+            Self { keypair: None, .. } => {
+                bail!("Signature Manager cannot create VRF proofs because it contains no key")
+            }
+            Self { vrf_ctx: None, .. } => bail!(
+                "Signature Manager cannot create VRF proofs because it does not contain a vrf context"
+            ),
         }
     }
 }
@@ -552,7 +568,7 @@ impl Actor for SignatureManagerAdapter {
             crypto.send(SetBn256Key(secret_key)).flatten_err().await
         }
         .into_actor(self)
-        .map_err(|err: failure::Error, _act, _ctx| {
+        .map_err(|err: anyhow::Error, _act, _ctx| {
             log::warn!("Failed to configure BN256 key: {}", err);
         })
         .map(|_res: Result<(), ()>, _act, _ctx| ())
@@ -576,7 +592,7 @@ where
     }
 }
 
-fn master_key_import_from_file(master_key_path: &Path) -> Result<ExtendedSK, failure::Error> {
+fn master_key_import_from_file(master_key_path: &Path) -> Result<ExtendedSK, anyhow::Error> {
     let master_key_path_str = master_key_path.display();
     let ser = match std::fs::read_to_string(master_key_path) {
         Ok(x) => x,

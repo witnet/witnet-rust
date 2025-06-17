@@ -1,7 +1,7 @@
 //! # NoBackend storage backend
 //!
 //! This backend performs no storage at all and always fails to do any operation.
-use failure::bail;
+use anyhow::bail;
 
 use crate::storage::{Result, Storage, StorageIterator, WriteBatch};
 

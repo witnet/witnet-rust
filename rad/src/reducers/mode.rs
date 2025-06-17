@@ -1,6 +1,6 @@
 use crate::{
     error::RadError,
-    types::{array::RadonArray, RadonType, RadonTypes},
+    types::{RadonType, RadonTypes, array::RadonArray},
 };
 use std::{collections::HashMap, convert::TryFrom};
 

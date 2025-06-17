@@ -5,28 +5,28 @@ extern crate witnet_data_structures;
 use futures::{executor::block_on, future::join_all};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue, USER_AGENT};
 use serde::Serialize;
-pub use serde_cbor::{to_vec as cbor_to_vec, Value as CborValue};
+pub use serde_cbor::{Value as CborValue, to_vec as cbor_to_vec};
 #[cfg(test)]
 use witnet_data_structures::chain::tapi::all_wips_active;
 use witnet_data_structures::{
     chain::{
-        tapi::{current_active_wips, ActiveWips},
         RADAggregate, RADRequest, RADRetrieve, RADTally, RADType,
+        tapi::{ActiveWips, current_active_wips},
     },
     radon_report::{RadonReport, ReportContext, RetrievalMetadata, Stage, TallyMetaData},
     witnessing::WitnessingConfig,
 };
-use witnet_net::client::http::WitnetHttpClient;
 pub use witnet_net::Uri;
+use witnet_net::client::http::WitnetHttpClient;
 
 use crate::{
-    conditions::{evaluate_tally_precondition_clause, TallyPreconditionClauseResult},
+    conditions::{TallyPreconditionClauseResult, evaluate_tally_precondition_clause},
     error::RadError,
     script::{
-        create_radon_script_from_filters_and_reducer, execute_radon_script, unpack_radon_script,
-        RadonScriptExecutionSettings,
+        RadonScriptExecutionSettings, create_radon_script_from_filters_and_reducer,
+        execute_radon_script, unpack_radon_script,
     },
-    types::{array::RadonArray, bytes::RadonBytes, map::RadonMap, string::RadonString, RadonTypes},
+    types::{RadonTypes, array::RadonArray, bytes::RadonBytes, map::RadonMap, string::RadonString},
     user_agents::UserAgent,
 };
 use core::convert::From;
@@ -74,7 +74,13 @@ pub fn try_data_request(
     let mut retrieval_context =
         ReportContext::from_stage(Stage::Retrieval(RetrievalMetadata::default()));
     let retrieve_responses = if let Some(inputs) = inputs_injection {
-        assert_eq!(inputs.len(), request.retrieve.len(), "Tried to locally run a data request with a number of injected sources different than the number of retrieval paths ({} != {})", inputs.len(), request.retrieve.len());
+        assert_eq!(
+            inputs.len(),
+            request.retrieve.len(),
+            "Tried to locally run a data request with a number of injected sources different than the number of retrieval paths ({} != {})",
+            inputs.len(),
+            request.retrieve.len()
+        );
 
         request
             .retrieve
@@ -886,7 +892,7 @@ mod tests {
         filters::RadonFilters,
         operators::RadonOpCodes,
         reducers::RadonReducers,
-        types::{float::RadonFloat, integer::RadonInteger, RadonType},
+        types::{RadonType, float::RadonFloat, integer::RadonInteger},
     };
 
     use super::*;

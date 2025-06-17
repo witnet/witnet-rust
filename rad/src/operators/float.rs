@@ -1,12 +1,12 @@
 use std::{borrow::ToOwned, convert::TryFrom};
 
-use serde_cbor::value::{from_value, Value};
+use serde_cbor::value::{Value, from_value};
 
 use crate::{
     error::RadError,
     types::{
-        boolean::RadonBoolean, float::RadonFloat, integer::RadonInteger, string::RadonString,
-        RadonType,
+        RadonType, boolean::RadonBoolean, float::RadonFloat, integer::RadonInteger,
+        string::RadonString,
     },
 };
 

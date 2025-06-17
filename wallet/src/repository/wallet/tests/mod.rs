@@ -634,9 +634,10 @@ fn test_create_vtt_does_not_spend_utxos() {
         db.get(&keys::account_balance(0)).unwrap()
     );
 
-    assert!(db
-        .get(&keys::transactions_index(vtt.hash().as_ref()))
-        .is_err());
+    assert!(
+        db.get(&keys::transactions_index(vtt.hash().as_ref()))
+            .is_err()
+    );
 }
 
 #[test]
@@ -727,9 +728,10 @@ fn test_create_data_request_does_not_spend_utxos() {
     assert_eq!(1, db_balance.available);
     assert_eq!(0, db_balance.locked);
 
-    assert!(db
-        .get(&keys::transactions_index(data_req.hash().as_ref()))
-        .is_err());
+    assert!(
+        db.get(&keys::transactions_index(data_req.hash().as_ref()))
+            .is_err()
+    );
 }
 
 #[test]
@@ -1420,14 +1422,18 @@ fn test_export_xprv_key() {
     let (wallet, _db) = factories::wallet(None);
 
     let password: types::Password = "password".to_string().into();
-    assert!(wallet
-        .export_master_key(password.clone())
-        .unwrap()
-        .starts_with("xprv"));
-    assert!(!wallet
-        .export_master_key(password)
-        .unwrap()
-        .starts_with("xprvdouble"));
+    assert!(
+        wallet
+            .export_master_key(password.clone())
+            .unwrap()
+            .starts_with("xprv")
+    );
+    assert!(
+        !wallet
+            .export_master_key(password)
+            .unwrap()
+            .starts_with("xprvdouble")
+    );
 }
 
 #[test]
@@ -1438,10 +1444,12 @@ fn test_export_xprvdouble_key() {
     let (wallet, _db) = factories::wallet_with_args(None, false);
 
     let password = "password".to_string().into();
-    assert!(wallet
-        .export_master_key(password)
-        .unwrap()
-        .starts_with("xprvdouble"));
+    assert!(
+        wallet
+            .export_master_key(password)
+            .unwrap()
+            .starts_with("xprvdouble")
+    );
 }
 
 #[test]
@@ -2524,10 +2532,12 @@ fn test_create_transaction_components_filter_from_address() {
         )
         .unwrap();
 
-    assert!(inputs
-        .pointers
-        .iter()
-        .all(|pointer| { pointer.output_index < 50 }))
+    assert!(
+        inputs
+            .pointers
+            .iter()
+            .all(|pointer| { pointer.output_index < 50 })
+    )
 }
 
 #[test]
@@ -2598,10 +2608,12 @@ fn test_create_transaction_components_filter_from_address_2() {
         )
         .unwrap();
 
-    assert!(inputs
-        .pointers
-        .iter()
-        .all(|pointer| { pointer.output_index >= 50 }))
+    assert!(
+        inputs
+            .pointers
+            .iter()
+            .all(|pointer| { pointer.output_index >= 50 })
+    )
 }
 
 #[test]

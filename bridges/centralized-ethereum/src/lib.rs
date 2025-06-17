@@ -6,15 +6,15 @@
 #![deny(unused_mut)]
 #![deny(missing_docs)]
 
-use async_jsonrpc_client::{transports::tcp::TcpSocket, Transport};
+use async_jsonrpc_client::{Transport, transports::tcp::TcpSocket};
 use futures_util::compat::Compat01As03;
 use serde_json::json;
 use std::{sync::Arc, time::Duration};
 use web3::{
+    Web3,
     contract::Contract,
     transports::Http,
-    types::{TransactionReceipt, H160},
-    Web3,
+    types::{H160, TransactionReceipt},
 };
 
 /// Actors

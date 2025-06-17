@@ -10,14 +10,14 @@ use serde_json::json;
 use std::{fmt, time::Duration};
 use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
 use witnet_data_structures::{
-    chain::{tapi::current_active_wips, DataRequestOutput, Hashable},
+    chain::{DataRequestOutput, Hashable, tapi::current_active_wips},
     data_request::calculate_reward_collateral_ratio,
     error::TransactionError,
     proto::ProtobufConvert,
     radon_error::RadonErrors,
     transaction::DRTransaction,
 };
-use witnet_net::client::tcp::{jsonrpc, JsonRpcClient};
+use witnet_net::client::tcp::{JsonRpcClient, jsonrpc};
 use witnet_node::utils::stop_system_if_panicking;
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{validate_data_request_output, validate_rad_request};

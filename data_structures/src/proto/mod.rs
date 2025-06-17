@@ -1,11 +1,12 @@
 use self::schema::witnet;
-use crate::types::IpAddress;
-use crate::{chain, types};
+use crate::{
+    chain,
+    types::{self, IpAddress},
+};
+use anyhow::{Error, ensure};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
-use failure::{ensure, format_err, Error};
 use protobuf::Message;
-use std::convert::TryFrom;
-use std::fmt::Debug;
+use std::{convert::TryFrom, fmt::Debug};
 
 pub mod schema;
 pub mod versioning;
@@ -139,7 +140,7 @@ impl ProtobufConvert for types::Address {
 
                 Ok(types::Address { ip, port })
             }
-            _ => Err(format_err!("Invalid address size")),
+            _ => Err(anyhow::format_err!("Invalid address size")),
         }
     }
 }

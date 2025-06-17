@@ -1,4 +1,4 @@
-use witnet_data_structures::chain::{transaction_example, RADRequest};
+use witnet_data_structures::chain::{RADRequest, transaction_example};
 use witnet_data_structures::proto::ProtobufConvert;
 use witnet_data_structures::transaction::Transaction;
 

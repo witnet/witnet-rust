@@ -1,10 +1,10 @@
-use serde_cbor::value::{from_value, Value};
+use serde_cbor::value::{Value, from_value};
 use std::convert::TryFrom;
 
 use crate::{
     error::RadError,
     hash_functions::{self, RadonHashFunctions},
-    types::{bytes::RadonBytes, string::RadonString, RadonType},
+    types::{RadonType, bytes::RadonBytes, string::RadonString},
 };
 
 pub fn to_string(input: &RadonBytes) -> Result<RadonString, RadError> {

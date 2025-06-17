@@ -8,8 +8,8 @@ use std::{
     path::{Path, PathBuf},
     pin::Pin,
     sync::{
-        atomic::{AtomicBool, Ordering},
         Arc,
+        atomic::{AtomicBool, Ordering},
     },
 };
 
@@ -238,7 +238,7 @@ pub fn file_name_compose(mut path: PathBuf, suffix: Option<String>) -> PathBuf {
 }
 
 /// Efficiently write data into the file system as it gets encoded on the fly using `bincode`.
-pub fn serialize_to_file<D>(data: &D, path: &Path) -> Result<(), failure::Error>
+pub fn serialize_to_file<D>(data: &D, path: &Path) -> Result<(), anyhow::Error>
 where
     D: serde::Serialize,
 {

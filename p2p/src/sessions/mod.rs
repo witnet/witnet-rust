@@ -5,7 +5,7 @@ pub mod bounded_sessions;
 
 use std::net::SocketAddr;
 
-use rand::{thread_rng, Rng};
+use rand::Rng;
 
 use super::{error::SessionsError, sessions::bounded_sessions::BoundedSessions};
 use crate::peers::get_range_address;
@@ -196,7 +196,7 @@ where
         let index: usize = if len == 0 {
             0
         } else {
-            thread_rng().gen_range(0, len)
+            rand::thread_rng().gen_range(0, len)
         };
 
         // Get session info reference at random index (None if no elements in the collection)

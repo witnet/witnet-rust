@@ -2,11 +2,11 @@ use actix::prelude::*;
 use serde::{Deserialize, Serialize};
 use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
 use witnet_data_structures::{
-    chain::{tapi::current_active_wips, DataRequestOutput},
-    fee::{deserialize_fee_backwards_compatible, AbsoluteFee, Fee},
+    chain::{DataRequestOutput, tapi::current_active_wips},
+    fee::{AbsoluteFee, Fee, deserialize_fee_backwards_compatible},
     proto::{
-        versioning::{ProtocolVersion, VersionedHashable},
         ProtobufConvert,
+        versioning::{ProtocolVersion, VersionedHashable},
     },
     serialization_helpers::number_from_string,
     transaction::Transaction,
@@ -19,9 +19,9 @@ use crate::{
     },
     model::TransactionMetadata,
     types::{
-        self, fee_compat, from_generic_type, from_generic_type_vec, into_generic_type,
-        into_generic_type_vec, u32_to_string, DataRequestOutputHelper, FeeType, TransactionHelper,
-        VttOutputParamsHelper,
+        self, DataRequestOutputHelper, FeeType, TransactionHelper, VttOutputParamsHelper,
+        fee_compat, from_generic_type, from_generic_type_vec, into_generic_type,
+        into_generic_type_vec, u32_to_string,
     },
 };
 

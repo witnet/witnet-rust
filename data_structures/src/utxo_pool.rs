@@ -366,11 +366,7 @@ impl OwnUnspentOutputsPool {
             .sorted_by_key(|o| {
                 let value = all_utxos.get(o).map(|vt| i128::from(vt.value)).unwrap_or(0);
 
-                if bigger_first {
-                    -value
-                } else {
-                    value
-                }
+                if bigger_first { -value } else { value }
             })
             .cloned()
             .collect()

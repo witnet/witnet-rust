@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     actors::app,
     model,
-    types::{self, from_generic_type, into_generic_type, TransactionHelper},
+    types::{self, TransactionHelper, from_generic_type, into_generic_type},
 };
 use witnet_data_structures::transaction::Transaction;
 

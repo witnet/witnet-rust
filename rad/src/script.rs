@@ -2,17 +2,17 @@ use std::convert::TryFrom;
 
 use serde_cbor::{
     self as cbor,
-    value::{from_value, Value},
+    value::{Value, from_value},
 };
 use witnet_data_structures::{
-    chain::{tapi::ActiveWips, RADFilter},
+    chain::{RADFilter, tapi::ActiveWips},
     radon_report::{RadonReport, ReportContext, Stage},
 };
 
 use crate::{
     error::RadError,
     filters::RadonFilters,
-    operators::{operate, operate_in_context, RadonOpCodes},
+    operators::{RadonOpCodes, operate, operate_in_context},
     reducers::RadonReducers,
     types::RadonTypes,
 };
@@ -228,7 +228,7 @@ pub fn create_radon_script_from_filters_and_reducer(
             _ => {
                 return Err(RadError::UnsupportedFilterInAT {
                     operator: rad_filter as u8,
-                })
+                });
             }
         };
 
@@ -270,7 +270,7 @@ pub fn create_radon_script_from_filters_and_reducer(
         _ => {
             return Err(RadError::UnsupportedReducerInAT {
                 operator: rad_reducer as u8,
-            })
+            });
         }
     };
 

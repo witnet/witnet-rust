@@ -40,7 +40,7 @@ fn rank(b: &mut Bencher) {
     loop {
         let coins = i;
         let epoch = i;
-        let address = format!("{}", rng.gen::<u64>());
+        let address = format!("{}", rng.r#gen::<u64>());
 
         stakes
             .add_stake(

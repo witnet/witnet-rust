@@ -11,12 +11,13 @@ use std::{
 };
 
 use ansi_term::Color::{Purple, Red, White, Yellow};
-use failure::{bail, Fail};
+use anyhow::bail;
 use itertools::Itertools;
 use num_format::{Locale, ToFormattedString};
-use prettytable::{row, Table};
+use prettytable::{Table, row};
 use qrcode::render::unicode;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use thiserror::Error;
 
 use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
 use witnet_crypto::{
@@ -26,17 +27,17 @@ use witnet_crypto::{
 use witnet_data_structures::{
     capabilities::Capability,
     chain::{
-        priority::{PrioritiesEstimate, Priority, PriorityEstimate, TimeToBlock},
-        tapi::{current_active_wips, ActiveWips},
         Block, ConsensusConstants, DataRequestInfo, DataRequestOutput, Environment, Epoch,
         Hashable, KeyedSignature, NodeStats, OutputPointer, PublicKey, PublicKeyHash, StateMachine,
         SupplyInfo, SyncStatus, ValueTransferOutput,
+        priority::{PrioritiesEstimate, Priority, PriorityEstimate, TimeToBlock},
+        tapi::{ActiveWips, current_active_wips},
     },
     fee::Fee,
     get_environment,
     proto::{
-        versioning::{ProtocolInfo, ProtocolVersion},
         ProtobufConvert,
+        versioning::{ProtocolInfo, ProtocolVersion},
     },
     staking::prelude::StakeEntry,
     transaction::{
@@ -45,7 +46,7 @@ use witnet_data_structures::{
     transaction_factory::NodeBalance,
     types::SequentialId,
     utxo_pool::{UtxoInfo, UtxoSelectionStrategy},
-    wit::{Wit, WIT_DECIMAL_PLACES},
+    wit::{WIT_DECIMAL_PLACES, Wit},
 };
 use witnet_node::actors::{
     chain_manager::run_dr_locally,
@@ -64,7 +65,7 @@ use witnet_validations::validations::{
     run_tally_panic_safe, validate_data_request_output, validate_rad_request,
 };
 
-pub fn raw(addr: SocketAddr) -> Result<(), failure::Error> {
+pub fn raw(addr: SocketAddr) -> Result<(), anyhow::Error> {
     let mut stream = start_client(addr)?;
     // The request is read from stdin, one line at a time
     let mut request = String::new();
@@ -82,7 +83,7 @@ pub fn raw(addr: SocketAddr) -> Result<(), failure::Error> {
     }
 }
 
-pub fn get_blockchain(addr: SocketAddr, epoch: i64, limit: i64) -> Result<(), failure::Error> {
+pub fn get_blockchain(addr: SocketAddr, epoch: i64, limit: i64) -> Result<(), anyhow::Error> {
     let mut stream = start_client(addr)?;
     let params = GetBlockChainParams { epoch, limit };
     let response = send_request(
@@ -113,7 +114,7 @@ fn whole_wits(nanowits: u64) -> u64 {
     clippy::cast_sign_loss,
     clippy::cast_possible_truncation
 )]
-pub fn get_supply_info(addr: SocketAddr) -> Result<(), failure::Error> {
+pub fn get_supply_info(addr: SocketAddr) -> Result<(), anyhow::Error> {
     let mut stream = start_client(addr)?;
 
     let request = r#"{"jsonrpc": "2.0","method": "getSupplyInfo", "id": "1"}"#;
@@ -199,7 +200,9 @@ pub fn get_supply_info(addr: SocketAddr) -> Result<(), failure::Error> {
             * 100.0)
             .round() as u8
     );
-    println!("For more information about block rewards and halvings, see:\nhttps://github.com/witnet/WIPs/blob/master/wip-0003.md");
+    println!(
+        "For more information about block rewards and halvings, see:\nhttps://github.com/witnet/WIPs/blob/master/wip-0003.md"
+    );
 
     Ok(())
 }
@@ -208,7 +211,7 @@ pub fn get_balance(
     addr: SocketAddr,
     target: GetBalanceTarget,
     simple: bool,
-) -> Result<(), failure::Error> {
+) -> Result<(), anyhow::Error> {
     let mut stream = start_client(addr)?;
 
     let request = format!(
@@ -265,7 +268,7 @@ fn wit_difference_to_string(confirmed: Wit, total: Wit) -> String {
     }
 }
 
-pub fn get_pkh(addr: SocketAddr) -> Result<(), failure::Error> {
+pub fn get_pkh(addr: SocketAddr) -> Result<(), anyhow::Error> {
     let mut stream = start_client(addr)?;
     let request = r#"{"jsonrpc": "2.0","method": "getPkh", "id": "1"}"#;
     let response = send_request(&mut stream, request)?;
@@ -284,7 +287,7 @@ pub fn get_utxo_info(
     addr: SocketAddr,
     long: bool,
     pkh: Option<PublicKeyHash>,
-) -> Result<(), failure::Error> {
+) -> Result<(), anyhow::Error> {
     let mut stream = start_client(addr)?;
 
     let pkh = match pkh {
@@ -412,7 +415,7 @@ pub fn get_reputation(
     addr: SocketAddr,
     opt_pkh: Option<PublicKeyHash>,
     all: bool,
-) -> Result<(), failure::Error> {
+) -> Result<(), anyhow::Error> {
     let mut stream = start_client(addr)?;
 
     let request = if all {
@@ -466,7 +469,7 @@ pub fn get_reputation(
     Ok(())
 }
 
-pub fn get_miners(addr: SocketAddr, start: i64, end: i64, csv: bool) -> Result<(), failure::Error> {
+pub fn get_miners(addr: SocketAddr, start: i64, end: i64, csv: bool) -> Result<(), anyhow::Error> {
     let mut stream = start_client(addr)?;
     let params = GetBlockChainParams {
         epoch: start,
@@ -527,7 +530,7 @@ pub fn get_miners(addr: SocketAddr, start: i64, end: i64, csv: bool) -> Result<(
     Ok(())
 }
 
-pub fn get_block(addr: SocketAddr, hash: String) -> Result<(), failure::Error> {
+pub fn get_block(addr: SocketAddr, hash: String) -> Result<(), anyhow::Error> {
     let mut stream = start_client(addr)?;
     let request = format!(
         r#"{{"jsonrpc": "2.0","method": "getBlock", "params": [{:?}], "id": "1"}}"#,
@@ -540,7 +543,7 @@ pub fn get_block(addr: SocketAddr, hash: String) -> Result<(), failure::Error> {
     Ok(())
 }
 
-pub fn get_transaction(addr: SocketAddr, hash: String) -> Result<(), failure::Error> {
+pub fn get_transaction(addr: SocketAddr, hash: String) -> Result<(), anyhow::Error> {
     let mut stream = start_client(addr)?;
     let request = format!(
         r#"{{"jsonrpc": "2.0","method": "getTransaction", "params": [{:?}], "id": "1"}}"#,
@@ -553,7 +556,7 @@ pub fn get_transaction(addr: SocketAddr, hash: String) -> Result<(), failure::Er
     Ok(())
 }
 
-pub fn get_output(addr: SocketAddr, pointer: String) -> Result<(), failure::Error> {
+pub fn get_output(addr: SocketAddr, pointer: String) -> Result<(), anyhow::Error> {
     let mut _stream = start_client(addr)?;
     let output_pointer = OutputPointer::from_str(&pointer)?;
     let request_payload = serde_json::to_string(&output_pointer)?;
@@ -579,13 +582,15 @@ pub fn send_vtt(
     time_lock: u64,
     sorted_bigger: Option<bool>,
     dry_run: bool,
-) -> Result<(), failure::Error> {
+) -> Result<(), anyhow::Error> {
     let mut stream = start_client(addr)?;
     let mut id = SequentialId::initialize(1u8);
 
     let size = size.unwrap_or(value);
     if value / size > 1000 {
-        bail!("This transaction is creating more than 1000 outputs and may not be accepted by the miners");
+        bail!(
+            "This transaction is creating more than 1000 outputs and may not be accepted by the miners"
+        );
     }
 
     // Prepare for fee estimation if no fee value was specified
@@ -721,7 +726,7 @@ fn deserialize_and_validate_hex_dr(
     hex_bytes: String,
     collateral_minimum: u64,
     required_reward_collateral_ratio: u64,
-) -> Result<DataRequestOutput, failure::Error> {
+) -> Result<DataRequestOutput, anyhow::Error> {
     let dr_bytes = hex::decode(hex_bytes)?;
 
     let dr: DataRequestOutput = ProtobufConvert::from_pb_bytes(&dr_bytes)?;
@@ -741,8 +746,10 @@ fn deserialize_and_validate_hex_dr(
     let witnet_dr_bytes = dr.to_pb_bytes()?;
 
     if dr_bytes != witnet_dr_bytes {
-        log::warn!("Data request uses an invalid serialization, will be ignored.\nINPUT BYTES: {:02x?}\nWIT DR BYTES: {:02x?}",
-              dr_bytes, witnet_dr_bytes
+        log::warn!(
+            "Data request uses an invalid serialization, will be ignored.\nINPUT BYTES: {:02x?}\nWIT DR BYTES: {:02x?}",
+            dr_bytes,
+            witnet_dr_bytes
         );
         log::warn!(
             "This usually happens when some fields are set to 0. \
@@ -760,7 +767,7 @@ pub fn send_dr(
     hex_bytes: String,
     fee: Option<Fee>,
     dry_run: bool,
-) -> Result<(), failure::Error> {
+) -> Result<(), anyhow::Error> {
     let mut stream = start_client(addr)?;
     let request = r#"{"jsonrpc": "2.0","method": "getConsensusConstants", "id": "1"}"#;
     let response = send_request(&mut stream, request)?;
@@ -874,7 +881,7 @@ pub fn send_st(
     sorted_bigger: Option<bool>,
     requires_confirmation: Option<bool>,
     dry_run: bool,
-) -> Result<(), failure::Error> {
+) -> Result<(), anyhow::Error> {
     let mut stream = start_client(addr)?;
     let mut id = SequentialId::initialize(1u8);
 
@@ -1021,7 +1028,10 @@ pub fn send_st(
         let validator = dry.validator.bech32(environment);
         let withdrawer = dry.withdrawer.bech32(environment);
 
-        println!("Congratulations! {} Wit have been staked by addresses {:?} onto validator {}, using {} as the withdrawal address.", value, staker, validator, withdrawer);
+        println!(
+            "Congratulations! {} Wit have been staked by addresses {:?} onto validator {}, using {} as the withdrawal address.",
+            value, staker, validator, withdrawer
+        );
     } else {
         println!("The stake facts have not been confirmed. No stake transaction has been created.");
     }
@@ -1029,7 +1039,7 @@ pub fn send_st(
     Ok(())
 }
 
-pub fn authorize_st(addr: SocketAddr, withdrawer: Option<String>) -> Result<(), failure::Error> {
+pub fn authorize_st(addr: SocketAddr, withdrawer: Option<String>) -> Result<(), anyhow::Error> {
     let mut stream = start_client(addr)?;
     let mut id = SequentialId::initialize(1u8);
 
@@ -1076,7 +1086,7 @@ pub fn send_ut(
     value: u64,
     fee: u64,
     dry_run: bool,
-) -> Result<(), failure::Error> {
+) -> Result<(), anyhow::Error> {
     let mut stream = start_client(addr)?;
     let mut id = SequentialId::initialize(1u8);
 
@@ -1110,7 +1120,7 @@ pub fn send_ut(
 pub fn master_key_export(
     addr: SocketAddr,
     write_to_path: Option<&Path>,
-) -> Result<(), failure::Error> {
+) -> Result<(), anyhow::Error> {
     let request = r#"{"jsonrpc": "2.0","method":"masterKeyExport","id": "1"}"#;
     let mut stream = start_client(addr)?;
     let response = send_request(&mut stream, request)?;
@@ -1208,11 +1218,7 @@ impl fmt::Display for DataRequestTransactionInfo {
                 .iter()
                 .filter_map(
                     |(_pkh, reveal, _honest)| {
-                        if reveal.is_empty() {
-                            None
-                        } else {
-                            Some(())
-                        }
+                        if reveal.is_empty() { None } else { Some(()) }
                     },
                 )
                 .count();
@@ -1330,7 +1336,7 @@ pub fn data_request_report(
     json: bool,
     print_data_request: bool,
     create_local_tally: bool,
-) -> Result<(), failure::Error> {
+) -> Result<(), anyhow::Error> {
     let mut stream = start_client(addr)?;
     let request = format!(
         r#"{{"jsonrpc": "2.0","method": "getTransaction", "params": [{:?}], "id": "1"}}"#,
@@ -1537,7 +1543,7 @@ pub fn search_requests(
     end: i64,
     hex_dr_bytes: Option<String>,
     same_as_dr_tx: Option<String>,
-) -> Result<(), failure::Error> {
+) -> Result<(), anyhow::Error> {
     let mut stream = start_client(addr)?;
 
     let expected_dr_output_bytes = match (hex_dr_bytes, same_as_dr_tx) {
@@ -1609,7 +1615,7 @@ pub fn search_requests(
     Ok(())
 }
 
-pub fn get_peers(addr: SocketAddr) -> Result<(), failure::Error> {
+pub fn get_peers(addr: SocketAddr) -> Result<(), anyhow::Error> {
     let mut stream = start_client(addr)?;
     let request = r#"{"jsonrpc": "2.0","method": "peers", "id": "1"}"#;
     let response = send_request(&mut stream, request)?;
@@ -1631,7 +1637,7 @@ pub fn get_peers(addr: SocketAddr) -> Result<(), failure::Error> {
     Ok(())
 }
 
-pub fn get_known_peers(addr: SocketAddr) -> Result<(), failure::Error> {
+pub fn get_known_peers(addr: SocketAddr) -> Result<(), anyhow::Error> {
     let mut stream = start_client(addr)?;
     let request = r#"{"jsonrpc": "2.0","method": "knownPeers", "id": "1"}"#;
     let response = send_request(&mut stream, request)?;
@@ -1653,7 +1659,7 @@ pub fn get_known_peers(addr: SocketAddr) -> Result<(), failure::Error> {
     Ok(())
 }
 
-pub fn get_node_stats(addr: SocketAddr) -> Result<(), failure::Error> {
+pub fn get_node_stats(addr: SocketAddr) -> Result<(), anyhow::Error> {
     let mut stream = start_client(addr)?;
     let request = r#"{"jsonrpc": "2.0","method": "nodeStats", "id": "1"}"#;
     let response = send_request(&mut stream, request)?;
@@ -1710,7 +1716,7 @@ pub fn get_node_stats(addr: SocketAddr) -> Result<(), failure::Error> {
     Ok(())
 }
 
-pub fn get_protocol(addr: SocketAddr) -> Result<(), failure::Error> {
+pub fn get_protocol(addr: SocketAddr) -> Result<(), anyhow::Error> {
     let mut stream = start_client(addr)?;
     let request = r#"{"jsonrpc": "2.0","method": "protocol", "id": "1"}"#;
     let response = send_request(&mut stream, request)?;
@@ -1737,7 +1743,7 @@ pub fn get_protocol(addr: SocketAddr) -> Result<(), failure::Error> {
     Ok(())
 }
 
-pub fn add_peers(addr: SocketAddr, peers: Vec<SocketAddr>) -> Result<(), failure::Error> {
+pub fn add_peers(addr: SocketAddr, peers: Vec<SocketAddr>) -> Result<(), anyhow::Error> {
     let mut stream = start_client(addr)?;
     if peers.is_empty() {
         // If there were no peers as CLI arguments, read the addresses from stdin
@@ -1802,7 +1808,7 @@ pub fn add_peers(addr: SocketAddr, peers: Vec<SocketAddr>) -> Result<(), failure
     Ok(())
 }
 
-pub fn clear_peers(addr: SocketAddr) -> Result<(), failure::Error> {
+pub fn clear_peers(addr: SocketAddr) -> Result<(), anyhow::Error> {
     let mut stream = start_client(addr)?;
 
     let request = r#"{"jsonrpc": "2.0","method": "clearPeers", "id": "1"}"#;
@@ -1818,7 +1824,7 @@ pub fn clear_peers(addr: SocketAddr) -> Result<(), failure::Error> {
     Ok(())
 }
 
-pub fn initialize_peers(addr: SocketAddr) -> Result<(), failure::Error> {
+pub fn initialize_peers(addr: SocketAddr) -> Result<(), anyhow::Error> {
     let mut stream = start_client(addr)?;
 
     let request = r#"{"jsonrpc": "2.0","method": "initializePeers", "id": "1"}"#;
@@ -1834,7 +1840,7 @@ pub fn initialize_peers(addr: SocketAddr) -> Result<(), failure::Error> {
     Ok(())
 }
 
-pub fn rewind(addr: SocketAddr, epoch: Epoch) -> Result<(), failure::Error> {
+pub fn rewind(addr: SocketAddr, epoch: Epoch) -> Result<(), anyhow::Error> {
     let mut stream = start_client(addr)?;
 
     let params = (epoch,);
@@ -1855,7 +1861,7 @@ pub fn rewind(addr: SocketAddr, epoch: Epoch) -> Result<(), failure::Error> {
     Ok(())
 }
 
-pub fn signaling_info(addr: SocketAddr) -> Result<(), failure::Error> {
+pub fn signaling_info(addr: SocketAddr) -> Result<(), anyhow::Error> {
     let mut stream = start_client(addr)?;
 
     let request = r#"{"jsonrpc": "2.0","method": "signalingInfo", "id": "1"}"#;
@@ -1923,7 +1929,7 @@ pub fn signaling_info(addr: SocketAddr) -> Result<(), failure::Error> {
     Ok(())
 }
 
-pub fn priority(addr: SocketAddr, json: bool) -> Result<(), failure::Error> {
+pub fn priority(addr: SocketAddr, json: bool) -> Result<(), anyhow::Error> {
     // Perform the JSONRPC request to the indicated node
     let mut stream = start_client(addr)?;
     let (estimate, (_, response)): (PrioritiesEstimate, _) =
@@ -1944,7 +1950,7 @@ pub fn query_stakes(
     validator: Option<String>,
     withdrawer: Option<String>,
     long: bool,
-) -> Result<(), failure::Error> {
+) -> Result<(), anyhow::Error> {
     let mut stream = start_client(addr)?;
     let params = QueryStakes {
         filter: match (validator, withdrawer) {
@@ -2011,7 +2017,7 @@ pub fn query_powers(
     addr: SocketAddr,
     capability: Option<String>,
     distinct: bool,
-) -> Result<(), failure::Error> {
+) -> Result<(), anyhow::Error> {
     let mut stream = start_client(addr)?;
 
     let params = QueryStakingPowers {
@@ -2068,7 +2074,7 @@ pub fn claim(
     addr: SocketAddr,
     identifier: String,
     write_to_path: Option<&Path>,
-) -> Result<(), failure::Error> {
+) -> Result<(), anyhow::Error> {
     if identifier.is_empty() || identifier.trim() != identifier {
         bail!("Claiming identifier cannot be empty or start/end with empty spaces");
     }
@@ -2149,14 +2155,15 @@ enum Id {
 }
 
 /// A failed request returns an error with code and message
-#[derive(Debug, Deserialize, Fail)]
+#[allow(dead_code)]
+#[derive(Debug, Deserialize, Error)]
 struct ServerError {
     code: i32,
     // This cannot be a &str because the error may outlive the current function
     message: String,
 }
 
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 struct ProtocolError(String);
 
 // Required for Fail derive
@@ -2178,7 +2185,7 @@ impl fmt::Display for ProtocolError {
     }
 }
 
-fn start_client(addr: SocketAddr) -> Result<TcpStream, failure::Error> {
+fn start_client(addr: SocketAddr) -> Result<TcpStream, anyhow::Error> {
     log::info!("Connecting to JSON-RPC server at {}", addr);
     let stream = TcpStream::connect(addr);
 
@@ -2193,7 +2200,9 @@ fn send_request<S: Read + Write>(stream: &mut S, request: &str) -> Result<String
         0 => stream.write_all(b"\n")?,
         1 => {}
         _ => {
-            log::warn!("The request contains more than one newline, only the first response will be returned");
+            log::warn!(
+                "The request contains more than one newline, only the first response will be returned"
+            );
         }
     }
     // Read only one line
@@ -2204,7 +2213,7 @@ fn send_request<S: Read + Write>(stream: &mut S, request: &str) -> Result<String
     Ok(response)
 }
 
-fn parse_response<'a, T: Deserialize<'a>>(response: &'a str) -> Result<T, failure::Error> {
+fn parse_response<'a, T: Deserialize<'a>>(response: &'a str) -> Result<T, anyhow::Error> {
     match serde_json::from_str::<JsonRpcResponse<'a, T>>(response) {
         Ok(x) => {
             // x.id should also be checked if we want to support more than one call at a time
@@ -2227,7 +2236,7 @@ fn unwrap_fee_or_estimate_priority<S>(
     fee: Option<Fee>,
     stream: &mut S,
     id: &mut SequentialId<u8>,
-) -> Result<(Fee, Option<PrioritiesEstimate>), failure::Error>
+) -> Result<(Fee, Option<PrioritiesEstimate>), anyhow::Error>
 where
     S: Read + Write,
 {
@@ -2249,7 +2258,7 @@ fn issue_method<M, S, P, O>(
     params: Option<P>,
     stream: &mut S,
     id: Option<u8>,
-) -> Result<(O, (String, String)), failure::Error>
+) -> Result<(O, (String, String)), anyhow::Error>
 where
     M: Into<String>,
     S: Read + Write,
@@ -2268,10 +2277,12 @@ where
 
 fn prompt_user_for_priority_selection(
     estimates: Vec<(&str, Priority, Fee, TimeToBlock)>,
-) -> Result<Fee, failure::Error> {
+) -> Result<Fee, anyhow::Error> {
     // Time to print the estimates
     println!("[ Fee suggestions ]");
-    println!("Please choose one of the following options depending on how urgently you want this transaction to be mined into a block:");
+    println!(
+        "Please choose one of the following options depending on how urgently you want this transaction to be mined into a block:"
+    );
     for (i, (label, priority, fee, time_to_block, ..)) in estimates.iter().enumerate() {
         println!(
             "[{}] {} (around {}) → {} Wit (priority = {})",
@@ -2313,7 +2324,7 @@ fn prompt_user_for_priority_selection(
     Ok(fee)
 }
 
-fn prompt_user_for_stake_confirmation(data: &BuildStakeResponse) -> Result<bool, failure::Error> {
+fn prompt_user_for_stake_confirmation(data: &BuildStakeResponse) -> Result<bool, anyhow::Error> {
     let environment = get_environment();
     let value = Wit::from_nanowits(data.transaction.body.output.value).to_string();
 
@@ -2434,7 +2445,7 @@ mod tests {
     #[test]
     fn verify_claim_output() {
         use witnet_crypto::signature::{
-            verify, PublicKey as SecpPublicKey, Signature as SecpSignature,
+            PublicKey as SecpPublicKey, Signature as SecpSignature, verify,
         };
 
         let json_output = r#"

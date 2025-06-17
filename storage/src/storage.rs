@@ -4,8 +4,8 @@
 //! specific storage backends.
 use std::result;
 
-/// Result with error set to `failure::Error`
-pub type Result<T> = result::Result<T, failure::Error>;
+/// Result with error set to `anyhow::Error`
+pub type Result<T> = result::Result<T, anyhow::Error>;
 
 /// Generic trait that exposes a very simple key/value CRUD API for data storage.
 ///

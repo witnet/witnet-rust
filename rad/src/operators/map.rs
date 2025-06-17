@@ -1,11 +1,11 @@
 use std::convert::TryInto;
 
-use serde_cbor::value::{from_value, Value};
+use serde_cbor::value::{Value, from_value};
 
 use crate::{
     error::RadError,
     operators::string,
-    types::{array::RadonArray, map::RadonMap, string::RadonString, RadonType, RadonTypes},
+    types::{RadonType, RadonTypes, array::RadonArray, map::RadonMap, string::RadonString},
 };
 
 fn inner_get(input: &RadonMap, args: &[Value]) -> Result<RadonTypes, RadError> {

@@ -2,7 +2,7 @@ use std::convert::TryFrom;
 
 use witnet_crypto::{
     hash::Sha256,
-    merkle::{sha256_concat, InclusionProof},
+    merkle::{InclusionProof, sha256_concat},
 };
 use witnet_data_structures::{chain::*, proto::versioning::ProtocolVersion, transaction::*};
 

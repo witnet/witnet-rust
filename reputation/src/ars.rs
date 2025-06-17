@@ -131,7 +131,7 @@ where
     }
 
     /// Method to add a new entry taking into account the proposed time
-    pub fn update<M>(&mut self, identities: M, block_epoch: u32) -> Result<(), failure::Error>
+    pub fn update<M>(&mut self, identities: M, block_epoch: u32) -> Result<(), anyhow::Error>
     where
         M: IntoIterator<Item = K>,
     {

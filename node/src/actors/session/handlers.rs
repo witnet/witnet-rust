@@ -1,12 +1,12 @@
 use std::{cmp::Ordering, convert::TryFrom, io::Error, net::SocketAddr};
 
 use actix::{
-    io::WriteHandler, ActorContext, ActorFutureExt, ActorTryFutureExt, Context,
-    ContextFutureSpawner, Handler, StreamHandler, SystemService, WrapFuture,
+    ActorContext, ActorFutureExt, ActorTryFutureExt, Context, ContextFutureSpawner, Handler,
+    StreamHandler, SystemService, WrapFuture, io::WriteHandler,
 };
 use bytes::BytesMut;
-use failure::Fail;
 use futures::future::Either;
+use thiserror::Error;
 
 use witnet_data_structures::{
     builders::from_address,
@@ -41,35 +41,31 @@ use crate::actors::{
 
 use super::Session;
 
-#[derive(Debug, Eq, Fail, PartialEq)]
+#[derive(Debug, Eq, Error, PartialEq)]
 enum HandshakeError {
-    #[fail(
-        display = "Received beacon is behind our beacon (or target beacon). Current beacon: {:?}, received beacon: {:?}",
-        current_beacon, received_beacon
+    #[error(
+        "Received beacon is behind our beacon (or target beacon). Current beacon: {current_beacon:?}, received beacon: {received_beacon:?}"
     )]
     PeerBeaconOld {
         current_beacon: CheckpointBeacon,
         received_beacon: CheckpointBeacon,
     },
-    #[fail(
-        display = "Received beacon is on the same superepoch but different superblock hash. Current beacon: {:?}, received beacon: {:?}",
-        current_beacon, received_beacon
+    #[error(
+        "Received beacon is on the same superepoch but different superblock hash. Current beacon: {current_beacon:?}, received beacon: {received_beacon:?}"
     )]
     PeerBeaconDifferentBlockHash {
         current_beacon: CheckpointBeacon,
         received_beacon: CheckpointBeacon,
     },
-    #[fail(
-        display = "Their epoch is different from ours. Current epoch: {}, received beacon: {:?}",
-        current_epoch, received_beacon
+    #[error(
+        "Their epoch is different from ours. Current epoch: {current_epoch}, received beacon: {received_beacon:?}"
     )]
     DifferentEpoch {
         current_epoch: Epoch,
         received_beacon: LastBeacon,
     },
-    #[fail(
-        display = "Their timestamp is different from ours ({:+} seconds), current timestamp: {}",
-        timestamp_diff, current_ts
+    #[error(
+        "Their timestamp is different from ours ({timestamp_diff:+} seconds), current timestamp: {current_ts}"
     )]
     DifferentTimestamp {
         current_ts: i64,
@@ -787,7 +783,9 @@ fn inventory_process_superblock(
 /// Function to process an InventoryAnnouncement message
 fn inventory_process_inv(session: &mut Session, inv: &InventoryAnnouncement) {
     if !session.requested_block_hashes.is_empty() {
-        log::warn!("Received InventoryAnnouncement message while processing an older InventoryAnnouncement. Will stop processing the old one.");
+        log::warn!(
+            "Received InventoryAnnouncement message while processing an older InventoryAnnouncement. Will stop processing the old one."
+        );
     }
 
     let limit = match usize::try_from(session.config.connections.requested_blocks_batch_limit) {

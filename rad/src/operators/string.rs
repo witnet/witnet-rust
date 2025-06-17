@@ -4,15 +4,15 @@ use std::{
     str::FromStr,
 };
 
-use serde_cbor::value::{from_value, Value};
+use serde_cbor::value::{Value, from_value};
 use serde_json::Value as JsonValue;
 
 use crate::{
     error::RadError,
     hash_functions::{self, RadonHashFunctions},
     types::{
-        array::RadonArray, boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat,
-        integer::RadonInteger, map::RadonMap, string::RadonString, RadonType, RadonTypes,
+        RadonType, RadonTypes, array::RadonArray, boolean::RadonBoolean, bytes::RadonBytes,
+        float::RadonFloat, integer::RadonInteger, map::RadonMap, string::RadonString,
     },
 };
 
@@ -1115,7 +1115,10 @@ mod tests {
         let args = vec![Value::Map(map)];
 
         let result = string_match(&input_key, &args);
-        assert_eq!(result.unwrap_err().to_string(), "Wrong `RadonString::String match()` arguments: `[Map({Text(\"key1\"): Float(1.0), Text(\"key2\"): Float(2.0)})]`");
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Wrong `RadonString::String match()` arguments: `[Map({Text(\"key1\"): Float(1.0), Text(\"key2\"): Float(2.0)})]`"
+        );
     }
 
     #[test]
@@ -1135,7 +1138,7 @@ mod tests {
 
     #[test]
     fn test_json_numbers_to_radon_numbers() {
-        use serde_json::{value::Number, Value as JsonValue};
+        use serde_json::{Value as JsonValue, value::Number};
 
         let json = JsonValue::Number(Number::from_f64(2.0).unwrap());
         let resulting_radon = RadonTypes::try_from(json).unwrap();

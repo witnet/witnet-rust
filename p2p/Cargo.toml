@@ -4,13 +4,14 @@ version = "0.3.2"
 authors = ["Witnet Foundation <info@witnet.foundation>"]
 workspace = ".."
 description = "p2p component"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
-failure = "0.1.8"
+anyhow = "1.0.98"
 log = "0.4.8"
 rand = "0.7.3"
 serde = { version = "1.0.104", features = ["derive"] }
+thiserror = "2.0.12"
 
 witnet_config = { path = "../config" }
 witnet_crypto = { path = "../crypto" }

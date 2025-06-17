@@ -1,16 +1,17 @@
 [package]
 authors = ["Witnet Foundation <info@witnet.foundation>"]
 description = "validations component"
-edition = "2021"
+edition = "2024"
 name = "witnet_validations"
 version = "0.3.2"
 workspace = ".."
 
 [dependencies]
-failure = "0.1.8"
+anyhow = "1.0.98"
 itertools = "0.11.0"
 log = "0.4.8"
 serde = { version = "1.0.104", features = ["derive"] }
+thiserror = "2.0.12"
 url = "2.2.2"
 
 witnet_config = { path = "../config" }

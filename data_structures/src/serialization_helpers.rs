@@ -8,15 +8,15 @@
 
 use crate::{
     chain::{
-        GenesisBlockInfo, Hash, OutputPointer, PublicKeyHash, RADRetrieve, RADType,
-        ValueTransferOutput, SHA256,
+        GenesisBlockInfo, Hash, OutputPointer, PublicKeyHash, RADRetrieve, RADType, SHA256,
+        ValueTransferOutput,
     },
     get_environment,
     utxo_pool::UtxoSelectionStrategy,
 };
 use serde::{
-    de::{self, IntoDeserializer, MapAccess, SeqAccess, Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
+    de::{self, IntoDeserializer, MapAccess, SeqAccess, Visitor},
 };
 use std::{fmt, fmt::Display, str::FromStr};
 

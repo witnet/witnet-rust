@@ -9,9 +9,9 @@ use witnet_data_structures::radon_report::ReportContext;
 
 use crate::{
     error::RadError,
-    operators::{float as float_operators, identity, Operable, RadonOpCodes},
+    operators::{Operable, RadonOpCodes, float as float_operators, identity},
     script::RadonCall,
-    types::{string::RadonString, RadonType, RadonTypes},
+    types::{RadonType, RadonTypes, string::RadonString},
 };
 
 const RADON_FLOAT_TYPE_NAME: &str = "RadonFloat";

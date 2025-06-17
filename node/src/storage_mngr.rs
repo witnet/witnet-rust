@@ -15,7 +15,7 @@ use futures_util::FutureExt;
 
 use crate::{
     config_mngr,
-    utils::{stop_system_if_panicking, FlattenResult},
+    utils::{FlattenResult, stop_system_if_panicking},
 };
 use witnet_config::{config, config::Config};
 use witnet_data_structures::{
@@ -30,7 +30,7 @@ mod node_migrations;
 
 macro_rules! as_failure {
     ($e:expr) => {
-        failure::Error::from_boxed_compat(Box::new($e))
+        anyhow::Error::from_boxed(Box::new($e))
     };
 }
 
@@ -47,7 +47,7 @@ pub fn start_from_config(config: Config) {
 }
 
 /// Get value associated to key
-pub fn get<K, T>(key: &K) -> impl Future<Output = Result<Option<T>, failure::Error>>
+pub fn get<K, T>(key: &K) -> impl Future<Output = Result<Option<T>, anyhow::Error>> + use<K, T>
 where
     K: serde::Serialize,
     T: serde::de::DeserializeOwned + 'static,
@@ -61,7 +61,7 @@ where
 pub fn mapped_get<K, T, F>(
     key: &K,
     mapper: F,
-) -> impl Future<Output = Result<Option<T>, failure::Error>>
+) -> impl Future<Output = Result<Option<T>, anyhow::Error>> + use<K, T, F>
 where
     K: serde::Serialize,
     T: serde::de::DeserializeOwned + 'static,
@@ -95,7 +95,7 @@ where
 }
 
 /// Put a value associated to the key into the storage
-pub fn put<K, V>(key: &K, value: &V) -> impl Future<Output = Result<(), failure::Error>>
+pub fn put<K, V>(key: &K, value: &V) -> impl Future<Output = Result<(), anyhow::Error>> + use<K, V>
 where
     K: serde::Serialize,
     V: serde::Serialize + Any,
@@ -112,7 +112,7 @@ where
         Err(e) => {
             return futures::future::Either::Left(futures::future::Either::Left(future::ready(
                 Err(e.into()),
-            )))
+            )));
         }
     };
 
@@ -121,7 +121,7 @@ where
         Err(e) => {
             return futures::future::Either::Left(futures::future::Either::Right(future::ready(
                 Err(e.into()),
-            )))
+            )));
         }
     };
 
@@ -129,14 +129,14 @@ where
 }
 
 /// Put a batch of values into the storage
-pub fn put_batch<K, V>(kv: &[(K, V)]) -> impl Future<Output = Result<(), failure::Error>>
+pub fn put_batch<K, V>(kv: &[(K, V)]) -> impl Future<Output = Result<(), anyhow::Error>> + use<K, V>
 where
     K: serde::Serialize,
     V: serde::Serialize,
 {
     let addr = StorageManagerAdapter::from_registry();
 
-    let kv_bytes: Result<Vec<_>, failure::Error> = kv
+    let kv_bytes: Result<Vec<_>, anyhow::Error> = kv
         .iter()
         .map(|(k, v)| Ok((serialize(k)?, serialize(v)?)))
         .collect();
@@ -151,7 +151,7 @@ where
 }
 
 /// Delete value associated to key
-pub fn delete<K>(key: &K) -> impl Future<Output = Result<(), failure::Error>>
+pub fn delete<K>(key: &K) -> impl Future<Output = Result<(), anyhow::Error>>
 where
     K: serde::Serialize,
 {
@@ -168,8 +168,8 @@ where
 }
 
 /// Get an atomic reference to the storage backend
-pub fn get_backend(
-) -> impl Future<Output = Result<Arc<dyn NodeStorage + Send + Sync>, failure::Error>> {
+pub fn get_backend()
+-> impl Future<Output = Result<Arc<dyn NodeStorage + Send + Sync>, anyhow::Error>> {
     let addr = StorageManagerAdapter::from_registry();
 
     async move { addr.send(GetBackend).await? }
@@ -205,7 +205,7 @@ impl Actor for StorageManager {
 struct Configure(Arc<config::Config>);
 
 impl Message for Configure {
-    type Result = Result<(), failure::Error>;
+    type Result = Result<(), anyhow::Error>;
 }
 
 impl Handler<Configure> for StorageManager {
@@ -228,7 +228,7 @@ impl Handler<Configure> for StorageManager {
 struct Put(Vec<u8>, Vec<u8>);
 
 impl Message for Put {
-    type Result = Result<(), failure::Error>;
+    type Result = Result<(), anyhow::Error>;
 }
 
 impl Handler<Put> for StorageManager {
@@ -242,7 +242,7 @@ impl Handler<Put> for StorageManager {
 struct PutBatch(Vec<(Vec<u8>, Vec<u8>)>);
 
 impl Message for PutBatch {
-    type Result = Result<(), failure::Error>;
+    type Result = Result<(), anyhow::Error>;
 }
 
 impl Handler<PutBatch> for StorageManager {
@@ -260,7 +260,7 @@ impl Handler<PutBatch> for StorageManager {
 struct Get(Vec<u8>);
 
 impl Message for Get {
-    type Result = Result<Option<Vec<u8>>, failure::Error>;
+    type Result = Result<Option<Vec<u8>>, anyhow::Error>;
 }
 
 impl Handler<Get> for StorageManager {
@@ -274,7 +274,7 @@ impl Handler<Get> for StorageManager {
 struct Delete(Vec<u8>);
 
 impl Message for Delete {
-    type Result = Result<(), failure::Error>;
+    type Result = Result<(), anyhow::Error>;
 }
 
 impl Handler<Delete> for StorageManager {
@@ -291,7 +291,7 @@ impl Handler<Delete> for StorageManager {
 struct Batch(UtxoWriteBatch);
 
 impl Message for Batch {
-    type Result = Result<(), failure::Error>;
+    type Result = Result<(), anyhow::Error>;
 }
 
 impl Handler<Batch> for StorageManager {
@@ -305,7 +305,7 @@ impl Handler<Batch> for StorageManager {
 struct GetBackend;
 
 impl Message for GetBackend {
-    type Result = Result<Arc<dyn NodeStorage + Send + Sync>, failure::Error>;
+    type Result = Result<Arc<dyn NodeStorage + Send + Sync>, anyhow::Error>;
 }
 
 impl Handler<GetBackend> for StorageManager {
@@ -344,7 +344,7 @@ where
 fn wrap_storage_as_nodestorage<S: Storage + Send + Sync + 'static>(
     db: S,
     conf: &config::Storage,
-) -> Result<Arc<dyn NodeStorage + Send + Sync>, failure::Error> {
+) -> Result<Arc<dyn NodeStorage + Send + Sync>, anyhow::Error> {
     // Log progress of the initialization performed in `CacheUtxosByPkh::new`. Unfortunately we don't
     // know the total number of UTXOs so it is not possible to display a percentage.
     let mut total_utxos = 0;
@@ -372,7 +372,7 @@ fn wrap_storage_as_nodestorage<S: Storage + Send + Sync + 'static>(
 /// Create storage backend according to provided config
 pub fn create_appropriate_backend(
     conf: &config::Storage,
-) -> Result<Arc<dyn NodeStorage + Send + Sync>, failure::Error> {
+) -> Result<Arc<dyn NodeStorage + Send + Sync>, anyhow::Error> {
     match conf.backend {
         config::StorageBackend::HashMap => {
             let db = backends::hashmap::Backend::default();

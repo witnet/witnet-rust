@@ -7,7 +7,7 @@ use witnet_data_structures::{
     chain::{Block, ConsensusConstants, DataRequestInfo, Hash, Hashable},
     proto::versioning::ProtocolInfo,
 };
-use witnet_net::client::tcp::{jsonrpc, JsonRpcClient};
+use witnet_net::client::tcp::{JsonRpcClient, jsonrpc};
 use witnet_node::utils::stop_system_if_panicking;
 use witnet_util::timestamp::get_timestamp;
 
@@ -103,7 +103,9 @@ impl WitPoller {
                 let witnet_protocol_info = match get_protocol_info(witnet_client.clone()).await {
                     Ok(x) => x,
                     Err(()) => {
-                        log::error!("Failed to get current protocol info from witnet client, will retry later");
+                        log::error!(
+                            "Failed to get current protocol info from witnet client, will retry later"
+                        );
                         return Some(witnet_consensus_constants);
                     }
                 };

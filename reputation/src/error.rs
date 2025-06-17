@@ -1,16 +1,13 @@
 //! Error type definitions for the reputation module.
 
-use failure::Fail;
 use std::fmt;
+use thiserror::Error;
 
 /// The error type for operations in Reputation module
-#[derive(Debug, PartialEq, Eq, Fail)]
+#[derive(Debug, PartialEq, Eq, Error)]
 pub enum ReputationError {
     /// Proposed time for updating is previous to current
-    #[fail(
-        display = "Proposed time for updating ({}) is previous to current ({})",
-        new_time, current_time
-    )]
+    #[error("Proposed time for updating ({new_time}) is previous to current ({current_time})")]
     InvalidUpdateTime { new_time: u32, current_time: u32 },
 }
 
@@ -34,8 +31,6 @@ where
     }
 }
 
-impl<A> Fail for NonSortedAlpha<A> where A: 'static + fmt::Debug + Send + Sync {}
-
 /// Error in the penalization function
 #[derive(Debug, PartialEq, Eq)]
 pub struct RepError<V> {
@@ -55,5 +50,3 @@ where
         )
     }
 }
-
-impl<V> Fail for RepError<V> where V: 'static + fmt::Debug + Send + Sync {}

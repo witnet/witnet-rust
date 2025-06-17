@@ -8,9 +8,9 @@ use serde_cbor::value::Value;
 
 use crate::{
     error::RadError,
-    operators::{identity, integer as integer_operators, Operable, RadonOpCodes},
+    operators::{Operable, RadonOpCodes, identity, integer as integer_operators},
     script::RadonCall,
-    types::{string::RadonString, RadonType, RadonTypes},
+    types::{RadonType, RadonTypes, string::RadonString},
 };
 use witnet_data_structures::radon_report::ReportContext;
 

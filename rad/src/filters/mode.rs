@@ -1,7 +1,7 @@
 use crate::{
     error::RadError,
     reducers::mode::mode,
-    types::{array::RadonArray, RadonType, RadonTypes},
+    types::{RadonType, RadonTypes, array::RadonArray},
 };
 use witnet_data_structures::radon_report::{ReportContext, Stage};
 

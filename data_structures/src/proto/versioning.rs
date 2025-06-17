@@ -3,7 +3,7 @@ use std::{
     collections::{BTreeMap, HashMap},
 };
 
-use failure::{Error, Fail};
+use anyhow::Error;
 use protobuf::Message as _;
 use serde::{Deserialize, Serialize};
 use strum_macros::{Display, EnumIter, EnumString};
@@ -12,6 +12,7 @@ use crate::{
     chain::{ConsensusConstants, Epoch, Hash},
     get_protocol_version,
     proto::{
+        ProtobufConvert,
         schema::witnet::{
             Block, Block_BlockHeader, Block_BlockHeader_BlockMerkleRoots, Block_BlockTransactions,
             LegacyBlock, LegacyBlock_LegacyBlockHeader,
@@ -19,7 +20,6 @@ use crate::{
             LegacyBlock_LegacyBlockTransactions, LegacyMessage, LegacyMessage_LegacyCommand,
             LegacyMessage_LegacyCommand_oneof_kind, Message_Command, Message_Command_oneof_kind,
         },
-        ProtobufConvert,
     },
     types::Message,
 };
@@ -292,7 +292,7 @@ pub trait Versioned: ProtobufConvert {
         let mut current = Self::ProtoStruct::new();
         let direct_attempt = current
             .merge_from_bytes(bytes)
-            .map_err(|e| Error::from_boxed_compat(Box::new(e.compat())))
+            .map_err(Error::from)
             .and_then(|_| Self::from_pb(current));
 
         if direct_attempt.is_ok() {

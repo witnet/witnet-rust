@@ -1,19 +1,19 @@
 //! Error type definition
 use async_jsonrpc_client::ErrorKind as TransportErrorKind;
-use failure::Fail;
 use serde_json::error::Error as JsonError;
+use thiserror::Error;
 
 /// Possible types of errors that can occurr when sending requests.
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub enum Error {
     /// No url has been provided.
-    #[fail(display = "couldn't start client because no url was provided")]
+    #[error("couldn't start client because no url was provided")]
     NoUrl,
     /// The url used to create the connection is not valid.
-    #[fail(display = "couldn't start client due to invalid url")]
+    #[error("couldn't start client due to invalid url")]
     InvalidUrl,
     /// The error ocurred at the transport layer, e.g.: connection or event loop might be down.
-    #[fail(display = "request failed: {}", message)]
+    #[error("request failed: {message}")]
     RequestFailed {
         /// The source of the error.
         error_kind: TransportErrorKind,
@@ -21,14 +21,14 @@ pub enum Error {
         message: String,
     },
     /// The error ocurred when serializaing the request params to json.
-    #[fail(display = "request params failed to serialize to json")]
-    SerializeFailed(#[cause] JsonError),
+    #[error("request params failed to serialize to json")]
+    SerializeFailed(JsonError),
     /// The request timed out after the given duration.
-    #[fail(display = "request timed out after {} milliseconds", _0)]
+    #[error("request timed out after {0} milliseconds")]
     RequestTimedOut(u128),
     /// The actor is not reachable.
-    #[fail(display = "{}", _0)]
-    Mailbox(#[cause] actix::MailboxError),
+    #[error("{0}")]
+    Mailbox(actix::MailboxError),
 }
 
 impl From<actix::MailboxError> for Error {

@@ -3,8 +3,8 @@ extern crate bencher;
 use bencher::Bencher;
 use std::{convert::TryFrom, iter};
 use witnet_data_structures::chain::{
-    tapi::{ActiveWips, TapiEngine},
     Alpha, Environment, PublicKeyHash, Reputation, ReputationEngine,
+    tapi::{ActiveWips, TapiEngine},
 };
 
 // To benchmark the old algorithm, comment out the line that says cfg any:

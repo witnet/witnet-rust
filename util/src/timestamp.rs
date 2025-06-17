@@ -1,4 +1,4 @@
-use chrono::{prelude::*, TimeZone};
+use chrono::{TimeZone, prelude::*};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;

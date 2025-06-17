@@ -4,7 +4,7 @@ use serde_cbor::Value;
 
 use crate::{
     error::RadError,
-    types::{boolean::RadonBoolean, string::RadonString, RadonType},
+    types::{RadonType, boolean::RadonBoolean, string::RadonString},
 };
 
 pub fn negate(input: &RadonBoolean) -> RadonBoolean {

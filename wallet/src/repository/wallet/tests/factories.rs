@@ -24,7 +24,7 @@ fn wallet_inner(
 ) -> (Wallet<db::HashMapDb>, db::HashMapDb) {
     let id = "example-wallet";
     let params = default_params();
-    let mnemonic = mnemonic::MnemonicGen::new()
+    let mnemonic = mnemonic::MnemonicGenerator::new()
         .with_len(mnemonic::Length::Words12)
         .generate();
     let source = types::SeedSource::Mnemonics(mnemonic);

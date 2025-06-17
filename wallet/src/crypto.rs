@@ -1,4 +1,4 @@
-use failure::Fail;
+use thiserror::Error;
 
 use witnet_crypto::{
     cipher,
@@ -14,22 +14,19 @@ const SALT_LENGTH: usize = 32;
 const HASH_ITER_COUNT: u32 = 10_000;
 
 /// Generation of master key errors
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub enum Error {
     /// The generation of the master key failed.
-    #[fail(display = "Generation of key failed: {}", _0)]
-    Generation(#[cause] MasterKeyGenError),
+    #[error("Generation of key failed: {0}")]
+    Generation(MasterKeyGenError),
     /// The deserialization of the master key failed.
-    #[fail(display = "Deserialization of key failed: {}", _0)]
-    Deserialization(#[cause] KeyError),
+    #[error("Deserialization of key failed: {0}")]
+    Deserialization(KeyError),
     /// The key path of the slip32-serialized key is not of a master key.
-    #[fail(
-        display = "Imported key is not a master key according to its path: {}",
-        _0
-    )]
+    #[error("Imported key is not a master key according to its path: {0}")]
     InvalidKeyPath(String),
-    #[fail(display = "The AES encryption/decryption failed: {}", _0)]
-    Aes(#[cause] cipher::Error),
+    #[error("The AES encryption/decryption failed: {0}")]
+    Aes(cipher::Error),
 }
 
 /// Result type for cryptographic operations that can fail.
@@ -98,7 +95,7 @@ where
 {
     match hash {
         HashFunction::Sha256 => {
-            let rand_bytes: [u8; 32] = rng.gen();
+            let rand_bytes: [u8; 32] = rng.r#gen();
             let password = [key, salt, rand_bytes.as_ref()].concat();
             let id_bytes = pbkdf2_sha256(&password, salt, iterations);
 
@@ -110,7 +107,7 @@ where
 /// Generate a cryptographic salt.
 pub fn salt<Rand>(rng: &mut Rand, len: usize) -> Vec<u8>
 where
-    Rand: rand::Rng + rand::CryptoRng,
+    Rand: rand::Rng,
 {
     let mut bytes = vec![0u8; len];
 

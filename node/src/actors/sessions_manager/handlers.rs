@@ -5,8 +5,8 @@ use std::{
 };
 
 use actix::{
-    io::FramedWrite, Actor, AsyncContext, Context, Handler, Message, ResponseFuture, StreamHandler,
-    SystemService,
+    Actor, AsyncContext, Context, Handler, Message, ResponseFuture, StreamHandler, SystemService,
+    io::FramedWrite,
 };
 use ansi_term::Color::Cyan;
 use tokio_util::codec::FramedRead;
@@ -31,7 +31,7 @@ use witnet_data_structures::{
 };
 use witnet_p2p::{
     error::SessionsError,
-    sessions::{ip_range_string, SessionType},
+    sessions::{SessionType, ip_range_string},
 };
 use witnet_util::timestamp::{duration_until_timestamp, get_timestamp};
 
@@ -80,7 +80,11 @@ impl Handler<Create> for SessionsManager {
         // condition
         if config.connections.reject_sybil_inbounds && msg.session_type == SessionType::Inbound {
             if let Some(range) = self.sessions.is_similar_to_inbound_session(&remote_addr) {
-                log::trace!("Refusing to accept {} as inbound peer because there is already an inbound session with another peer in IP range {}", remote_addr, ip_range_string(range, config.connections.reject_sybil_inbounds_range_limit));
+                log::trace!(
+                    "Refusing to accept {} as inbound peer because there is already an inbound session with another peer in IP range {}",
+                    remote_addr,
+                    ip_range_string(range, config.connections.reject_sybil_inbounds_range_limit)
+                );
                 return;
             }
         };

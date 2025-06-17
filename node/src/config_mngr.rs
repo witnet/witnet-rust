@@ -19,14 +19,14 @@ pub fn start_default() {
 }
 
 /// Get a reference to the current configuration stored in the manager
-pub async fn get() -> Result<Arc<Config>, failure::Error> {
+pub async fn get() -> Result<Arc<Config>, anyhow::Error> {
     let addr = ConfigManager::from_registry();
     addr.send(Get).flatten_err().await
 }
 
 /// Substitute configuration in the manager with the one loaded from the
 /// given filename.
-pub async fn load_from_file(filename: PathBuf) -> Result<(), failure::Error> {
+pub async fn load_from_file(filename: PathBuf) -> Result<(), anyhow::Error> {
     let addr = ConfigManager::from_registry();
     addr.send(Load(Source::File(filename))).flatten_err().await
 }
@@ -87,15 +87,15 @@ impl actix::Supervised for ConfigManager {}
 impl actix::SystemService for ConfigManager {}
 
 impl actix::Message for Get {
-    type Result = Result<Arc<Config>, failure::Error>;
+    type Result = Result<Arc<Config>, anyhow::Error>;
 }
 
 impl actix::Message for Set {
-    type Result = Result<(), failure::Error>;
+    type Result = Result<(), anyhow::Error>;
 }
 
 impl actix::Message for Load {
-    type Result = Result<(), failure::Error>;
+    type Result = Result<(), anyhow::Error>;
 }
 
 impl actix::Handler<Get> for ConfigManager {
@@ -134,7 +134,7 @@ impl actix::Handler<Load> for ConfigManager {
 }
 
 impl ConfigManager {
-    fn load_config(&mut self, source: &Source) -> Result<(), failure::Error> {
+    fn load_config(&mut self, source: &Source) -> Result<(), anyhow::Error> {
         let new_config = match source {
             Source::File(filename) => Config::from_partial(&toml::from_file(filename)?),
         };

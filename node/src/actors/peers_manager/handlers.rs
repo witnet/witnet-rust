@@ -27,7 +27,7 @@ impl Handler<AddPeers> for PeersManager {
 
 /// Handler for ClearPeers message
 impl Handler<ClearPeers> for PeersManager {
-    type Result = Result<(), failure::Error>;
+    type Result = Result<(), anyhow::Error>;
 
     fn handle(&mut self, _msg: ClearPeers, _: &mut Context<Self>) -> Self::Result {
         // Clear addresses address
@@ -44,7 +44,7 @@ impl Handler<ClearPeers> for PeersManager {
 
 /// Handler for InitializePeers message
 impl Handler<InitializePeers> for PeersManager {
-    type Result = Result<(), failure::Error>;
+    type Result = Result<(), anyhow::Error>;
 
     fn handle(&mut self, msg: InitializePeers, _: &mut Context<Self>) -> Self::Result {
         // Clear addresses address
@@ -130,7 +130,7 @@ impl Handler<RequestPeers> for PeersManager {
 
 /// Handler for RequestPeers message
 impl Handler<GetKnownPeers> for PeersManager {
-    type Result = Result<PeersNewTried, failure::Error>;
+    type Result = Result<PeersNewTried, anyhow::Error>;
 
     fn handle(&mut self, _msg: GetKnownPeers, _: &mut Context<Self>) -> Self::Result {
         Ok(PeersNewTried {

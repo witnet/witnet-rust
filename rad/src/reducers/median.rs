@@ -1,9 +1,9 @@
 use crate::{
+    ReportContext,
     error::RadError,
     operators::array as array_operators,
-    reducers::{average::mean, average::MeanReturnPolicy, RadonReducers},
-    types::{array::RadonArray, float::RadonFloat, RadonType, RadonTypes},
-    ReportContext,
+    reducers::{RadonReducers, average::MeanReturnPolicy, average::mean},
+    types::{RadonType, RadonTypes, array::RadonArray, float::RadonFloat},
 };
 use ordered_float::NotNan;
 
@@ -35,7 +35,7 @@ pub fn median(input: &RadonArray) -> Result<RadonTypes, RadError> {
                             method: RadonReducers::AverageMedian.to_string(),
                             expected: RadonFloat::radon_type_name(),
                             found: item.radon_type_name(),
-                        })
+                        });
                     }
                 }
             }
@@ -110,8 +110,8 @@ mod tests {
     use super::*;
 
     use crate::{
-        types::{float::RadonFloat, integer::RadonInteger, string::RadonString},
         RadError::EmptyArray,
+        types::{float::RadonFloat, integer::RadonInteger, string::RadonString},
     };
 
     #[test]

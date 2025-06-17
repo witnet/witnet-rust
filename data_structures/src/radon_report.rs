@@ -332,8 +332,8 @@ where
 mod tests {
     use std::fmt;
 
-    use failure::Fail;
     use serde_cbor::Value as SerdeCborValue;
+    use thiserror::Error;
 
     use crate::radon_error::{ErrorLike, RadonError, RadonErrors};
 
@@ -342,7 +342,7 @@ mod tests {
     #[derive(Clone)]
     struct DummyType;
 
-    #[derive(Clone, Default, Debug, Fail)]
+    #[derive(Clone, Default, Debug, Error)]
     struct DummyError;
 
     impl TypeLike for DummyType {
@@ -366,7 +366,7 @@ mod tests {
 
     // Satisfy the trait bound `Dummy: radon_error::ErrorLike` required by `radon_error::RadonError`
     impl ErrorLike for DummyError {
-        fn encode_cbor_array(&self) -> Result<Vec<SerdeCborValue>, failure::Error> {
+        fn encode_cbor_array(&self) -> Result<Vec<SerdeCborValue>, anyhow::Error> {
             let kind = u8::from(RadonErrors::SourceScriptNotCBOR);
             let arg0 = 2;
 
@@ -378,7 +378,7 @@ mod tests {
 
         fn decode_cbor_array(
             _serde_cbor_array: Vec<SerdeCborValue>,
-        ) -> Result<RadonError<Self>, failure::Error> {
+        ) -> Result<RadonError<Self>, anyhow::Error> {
             unimplemented!()
         }
     }

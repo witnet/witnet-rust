@@ -10,22 +10,22 @@ use std::{
 };
 
 use actix::{
-    dev::{MessageResponse, OneshotSender, ToEnvelope},
     Actor, Addr, Handler, Message,
+    dev::{MessageResponse, OneshotSender, ToEnvelope},
 };
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use tokio::net::TcpStream;
 
 use witnet_data_structures::{
     chain::{
-        priority::PrioritiesEstimate,
-        tapi::{ActiveWips, BitVotesCounter},
         Block, CheckpointBeacon, DataRequestInfo, DataRequestOutput, Epoch, EpochConstants, Hash,
         InventoryEntry, InventoryItem, KeyedSignature, NodeStats, PointerToBlock, PublicKeyHash,
         PublicKeyHashParseError, RADRequest, RADTally, Reputation, StakeOutput, StateMachine,
         SuperBlock, SuperBlockVote, SupplyInfo, SupplyInfo2, ValueTransferOutput,
+        priority::PrioritiesEstimate,
+        tapi::{ActiveWips, BitVotesCounter},
     },
-    fee::{deserialize_fee_backwards_compatible, Fee},
+    fee::{Fee, deserialize_fee_backwards_compatible},
     get_environment,
     proto::versioning::ProtocolInfo,
     radon_report::RadonReport,
@@ -37,7 +37,7 @@ use witnet_data_structures::{
     transaction_factory::{NodeBalance, NodeBalance2},
     types::LastBeacon,
     utxo_pool::{UtxoInfo, UtxoSelectionStrategy},
-    wit::{Wit, WIT_DECIMAL_PLACES},
+    wit::{WIT_DECIMAL_PLACES, Wit},
 };
 use witnet_p2p::{
     error::SessionsError,
@@ -71,7 +71,7 @@ pub type SessionUnitResult = ();
 pub struct GetHighestCheckpointBeacon;
 
 impl Message for GetHighestCheckpointBeacon {
-    type Result = Result<CheckpointBeacon, failure::Error>;
+    type Result = Result<CheckpointBeacon, anyhow::Error>;
 }
 
 /// Message to obtain the last super block votes managed by the `ChainManager`
@@ -79,7 +79,7 @@ impl Message for GetHighestCheckpointBeacon {
 pub struct GetSuperBlockVotes;
 
 impl Message for GetSuperBlockVotes {
-    type Result = Result<HashSet<SuperBlockVote>, failure::Error>;
+    type Result = Result<HashSet<SuperBlockVote>, anyhow::Error>;
 }
 
 /// Add a new block
@@ -111,7 +111,7 @@ pub struct AddSuperBlockVote {
 }
 
 impl Message for AddSuperBlockVote {
-    type Result = Result<(), failure::Error>;
+    type Result = Result<(), anyhow::Error>;
 }
 
 /// Add a new transaction
@@ -123,7 +123,7 @@ pub struct AddTransaction {
 }
 
 impl Message for AddTransaction {
-    type Result = Result<(), failure::Error>;
+    type Result = Result<(), anyhow::Error>;
 }
 
 /// Ask for a block identified by its hash
@@ -222,7 +222,7 @@ pub struct BuildVtt {
 }
 
 impl Message for BuildVtt {
-    type Result = Result<VTTransaction, failure::Error>;
+    type Result = Result<VTTransaction, anyhow::Error>;
 }
 
 /// Builds a `StakeTransaction` from a list of `ValueTransferOutput`s
@@ -242,7 +242,7 @@ pub struct BuildStake {
 }
 
 impl Message for BuildStake {
-    type Result = Result<StakeTransaction, failure::Error>;
+    type Result = Result<StakeTransaction, anyhow::Error>;
 }
 
 /// Builds an `UnstakeTransaction`
@@ -262,7 +262,7 @@ pub struct BuildUnstake {
 }
 
 impl Message for BuildUnstake {
-    type Result = Result<UnstakeTransaction, failure::Error>;
+    type Result = Result<UnstakeTransaction, anyhow::Error>;
 }
 
 /// Builds a `UnstakeTransaction` from a list of `ValueTransferOutput`s
@@ -329,7 +329,7 @@ pub struct AuthorizeStake {
 }
 
 impl Message for AuthorizeStake {
-    type Result = Result<String, failure::Error>;
+    type Result = Result<String, anyhow::Error>;
 }
 
 /// Builds an `StakeAuthorization`
@@ -342,7 +342,7 @@ pub struct StakeAuthorization {
 }
 
 impl Message for StakeAuthorization {
-    type Result = Result<String, failure::Error>;
+    type Result = Result<String, anyhow::Error>;
 }
 
 /// Message for querying stakes
@@ -457,7 +457,7 @@ pub struct QueryStakes {
 impl Message for QueryStakes {
     type Result = Result<
         Vec<StakeEntry<WIT_DECIMAL_PLACES, PublicKeyHash, Wit, Epoch, u64, u64>>,
-        failure::Error,
+        anyhow::Error,
     >;
 }
 
@@ -498,7 +498,7 @@ pub struct BuildDrt {
 }
 
 impl Message for BuildDrt {
-    type Result = Result<DRTransaction, failure::Error>;
+    type Result = Result<DRTransaction, anyhow::Error>;
 }
 
 /// Get ChainManager State (WaitingConsensus, Synchronizing, AlmostSynced, Synced)
@@ -517,7 +517,7 @@ pub struct GetDataRequestInfo {
 }
 
 impl Message for GetDataRequestInfo {
-    type Result = Result<DataRequestInfo, failure::Error>;
+    type Result = Result<DataRequestInfo, anyhow::Error>;
 }
 
 /// Get Wit/2 balance
@@ -542,7 +542,7 @@ pub struct GetBalance2Limits {
 }
 
 impl Message for GetBalance2 {
-    type Result = Result<NodeBalance2, failure::Error>;
+    type Result = Result<NodeBalance2, anyhow::Error>;
 }
 
 /// Tells the `getBalance` method whether to get the balance of all addresses, one provided address,
@@ -650,7 +650,7 @@ pub struct GetBalance {
 }
 
 impl Message for GetBalance {
-    type Result = Result<NodeBalance, failure::Error>;
+    type Result = Result<NodeBalance, anyhow::Error>;
 }
 
 /// Get Supply
@@ -658,7 +658,7 @@ impl Message for GetBalance {
 pub struct GetSupplyInfo;
 
 impl Message for GetSupplyInfo {
-    type Result = Result<SupplyInfo, failure::Error>;
+    type Result = Result<SupplyInfo, anyhow::Error>;
 }
 
 /// Get Supply after V1_8 activation
@@ -666,7 +666,7 @@ impl Message for GetSupplyInfo {
 pub struct GetSupplyInfo2;
 
 impl Message for GetSupplyInfo2 {
-    type Result = Result<SupplyInfo2, failure::Error>;
+    type Result = Result<SupplyInfo2, anyhow::Error>;
 }
 
 /// Get Balance
@@ -677,7 +677,7 @@ pub struct GetUtxoInfo {
 }
 
 impl Message for GetUtxoInfo {
-    type Result = Result<UtxoInfo, failure::Error>;
+    type Result = Result<UtxoInfo, anyhow::Error>;
 }
 
 /// Reputation info
@@ -711,7 +711,7 @@ pub struct GetReputation {
 }
 
 impl Message for GetReputation {
-    type Result = Result<GetReputationResult, failure::Error>;
+    type Result = Result<GetReputationResult, anyhow::Error>;
 }
 
 /// Get all the pending transactions
@@ -719,7 +719,7 @@ impl Message for GetReputation {
 pub struct GetMempool;
 
 impl Message for GetMempool {
-    type Result = Result<GetMempoolResult, failure::Error>;
+    type Result = Result<GetMempoolResult, anyhow::Error>;
 }
 
 /// Result of GetMempool message: list of pending transactions categorized by type
@@ -754,7 +754,7 @@ pub struct AddCommitReveal {
 }
 
 impl Message for AddCommitReveal {
-    type Result = Result<(), failure::Error>;
+    type Result = Result<(), anyhow::Error>;
 }
 
 /// Get transaction from mempool by hash
@@ -787,7 +787,7 @@ pub struct IsConfirmedBlock {
 }
 
 impl Message for IsConfirmedBlock {
-    type Result = Result<bool, failure::Error>;
+    type Result = Result<bool, anyhow::Error>;
 }
 
 /// Rewind
@@ -797,7 +797,7 @@ pub struct Rewind {
 }
 
 impl Message for Rewind {
-    type Result = Result<bool, failure::Error>;
+    type Result = Result<bool, anyhow::Error>;
 }
 
 /** Commands for exporting and importing chain state snapshots **/
@@ -808,7 +808,7 @@ pub struct SnapshotExport {
 }
 
 impl Message for SnapshotExport {
-    type Result = Result<String, failure::Error>;
+    type Result = Result<String, anyhow::Error>;
 }
 
 /// Create and export a snapshot of the current chain state.
@@ -1067,7 +1067,7 @@ pub struct SignalingInfo {
 }
 
 impl Message for GetSignalingInfo {
-    type Result = Result<SignalingInfo, failure::Error>;
+    type Result = Result<SignalingInfo, anyhow::Error>;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -1075,9 +1075,9 @@ impl Message for GetSignalingInfo {
 ////////////////////////////////////////////////////////////////////////////////////////
 
 /// One peer
-pub type PeersSocketAddrResult = Result<Option<SocketAddr>, failure::Error>;
+pub type PeersSocketAddrResult = Result<Option<SocketAddr>, anyhow::Error>;
 /// One or more peer addresses
-pub type PeersSocketAddrsResult = Result<Vec<SocketAddr>, failure::Error>;
+pub type PeersSocketAddrsResult = Result<Vec<SocketAddr>, anyhow::Error>;
 
 /// Message to add one or more peer addresses to the list
 pub struct AddPeers {
@@ -1097,7 +1097,7 @@ impl Message for AddPeers {
 pub struct ClearPeers;
 
 impl Message for ClearPeers {
-    type Result = Result<(), failure::Error>;
+    type Result = Result<(), anyhow::Error>;
 }
 
 /// Message to clear peers from buckets and initialize to those in config
@@ -1107,7 +1107,7 @@ pub struct InitializePeers {
 }
 
 impl Message for InitializePeers {
-    type Result = Result<(), failure::Error>;
+    type Result = Result<(), anyhow::Error>;
 }
 
 /// Message to add one peer address to the tried addresses bucket
@@ -1153,14 +1153,14 @@ impl Message for RequestPeers {
 pub struct GetKnownPeers;
 
 impl Message for GetKnownPeers {
-    type Result = Result<PeersNewTried, failure::Error>;
+    type Result = Result<PeersNewTried, anyhow::Error>;
 }
 
 /// Message to get node stats
 pub struct GetNodeStats;
 
 impl Message for GetNodeStats {
-    type Result = Result<NodeStats, failure::Error>;
+    type Result = Result<NodeStats, anyhow::Error>;
 }
 
 /// List of known peers sorted by bucket
@@ -1593,7 +1593,7 @@ impl Message for NodeStatusNotify {
 pub struct EstimatePriority;
 
 impl Message for EstimatePriority {
-    type Result = Result<PrioritiesEstimate, failure::Error>;
+    type Result = Result<PrioritiesEstimate, anyhow::Error>;
 }
 
 /// Message for fetching protocol information.
@@ -1601,7 +1601,7 @@ impl Message for EstimatePriority {
 pub struct GetProtocolInfo;
 
 impl Message for crate::actors::messages::GetProtocolInfo {
-    type Result = Result<Option<ProtocolInfo>, failure::Error>;
+    type Result = Result<Option<ProtocolInfo>, anyhow::Error>;
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]

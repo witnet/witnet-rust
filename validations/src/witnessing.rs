@@ -5,8 +5,8 @@ use core::{
     fmt,
 };
 
-use failure::Fail;
 use itertools::Itertools;
+use thiserror::Error;
 use witnet_data_structures::witnessing::WitnessingConfig;
 
 /// Checks whether a `WitnetssingConfig` value is valid.
@@ -47,7 +47,7 @@ where
 }
 
 /// The error type for `validate_witnessing_config`
-#[derive(Clone, Debug, Eq, Fail, PartialEq)]
+#[derive(Clone, Debug, Eq, Error, PartialEq)]
 pub enum WitnessingConfigError {
     /// The error is in the addresses.
     Addresses(Vec<(String, TransportAddressError)>),
@@ -74,20 +74,20 @@ impl fmt::Display for WitnessingConfigError {
 }
 
 /// All kind of errors that can happen when parsing and validating transport addresses.
-#[derive(Clone, Debug, Eq, Fail, PartialEq)]
+#[derive(Clone, Debug, Eq, Error, PartialEq)]
 pub enum TransportAddressError {
     /// The address is missing a port number.
-    #[fail(display = "the address is missing a port number")]
+    #[error("the address is missing a port number")]
     MissingPort,
     /// Other errors.
-    #[fail(display = "{}", _0)]
+    #[error("{0}")]
     Other(String),
     /// Error parsing a valid URL from the address.
-    #[fail(display = "{}", _0)]
+    #[error("{0}")]
     ParseError(url::ParseError),
     /// Error parsing a valid URL from the address.
     /// The scheme (`http`, `socks5`, etc.) found in the address is not supported.
-    #[fail(display = "\"{}\" is not a supported type of transport", _0)]
+    #[error("\"{0}\" is not a supported type of transport")]
     UnsupportedScheme(String),
 }
 

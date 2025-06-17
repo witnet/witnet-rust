@@ -83,7 +83,7 @@ impl Message {
     pub fn build_inventory_announcement(
         magic: u16,
         inv_entries: Vec<InventoryEntry>,
-    ) -> Result<Message, failure::Error> {
+    ) -> Result<Message, anyhow::Error> {
         // Check there are some inventory vectors to be added to the message
         if inv_entries.is_empty() {
             return Err(BuildersError::NoInvVectorsAnnouncement.into());
@@ -102,7 +102,7 @@ impl Message {
     pub fn build_inventory_request(
         magic: u16,
         inv_entries: Vec<InventoryEntry>,
-    ) -> Result<Message, failure::Error> {
+    ) -> Result<Message, anyhow::Error> {
         // Check there are some inventory vectors to be added to the message
         if inv_entries.is_empty() {
             return Err(BuildersError::NoInvVectorsRequest.into());
@@ -164,7 +164,7 @@ impl Message {
 ////////////////////////////////////////////////////////////////////////////////////////
 /// Function to get a random nonce
 fn random_nonce() -> u64 {
-    rand::rng().next_u64()
+    rand::thread_rng().next_u64()
 }
 
 /// Function that returns the dynamic user agent

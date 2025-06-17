@@ -1,5 +1,5 @@
 //! UserAgents for the RAD module.
-use rand::{thread_rng, Rng};
+use rand::Rng;
 
 /// List of most common user agents gathered in https://techblog.willshouse.com/2012/01/03/most-common-user-agents/
 const USERAGENTS: &[&str] = &[
@@ -52,7 +52,7 @@ const USERAGENTS: &[&str] = &[
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:137.0) Gecko/20100101 Firefox/137.0",
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 OPR/116.0.0.0",
-    "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/119.0"
+    "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/119.0",
 ];
 
 pub struct UserAgent;
@@ -60,7 +60,7 @@ pub struct UserAgent;
 impl UserAgent {
     /// Get one user agent at random
     pub fn random() -> &'static str {
-        USERAGENTS[thread_rng().gen_range(0, USERAGENTS.len())]
+        USERAGENTS[rand::thread_rng().gen_range(0, USERAGENTS.len())]
     }
 }
 

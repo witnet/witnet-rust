@@ -2,7 +2,7 @@ use std::convert::{TryFrom, TryInto};
 
 use futures_util::compat::Compat01As03;
 use jsonrpc_core as rpc;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use witnet_crypto::{key::ExtendedSK, mnemonic};
 use witnet_data_structures::{
@@ -16,7 +16,7 @@ use witnet_data_structures::{
 };
 use witnet_futures_utils::TryFutureExt2;
 use witnet_net::client::tcp::jsonrpc;
-use witnet_rad::{script::RadonScriptExecutionSettings, RADRequestExecutionReport};
+use witnet_rad::{RADRequestExecutionReport, script::RadonScriptExecutionSettings};
 use witnet_util::timestamp::get_timestamp;
 
 use crate::{
@@ -62,7 +62,9 @@ impl Worker {
     }
 
     pub fn gen_mnemonic(&self, length: mnemonic::Length) -> String {
-        let mnemonic = mnemonic::MnemonicGen::new().with_len(length).generate();
+        let mnemonic = mnemonic::MnemonicGenerator::new()
+            .with_len(length)
+            .generate();
         let words = mnemonic.words();
 
         words.to_string()
@@ -342,7 +344,9 @@ impl Worker {
                 err => Error::Db(err),
             })?;
 
-        log::debug!("Encryption key for wallet {wallet_id} seems to be valid. Decrypting wallet object now.");
+        log::debug!(
+            "Encryption key for wallet {wallet_id} seems to be valid. Decrypting wallet object now."
+        );
         let wallet = Arc::new(repository::Wallet::unlock(
             wallet_id,
             session_id.clone(),

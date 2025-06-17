@@ -1,6 +1,6 @@
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
-use actix::{io::FramedWrite, SystemService};
+use actix::{SystemService, io::FramedWrite};
 use ansi_term::Color::Green;
 use bytes::BytesMut;
 use tokio::net::tcp::OwnedWriteHalf;

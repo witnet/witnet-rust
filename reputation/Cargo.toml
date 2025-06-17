@@ -1,14 +1,15 @@
 [package]
 authors = ["Witnet Foundation <info@witnet.foundation>"]
 description = "Reputation engine"
-edition = "2021"
+edition = "2024"
 name = "witnet_reputation"
 version = "0.3.2"
 workspace = ".."
 
 [dependencies]
-failure = "0.1.8"
+anyhow = "1.0.98"
 serde = { version = "1.0.104", features = ["derive"], optional = true }
+thiserror = "2.0.12"
 
 [dev-dependencies]
 bencher = "0.1.5"

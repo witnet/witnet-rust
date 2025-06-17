@@ -1,8 +1,8 @@
 use approx::assert_abs_diff_eq;
 use std::convert::TryFrom;
 use witnet_data_structures::chain::{
-    tapi::{current_active_wips, ActiveWips, SECOND_HARD_FORK},
     Alpha, Hash, PublicKeyHash, Reputation, ReputationEngine,
+    tapi::{ActiveWips, SECOND_HARD_FORK, current_active_wips},
 };
 
 use crate::eligibility::legacy::*;

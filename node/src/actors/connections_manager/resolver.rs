@@ -17,8 +17,8 @@ use std::time::Duration;
 use futures::future::Either;
 use pin_project_lite::pin_project;
 use tokio::net::TcpStream;
-use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
 use trust_dns_resolver::TokioAsyncResolver as AsyncResolver;
+use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
 use trust_dns_resolver::{error::ResolveError, lookup_ip::LookupIp};
 
 use actix::clock::Sleep;
@@ -383,7 +383,7 @@ impl ActorFuture<Resolver> for TcpConnector {
 
         // connect
         loop {
-            if let Some(ref mut fut) = this.stream {
+            if let Some(fut) = this.stream {
                 match Pin::new(fut).poll(cx) {
                     Poll::Ready(Ok(sock)) => return Poll::Ready(Ok(sock)),
                     Poll::Pending => return Poll::Pending,

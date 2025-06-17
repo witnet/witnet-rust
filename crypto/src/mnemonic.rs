@@ -3,8 +3,8 @@
 //! Example
 //!
 //! ```
-//! # use witnet_crypto::mnemonic::MnemonicGen;
-//! let mnemonic = MnemonicGen::new().generate();
+//! # use witnet_crypto::mnemonic::MnemonicGenerator;
+//! let mnemonic = MnemonicGenerator::new().generate();
 //!
 //! // A Mnemonic Seed must be protected by a passphrase
 //! let passphrase = "".into();
@@ -15,7 +15,7 @@
 //! let seed = mnemonic.seed(&passphrase);
 //! ```
 
-use failure::Error;
+use rand::RngCore;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -26,8 +26,8 @@ pub struct Mnemonic(bip39::Mnemonic);
 
 impl Mnemonic {
     /// Return a Mnemonic builder.
-    pub fn build() -> MnemonicGen {
-        MnemonicGen::default()
+    pub fn build() -> MnemonicGenerator {
+        MnemonicGenerator::default()
     }
 
     /// Get the list of mnemonic words
@@ -46,22 +46,28 @@ impl Mnemonic {
     }
 
     /// Get a mnemonic from a existing phrase in English.
-    pub fn from_phrase(phrase: ProtectedString) -> Result<Mnemonic, Error> {
+    pub fn from_phrase(phrase: ProtectedString) -> Result<Mnemonic, bip39::ErrorKind> {
         Self::from_phrase_lang(phrase, Lang::English)
     }
 
     /// Get a mnemonic from a existing phrase in English.
-    pub fn from_phrase_ref(phrase: &str) -> Result<Mnemonic, Error> {
+    pub fn from_phrase_ref(phrase: &str) -> Result<Mnemonic, bip39::ErrorKind> {
         Self::from_phrase_lang_ref(phrase, Lang::English)
     }
 
     /// Get a mnemonic from a existing phrase in another language.
-    pub fn from_phrase_lang(phrase: ProtectedString, language: Lang) -> Result<Mnemonic, Error> {
+    pub fn from_phrase_lang(
+        phrase: ProtectedString,
+        language: Lang,
+    ) -> Result<Mnemonic, bip39::ErrorKind> {
         bip39::Mnemonic::from_phrase(AsRef::<str>::as_ref(&phrase), language.into()).map(Mnemonic)
     }
 
     /// Get a mnemonic from a existing phrase in another language.
-    pub fn from_phrase_lang_ref(phrase: &str, language: Lang) -> Result<Mnemonic, Error> {
+    pub fn from_phrase_lang_ref(
+        phrase: &str,
+        language: Lang,
+    ) -> Result<Mnemonic, bip39::ErrorKind> {
         bip39::Mnemonic::from_phrase(phrase, language.into()).map(Mnemonic)
     }
 }
@@ -123,20 +129,20 @@ impl From<Lang> for bip39::Language {
 }
 
 /// BIP39 Mnemonic generator
-pub struct MnemonicGen {
+pub struct MnemonicGenerator {
     len: Length,
     lang: Lang,
 }
-impl Default for MnemonicGen {
+impl Default for MnemonicGenerator {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl MnemonicGen {
+impl MnemonicGenerator {
     /// Create a new BIP39 Mnemonic generator
     pub fn new() -> Self {
-        MnemonicGen {
+        MnemonicGenerator {
             len: Length::Words12,
             lang: Lang::English,
         }
@@ -166,7 +172,11 @@ impl MnemonicGen {
         let lang = match self.lang {
             Lang::English => bip39::Language::English,
         };
-        let mnemonic = bip39::Mnemonic::new(mnemonic_type, lang);
+
+        // We handle the entropy directly here to avoid tiny-bip39's reliance on outdated rand lib
+        let entropy = &mut Vec::with_capacity(mnemonic_type.entropy_bits() / 8);
+        rand::thread_rng().fill_bytes(entropy);
+        let mnemonic = bip39::Mnemonic::from_entropy(entropy, lang).unwrap();
 
         Mnemonic(mnemonic)
     }
@@ -178,23 +188,23 @@ mod tests {
 
     #[test]
     fn test_gen_default() {
-        let gen = MnemonicGen::new();
+        let generator = MnemonicGenerator::new();
 
-        assert_eq!(gen.len, Length::Words12);
-        assert_eq!(gen.lang, Lang::English);
+        assert_eq!(generator.len, Length::Words12);
+        assert_eq!(generator.lang, Lang::English);
     }
 
     #[test]
     fn test_gen_with_len() {
-        let gen = MnemonicGen::new().with_len(Length::Words24);
+        let generator = MnemonicGenerator::new().with_len(Length::Words24);
 
-        assert_eq!(gen.len, Length::Words24);
-        assert_eq!(gen.lang, Lang::English);
+        assert_eq!(generator.len, Length::Words24);
+        assert_eq!(generator.lang, Lang::English);
     }
 
     #[test]
     fn test_generate() {
-        let mnemonic = MnemonicGen::new().generate();
+        let mnemonic = MnemonicGenerator::new().generate();
         let words = mnemonic.words().split_whitespace();
 
         assert_eq!(words.count(), 12);
@@ -202,7 +212,7 @@ mod tests {
 
     #[test]
     fn test_seed_as_ref() {
-        let mnemonic = MnemonicGen::new().generate();
+        let mnemonic = MnemonicGenerator::new().generate();
         let seed = mnemonic.seed(&"".into());
         let bytes: &[u8] = seed.as_ref();
 

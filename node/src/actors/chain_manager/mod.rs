@@ -27,7 +27,7 @@
 //!     - Adding a new UTXO for every output in the transaction.
 use std::path::PathBuf;
 use std::{
-    cmp::{max, min, Ordering},
+    cmp::{Ordering, max, min},
     collections::{HashMap, HashSet, VecDeque},
     convert::TryFrom,
     future,
@@ -37,16 +37,16 @@ use std::{
 };
 
 use actix::{
-    prelude::*, ActorFutureExt, ActorTryFutureExt, AsyncContext, Context, ContextFutureSpawner,
-    Supervised, SystemService, WrapFuture,
+    ActorFutureExt, ActorTryFutureExt, AsyncContext, Context, ContextFutureSpawner, Supervised,
+    SystemService, WrapFuture, prelude::*,
 };
 use ansi_term::Color::{Purple, White, Yellow};
-use derive_more::{Display, Error};
-use failure::Fail;
-use futures::future::{try_join_all, FutureExt};
+use derive_more::Display;
+use futures::future::{FutureExt, try_join_all};
 use glob::glob;
 use itertools::Itertools;
 use rand::Rng;
+use thiserror::Error;
 
 use crate::{
     actors::{
@@ -65,7 +65,7 @@ use crate::{
         storage_keys,
     },
     signature_mngr, storage_mngr,
-    utils::{deserialize_from_file, file_name_compose, stop_system_if_panicking, Force},
+    utils::{Force, deserialize_from_file, file_name_compose, stop_system_if_panicking},
 };
 use witnet_config::{
     config::Tapi, defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO,
@@ -73,16 +73,15 @@ use witnet_config::{
 use witnet_crypto::hash::calculate_sha256;
 use witnet_data_structures::{
     chain::{
-        penalize_factor,
-        priority::{Priorities, PriorityEngine, PriorityVisitor},
-        reputation_issuance,
-        tapi::{after_second_hard_fork, current_active_wips, in_emergency_period, ActiveWips},
         Alpha, AltKeys, Block, BlockHeader, Bn256PublicKey, ChainImport, ChainInfo, ChainState,
         CheckpointBeacon, CheckpointVRF, ConsensusConstants, ConsensusConstantsWit2,
         DataRequestInfo, DataRequestOutput, DataRequestStage, Epoch, EpochConstants, Hash,
         Hashable, InventoryEntry, InventoryItem, NodeStats, PublicKeyHash, Reputation,
         ReputationEngine, SignaturesToVerify, StateMachine, SuperBlock, SuperBlockVote,
-        TransactionsPool,
+        TransactionsPool, penalize_factor,
+        priority::{Priorities, PriorityEngine, PriorityVisitor},
+        reputation_issuance,
+        tapi::{ActiveWips, after_second_hard_fork, current_active_wips, in_emergency_period},
     },
     data_request::DataRequestPool,
     get_environment, get_protocol_version, get_protocol_version_activation_epoch,
@@ -94,8 +93,8 @@ use witnet_data_structures::{
     superblock::{ARSIdentities, AddSuperBlockVote, SuperBlockConsensus},
     transaction::{RevealTransaction, TallyTransaction, Transaction},
     types::{
-        visitor::{StatefulVisitor, Visitor},
         LastBeacon,
+        visitor::{StatefulVisitor, Visitor},
     },
     utxo_pool::{Diff, OwnUnspentOutputsPool, UnspentOutputsPool, UtxoDiff, UtxoWriteBatch},
     vrf::VrfCtx,
@@ -121,35 +120,31 @@ pub mod mining;
 pub const MAX_BLOCKS_SYNC: usize = 500;
 
 /// Possible errors when interacting with ChainManager
-#[derive(Debug, PartialEq, Eq, Fail)]
+#[derive(Debug, PartialEq, Eq, Error)]
 pub enum ChainManagerError {
     /// A block being processed was already known to this node
-    #[fail(display = "A block being processed was already known to this node")]
+    #[error("A block being processed was already known to this node")]
     BlockAlreadyExists,
     /// A block does not exist
-    #[fail(display = "A block does not exist")]
+    #[error("A block does not exist")]
     BlockDoesNotExist,
     /// Optional fields of ChainManager are not properly initialized yet
-    #[fail(display = "ChainManager is not ready yet. This may self-fix in a little while")]
+    #[error("ChainManager is not ready yet. This may self-fix in a little while")]
     ChainNotReady,
     /// The node attempted to do an action that is only allowed while `ChainManager`
     /// is in `Synced` state.
-    #[fail(
-        display = "The node is not yet in `Synced` state (current state is {:?})",
-        current_state
-    )]
+    #[error("The node is not yet in `Synced` state (current state is {current_state:?})")]
     NotSynced {
         /// Tells what the current state is, so users can better get an idea of why an action is
         /// not possible at this time.
         current_state: StateMachine,
     },
     /// The node is trying to mine a block so commits are not allowed
-    #[fail(display = "Commit received while node is trying to mine a block")]
+    #[error("Commit received while node is trying to mine a block")]
     TooLateToCommit,
     /// The node received a batch of blocks that is inconsistent with the current index
-    #[fail(
-        display = "Wrong number of blocks provided {:?} for superblock index {:?} and epoch {:?})",
-        wrong_index, consolidated_superblock_index, current_superblock_index
+    #[error(
+        "Wrong number of blocks provided {wrong_index:?} for superblock index {consolidated_superblock_index:?} and epoch {current_superblock_index:?})"
     )]
     WrongBlocksForSuperblock {
         /// Tells what the wrong index was
@@ -160,13 +155,13 @@ pub enum ChainManagerError {
         current_superblock_index: u32,
     },
     /// Tried to mine block candidates but mining is disabled through configuration.
-    #[fail(display = "Mining is disabled through configuration")]
+    #[error("Mining is disabled through configuration")]
     MiningIsDisabled,
     /// A staking-related error happened.
-    #[fail(display = "A staking-related error happened: {:?}", _0)]
-    Staking(StakesError<PublicKeyHash, witnet_data_structures::wit::Wit, Epoch>),
+    #[error("A staking-related error happened: {0:?}")]
+    Staking(StakesError<PublicKeyHash, Wit, Epoch>),
     /// The node is not eligible to perform a certain action.
-    #[fail(display = "The node is not eligible to perform this action")]
+    #[error("The node is not eligible to perform this action")]
     NotEligible,
 }
 
@@ -377,10 +372,12 @@ fn futurize_batch_read(
     batch_path: PathBuf,
 ) -> Pin<
     Box<
-        (dyn futures_util::Future<
-            Output = Result<Vec<witnet_data_structures::chain::Block>, ImportError>,
-        > + std::marker::Send
-             + 'static),
+        (
+            dyn futures_util::Future<
+                    Output = Result<Vec<witnet_data_structures::chain::Block>, ImportError>,
+                > + std::marker::Send
+                + 'static
+        ),
     >,
 > {
     Box::pin(async move {
@@ -615,7 +612,7 @@ impl ChainManager {
     fn persist_items(
         &self,
         items: Vec<StoreInventoryItem>,
-    ) -> ResponseActFuture<Self, Result<(), failure::Error>> {
+    ) -> ResponseActFuture<Self, Result<(), anyhow::Error>> {
         // Get InventoryManager address
         let inventory_manager_addr = InventoryManager::from_registry();
 
@@ -679,7 +676,7 @@ impl ChainManager {
         ctx: &mut Context<Self>,
         block: Block,
         resynchronizing: bool,
-    ) -> Result<(), failure::Error> {
+    ) -> Result<(), anyhow::Error> {
         if let (Some(epoch_constants), Some(chain_info), Some(rep_engine), Some(vrf_ctx)) = (
             self.epoch_constants,
             self.chain_state.chain_info.as_ref(),
@@ -858,7 +855,11 @@ impl ChainManager {
                         protocol_version,
                     ) != Ordering::Greater
                     {
-                        log::debug!("Ignoring new block candidate ({}) because a better one ({}) has been already validated", hash_block, best_hash);
+                        log::debug!(
+                            "Ignoring new block candidate ({}) because a better one ({}) has been already validated",
+                            hash_block,
+                            best_hash
+                        );
 
                         return;
                     }
@@ -1025,7 +1026,10 @@ impl ChainManager {
                         self.consensus_constants_wit2.get_checkpoints_period_wit2();
                     if stakes.total_staked() >= Wit::from(min_total_stake) {
                         let scheduled_epoch = block_epoch + activation_delay;
-                        log::info!("The stake threshold for activating protocol V2_0 has been met. Protocol V2_0 will be scheduled for epoch {}", scheduled_epoch);
+                        log::info!(
+                            "The stake threshold for activating protocol V2_0 has been met. Protocol V2_0 will be scheduled for epoch {}",
+                            scheduled_epoch
+                        );
                         // Register the 2_0 protocol into global state
                         register_protocol_version(
                             ProtocolVersion::V2_0,
@@ -1234,7 +1238,9 @@ impl ChainManager {
                 if miner_pkh == own_pkh {
                     self.chain_state.node_stats.block_mined_count += 1;
                     if self.sm_state == StateMachine::Synced {
-                        log::info!("Congratulations! Your block was consolidated into the block chain by an apparent majority of peers");
+                        log::info!(
+                            "Congratulations! Your block was consolidated into the block chain by an apparent majority of peers"
+                        );
                     } else {
                         // During synchronization, we assume that every consolidated block has, at least, one proposed block.
                         self.chain_state.node_stats.block_proposed_count += 1;
@@ -1477,7 +1483,7 @@ impl ChainManager {
         &mut self,
         msg: AddTransaction,
         timestamp_now: i64,
-    ) -> ResponseActFuture<Self, Result<(), failure::Error>> {
+    ) -> ResponseActFuture<Self, Result<(), anyhow::Error>> {
         log::trace!(
             "AddTransaction received while StateMachine is in state {:?}",
             self.sm_state
@@ -2117,7 +2123,7 @@ impl ChainManager {
         vrf_input: CheckpointVRF,
         chain_beacon: CheckpointBeacon,
         epoch_constants: EpochConstants,
-    ) -> ResponseActFuture<Self, Result<Diff, failure::Error>> {
+    ) -> ResponseActFuture<Self, Result<Diff, anyhow::Error>> {
         let block_number = self.chain_state.block_number();
         let mut signatures_to_verify = vec![];
         let consensus_constants = self.consensus_constants();
@@ -2787,8 +2793,10 @@ impl ChainStateSnapshot {
         let last_block_according_to_superblock =
             (superblock_index * u32::from(self.superblock_period)).saturating_sub(1);
         if chain_beacon.checkpoint > last_block_according_to_superblock {
-            panic!("Invalid snapshot: superblock #{} can only consolidate blocks up to #{}, but this chain state has block #{}",
-            superblock_index, last_block_according_to_superblock, chain_beacon.checkpoint);
+            panic!(
+                "Invalid snapshot: superblock #{} can only consolidate blocks up to #{}, but this chain state has block #{}",
+                superblock_index, last_block_according_to_superblock, chain_beacon.checkpoint
+            );
         }
 
         if let Some((prev_chain_state, prev_super_epoch)) = self.previous_chain_state.as_mut() {
@@ -2850,7 +2858,10 @@ impl ChainStateSnapshot {
 
             None
         } else if self.highest_persisted_superblock > super_epoch {
-            panic!("Tried to persist chain state for superblock #{} but it is already persisted. The highest persisted superblock is #{}", super_epoch, self.highest_persisted_superblock);
+            panic!(
+                "Tried to persist chain state for superblock #{} but it is already persisted. The highest persisted superblock is #{}",
+                super_epoch, self.highest_persisted_superblock
+            );
         } else {
             let skipped_superblocks = super_epoch - self.highest_persisted_superblock - 1;
             if skipped_superblocks > 0 {
@@ -2866,14 +2877,20 @@ impl ChainStateSnapshot {
             // state more than once
             if let Some((chain_state, prev_super_epoch)) = self.previous_chain_state.take() {
                 if prev_super_epoch != super_epoch {
-                    panic!("Cannot persist chain state. There is no snapshot for superblock #{}. The current snapshot is for superblock #{}", super_epoch, prev_super_epoch);
+                    panic!(
+                        "Cannot persist chain state. There is no snapshot for superblock #{}. The current snapshot is for superblock #{}",
+                        super_epoch, prev_super_epoch
+                    );
                 }
 
                 self.highest_persisted_superblock = super_epoch;
 
                 Some(chain_state)
             } else {
-                panic!("Cannot persist chain state. There is no snapshot for superblock #{}. The highest persisted superblock is #{}", super_epoch, self.highest_persisted_superblock);
+                panic!(
+                    "Cannot persist chain state. There is no snapshot for superblock #{}. The highest persisted superblock is #{}",
+                    super_epoch, self.highest_persisted_superblock
+                );
             }
         }
     }
@@ -2906,7 +2923,7 @@ pub fn process_validations(
     transaction_visitor: Option<&mut dyn Visitor<Visitable = (Transaction, u64, u32)>>,
     stakes: &StakesTracker,
     protocol_version: ProtocolVersion,
-) -> Result<Diff, failure::Error> {
+) -> Result<Diff, anyhow::Error> {
     let replication_factor = consensus_constants_wit2.get_replication_factor(
         block.block_header.beacon.checkpoint,
         chain_beacon.checkpoint,
@@ -3296,7 +3313,10 @@ fn update_pools(
     for dr_tx in &block.txns.data_request_txns {
         let dr_hash = dr_tx.versioned_hash(protocol);
         if data_requests_with_too_many_witnesses.contains(&dr_hash) {
-            log::debug!("Skipping data request {} as it was already processed with a TooManyWitnesses error", dr_hash);
+            log::debug!(
+                "Skipping data request {} as it was already processed with a TooManyWitnesses error",
+                dr_hash
+            );
             transactions_pool.dr_remove(dr_tx);
             continue;
         }
@@ -3726,7 +3746,12 @@ fn current_committee_size_requirement(
     last_checkpoint_signed_by_bootstrap: u32,
     min_committee_size: u32,
 ) -> u32 {
-    assert!(last_consolidated_checkpoint <= current_checkpoint, "Something went wrong as the last consolidated checkpoint is bigger than our current checkpoint {} > {}", last_consolidated_checkpoint, current_checkpoint);
+    assert!(
+        last_consolidated_checkpoint <= current_checkpoint,
+        "Something went wrong as the last consolidated checkpoint is bigger than our current checkpoint {} > {}",
+        last_consolidated_checkpoint,
+        current_checkpoint
+    );
     // If the last consolidated superblock or the current checkpoint is below last_checkpoint_signed_by_bootstrap, return the default committee size
     if last_consolidated_checkpoint <= last_checkpoint_signed_by_bootstrap {
         default_committee_size
@@ -3789,7 +3814,7 @@ pub fn log_removed_transactions(removed_transactions: &[Transaction], inserted_t
 }
 
 /// Run data request locally
-pub fn run_dr_locally(dr: &DataRequestOutput) -> Result<RadonTypes, failure::Error> {
+pub fn run_dr_locally(dr: &DataRequestOutput) -> Result<RadonTypes, anyhow::Error> {
     // Validate RADON: if the dr cannot be included in a witnet block, this should fail.
     // This does not validate other data request parameters such as number of witnesses, weight, or
     // collateral, so it is still possible that this request is considered invalid by miners.
@@ -3834,7 +3859,7 @@ mod tests {
     use std::sync::Arc;
 
     use witnet_config::{
-        config::{consensus_constants_from_partial, Config, StorageBackend},
+        config::{Config, StorageBackend, consensus_constants_from_partial},
         defaults::Testnet,
     };
     use witnet_crypto::{
@@ -3863,7 +3888,7 @@ mod tests {
     use crate::{
         actors::chain_manager::mining::build_block,
         config_mngr,
-        utils::{test_actix_system, ActorFutureToNormalFuture},
+        utils::{ActorFutureToNormalFuture, test_actix_system},
     };
 
     use super::*;
@@ -4188,7 +4213,9 @@ mod tests {
         }
         assert_eq!(
             circular_2,
-            vec![1, 1, 3, 5, 7, 9, 11, 11, 13, 15, 17, 19, 21, 21, 23, 25, 27, 29]
+            vec![
+                1, 1, 3, 5, 7, 9, 11, 11, 13, 15, 17, 19, 21, 21, 23, 25, 27, 29
+            ]
         );
 
         // Set the current committee size back to 1

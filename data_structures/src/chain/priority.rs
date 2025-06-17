@@ -1,10 +1,9 @@
-use std::{cmp, collections::VecDeque, convert, fmt, ops, time::Duration};
+use std::{cmp, collections::VecDeque, convert, fmt, num::TryFromIntError, ops, time::Duration};
 
 use itertools::Itertools;
-
-use failure::Fail;
 use ordered_float::OrderedFloat;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use thiserror::Error;
 use witnet_util::timestamp::seconds_to_human_string;
 
 use crate::{
@@ -12,7 +11,6 @@ use crate::{
     types::visitor::{StatefulVisitor, Visitor},
     wit::Wit,
 };
-use std::num::TryFromIntError;
 
 // Assuming no missing epochs, this will keep track of priority used by transactions in the last 24
 // hours. This is rounded up to the closest `2 ^ n - 1` because `PriorityEngine` uses a `VecDeque`
@@ -125,14 +123,13 @@ impl PriorityEngine {
 }
 
 /// Different errors that the `PriorityEngine` can produce.
-#[derive(Debug, Eq, Fail, PartialEq)]
+#[derive(Debug, Eq, Error, PartialEq)]
 pub enum PriorityError {
-    #[fail(display = "Conversion error: {}", _0)]
+    #[error("Conversion error: {0}")]
     Conversion(String),
     /// The number of sampled epochs in the engine is not enough for providing a reliable estimate.
-    #[fail(
-        display = "The node has only sampled priority from {} blocks but at least {} are needed to provide a reliable priority estimate. Please retry after {} minutes.",
-        current, required, wait_minutes
+    #[error(
+        "The node has only sampled priority from {current} blocks but at least {required} are needed to provide a reliable priority estimate. Please retry after {wait_minutes} minutes."
     )]
     NotEnoughSampledEpochs {
         current: u32,
@@ -1062,7 +1059,7 @@ pub(crate) mod counter {
 #[cfg(test)]
 mod tests {
     use rand::prelude::*;
-    use rand_distr::Normal;
+    use rand_distr::{Distribution, Normal};
 
     use super::*;
     use itertools::Itertools;

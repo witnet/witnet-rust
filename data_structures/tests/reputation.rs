@@ -1,4 +1,4 @@
-use witnet_data_structures::chain::{penalize_factor, reputation_issuance, Alpha, Reputation};
+use witnet_data_structures::chain::{Alpha, Reputation, penalize_factor, reputation_issuance};
 
 #[test]
 fn issued_reputation() {

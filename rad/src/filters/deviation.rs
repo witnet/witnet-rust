@@ -3,7 +3,7 @@ use crate::{
     filters::RadonFilters,
     operators::array::transpose,
     reducers,
-    types::{array::RadonArray, boolean::RadonBoolean, float::RadonFloat, RadonType, RadonTypes},
+    types::{RadonType, RadonTypes, array::RadonArray, boolean::RadonBoolean, float::RadonFloat},
 };
 use serde_cbor::Value;
 use std::convert::TryFrom;

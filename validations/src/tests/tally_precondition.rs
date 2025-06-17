@@ -8,7 +8,7 @@ use witnet_data_structures::{
 use witnet_rad::{
     conditions::*,
     error::RadError,
-    types::{array::RadonArray, float::RadonFloat, integer::RadonInteger, RadonTypes},
+    types::{RadonTypes, array::RadonArray, float::RadonFloat, integer::RadonInteger},
 };
 
 #[test]

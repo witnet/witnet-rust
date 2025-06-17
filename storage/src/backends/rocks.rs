@@ -1,7 +1,7 @@
 //! # Rocksdb storage backend
 //!
 //! Storage backend that persists data in the file system using a RocksDB database.
-use failure::Fail;
+use thiserror::Error;
 
 use crate::storage::{Result, Storage, StorageIterator, WriteBatch, WriteBatchItem};
 
@@ -11,9 +11,9 @@ pub type Backend = rocksdb::DB;
 /// Rocksdb Options
 pub type Options = rocksdb::Options;
 
-#[derive(Debug, Fail)]
-#[fail(display = "RocksDB error: {}", _0)]
-struct Error(#[fail(cause)] rocksdb::Error);
+#[derive(Debug, Error)]
+#[error("RocksDB error: {0}")]
+struct Error(rocksdb::Error);
 
 impl Storage for Backend {
     fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {

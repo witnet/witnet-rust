@@ -2,12 +2,12 @@
 name = "witnet_toolkit"
 version = "2.0.10"
 authors = ["Adán SDPC <adan.sdpc@gmail.com>"]
-edition = "2021"
+edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-failure = "0.1.8"
+anyhow = "1.0.98"
 hex = "0.4.3"
 regex = "1.5.5"
 serde_json = "1.0.66"
@@ -15,3 +15,4 @@ structopt = "0.3.22"
 witnet_data_structures = { path = "../data_structures", default-features = false }
 witnet_rad = { path = "../rad", default-features = false }
 tokio = { version = "1.44.1", features = ["rt", "rt-multi-thread", "macros"] }
+thiserror = "2.0.12"

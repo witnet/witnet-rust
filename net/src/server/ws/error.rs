@@ -1,9 +1,9 @@
 //! Error type definition
-use failure::Fail;
+use thiserror::Error;
 
 use jsonrpc_ws_server as server;
 
 /// Custom error type wrapping `jsonrpc_ws_server::Error` that implements `Fail`
-#[derive(Debug, Fail)]
-#[fail(display = "{}", _0)]
-pub struct Error(#[fail(cause)] pub(super) server::Error);
+#[derive(Debug, Error)]
+#[error("{0}")]
+pub struct Error(pub(super) server::Error);

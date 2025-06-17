@@ -1,5 +1,5 @@
 use crate::chain::{OutputPointer, PublicKeyHash, ValueTransferOutput};
-use failure::Error;
+use anyhow::Error;
 use std::{
     collections::{HashMap, HashSet},
     str::FromStr,
@@ -12,13 +12,13 @@ pub trait UtxoDb {
     fn get_utxo(
         &self,
         out_ptr: &OutputPointer,
-    ) -> Result<Option<(ValueTransferOutput, u32)>, failure::Error>;
-    fn utxo_iterator(&self) -> Result<UtxoStorageIterator, failure::Error>;
+    ) -> Result<Option<(ValueTransferOutput, u32)>, anyhow::Error>;
+    fn utxo_iterator(&self) -> Result<UtxoStorageIterator, anyhow::Error>;
     fn utxo_iterator_by_pkh(
         &self,
         pkh: PublicKeyHash,
-    ) -> Result<UtxoStorageIterator, failure::Error>;
-    fn write(&self, batch: UtxoWriteBatch) -> Result<(), failure::Error>;
+    ) -> Result<UtxoStorageIterator, anyhow::Error>;
+    fn write(&self, batch: UtxoWriteBatch) -> Result<(), anyhow::Error>;
 }
 
 #[derive(Default)]
@@ -106,7 +106,7 @@ impl<S: Storage> Storage for UtxoDbWrapStorage<S> {
         self.0.prefix_iterator(prefix)
     }
 
-    fn write(&self, batch: WriteBatch) -> Result<(), failure::Error> {
+    fn write(&self, batch: WriteBatch) -> Result<(), anyhow::Error> {
         self.0.write(batch)
     }
 }
@@ -139,11 +139,7 @@ impl<S: Storage> UtxoDb for UtxoDbWrapStorage<S> {
         let iter = self.utxo_iterator()?;
 
         Ok(Box::new(iter.filter_map(move |(k, v)| {
-            if v.0.pkh == pkh {
-                Some((k, v))
-            } else {
-                None
-            }
+            if v.0.pkh == pkh { Some((k, v)) } else { None }
         })))
     }
 
@@ -164,14 +160,14 @@ pub struct CacheUtxosByPkh<S> {
 }
 
 impl<S: UtxoDb> CacheUtxosByPkh<S> {
-    pub fn new(db: S) -> Result<Self, failure::Error> {
+    pub fn new(db: S) -> Result<Self, anyhow::Error> {
         Self::new_with_progress(db, |_| {})
     }
 
     pub fn new_with_progress<F: FnMut(usize)>(
         db: S,
         mut progress_cb: F,
-    ) -> Result<Self, failure::Error> {
+    ) -> Result<Self, anyhow::Error> {
         let mut cache: HashMap<PublicKeyHash, HashSet<OutputPointer>> = HashMap::default();
 
         // Initialize cache

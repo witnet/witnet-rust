@@ -15,7 +15,7 @@ use web3::{
     transports::Http,
     types::H160,
 };
-use witnet_net::client::tcp::{jsonrpc, JsonRpcClient};
+use witnet_net::client::tcp::{JsonRpcClient, jsonrpc};
 use witnet_node::utils::stop_system_if_panicking;
 
 /// EthPoller actor reads periodically new requests from the WRB Contract and includes them

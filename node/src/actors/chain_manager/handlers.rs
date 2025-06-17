@@ -6,15 +6,15 @@ use std::{
     time::Duration,
 };
 
-use actix::{prelude::*, ActorFutureExt, WrapFuture};
+use actix::{ActorFutureExt, WrapFuture, prelude::*};
 use futures::future::Either;
 
 use itertools::Itertools;
 use witnet_data_structures::{
     chain::{
-        tapi::ActiveWips, Block, ChainState, CheckpointBeacon, ConsensusConstantsWit2,
-        DataRequestInfo, Epoch, Hash, Hashable, NodeStats, PublicKeyHash, SuperBlockVote,
-        SupplyInfo, SupplyInfo2, ValueTransferOutput,
+        Block, ChainState, CheckpointBeacon, ConsensusConstantsWit2, DataRequestInfo, Epoch, Hash,
+        Hashable, NodeStats, PublicKeyHash, SuperBlockVote, SupplyInfo, SupplyInfo2,
+        ValueTransferOutput, tapi::ActiveWips,
     },
     error::{ChainInfoError, TransactionError::DataRequestNotFound},
     get_protocol_info, get_protocol_version, get_protocol_version_activation_epoch,
@@ -29,7 +29,7 @@ use witnet_data_structures::{
     },
     transaction_factory::{self, NodeBalance, NodeBalance2},
     types::LastBeacon,
-    utxo_pool::{get_utxo_info, UtxoDiff, UtxoInfo},
+    utxo_pool::{UtxoDiff, UtxoInfo, get_utxo_info},
     wit::Wit,
 };
 use witnet_util::timestamp::get_timestamp;
@@ -40,18 +40,18 @@ use witnet_validations::validations::{
 
 use crate::{
     actors::{
-        chain_manager::{handlers::BlockBatches::*, BlockCandidate},
+        chain_manager::{BlockCandidate, handlers::BlockBatches::*},
         messages::{
-            try_do_magic_into_pkh, AddBlocks, AddCandidates, AddCommitReveal, AddSuperBlock,
-            AddSuperBlockVote, AddTransaction, Broadcast, BuildDrt, BuildStake, BuildUnstake,
-            BuildVtt, EpochNotification, EstimatePriority, GetBalance, GetBalance2,
-            GetBalanceTarget, GetBlocksEpochRange, GetDataRequestInfo, GetHighestCheckpointBeacon,
+            AddBlocks, AddCandidates, AddCommitReveal, AddSuperBlock, AddSuperBlockVote,
+            AddTransaction, Broadcast, BuildDrt, BuildStake, BuildUnstake, BuildVtt,
+            EpochNotification, EstimatePriority, GetBalance, GetBalance2, GetBalanceTarget,
+            GetBlocksEpochRange, GetDataRequestInfo, GetHighestCheckpointBeacon,
             GetMemoryTransaction, GetMempool, GetMempoolResult, GetNodeStats, GetProtocolInfo,
             GetReputation, GetReputationResult, GetSignalingInfo, GetState, GetSuperBlockVotes,
             GetSupplyInfo, GetSupplyInfo2, GetUtxoInfo, IsConfirmedBlock, PeersBeacons,
             QueryStakes, QueryStakesOrderByOptions, QueryStakingPowers, ReputationStats, Rewind,
             SendLastBeacon, SessionUnitResult, SetLastBeacon, SetPeersLimits, SignalingInfo,
-            SnapshotExport, SnapshotImport, TryMineBlock,
+            SnapshotExport, SnapshotImport, TryMineBlock, try_do_magic_into_pkh,
         },
         sessions_manager::SessionsManager,
     },
@@ -357,7 +357,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
 
 /// Handler for GetHighestBlockCheckpoint message
 impl Handler<GetHighestCheckpointBeacon> for ChainManager {
-    type Result = Result<CheckpointBeacon, failure::Error>;
+    type Result = Result<CheckpointBeacon, anyhow::Error>;
 
     fn handle(
         &mut self,
@@ -376,7 +376,7 @@ impl Handler<GetHighestCheckpointBeacon> for ChainManager {
 
 /// Handler for GetSuperBlockVotes message
 impl Handler<GetSuperBlockVotes> for ChainManager {
-    type Result = Result<HashSet<SuperBlockVote>, failure::Error>;
+    type Result = Result<HashSet<SuperBlockVote>, anyhow::Error>;
 
     fn handle(&mut self, _msg: GetSuperBlockVotes, _ctx: &mut Context<Self>) -> Self::Result {
         Ok(self
@@ -388,7 +388,7 @@ impl Handler<GetSuperBlockVotes> for ChainManager {
 
 /// Handler for GetNodeStats message
 impl Handler<GetNodeStats> for ChainManager {
-    type Result = Result<NodeStats, failure::Error>;
+    type Result = Result<NodeStats, anyhow::Error>;
 
     fn handle(&mut self, _msg: GetNodeStats, _ctx: &mut Context<Self>) -> Self::Result {
         Ok(self.chain_state.node_stats.clone())
@@ -776,7 +776,7 @@ impl Handler<AddCandidates> for ChainManager {
 
 /// Handler for AddSuperBlockVote message
 impl Handler<AddSuperBlockVote> for ChainManager {
-    type Result = Result<(), failure::Error>;
+    type Result = Result<(), anyhow::Error>;
 
     fn handle(
         &mut self,
@@ -791,7 +791,7 @@ impl Handler<AddSuperBlockVote> for ChainManager {
 
 /// Handler for AddTransaction message
 impl Handler<AddTransaction> for ChainManager {
-    type Result = ResponseActFuture<Self, Result<(), failure::Error>>;
+    type Result = ResponseActFuture<Self, Result<(), anyhow::Error>>;
 
     fn handle(&mut self, msg: AddTransaction, _ctx: &mut Context<Self>) -> Self::Result {
         let timestamp_now = get_timestamp();
@@ -1053,7 +1053,10 @@ impl Handler<PeersBeacons> for ChainManager {
             // Else, unregister all peers
             if self.sm_state == StateMachine::AlmostSynced || self.sm_state == StateMachine::Synced
             {
-                log::warn!("Lack of peer consensus while state is {:?}: peers that do not coincide with our last beacon will be unregistered", self.sm_state);
+                log::warn!(
+                    "Lack of peer consensus while state is {:?}: peers that do not coincide with our last beacon will be unregistered",
+                    self.sm_state
+                );
                 peers_beacons.decide_peers_to_unregister(self.get_chain_beacon())
             } else {
                 log::warn!("Lack of peer consensus: all peers will be unregistered");
@@ -1360,7 +1363,7 @@ impl Handler<BuildVtt> for ChainManager {
                 Box::pin(actix::fut::err(e.into()))
             }
             Ok(vtt) => {
-                let fut = signature_mngr::sign_transaction(&vtt, vtt.inputs.len())
+                let fut = signature_mngr::sign_transaction_hash(vtt.hash(), vtt.inputs.len())
                     .into_actor(self)
                     .then(move |s, act, _ctx| match s {
                         Ok(signatures) => {
@@ -1428,7 +1431,7 @@ impl Handler<BuildStake> for ChainManager {
                 Box::pin(actix::fut::err(e.into()))
             }
             Ok(st) => {
-                let fut = signature_mngr::sign_transaction(&st, st.inputs.len())
+                let fut = signature_mngr::sign_transaction_hash(st.hash(), st.inputs.len())
                     .into_actor(self)
                     .then(move |s, act, _ctx| match s {
                         Ok(signatures) => {
@@ -1499,7 +1502,7 @@ impl Handler<BuildUnstake> for ChainManager {
                         Box::pin(actix::fut::err(e.into()))
                     }
                     Ok(ut) => {
-                        let fut = signature_mngr::sign_transaction(&ut, 1)
+                        let fut = signature_mngr::sign_transaction_hash(ut.hash(), 1)
                             .into_actor(self)
                             .then(move |s, act, _ctx| match s {
                                 Ok(signature) => {
@@ -1675,7 +1678,7 @@ impl Handler<QueryStakingPowers> for ChainManager {
 }
 
 impl Handler<BuildDrt> for ChainManager {
-    type Result = ResponseActFuture<Self, Result<DRTransaction, failure::Error>>;
+    type Result = ResponseActFuture<Self, Result<DRTransaction, anyhow::Error>>;
 
     fn handle(&mut self, msg: BuildDrt, _ctx: &mut Self::Context) -> Self::Result {
         if self.sm_state != StateMachine::Synced {
@@ -1715,7 +1718,7 @@ impl Handler<BuildDrt> for ChainManager {
             }
             Ok(drt) => {
                 log::debug!("Created drt:\n{:?}", drt);
-                let fut = signature_mngr::sign_transaction(&drt, drt.inputs.len())
+                let fut = signature_mngr::sign_transaction_hash(drt.hash(), drt.inputs.len())
                     .into_actor(self)
                     .then(move |s, act, _ctx| match s {
                         Ok(signatures) => {
@@ -1758,7 +1761,7 @@ impl Handler<GetState> for ChainManager {
 }
 
 impl Handler<GetDataRequestInfo> for ChainManager {
-    type Result = ResponseFuture<Result<DataRequestInfo, failure::Error>>;
+    type Result = ResponseFuture<Result<DataRequestInfo, anyhow::Error>>;
 
     fn handle(&mut self, msg: GetDataRequestInfo, _ctx: &mut Self::Context) -> Self::Result {
         let dr_pointer = msg.dr_pointer;
@@ -1791,7 +1794,7 @@ impl Handler<GetDataRequestInfo> for ChainManager {
 
 #[allow(clippy::cast_sign_loss)]
 impl Handler<GetBalance2> for ChainManager {
-    type Result = Result<NodeBalance2, failure::Error>;
+    type Result = Result<NodeBalance2, anyhow::Error>;
 
     fn handle(&mut self, msg: GetBalance2, _ctx: &mut Self::Context) -> Self::Result {
         if self.sm_state != StateMachine::Synced {
@@ -1868,7 +1871,7 @@ impl Handler<GetBalance2> for ChainManager {
 }
 
 impl Handler<GetBalance> for ChainManager {
-    type Result = Result<NodeBalance, failure::Error>;
+    type Result = Result<NodeBalance, anyhow::Error>;
 
     fn handle(
         &mut self,
@@ -1934,7 +1937,7 @@ impl Handler<GetBalance> for ChainManager {
 }
 
 impl Handler<GetSupplyInfo> for ChainManager {
-    type Result = Result<SupplyInfo, failure::Error>;
+    type Result = Result<SupplyInfo, anyhow::Error>;
 
     fn handle(&mut self, _msg: GetSupplyInfo, _ctx: &mut Self::Context) -> Self::Result {
         if self.sm_state != StateMachine::Synced {
@@ -2013,7 +2016,7 @@ impl Handler<GetSupplyInfo> for ChainManager {
 }
 
 impl Handler<GetSupplyInfo2> for ChainManager {
-    type Result = Result<SupplyInfo2, failure::Error>;
+    type Result = Result<SupplyInfo2, anyhow::Error>;
 
     fn handle(&mut self, _msg: GetSupplyInfo2, _ctx: &mut Self::Context) -> Self::Result {
         if self.sm_state != StateMachine::Synced {
@@ -2088,7 +2091,7 @@ impl Handler<GetSupplyInfo2> for ChainManager {
 }
 
 impl Handler<GetUtxoInfo> for ChainManager {
-    type Result = Result<UtxoInfo, failure::Error>;
+    type Result = Result<UtxoInfo, anyhow::Error>;
 
     fn handle(
         &mut self,
@@ -2132,7 +2135,7 @@ impl Handler<GetUtxoInfo> for ChainManager {
 }
 
 impl Handler<GetReputation> for ChainManager {
-    type Result = Result<GetReputationResult, failure::Error>;
+    type Result = Result<GetReputationResult, anyhow::Error>;
 
     fn handle(
         &mut self,
@@ -2213,7 +2216,7 @@ impl Handler<TryMineBlock> for ChainManager {
 }
 
 impl Handler<AddCommitReveal> for ChainManager {
-    type Result = ResponseActFuture<Self, Result<(), failure::Error>>;
+    type Result = ResponseActFuture<Self, Result<(), anyhow::Error>>;
 
     fn handle(
         &mut self,
@@ -2256,7 +2259,7 @@ impl Handler<GetMemoryTransaction> for ChainManager {
 }
 
 impl Handler<GetMempool> for ChainManager {
-    type Result = Result<GetMempoolResult, failure::Error>;
+    type Result = Result<GetMempoolResult, anyhow::Error>;
 
     fn handle(&mut self, _msg: GetMempool, _ctx: &mut Self::Context) -> Self::Result {
         let res = GetMempoolResult {
@@ -2297,7 +2300,7 @@ impl Handler<AddSuperBlock> for ChainManager {
 }
 
 impl Handler<IsConfirmedBlock> for ChainManager {
-    type Result = Result<bool, failure::Error>;
+    type Result = Result<bool, anyhow::Error>;
 
     fn handle(&mut self, msg: IsConfirmedBlock, _ctx: &mut Self::Context) -> Self::Result {
         let superblock_period = self
@@ -2328,7 +2331,7 @@ impl Handler<IsConfirmedBlock> for ChainManager {
 }
 
 impl Handler<Rewind> for ChainManager {
-    type Result = Result<bool, failure::Error>;
+    type Result = Result<bool, anyhow::Error>;
 
     fn handle(&mut self, msg: Rewind, ctx: &mut Self::Context) -> Self::Result {
         // Save list of blocks that are known to be valid
@@ -2383,7 +2386,7 @@ impl Handler<Rewind> for ChainManager {
 }
 
 impl Handler<GetSignalingInfo> for ChainManager {
-    type Result = Result<SignalingInfo, failure::Error>;
+    type Result = Result<SignalingInfo, anyhow::Error>;
 
     fn handle(&mut self, _msg: GetSignalingInfo, _ctx: &mut Self::Context) -> Self::Result {
         let active_upgrades = self.chain_state.tapi_engine.wip_activation.clone();

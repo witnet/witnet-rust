@@ -2,10 +2,10 @@ use crate::{
     error::RadError,
     operators::array::transpose,
     reducers::{
-        average::{mean, MeanReturnPolicy},
         RadonReducers,
+        average::{MeanReturnPolicy, mean},
     },
-    types::{array::RadonArray, float::RadonFloat, RadonType, RadonTypes},
+    types::{RadonType, RadonTypes, array::RadonArray, float::RadonFloat},
 };
 use std::ops::Div;
 

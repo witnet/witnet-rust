@@ -1,62 +1,55 @@
-use failure::Fail;
+use thiserror::Error;
 
 use crate::{crypto, db, repository};
 use witnet_data_structures::chain::Hash;
 use witnet_net::client::tcp;
 
-#[derive(Debug, Fail)]
-#[fail(display = "error")]
+#[derive(Debug, Error)]
+#[error("error")]
 pub enum Error {
-    #[fail(display = "rad request failed: {}", _0)]
-    Rad(#[cause] witnet_rad::error::RadError),
-    #[fail(display = "{}", _0)]
-    Mailbox(#[cause] actix::MailboxError),
-    #[fail(display = "master key generation failed: {}", _0)]
-    KeyGen(#[cause] crypto::Error),
-    #[fail(display = "repository failed: {}", _0)]
-    Repository(#[cause] repository::Error),
-    #[fail(display = "{}", _0)]
-    Failure(#[cause] failure::Error),
-    #[fail(display = "db error {}", _0)]
-    Db(#[cause] db::Error),
-    #[fail(display = "wrong wallet database password")]
+    #[error("rad request failed: {0}")]
+    Rad(witnet_rad::error::RadError),
+    #[error("{0}")]
+    Mailbox(actix::MailboxError),
+    #[error("master key generation failed: {0}")]
+    KeyGen(crypto::Error),
+    #[error("repository failed: {0}")]
+    Repository(repository::Error),
+    #[error("{0}")]
+    Failure(anyhow::Error),
+    #[error("db error {0}")]
+    Db(db::Error),
+    #[error("wrong wallet database password")]
     WrongPassword,
-    #[fail(display = "wallet not found")]
+    #[error("wallet not found")]
     WalletNotFound,
-    #[fail(display = "send error: {}", _0)]
-    Send(#[cause] futures01::sync::mpsc::SendError<std::string::String>),
-    #[fail(display = "node error: {}", _0)]
-    Node(#[cause] failure::Error),
-    #[fail(display = "JsonRPC timeout error")]
+    #[error("send error: {0}")]
+    Send(futures01::sync::mpsc::SendError<std::string::String>),
+    #[error("node error: {0}")]
+    Node(anyhow::Error),
+    #[error("JsonRPC timeout error")]
     JsonRpcTimeout,
-    #[fail(display = "error processing a block: {}", _0)]
-    Block(#[cause] failure::Error),
-    #[fail(display = "output ({}) not found in transaction: {}", _0, _1)]
+    #[error("error processing a block: {0}")]
+    Block(anyhow::Error),
+    #[error("output ({0}) not found in transaction: {1}")]
     OutputIndexNotFound(u32, String),
-    #[fail(display = "transaction type not supported")]
+    #[error("transaction type not supported")]
     TransactionTypeNotSupported,
-    #[fail(display = "epoch calculation error {}", _0)]
-    EpochCalculation(#[cause] witnet_data_structures::error::EpochCalculationError),
-    #[fail(display = "wallet already exists: {}", _0)]
+    #[error("epoch calculation error {0}")]
+    EpochCalculation(witnet_data_structures::error::EpochCalculationError),
+    #[error("wallet already exists: {0}")]
     WalletAlreadyExists(String),
-    #[fail(
-        display = "error while syncing: node is behind our local tip (#{} < #{})",
-        _0, _1
-    )]
+    #[error("error while syncing: node is behind our local tip (#{0} < #{1})")]
     NodeBehindLocalTip(u32, u32),
-    #[fail(
-        display = "the provided `birth_date` epoch is greater than the current epoch({} > {})",
-        _0, _1
-    )]
+    #[error("the provided `birth_date` epoch is greater than the current epoch({0} > {1})")]
     InvalidBirthDate(u32, u32),
 }
 
-#[derive(Debug, Fail)]
-#[fail(display = "error")]
+#[derive(Debug, Error)]
+#[error("error")]
 pub enum BlockError {
-    #[fail(
-        display = "block is not connected to our local tip of the chain ({} != {})",
-        block_previous_beacon, local_chain_tip
+    #[error(
+        "block is not connected to our local tip of the chain ({block_previous_beacon} != {local_chain_tip})"
     )]
     NotConnectedToLocalChainTip {
         block_previous_beacon: Hash,
@@ -65,18 +58,18 @@ pub enum BlockError {
 }
 
 /// Helper function to simplify .map_err on node errors.
-pub fn node_error<T: Fail>(err: T) -> Error {
-    Error::Node(failure::Error::from(err))
+pub fn node_error<T: std::error::Error + Send + Sync + 'static>(err: T) -> Error {
+    Error::Node(anyhow::Error::from(err))
 }
 
 /// Helper function to simplify .map_err on timeout errors.
-pub fn jsonrpc_timeout_error<T: Fail>(_err: T) -> Error {
+pub fn jsonrpc_timeout_error<T: std::error::Error + 'static>(_err: T) -> Error {
     Error::JsonRpcTimeout
 }
 
 /// Helper function to simplify .map_err on block errors.
-pub fn block_error<T: Fail>(err: T) -> Error {
-    Error::Block(failure::Error::from(err))
+pub fn block_error<T: std::error::Error + Send + Sync + 'static>(err: T) -> Error {
+    Error::Block(anyhow::Error::from(err))
 }
 
 impl From<crypto::Error> for Error {
@@ -103,8 +96,8 @@ impl From<repository::Error> for Error {
     }
 }
 
-impl From<failure::Error> for Error {
-    fn from(err: failure::Error) -> Self {
+impl From<anyhow::Error> for Error {
+    fn from(err: anyhow::Error) -> Self {
         Error::Failure(err)
     }
 }

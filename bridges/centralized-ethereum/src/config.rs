@@ -1,6 +1,6 @@
 //! Configuration
 
-use serde::{de::Error as _, Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, de::Error as _};
 use std::{
     cell::Cell,
     net::SocketAddr,

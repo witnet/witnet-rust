@@ -12,7 +12,7 @@
 //! a b c d e f g
 //! ```
 
-use crate::hash::{calculate_sha256, Sha256, EMPTY_SHA256};
+use crate::hash::{EMPTY_SHA256, Sha256, calculate_sha256};
 
 /// Calculate merkle tree root from the supplied hashes
 pub fn merkle_tree_root(hashes: &[Sha256]) -> Sha256 {

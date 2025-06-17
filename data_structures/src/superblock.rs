@@ -6,19 +6,19 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 use witnet_crypto::{
-    hash::{calculate_sha256, Sha256},
+    hash::{Sha256, calculate_sha256},
     merkle::merkle_tree_root as crypto_merkle_tree_root,
 };
 
 use crate::{
+    Environment,
     chain::{
-        tapi::{after_second_hard_fork, in_emergency_period},
         AltKeys, BlockHeader, Bn256PublicKey, CheckpointBeacon, Epoch, Hash, Hashable,
         PublicKeyHash, SuperBlock, SuperBlockVote,
+        tapi::{after_second_hard_fork, in_emergency_period},
     },
     get_environment,
     proto::versioning::{ProtocolVersion, VersionedHashable},
-    Environment,
 };
 
 /// TODO: Add nodes to the committee for superblock voting during the bootstrapping of wit/2
@@ -377,7 +377,10 @@ impl SuperBlockState {
         // is the one with index 0 and genesis hash. These are consensus constants and we do not
         // need any votes to determine that that is the most voted superblock.
         if self.signing_committee.is_empty() {
-            log::debug!("Superblock {:?} is assumed to be in consensus because the signing committee is empty", self.current_superblock_beacon);
+            log::debug!(
+                "Superblock {:?} is assumed to be in consensus because the signing committee is empty",
+                self.current_superblock_beacon
+            );
             return SuperBlockConsensus::SameAsLocal;
         }
 
@@ -828,7 +831,7 @@ pub fn hash_merkle_tree_root(hashes: &[Hash]) -> Hash {
 mod tests {
     use itertools::Itertools;
 
-    use witnet_crypto::hash::{calculate_sha256, EMPTY_SHA256};
+    use witnet_crypto::hash::{EMPTY_SHA256, calculate_sha256};
 
     use crate::{
         chain::{BlockMerkleRoots, Bn256SecretKey, CheckpointBeacon, PublicKey, Signature},

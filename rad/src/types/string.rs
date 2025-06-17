@@ -3,12 +3,12 @@ use std::{
     fmt,
 };
 
-use serde_cbor::value::{from_value, Value};
+use serde_cbor::value::{Value, from_value};
 use witnet_data_structures::{chain::tapi::ActiveWips, radon_report::ReportContext};
 
 use crate::{
     error::RadError,
-    operators::{identity, string as string_operators, Operable, RadonOpCodes},
+    operators::{Operable, RadonOpCodes, identity, string as string_operators},
     script::RadonCall,
     types::{RadonType, RadonTypes},
 };

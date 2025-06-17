@@ -6,13 +6,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     chain::{Block, CheckpointBeacon, Hashable, InventoryEntry, SuperBlock, SuperBlockVote},
-    proto::{schema::witnet, ProtobufConvert},
+    proto::{ProtobufConvert, schema::witnet},
     transaction::Transaction,
 };
 
 /// Witnet's protocol messages
 #[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert)]
-#[protobuf_convert(pb = "witnet::Message")]
+#[protobuf_convert(source = "witnet::Message")]
 pub struct Message {
     pub kind: Command,
     pub magic: u16,
@@ -20,7 +20,7 @@ pub struct Message {
 
 /// Commands for the Witnet's protocol messages
 #[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert)]
-#[protobuf_convert(pb = "witnet::Message_Command")]
+#[protobuf_convert(source = "witnet::Message_Command")]
 // FIXME(#649): Remove clippy skip error
 #[allow(clippy::large_enum_variant)]
 pub enum Command {
@@ -96,11 +96,11 @@ impl fmt::Display for Command {
 // PEER DISCOVERY MESSAGES
 ///////////////////////////////////////////////////////////
 #[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert)]
-#[protobuf_convert(pb = "witnet::GetPeers")]
+#[protobuf_convert(source = "witnet::GetPeers")]
 pub struct GetPeers;
 
 #[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert)]
-#[protobuf_convert(pb = "witnet::Peers")]
+#[protobuf_convert(source = "witnet::Peers")]
 pub struct Peers {
     pub peers: Vec<Address>,
 }
@@ -109,11 +109,11 @@ pub struct Peers {
 // HANDSHAKE MESSAGES
 ///////////////////////////////////////////////////////////
 #[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert)]
-#[protobuf_convert(pb = "witnet::Verack")]
+#[protobuf_convert(source = "witnet::Verack")]
 pub struct Verack;
 
 #[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert)]
-#[protobuf_convert(pb = "witnet::Version")]
+#[protobuf_convert(source = "witnet::Version")]
 pub struct Version {
     pub version: u32,
     pub timestamp: i64,
@@ -129,19 +129,19 @@ pub struct Version {
 // INVENTORY MESSAGES
 ///////////////////////////////////////////////////////////
 #[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert)]
-#[protobuf_convert(pb = "witnet::InventoryAnnouncement")]
+#[protobuf_convert(source = "witnet::InventoryAnnouncement")]
 pub struct InventoryAnnouncement {
     pub inventory: Vec<InventoryEntry>,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert)]
-#[protobuf_convert(pb = "witnet::InventoryRequest")]
+#[protobuf_convert(source = "witnet::InventoryRequest")]
 pub struct InventoryRequest {
     pub inventory: Vec<InventoryEntry>,
 }
 
 #[derive(Debug, Deserialize, Eq, PartialEq, Clone, ProtobufConvert, Serialize, Hash)]
-#[protobuf_convert(pb = "witnet::LastBeacon")]
+#[protobuf_convert(source = "witnet::LastBeacon")]
 pub struct LastBeacon {
     pub highest_block_checkpoint: CheckpointBeacon,
     pub highest_superblock_checkpoint: CheckpointBeacon,

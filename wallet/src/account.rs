@@ -2,7 +2,7 @@ use crate::{constants, types};
 use witnet_crypto::key::{ExtendedSK, KeyPath};
 
 /// Result type for accounts-related operations that can fail.
-pub type Result<T> = std::result::Result<T, failure::Error>;
+pub type Result<T> = std::result::Result<T, anyhow::Error>;
 
 /// Root KeyPath used for wallet accounts.
 ///

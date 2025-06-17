@@ -1,7 +1,7 @@
 use itertools::Itertools;
 use std::{
     cmp::min,
-    collections::{hash_map::Entry, HashMap, HashSet},
+    collections::{HashMap, HashSet, hash_map::Entry},
     convert::TryFrom,
     ops::Range,
     str::FromStr,
@@ -30,7 +30,7 @@ use witnet_data_structures::{
         VTTransactionBody,
     },
     transaction_factory::{
-        insert_change_output, CollectedOutputs, OutputsCollection, TransactionInfo,
+        CollectedOutputs, OutputsCollection, TransactionInfo, insert_change_output,
     },
     utxo_pool::UtxoSelectionStrategy,
 };
@@ -167,11 +167,7 @@ pub fn sort_utxo_set<'a>(
         .sorted_by_key(|(_o, info)| {
             let value = i128::from(info.amount);
 
-            if bigger_first {
-                -value
-            } else {
-                value
-            }
+            if bigger_first { -value } else { value }
         })
         .map(|(o, _info)| o)
 }
@@ -913,11 +909,20 @@ where
                     match &dr_movement.transaction.data.clone() {
                         model::TransactionData::DataRequest(dr_data) => {
                             let mut updated_dr_movement = dr_movement;
-                            updated_dr_movement.transaction.data = build_updated_dr_transaction_data(dr_data, tally, &txn.metadata)?;
-                            state.pending_movements.get_mut(&pending_block_hash.to_string()).unwrap()[index] = updated_dr_movement;
-                            state.pending_dr_movements.remove(&tally.dr_pointer.to_string());
+                            updated_dr_movement.transaction.data =
+                                build_updated_dr_transaction_data(dr_data, tally, &txn.metadata)?;
+                            state
+                                .pending_movements
+                                .get_mut(&pending_block_hash.to_string())
+                                .unwrap()[index] = updated_dr_movement;
+                            state
+                                .pending_dr_movements
+                                .remove(&tally.dr_pointer.to_string());
                         }
-                        _ => log::warn!("data request tally update failed because wrong transaction type (txn: {})", tally.dr_pointer),
+                        _ => log::warn!(
+                            "data request tally update failed because wrong transaction type (txn: {})",
+                            tally.dr_pointer
+                        ),
                     }
                 }
                 // The DR transaction was confirmed but the tally wasn't. Fetch the dr from DB.
@@ -934,11 +939,15 @@ where
                     match &dr_movement.transaction.data.clone() {
                         model::TransactionData::DataRequest(dr_data) => {
                             let mut dr_movement_to_update = dr_movement;
-                            dr_movement_to_update.transaction.data = build_updated_dr_transaction_data(dr_data, tally, &txn.metadata)?;
+                            dr_movement_to_update.transaction.data =
+                                build_updated_dr_transaction_data(dr_data, tally, &txn.metadata)?;
                             dr_movement_to_update.db_key = txn_id;
                             db_movements_to_update.push(dr_movement_to_update);
                         }
-                        _ => log::warn!("data request tally update failed because wrong transaction type (txn: {})", tally.dr_pointer),
+                        _ => log::warn!(
+                            "data request tally update failed because wrong transaction type (txn: {})",
+                            tally.dr_pointer
+                        ),
                     }
                 } else {
                     log::debug!(

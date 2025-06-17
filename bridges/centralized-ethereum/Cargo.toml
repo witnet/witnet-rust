@@ -2,7 +2,7 @@
 name = "witnet-centralized-ethereum-bridge"
 version = "2.0.10"
 authors = ["Witnet Foundation <info@witnet.foundation>"]
-edition = "2018"
+edition = "2024"
 
 [dependencies]
 actix = { version = "0.13.0", default-features = false }

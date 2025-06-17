@@ -1,5 +1,5 @@
 use witnet_data_structures::{
-    chain::{tapi::current_active_wips, Hash, Reputation},
+    chain::{Hash, Reputation, tapi::current_active_wips},
     proto::versioning::ProtocolVersion,
     staking::prelude::Power,
 };

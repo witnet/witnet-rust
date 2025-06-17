@@ -734,7 +734,7 @@ impl App {
                         Err(e) => {
                             log::error!("Error while adding local pending movement: {}", e);
 
-                            actix::fut::err(Error::Internal(failure::Error::from(e)))
+                            actix::fut::err(Error::Internal(anyhow::Error::from(e)))
                         }
                     }
                 })

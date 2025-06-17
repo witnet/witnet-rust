@@ -18,7 +18,7 @@ pub fn exec_cmd(
     command: Command,
     config_path: Option<PathBuf>,
     mut config: Config,
-) -> Result<(), failure::Error> {
+) -> Result<(), anyhow::Error> {
     let default_jsonrpc = config.jsonrpc.tcp_address.unwrap();
 
     match command {

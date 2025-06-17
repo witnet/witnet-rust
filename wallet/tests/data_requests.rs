@@ -4,8 +4,8 @@ use witnet_data_structures::radon_error::RadonError;
 use witnet_rad::{
     error::RadError,
     types::{
-        array::RadonArray, boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat,
-        integer::RadonInteger, map::RadonMap, string::RadonString, RadonTypes,
+        RadonTypes, array::RadonArray, boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat,
+        integer::RadonInteger, map::RadonMap, string::RadonString,
     },
 };
 
@@ -65,7 +65,7 @@ fn test_radon_error_json_serialization() {
 fn test_data_request_report_json_serialization() {
     use witnet_data_structures::chain::{RADAggregate, RADRequest, RADRetrieve, RADTally, RADType};
     use witnet_rad::{
-        script::{unpack_radon_script, RadonScriptExecutionSettings},
+        script::{RadonScriptExecutionSettings, unpack_radon_script},
         try_data_request,
     };
 

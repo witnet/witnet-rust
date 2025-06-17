@@ -3,7 +3,7 @@ use structopt::StructOpt;
 use witnet_config::config::Config;
 use witnet_wallet as wallet;
 
-pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), failure::Error> {
+pub fn exec_cmd(command: Command, mut config: Config) -> Result<(), anyhow::Error> {
     match command {
         Command::Run(params) => {
             if let Some(node) = params.node {

@@ -1,9 +1,9 @@
 use bech32::{Bech32, Hrp};
-use bls_signatures_rs::{bn256, bn256::Bn256, MultiSignature};
+use bls_signatures_rs::{MultiSignature, bn256, bn256::Bn256};
 use ethereum_types::U256;
-use failure::Fail;
 use futures::future::BoxFuture;
 use ordered_float::OrderedFloat;
+use partial_struct::PartialStruct;
 use serde::{Deserialize, Serialize};
 use std::{
     cell::{Cell, RefCell},
@@ -15,16 +15,14 @@ use std::{
     ops::{AddAssign, SubAssign},
     str::FromStr,
 };
-
-use partial_struct::PartialStruct;
+use thiserror::Error;
 use witnet_crypto::{
-    hash::{calculate_sha256, Sha256},
+    hash::{Sha256, calculate_sha256},
     key::ExtendedSK,
     merkle::merkle_tree_root as crypto_merkle_tree_root,
     secp256k1::{
-        self,
+        self, Message, PublicKey as Secp256k1_PublicKey, SecretKey as Secp256k1_SecretKey,
         ecdsa::{RecoverableSignature, RecoveryId, Signature as Secp256k1_Signature},
-        Message, PublicKey as Secp256k1_PublicKey, SecretKey as Secp256k1_SecretKey,
     },
 };
 use witnet_protected::Protected;
@@ -32,33 +30,33 @@ use witnet_reputation::{ActiveReputationSet, TotalReputationSet};
 
 use crate::{
     chain::{
-        tapi::{ActiveWips, TapiEngine},
         Signature::Secp256k1,
+        tapi::{ActiveWips, TapiEngine},
     },
-    data_request::{calculate_reward_collateral_ratio, DataRequestPool},
+    data_request::{DataRequestPool, calculate_reward_collateral_ratio},
     error::{
         DataRequestError, EpochCalculationError, OutputPointerParseError, Secp256k1ConversionError,
         TransactionError,
     },
     get_environment, get_protocol_version, get_protocol_version_activation_epoch,
     proto::{
+        ProtobufConvert, schema,
         versioning::{ProtocolVersion, Versioned, VersionedHashable},
-        ProtobufConvert,
     },
     serialization_helpers::number_from_string,
     staking::prelude::*,
     superblock::SuperBlockState,
     transaction::{
+        BETA, COMMIT_WEIGHT, MemoHash, MemoizedHashable, OUTPUT_SIZE, REVEAL_WEIGHT, TALLY_WEIGHT,
+    },
+    transaction::{
         CommitTransaction, DRTransaction, DRTransactionBody, Memoized, MintTransaction,
         RevealTransaction, StakeTransaction, TallyTransaction, Transaction, TxInclusionProof,
         UnstakeTransaction, VTTransaction,
     },
-    transaction::{
-        MemoHash, MemoizedHashable, BETA, COMMIT_WEIGHT, OUTPUT_SIZE, REVEAL_WEIGHT, TALLY_WEIGHT,
-    },
     utxo_pool::{OldUnspentOutputsPool, OwnUnspentOutputsPool, UnspentOutputsPool},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim},
-    wit::{Wit, WIT_DECIMAL_PLACES},
+    wit::{WIT_DECIMAL_PLACES, Wit},
 };
 
 /// Keeps track of priority being used by transactions included in recent blocks, and provides
@@ -168,7 +166,7 @@ impl Environment {
     PartialStruct, Debug, Clone, PartialEq, Serialize, Deserialize, ProtobufConvert, Default,
 )]
 #[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq))]
-#[protobuf_convert(pb = "crate::proto::schema::witnet::ConsensusConstants")]
+#[protobuf_convert(source = "schema::witnet::ConsensusConstants")]
 pub struct ConsensusConstants {
     /// Timestamp at checkpoint 0 (the start of epoch 0)
     pub checkpoint_zero_timestamp: i64,
@@ -265,7 +263,7 @@ impl ConsensusConstants {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, ProtobufConvert, Default)]
-#[protobuf_convert(pb = "crate::proto::schema::witnet::ConsensusConstantsWit2")]
+#[protobuf_convert(source = "schema::witnet::ConsensusConstantsWit2")]
 pub struct ConsensusConstantsWit2 {
     /// Timestamp at checkpoint 0 (the start of epoch 0)
     pub checkpoint_zero_timestamp: i64,
@@ -400,11 +398,11 @@ impl ConsensusConstantsWit2 {
     }
 }
 
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 /// The various reasons creating a genesis block can fail
 pub enum GenesisBlockInfoError {
     /// Failed to read file
-    #[fail(display = "Failed to read file `{}`: {}", path, inner)]
+    #[error("Failed to read file `{path}`: {inner}")]
     Read {
         /// Path of the `genesis_block.json` file
         path: String,
@@ -412,13 +410,10 @@ pub enum GenesisBlockInfoError {
         inner: std::io::Error,
     },
     /// Failed to deserialize
-    #[fail(display = "Failed to deserialize `GenesisBlockInfo`: {}", _0)]
+    #[error("Failed to deserialize `GenesisBlockInfo`: {0}")]
     Deserialize(serde_json::Error),
     /// The hash of the created genesis block does not match the hash set in the configuration
-    #[fail(
-        display = "Genesis block hash mismatch\nExpected: {}\nFound:    {}",
-        expected, created
-    )]
+    #[error("Genesis block hash mismatch\nExpected: {expected}\nFound:    {created}")]
     HashMismatch {
         /// Hash of the genesis block as created by reading the `genesis_block.json` file
         created: Hash,
@@ -507,7 +502,7 @@ impl GenesisBlockInfo {
 #[derive(
     Copy, Clone, Debug, Default, Eq, Hash, PartialEq, Serialize, Deserialize, ProtobufConvert,
 )]
-#[protobuf_convert(pb = "crate::proto::schema::witnet::CheckpointBeacon")]
+#[protobuf_convert(source = "schema::witnet::CheckpointBeacon")]
 #[serde(rename_all = "camelCase")]
 pub struct CheckpointBeacon {
     /// The serial number for an epoch
@@ -520,7 +515,7 @@ pub struct CheckpointBeacon {
 #[derive(
     Copy, Clone, Debug, Default, Eq, Hash, PartialEq, Serialize, Deserialize, ProtobufConvert,
 )]
-#[protobuf_convert(pb = "crate::proto::schema::witnet::CheckpointVRF")]
+#[protobuf_convert(source = "schema::witnet::CheckpointVRF")]
 #[serde(rename_all = "camelCase")]
 pub struct CheckpointVRF {
     /// The serial number for an epoch
@@ -534,7 +529,7 @@ pub type Epoch = u32;
 
 /// Block data structure
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default, Hash)]
-#[protobuf_convert(pb = "crate::proto::schema::witnet::Block")]
+#[protobuf_convert(source = "schema::witnet::Block")]
 pub struct Block {
     /// The header of the block
     pub block_header: BlockHeader,
@@ -550,7 +545,7 @@ pub struct Block {
 
 /// Block transactions
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
-#[protobuf_convert(pb = "crate::proto::schema::witnet::Block_BlockTransactions")]
+#[protobuf_convert(source = "schema::witnet::Block_BlockTransactions")]
 pub struct BlockTransactions {
     /// Mint transaction,
     pub mint: MintTransaction,
@@ -856,7 +851,7 @@ impl Hashable for PublicKey {
 
 /// Block header structure
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default, Hash)]
-#[protobuf_convert(pb = "crate::proto::schema::witnet::Block_BlockHeader")]
+#[protobuf_convert(source = "schema::witnet::Block_BlockHeader")]
 pub struct BlockHeader {
     /// 32 bits for binary signaling new witnet protocol improvements.
     /// See [WIP-0014](https://github.com/witnet/WIPs/blob/master/wip-0014.md) for more info.
@@ -872,7 +867,7 @@ pub struct BlockHeader {
 }
 /// Block merkle tree roots
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Default, Hash)]
-#[protobuf_convert(pb = "crate::proto::schema::witnet::Block_BlockHeader_BlockMerkleRoots")]
+#[protobuf_convert(source = "schema::witnet::Block_BlockHeader_BlockMerkleRoots")]
 pub struct BlockMerkleRoots {
     /// A 256-bit hash based on the mint transaction committed to this block
     pub mint_hash: Hash,
@@ -944,7 +939,7 @@ impl BlockMerkleRoots {
 /// This is needed to ensure that the security and trustlessness properties of Witnet will
 /// be relayed to bridges with other block chains.
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, ProtobufConvert, Serialize)]
-#[protobuf_convert(pb = "crate::proto::schema::witnet::SuperBlock")]
+#[protobuf_convert(source = "schema::witnet::SuperBlock")]
 pub struct SuperBlock {
     /// Number of signing committee members,
     pub signing_committee_length: u32,
@@ -1077,7 +1072,7 @@ impl SuperBlock {
 
 /// Superblock votes as sent through the network
 #[derive(Debug, Eq, PartialEq, Clone, Hash, ProtobufConvert, Serialize, Deserialize)]
-#[protobuf_convert(pb = "crate::proto::schema::witnet::SuperBlockVote")]
+#[protobuf_convert(source = "schema::witnet::SuperBlockVote")]
 pub struct SuperBlockVote {
     /// BN256 signature of `superblock_index` and `superblock_hash`
     pub bn256_signature: Bn256Signature,
@@ -1135,7 +1130,7 @@ impl SuperBlockVote {
 
 /// Digital signatures structure (based on supported cryptosystems)
 #[derive(Debug, Eq, PartialEq, Clone, Hash, Serialize, Deserialize, ProtobufConvert)]
-#[protobuf_convert(pb = "crate::proto::schema::witnet::Signature")]
+#[protobuf_convert(source = "schema::witnet::Signature")]
 pub enum Signature {
     /// ECDSA over secp256k1
     Secp256k1(Secp256k1Signature),
@@ -1157,7 +1152,7 @@ impl Default for Signature {
 
 impl Signature {
     /// Serialize the Signature for interoperability with OpenSSL.
-    pub fn to_bytes(&self) -> Result<[u8; 64], failure::Error> {
+    pub fn to_bytes(&self) -> Result<[u8; 64], anyhow::Error> {
         match self {
             Secp256k1(x) => {
                 let signature = Secp256k1_Signature::from_der(x.der.as_slice())
@@ -1172,7 +1167,7 @@ impl Signature {
         &self,
         msg: &Message,
         public_key: &Secp256k1_PublicKey,
-    ) -> Result<(), failure::Error> {
+    ) -> Result<(), anyhow::Error> {
         match self {
             Secp256k1(x) => {
                 let signature = Secp256k1_Signature::from_der(x.der.as_slice())
@@ -1190,7 +1185,7 @@ impl Signature {
 
 /// ECDSA (over secp256k1) signature
 #[derive(Debug, Default, Eq, PartialEq, Clone, Hash, Serialize, Deserialize, ProtobufConvert)]
-#[protobuf_convert(pb = "crate::proto::schema::witnet::Secp256k1Signature")]
+#[protobuf_convert(source = "schema::witnet::Secp256k1Signature")]
 pub struct Secp256k1Signature {
     /// The signature serialized in DER
     pub der: Vec<u8>,
@@ -1203,7 +1198,7 @@ impl From<Secp256k1_Signature> for Signature {
 }
 
 impl TryInto<Secp256k1_Signature> for Signature {
-    type Error = failure::Error;
+    type Error = anyhow::Error;
 
     fn try_into(self) -> Result<Secp256k1_Signature, Self::Error> {
         let x = match self {
@@ -1222,7 +1217,7 @@ impl From<Secp256k1_Signature> for Secp256k1Signature {
 }
 
 impl TryInto<Secp256k1_Signature> for Secp256k1Signature {
-    type Error = failure::Error;
+    type Error = anyhow::Error;
 
     fn try_into(self) -> Result<Secp256k1_Signature, Self::Error> {
         Secp256k1_Signature::from_der(&self.der)
@@ -1239,7 +1234,7 @@ impl From<Secp256k1_PublicKey> for PublicKey {
 }
 
 impl TryInto<Secp256k1_PublicKey> for PublicKey {
-    type Error = failure::Error;
+    type Error = anyhow::Error;
 
     fn try_into(self) -> Result<Secp256k1_PublicKey, Self::Error> {
         Secp256k1_PublicKey::from_slice(&self.to_bytes())
@@ -1282,7 +1277,7 @@ impl From<ExtendedSecretKey> for ExtendedSK {
 
 /// Hash
 #[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, ProtobufConvert)]
-#[protobuf_convert(pb = "crate::proto::schema::witnet::Hash")]
+#[protobuf_convert(source = "schema::witnet::Hash")]
 pub enum Hash {
     /// SHA-256 Hash
     SHA256(SHA256),
@@ -1364,7 +1359,7 @@ impl Hash {
         let hash_u256 = U256::from_big_endian(self.as_ref());
         let n_u256 = U256::from(n);
         let (d, m) = hash_u256.div_mod(n_u256);
-        let d_hash = Hash::SHA256(SHA256::from(d));
+        let d_hash = Hash::SHA256(d.to_big_endian());
         // m will always be smaller than n, so it must fit into a u64
         let m_u64 = m.low_u64();
 
@@ -1393,14 +1388,14 @@ impl Hash {
 }
 
 /// Error when parsing hash from string
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub enum HashParseError {
     /// Failed to parse string as hex
-    #[fail(display = "Failed to parse hex: {}", _0)]
-    Hex(#[cause] hex::FromHexError),
+    #[error("Failed to parse hex: {0}")]
+    Hex(hex::FromHexError),
 
     /// Invalid hash length
-    #[fail(display = "Invalid hash length: expected 32 bytes but got {}", _0)]
+    #[error("Invalid hash length: expected 32 bytes but got {0}")]
     InvalidLength(usize),
 }
 
@@ -1430,7 +1425,7 @@ pub type SHA256 = [u8; 32];
 ///
 /// It is the first 20 bytes of the SHA256 hash of the PublicKey.
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash, ProtobufConvert, Ord, PartialOrd)]
-#[protobuf_convert(pb = "crate::proto::schema::witnet::PublicKeyHash")]
+#[protobuf_convert(source = "schema::witnet::PublicKeyHash")]
 pub struct PublicKeyHash {
     pub(crate) hash: [u8; 20],
 }
@@ -1465,23 +1460,19 @@ impl Hashable for PublicKeyHash {
 }
 
 /// Error when parsing `PublicKeyHash` from string
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub enum PublicKeyHashParseError {
     /// Failed to parse string as hex
-    #[fail(display = "Failed to parse hex: {}", _0)]
-    Hex(#[cause] hex::FromHexError),
+    #[error("Failed to parse hex: {0}")]
+    Hex(hex::FromHexError),
 
     /// Invalid `PublicKeyHash` length
-    #[fail(
-        display = "Invalid PublicKeyHash length: expected 20 bytes but got {}",
-        _0
-    )]
+    #[error("Invalid PublicKeyHash length: expected 20 bytes but got {0}")]
     InvalidLength(usize),
 
     /// Tried to use testnet address in mainnet or vice versa
-    #[fail(
-        display = "Address is for different environment: prefix \"{}\" is not valid for {}",
-        prefix, expected_environment
+    #[error(
+        "Address is for different environment: prefix \"{prefix}\" is not valid for {expected_environment}"
     )]
     WrongEnvironment {
         /// The prefix found in the string
@@ -1491,8 +1482,8 @@ pub enum PublicKeyHashParseError {
     },
 
     /// Failed to parse string as Bech32
-    #[fail(display = "Failed to deserialize Bech32: {}", _0)]
-    Bech32(#[cause] bech32::DecodeError),
+    #[error("Failed to deserialize Bech32: {0}")]
+    Bech32(bech32::DecodeError),
 }
 
 impl FromStr for PublicKeyHash {
@@ -1578,7 +1569,7 @@ impl PublicKeyHash {
 #[derive(
     Debug, Default, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, ProtobufConvert, Hash,
 )]
-#[protobuf_convert(pb = "crate::proto::schema::witnet::Input")]
+#[protobuf_convert(source = "schema::witnet::Input")]
 pub struct Input {
     output_pointer: OutputPointer,
 }
@@ -1600,7 +1591,7 @@ impl Input {
 
 /// Value transfer output transaction data structure
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
-#[protobuf_convert(pb = "crate::proto::schema::witnet::ValueTransferOutput")]
+#[protobuf_convert(source = "schema::witnet::ValueTransferOutput")]
 pub struct ValueTransferOutput {
     /// Address that will receive the value
     pub pkh: PublicKeyHash,
@@ -1633,7 +1624,7 @@ impl ValueTransferOutput {
 
 /// Data request output transaction data structure
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
-#[protobuf_convert(pb = "crate::proto::schema::witnet::DataRequestOutput")]
+#[protobuf_convert(source = "schema::witnet::DataRequestOutput")]
 pub struct DataRequestOutput {
     /// Data request structure
     pub data_request: RADRequest,
@@ -1701,7 +1692,7 @@ impl DataRequestOutput {
 }
 
 #[derive(Debug, Default, Eq, PartialEq, Clone, Hash, Serialize, Deserialize, ProtobufConvert)]
-#[protobuf_convert(pb = "crate::proto::schema::witnet::StakeOutput")]
+#[protobuf_convert(source = "schema::witnet::StakeOutput")]
 pub struct StakeOutput {
     pub authorization: KeyedSignature,
     pub key: StakeKey<PublicKeyHash>,
@@ -1794,7 +1785,7 @@ pub struct SupplyInfo2 {
 
 /// Keyed signature data structure
 #[derive(Debug, Default, Eq, PartialEq, Clone, Hash, Serialize, Deserialize, ProtobufConvert)]
-#[protobuf_convert(pb = "crate::proto::schema::witnet::KeyedSignature")]
+#[protobuf_convert(source = "schema::witnet::KeyedSignature")]
 pub struct KeyedSignature {
     /// Signature
     pub signature: Signature,
@@ -1949,7 +1940,7 @@ pub struct ExtendedSecretKey {
 
 /// BN256 public key
 #[derive(Debug, Eq, PartialEq, Hash, Default, Clone, Serialize, Deserialize, ProtobufConvert)]
-#[protobuf_convert(pb = "crate::proto::schema::witnet::Bn256PublicKey")]
+#[protobuf_convert(source = "schema::witnet::Bn256PublicKey")]
 pub struct Bn256PublicKey {
     /// Compressed form of a BN256 public key
     pub public_key: Vec<u8>,
@@ -1968,7 +1959,7 @@ pub struct Bn256SecretKey {
 
 /// BN256 signature
 #[derive(Debug, Eq, PartialEq, Clone, Hash, Serialize, Deserialize, ProtobufConvert)]
-#[protobuf_convert(pb = "crate::proto::schema::witnet::Bn256Signature")]
+#[protobuf_convert(source = "schema::witnet::Bn256Signature")]
 pub struct Bn256Signature {
     /// Signature
     pub signature: Vec<u8>,
@@ -1976,7 +1967,7 @@ pub struct Bn256Signature {
 
 /// BN256 signature and public key
 #[derive(Debug, Eq, PartialEq, Clone, Hash, Serialize, Deserialize, ProtobufConvert)]
-#[protobuf_convert(pb = "crate::proto::schema::witnet::Bn256KeyedSignature")]
+#[protobuf_convert(source = "schema::witnet::Bn256KeyedSignature")]
 pub struct Bn256KeyedSignature {
     /// Signature
     pub signature: Bn256Signature,
@@ -1986,7 +1977,7 @@ pub struct Bn256KeyedSignature {
 
 impl Bn256PublicKey {
     /// Derive public key from secret key
-    pub fn from_secret_key(secret_key: &Bn256SecretKey) -> Result<Self, failure::Error> {
+    pub fn from_secret_key(secret_key: &Bn256SecretKey) -> Result<Self, anyhow::Error> {
         let public_key = Bn256.derive_public_key(&secret_key.bytes)?;
 
         Ok(Self {
@@ -1996,7 +1987,7 @@ impl Bn256PublicKey {
     }
 
     /// Interpret bytes as public key
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, failure::Error> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, anyhow::Error> {
         // Verify that this slice is a valid public key
         let _ = bn256::PublicKey::from_compressed(bytes)?;
 
@@ -2007,7 +1998,7 @@ impl Bn256PublicKey {
     }
 
     /// Convert public key to uncompressed format
-    pub fn to_uncompressed(&self) -> Result<Vec<u8>, failure::Error> {
+    pub fn to_uncompressed(&self) -> Result<Vec<u8>, anyhow::Error> {
         // Use the cached uncompressed key, if it was already calculated
         if let Some(cached_uncompressed) = self.uncompressed.get_cloned() {
             return Ok(cached_uncompressed);
@@ -2043,7 +2034,7 @@ impl Hashable for Bn256PublicKey {
 
 impl Bn256SecretKey {
     /// Interpret bytes as secret key
-    pub fn from_slice(bytes: &[u8]) -> Result<Self, failure::Error> {
+    pub fn from_slice(bytes: &[u8]) -> Result<Self, anyhow::Error> {
         // Verify that this slice is a valid secret key
         let _ = bn256::PrivateKey::new(bytes)?;
 
@@ -2054,7 +2045,7 @@ impl Bn256SecretKey {
 
     /// Use the secret key to sign a message.
     /// The message can be of any length, and it will be hashed internally.
-    pub fn sign(&self, message: &[u8]) -> Result<Bn256Signature, failure::Error> {
+    pub fn sign(&self, message: &[u8]) -> Result<Bn256Signature, anyhow::Error> {
         let signature = Bn256.sign(&self.bytes, message)?;
 
         Ok(Bn256Signature { signature })
@@ -2099,10 +2090,7 @@ impl RADType {
 
 /// RAD request data structure
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, ProtobufConvert, Hash)]
-#[protobuf_convert(
-    pb = "crate::proto::schema::witnet::DataRequestOutput_RADRequest",
-    crate = "crate"
-)]
+#[protobuf_convert(source = "schema::witnet::DataRequestOutput_RADRequest")]
 pub struct RADRequest {
     /// Commitments for this request will not be accepted in any block proposed for an epoch
     /// whose opening timestamp predates the specified time lock. This effectively prevents
@@ -2135,10 +2123,7 @@ impl RADRequest {
 
 /// Retrieve script and source
 #[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert, Hash, Default)]
-#[protobuf_convert(
-    pb = "crate::proto::schema::witnet::DataRequestOutput_RADRequest_RADRetrieve",
-    crate = "crate"
-)]
+#[protobuf_convert(source = "schema::witnet::DataRequestOutput_RADRequest_RADRetrieve")]
 pub struct RADRetrieve {
     /// Kind of retrieval
     pub kind: RADType,
@@ -2316,10 +2301,7 @@ impl RADRetrieve {
 
 /// Filter stage
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
-#[protobuf_convert(
-    pb = "crate::proto::schema::witnet::DataRequestOutput_RADRequest_RADFilter",
-    crate = "crate"
-)]
+#[protobuf_convert(source = "schema::witnet::DataRequestOutput_RADRequest_RADFilter")]
 pub struct RADFilter {
     /// `RadonFilters` code
     pub op: u32,
@@ -2339,10 +2321,7 @@ impl RADFilter {
 
 /// Aggregate stage
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
-#[protobuf_convert(
-    pb = "crate::proto::schema::witnet::DataRequestOutput_RADRequest_RADAggregate",
-    crate = "crate"
-)]
+#[protobuf_convert(source = "schema::witnet::DataRequestOutput_RADRequest_RADAggregate")]
 pub struct RADAggregate {
     /// List of filters to be applied in sequence
     pub filters: Vec<RADFilter>,
@@ -2366,10 +2345,7 @@ impl RADAggregate {
 
 /// Tally stage
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash, Default)]
-#[protobuf_convert(
-    pb = "crate::proto::schema::witnet::DataRequestOutput_RADRequest_RADTally",
-    crate = "crate"
-)]
+#[protobuf_convert(source = "schema::witnet::DataRequestOutput_RADRequest_RADTally")]
 pub struct RADTally {
     /// List of filters to be applied in sequence
     pub filters: Vec<RADFilter>,
@@ -3704,7 +3680,7 @@ impl TransactionsPool {
 /// Unspent output data structure (equivalent of Bitcoin's UTXO)
 /// It is used to locate the output by its transaction identifier and its position
 #[derive(Default, Hash, Copy, Clone, Eq, PartialEq, ProtobufConvert)]
-#[protobuf_convert(pb = "crate::proto::schema::witnet::OutputPointer")]
+#[protobuf_convert(source = "schema::witnet::OutputPointer")]
 pub struct OutputPointer {
     /// Transaction identifier
     pub transaction_id: Hash,
@@ -3767,7 +3743,7 @@ impl PartialOrd for OutputPointer {
 
 /// Inventory entry data structure
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert)]
-#[protobuf_convert(pb = "crate::proto::schema::witnet::InventoryEntry")]
+#[protobuf_convert(source = "schema::witnet::InventoryEntry")]
 pub enum InventoryEntry {
     /// Transaction
     Tx(Hash),
@@ -3902,7 +3878,7 @@ impl DataRequestState {
         &mut self,
         pkh: PublicKeyHash,
         commit: CommitTransaction,
-    ) -> Result<(), failure::Error> {
+    ) -> Result<(), anyhow::Error> {
         if let DataRequestStage::COMMIT = self.stage {
             self.info.commits.insert(pkh, commit);
 
@@ -3917,7 +3893,7 @@ impl DataRequestState {
         &mut self,
         pkh: PublicKeyHash,
         reveal: RevealTransaction,
-    ) -> Result<(), failure::Error> {
+    ) -> Result<(), anyhow::Error> {
         if let DataRequestStage::REVEAL = self.stage {
             self.info.reveals.insert(pkh, reveal);
 
@@ -3932,7 +3908,7 @@ impl DataRequestState {
         mut self,
         tally: TallyTransaction,
         block_hash_tally_tx: &Hash,
-    ) -> Result<DataRequestInfo, failure::Error> {
+    ) -> Result<DataRequestInfo, anyhow::Error> {
         if let DataRequestStage::TALLY = self.stage {
             self.info.tally = Some(tally);
             self.info.block_hash_tally_tx = Some(*block_hash_tally_tx);
@@ -4387,11 +4363,7 @@ fn compare_reputed_pkh(
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn magic_line(x: f64, m: f64, k: f64) -> u32 {
     let res = m * x + k;
-    if res < 0_f64 {
-        0
-    } else {
-        res.round() as u32
-    }
+    if res < 0_f64 { 0 } else { res.round() as u32 }
 }
 
 /// List only those identities with reputation greater than zero
@@ -4516,7 +4488,7 @@ impl ReputationThresholdCache {
         self.trapezoid_rep = trapezoid_rep;
     }
 
-    fn get_trapezoidal_eligibility<F>(&mut self, pkh: &PublicKeyHash, gen: F) -> u32
+    fn get_trapezoidal_eligibility<F>(&mut self, pkh: &PublicKeyHash, generator: F) -> u32
     where
         F: Fn() -> (
             u64,
@@ -4526,7 +4498,8 @@ impl ReputationThresholdCache {
         ),
     {
         if !self.valid {
-            let (total_active_rep, sorted_active_rep, trapezoid_rep, sorted_identities) = gen();
+            let (total_active_rep, sorted_active_rep, trapezoid_rep, sorted_identities) =
+                generator();
             self.initialize(
                 total_active_rep,
                 sorted_active_rep,
@@ -4542,7 +4515,7 @@ impl ReputationThresholdCache {
         self.valid = false;
     }
 
-    fn threshold_factor<F>(&mut self, n: u16, gen: F) -> u32
+    fn threshold_factor<F>(&mut self, n: u16, generator: F) -> u32
     where
         F: Fn() -> (
             u64,
@@ -4552,7 +4525,8 @@ impl ReputationThresholdCache {
         ),
     {
         if !self.valid {
-            let (total_active_rep, sorted_active_rep, trapezoid_rep, sorted_identities) = gen();
+            let (total_active_rep, sorted_active_rep, trapezoid_rep, sorted_identities) =
+                generator();
             self.initialize(
                 total_active_rep,
                 sorted_active_rep,
@@ -4577,7 +4551,7 @@ impl ReputationThresholdCache {
         })
     }
 
-    fn total_active_reputation<F>(&mut self, gen: F) -> u64
+    fn total_active_reputation<F>(&mut self, generator: F) -> u64
     where
         F: Fn() -> (
             u64,
@@ -4587,7 +4561,8 @@ impl ReputationThresholdCache {
         ),
     {
         if !self.valid {
-            let (total_active_rep, sorted_active_rep, trapezoid_rep, sorted_identities) = gen();
+            let (total_active_rep, sorted_active_rep, trapezoid_rep, sorted_identities) =
+                generator();
             self.initialize(
                 total_active_rep,
                 sorted_active_rep,
@@ -4599,7 +4574,7 @@ impl ReputationThresholdCache {
         self.total_active_rep
     }
 
-    fn get_rep_ordered_ars_list<F>(&mut self, gen: F) -> &[PublicKeyHash]
+    fn get_rep_ordered_ars_list<F>(&mut self, generator: F) -> &[PublicKeyHash]
     where
         F: Fn() -> (
             u64,
@@ -4609,7 +4584,8 @@ impl ReputationThresholdCache {
         ),
     {
         if !self.valid {
-            let (total_active_rep, sorted_active_rep, trapezoid_rep, sorted_identities) = gen();
+            let (total_active_rep, sorted_active_rep, trapezoid_rep, sorted_identities) =
+                generator();
             self.initialize(
                 total_active_rep,
                 sorted_active_rep,
@@ -4924,14 +4900,14 @@ pub fn block_example() -> Block {
 #[cfg(test)]
 mod tests {
     use witnet_crypto::{
-        merkle::{merkle_tree_root, InclusionProof},
+        merkle::{InclusionProof, merkle_tree_root},
         secp256k1::{PublicKey as Secp256k1_PublicKey, SecretKey as Secp256k1_SecretKey},
         signature::sign,
     };
 
     use crate::{
         proto::versioning::{ProtocolVersion, VersionedHashable},
-        superblock::{mining_build_superblock, ARSIdentities},
+        superblock::{ARSIdentities, mining_build_superblock},
         transaction::{CommitTransactionBody, RevealTransactionBody, VTTransactionBody},
     };
 
@@ -4956,13 +4932,15 @@ mod tests {
                 })
                 .collect();
             let proof = InclusionProof::sha256(result.index, lemma);
-            assert!(proof.verify(
-                dr_txs[index]
-                    .body
-                    .data_poi_hash(ProtocolVersion::default())
-                    .into(),
-                sb.data_request_root.into()
-            ));
+            assert!(
+                proof.verify(
+                    dr_txs[index]
+                        .body
+                        .data_poi_hash(ProtocolVersion::default())
+                        .into(),
+                    sb.data_request_root.into()
+                )
+            );
         }
     }
 
@@ -5395,8 +5373,8 @@ mod tests {
     fn secp256k1_from_into_secpk256k1_signatures() {
         use crate::chain::Secp256k1Signature;
         use witnet_crypto::secp256k1::{
-            ecdsa::Signature as Secp256k1_Signature, Message as Secp256k1_Message, Secp256k1,
-            SecretKey as Secp256k1_SecretKey,
+            Message as Secp256k1_Message, Secp256k1, SecretKey as Secp256k1_SecretKey,
+            ecdsa::Signature as Secp256k1_Signature,
         };
 
         let data = [0xab; 32];
@@ -5416,8 +5394,8 @@ mod tests {
     fn secp256k1_from_into_signatures() {
         use crate::chain::Signature;
         use witnet_crypto::secp256k1::{
-            ecdsa::Signature as Secp256k1_Signature, Message as Secp256k1_Message, Secp256k1,
-            SecretKey as Secp256k1_SecretKey,
+            Message as Secp256k1_Message, Secp256k1, SecretKey as Secp256k1_SecretKey,
+            ecdsa::Signature as Secp256k1_Signature,
         };
 
         let data = [0xab; 32];
@@ -7658,9 +7636,11 @@ mod tests {
 
         // Insert commit
         tx_pool.insert(Transaction::Commit(c.clone()), 1);
-        assert!(tx_pool
-            .commit_contains(&dr_pointer, &pkh, &c.hash())
-            .unwrap());
+        assert!(
+            tx_pool
+                .commit_contains(&dr_pointer, &pkh, &c.hash())
+                .unwrap()
+        );
 
         // Create reveal
         let mut r = RevealTransaction::default();
@@ -7669,19 +7649,25 @@ mod tests {
 
         // Insert reveal
         tx_pool.insert(Transaction::Reveal(r.clone()), 1);
-        assert!(tx_pool
-            .reveal_contains(&dr_pointer, &pkh, &r.hash())
-            .unwrap());
+        assert!(
+            tx_pool
+                .reveal_contains(&dr_pointer, &pkh, &r.hash())
+                .unwrap()
+        );
 
         let _x = tx_pool.remove_unconfirmed_transactions();
 
         // Ensure there are no commits and reveals after 'remove_unconfirmed_transactions' call
-        assert!(!tx_pool
-            .commit_contains(&dr_pointer, &pkh, &c.hash())
-            .unwrap());
-        assert!(!tx_pool
-            .reveal_contains(&dr_pointer, &pkh, &r.hash())
-            .unwrap());
+        assert!(
+            !tx_pool
+                .commit_contains(&dr_pointer, &pkh, &c.hash())
+                .unwrap()
+        );
+        assert!(
+            !tx_pool
+                .reveal_contains(&dr_pointer, &pkh, &r.hash())
+                .unwrap()
+        );
     }
 
     #[test]

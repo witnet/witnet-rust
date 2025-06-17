@@ -18,7 +18,7 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
 
 use actix::prelude::*;
-use failure::Error;
+use anyhow::Error;
 
 use witnet_config::config::Config;
 use witnet_data_structures::{
@@ -113,7 +113,7 @@ pub fn run(conf: Config) -> Result<(), Error> {
 
     let db = Arc::new(
         ::rocksdb::DB::open(&rocksdb_opts, db_path.join(db_file_name))
-            .map_err(|e| failure::format_err!("{}", e))?,
+            .map_err(|e| anyhow::format_err!("{}", e))?,
     );
 
     // Run setup logic for smart retrievals, aka paranoid witnessing.

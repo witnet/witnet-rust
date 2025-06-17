@@ -27,10 +27,10 @@ pub fn verify(public_key: &PublicKey, data: &[u8], sig: &Signature) -> Result<()
 #[cfg(test)]
 mod tests {
     use crate::{
-        hash::{calculate_sha256, Sha256},
+        hash::{Sha256, calculate_sha256},
         signature::{sign, verify},
     };
-    use secp256k1::{ecdsa::Signature, PublicKey, SecretKey};
+    use secp256k1::{PublicKey, SecretKey, ecdsa::Signature};
 
     #[test]
     fn test_sign_and_verify() {

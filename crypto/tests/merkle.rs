@@ -1,6 +1,6 @@
-use witnet_crypto::hash::{calculate_sha256, Sha256};
+use witnet_crypto::hash::{Sha256, calculate_sha256};
 use witnet_crypto::merkle::{
-    merkle_tree_root, FullMerkleTree, InclusionProof, ProgressiveMerkleTree,
+    FullMerkleTree, InclusionProof, ProgressiveMerkleTree, merkle_tree_root,
 };
 
 #[test]

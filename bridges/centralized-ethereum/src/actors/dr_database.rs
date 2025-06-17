@@ -1,6 +1,6 @@
 use actix::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::{cmp, collections::hash_map::Entry, collections::HashMap, fmt, future::Future};
+use std::{cmp, collections::HashMap, collections::hash_map::Entry, fmt, future::Future};
 use web3::{ethabi::Bytes, types::U256};
 use witnet_data_structures::chain::Hash;
 use witnet_node::{storage_mngr, utils::stop_system_if_panicking};
@@ -24,7 +24,7 @@ impl Drop for DrDatabase {
 
 impl DrDatabase {
     // Persist Data Request Database
-    fn persist(&mut self) -> impl Future<Output = ()> {
+    fn persist(&mut self) -> impl Future<Output = ()> + use<> {
         let f = storage_mngr::put(&BRIDGE_DB_KEY, self);
 
         async move {

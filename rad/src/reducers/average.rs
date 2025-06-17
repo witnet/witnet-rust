@@ -4,7 +4,7 @@ use crate::{
     error::RadError,
     operators::{array as array_operators, float as float_operators},
     reducers::RadonReducers,
-    types::{array::RadonArray, float::RadonFloat, integer::RadonInteger, RadonType, RadonTypes},
+    types::{RadonType, RadonTypes, array::RadonArray, float::RadonFloat, integer::RadonInteger},
 };
 
 /// Different available policies regarding what to do with the resulting Float after applying the

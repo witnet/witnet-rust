@@ -9,22 +9,22 @@ use itertools::Itertools;
 
 use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
 use witnet_crypto::{
-    hash::{calculate_sha256, Sha256},
-    merkle::{merkle_tree_root as crypto_merkle_tree_root, ProgressiveMerkleTree},
-    signature::{verify, PublicKey, Signature},
+    hash::{Sha256, calculate_sha256},
+    merkle::{ProgressiveMerkleTree, merkle_tree_root as crypto_merkle_tree_root},
+    signature::{PublicKey, Signature, verify},
 };
 use witnet_data_structures::{
     chain::{
-        tapi::ActiveWips, Block, BlockMerkleRoots, CheckpointBeacon, CheckpointVRF,
-        ConsensusConstants, ConsensusConstantsWit2, DataRequestOutput, DataRequestStage,
-        DataRequestState, Epoch, EpochConstants, Hash, Hashable, Input, KeyedSignature,
-        OutputPointer, PublicKeyHash, RADRequest, RADTally, RADType, Reputation, ReputationEngine,
-        SignaturesToVerify, StakeOutput, ValueTransferOutput,
+        Block, BlockMerkleRoots, CheckpointBeacon, CheckpointVRF, ConsensusConstants,
+        ConsensusConstantsWit2, DataRequestOutput, DataRequestStage, DataRequestState, Epoch,
+        EpochConstants, Hash, Hashable, Input, KeyedSignature, OutputPointer, PublicKeyHash,
+        RADRequest, RADTally, RADType, Reputation, ReputationEngine, SignaturesToVerify,
+        StakeOutput, ValueTransferOutput, tapi::ActiveWips,
     },
     data_request::{
-        calculate_reward_collateral_ratio, calculate_tally_change, calculate_witness_reward,
-        calculate_witness_reward_before_second_hard_fork, create_tally,
-        data_request_has_too_many_witnesses, DataRequestPool,
+        DataRequestPool, calculate_reward_collateral_ratio, calculate_tally_change,
+        calculate_witness_reward, calculate_witness_reward_before_second_hard_fork, create_tally,
+        data_request_has_too_many_witnesses,
     },
     error::{BlockError, DataRequestError, TransactionError},
     get_protocol_version, get_protocol_version_activation_epoch,
@@ -49,7 +49,7 @@ use witnet_rad::{
     error::RadError,
     operators::RadonOpCodes,
     script::{create_radon_script_from_filters_and_reducer, unpack_radon_script},
-    types::{serial_iter_decode, RadonTypes},
+    types::{RadonTypes, serial_iter_decode},
 };
 
 use crate::eligibility::{
@@ -71,7 +71,7 @@ pub fn vt_transaction_fee(
     utxo_diff: &UtxoDiff<'_>,
     epoch: Epoch,
     epoch_constants: EpochConstants,
-) -> Result<u64, failure::Error> {
+) -> Result<u64, anyhow::Error> {
     let in_value = transaction_inputs_sum(&vt_tx.body.inputs, utxo_diff, epoch, epoch_constants)?;
     let out_value = transaction_outputs_sum(&vt_tx.body.outputs)?;
 
@@ -93,7 +93,7 @@ pub fn dr_transaction_fee(
     utxo_diff: &UtxoDiff<'_>,
     epoch: Epoch,
     epoch_constants: EpochConstants,
-) -> Result<u64, failure::Error> {
+) -> Result<u64, anyhow::Error> {
     let in_value = transaction_inputs_sum(&dr_tx.body.inputs, utxo_diff, epoch, epoch_constants)?;
     let out_value = transaction_outputs_sum(&dr_tx.body.outputs)?
         .checked_add(dr_tx.body.dr_output.checked_total_value()?)
@@ -114,7 +114,7 @@ pub fn st_transaction_fee(
     utxo_diff: &UtxoDiff<'_>,
     epoch: Epoch,
     epoch_constants: EpochConstants,
-) -> Result<u64, failure::Error> {
+) -> Result<u64, anyhow::Error> {
     let in_value = transaction_inputs_sum(&st_tx.body.inputs, utxo_diff, epoch, epoch_constants)?;
     let out_value = st_tx.body.output.value;
     let change_value = match &st_tx.body.change {
@@ -137,7 +137,7 @@ pub fn st_transaction_fee(
 pub fn ut_transaction_fee(
     ut_tx: &UnstakeTransaction,
     staked_amount: u64,
-) -> Result<u64, failure::Error> {
+) -> Result<u64, anyhow::Error> {
     let out_value = ut_tx.body.value();
     let fee_value = ut_tx.body.fee;
 
@@ -167,7 +167,7 @@ pub fn validate_commit_collateral(
     protocol_version: ProtocolVersion,
     stakes: &StakesTracker,
     min_stake: u64,
-) -> Result<(), failure::Error> {
+) -> Result<(), anyhow::Error> {
     let block_number_limit = block_number.saturating_sub(collateral_age);
     let commit_pkh = co_tx.body.proof.proof.pkh();
     let mut in_value: u64 = 0;
@@ -320,7 +320,7 @@ pub fn validate_mint_transaction(
     block_epoch: Epoch,
     initial_block_reward: u64,
     halving_period: u32,
-) -> Result<(), failure::Error> {
+) -> Result<(), anyhow::Error> {
     // Mint epoch must be equal to block epoch
     if mint_tx.epoch != block_epoch {
         return Err(BlockError::InvalidMintEpoch {
@@ -371,7 +371,7 @@ pub fn validate_mint_transaction(
 pub fn validate_rad_request(
     rad_request: &RADRequest,
     active_wips: &ActiveWips,
-) -> Result<(), failure::Error> {
+) -> Result<(), anyhow::Error> {
     let retrieval_paths = &rad_request.retrieve;
     // If the data request has no sources to retrieve, it is set as invalid
     if retrieval_paths.is_empty() {
@@ -430,7 +430,7 @@ pub fn validate_vt_transaction<'a>(
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
     max_vt_weight: u32,
     protocol_version: Option<ProtocolVersion>,
-) -> Result<(Vec<&'a Input>, Vec<&'a ValueTransferOutput>, u64), failure::Error> {
+) -> Result<(Vec<&'a Input>, Vec<&'a ValueTransferOutput>, u64), anyhow::Error> {
     let protocol_version = protocol_version.unwrap_or_default();
     if vt_tx.weight() > max_vt_weight {
         return Err(TransactionError::ValueTransferWeightLimitExceeded {
@@ -527,7 +527,7 @@ pub fn validate_dr_transaction<'a>(
     required_reward_collateral_ratio: u64,
     active_wips: &ActiveWips,
     protocol_version: Option<ProtocolVersion>,
-) -> Result<(Vec<&'a Input>, Vec<&'a ValueTransferOutput>, u64), failure::Error> {
+) -> Result<(Vec<&'a Input>, Vec<&'a ValueTransferOutput>, u64), anyhow::Error> {
     if dr_tx.weight() > max_dr_weight {
         return Err(TransactionError::DataRequestWeightLimitExceeded {
             weight: dr_tx.weight(),
@@ -684,7 +684,7 @@ pub fn validate_commit_transaction(
     stakes: &StakesTracker,
     max_rounds: u16,
     min_stake: u64,
-) -> Result<(Hash, u16, u64), failure::Error> {
+) -> Result<(Hash, u16, u64), anyhow::Error> {
     // Get DataRequest information
     let dr_pointer = co_tx.body.dr_pointer;
     let dr_state = dr_pool
@@ -835,7 +835,7 @@ pub fn validate_reveal_transaction(
     re_tx: &RevealTransaction,
     dr_pool: &DataRequestPool,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
-) -> Result<u64, failure::Error> {
+) -> Result<u64, anyhow::Error> {
     // Get DataRequest information
     let dr_pointer = re_tx.body.dr_pointer;
     let dr_state = dr_pool
@@ -969,7 +969,7 @@ fn create_expected_tally_transaction(
     active_wips: &ActiveWips,
     too_many_witnesses: bool,
     protocol_version: ProtocolVersion,
-) -> Result<(TallyTransaction, DataRequestState), failure::Error> {
+) -> Result<(TallyTransaction, DataRequestState), anyhow::Error> {
     // Get DataRequestState
     let dr_pointer = ta_tx.dr_pointer;
     let dr_state = dr_pool
@@ -1048,7 +1048,7 @@ pub fn validate_tally_transaction<'a>(
     data_requests_with_too_many_witnesses: &HashSet<Hash>,
     validator_count: Option<usize>,
     protocol_version: ProtocolVersion,
-) -> Result<(Vec<&'a ValueTransferOutput>, u64), failure::Error> {
+) -> Result<(Vec<&'a ValueTransferOutput>, u64), anyhow::Error> {
     let validator_count =
         validator_count.unwrap_or(witnet_data_structures::DEFAULT_VALIDATOR_COUNT_FOR_TESTS);
     let too_many_witnesses;
@@ -1374,7 +1374,7 @@ pub fn validate_stake_transaction<'a>(
     stakes: &StakesTracker,
     min_stake_nanowits: u64,
     max_stake_nanowits: u64,
-) -> Result<ValidatedStakeTransaction<'a>, failure::Error> {
+) -> Result<ValidatedStakeTransaction<'a>, anyhow::Error> {
     if get_protocol_version(Some(epoch)) == ProtocolVersion::V1_7 {
         return Err(TransactionError::NoStakeTransactionsAllowed.into());
     }
@@ -1466,7 +1466,7 @@ pub fn validate_unstake_transaction<'a>(
     stakes: &StakesTracker,
     min_stake_nanowits: u64,
     unstake_delay: u64,
-) -> Result<(u64, u32, Vec<&'a ValueTransferOutput>), failure::Error> {
+) -> Result<(u64, u32, Vec<&'a ValueTransferOutput>), anyhow::Error> {
     if get_protocol_version(Some(epoch)) <= ProtocolVersion::V1_8 {
         return Err(TransactionError::NoUnstakeTransactionsAllowed.into());
     }
@@ -1546,7 +1546,7 @@ pub fn validate_unstake_transaction<'a>(
 pub fn validate_unstake_timelock(
     ut_tx: &UnstakeTransaction,
     unstake_delay: u64,
-) -> Result<(), failure::Error> {
+) -> Result<(), anyhow::Error> {
     if ut_tx.body.withdrawal.time_lock < unstake_delay {
         return Err(TransactionError::InvalidUnstakeTimelock {
             time_lock: ut_tx.body.withdrawal.time_lock,
@@ -1562,7 +1562,7 @@ pub fn validate_unstake_timelock(
 pub fn validate_unstake_signature(
     ut_tx: &UnstakeTransaction,
     operator: PublicKeyHash,
-) -> Result<(), failure::Error> {
+) -> Result<(), anyhow::Error> {
     let ut_tx_pkh = ut_tx.signature.public_key.pkh();
     if ut_tx_pkh != ut_tx.body.withdrawal.pkh {
         return Err(TransactionError::InvalidUnstakeSignature {
@@ -1576,7 +1576,7 @@ pub fn validate_unstake_signature(
     // Validate message body and signature
     let Hash::SHA256(message) = ut_tx.hash();
 
-    let fte = |e: failure::Error| TransactionError::VerifyTransactionSignatureFail {
+    let fte = |e: anyhow::Error| TransactionError::VerifyTransactionSignatureFail {
         hash: ut_tx.hash(),
         msg: e.to_string(),
     };
@@ -1602,7 +1602,7 @@ pub fn validate_unstake_signature(
 pub fn validate_block_signature(
     block: &Block,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
-) -> Result<(), failure::Error> {
+) -> Result<(), anyhow::Error> {
     let proof_pkh = block.block_header.proof.proof.pkh();
     let signature_pkh = block.block_sig.public_key.pkh();
     if proof_pkh != signature_pkh {
@@ -1632,7 +1632,7 @@ pub fn validate_pkh_signature(
     input: &Input,
     keyed_signature: &KeyedSignature,
     utxo_diff: &UtxoDiff<'_>,
-) -> Result<(), failure::Error> {
+) -> Result<(), anyhow::Error> {
     let output = utxo_diff.get(input.output_pointer());
     if let Some(x) = output {
         let signature_pkh = PublicKeyHash::from_public_key(&keyed_signature.public_key);
@@ -1715,7 +1715,7 @@ pub fn validate_commit_reveal_signature<'a>(
     tx_hash: Hash,
     signatures: &'a [KeyedSignature],
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
-) -> Result<&'a KeyedSignature, failure::Error> {
+) -> Result<&'a KeyedSignature, anyhow::Error> {
     let tx_keyed_signature = signatures
         .first()
         .ok_or(TransactionError::SignatureNotFound)?;
@@ -1731,7 +1731,7 @@ pub fn validate_commit_reveal_signature<'a>(
 
     let Hash::SHA256(message) = tx_hash;
 
-    let fte = |e: failure::Error| TransactionError::VerifyTransactionSignatureFail {
+    let fte = |e: anyhow::Error| TransactionError::VerifyTransactionSignatureFail {
         hash: tx_hash,
         msg: e.to_string(),
     };
@@ -1759,7 +1759,7 @@ pub fn validate_transaction_signature(
     tx_hash: Hash,
     utxo_set: &UtxoDiff<'_>,
     signatures_to_verify: &mut Vec<SignaturesToVerify>,
-) -> Result<(), failure::Error> {
+) -> Result<(), anyhow::Error> {
     if signatures.len() != inputs.len() {
         return Err(TransactionError::MismatchingSignaturesNumber {
             signatures_n: u8::try_from(signatures.len())?,
@@ -1775,7 +1775,7 @@ pub fn validate_transaction_signature(
     for (input, keyed_signature) in inputs.iter().zip(signatures.iter()) {
         // Helper function to map errors to include transaction hash and input
         // index, as well as the error message.
-        let fte = |e: failure::Error| TransactionError::VerifyTransactionSignatureFail {
+        let fte = |e: anyhow::Error| TransactionError::VerifyTransactionSignatureFail {
             hash: tx_hash,
             msg: e.to_string(),
         };
@@ -1924,7 +1924,7 @@ pub fn validate_block_transactions(
     active_wips: &ActiveWips,
     mut visitor: Option<&mut dyn Visitor<Visitable = (Transaction, u64, u32)>>,
     stakes: &StakesTracker,
-) -> Result<Diff, failure::Error> {
+) -> Result<Diff, anyhow::Error> {
     let epoch = block.block_header.beacon.checkpoint;
     let is_genesis = block.is_genesis(&consensus_constants.genesis_hash);
     let mut utxo_diff = UtxoDiff::new(utxo_set, block_number);
@@ -2512,7 +2512,7 @@ pub fn validate_block(
     stakes: &StakesTracker,
     protocol_version: ProtocolVersion,
     replication_factor: u16,
-) -> Result<(), failure::Error> {
+) -> Result<(), anyhow::Error> {
     let block_epoch = block.block_header.beacon.checkpoint;
     let hash_prev_block = block.block_header.beacon.hash_prev_block;
 
@@ -2647,7 +2647,7 @@ pub fn validate_new_transaction(
     protocol_version: ProtocolVersion,
     max_rounds: u16,
     consensus_constants_wit2: &ConsensusConstantsWit2,
-) -> Result<u64, failure::Error> {
+) -> Result<u64, anyhow::Error> {
     let utxo_diff = UtxoDiff::new(unspent_outputs_pool, block_number);
     let min_stake = consensus_constants_wit2.get_validator_min_stake_nanowits(current_epoch);
     let max_stake = consensus_constants_wit2.get_validator_max_stake_nanowits(current_epoch);
@@ -2867,7 +2867,7 @@ pub fn compare_block_candidates(
 pub fn verify_signatures(
     signatures_to_verify: Vec<SignaturesToVerify>,
     vrf: &mut VrfCtx,
-) -> Result<Vec<Hash>, failure::Error> {
+) -> Result<Vec<Hash>, anyhow::Error> {
     let mut vrf_hashes = vec![];
     for signature in signatures_to_verify {
         match signature {

@@ -6,7 +6,7 @@ use actix::{Handler, ResponseFuture};
 use futures::FutureExt;
 use witnet_data_structures::radon_report::{RadonReport, ReportContext, RetrievalMetadata, Stage};
 use witnet_rad::{
-    conditions::{evaluate_tally_precondition_clause, TallyPreconditionClauseResult},
+    conditions::{TallyPreconditionClauseResult, evaluate_tally_precondition_clause},
     error::RadError,
     script::RadonScriptExecutionSettings,
     types::RadonTypes,
@@ -152,7 +152,7 @@ impl Handler<RunTally> for RadManager {
 mod tests {
     use actix::{Actor, MailboxError, Message};
     use witnet_data_structures::chain::{
-        tapi::all_wips_active, RADAggregate, RADRequest, RADRetrieve, RADTally, RADType,
+        RADAggregate, RADRequest, RADRetrieve, RADTally, RADType, tapi::all_wips_active,
     };
     use witnet_rad::reducers::RadonReducers;
 

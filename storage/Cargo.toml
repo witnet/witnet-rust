@@ -3,11 +3,12 @@ name = "witnet_storage"
 version = "0.3.2"
 authors = ["Witnet Foundation <info@witnet.foundation>"]
 workspace = ".."
-edition = "2021"
+edition = "2024"
 description = "Witnet storage module that conveniently abstracts a key/value API away from specific storage backends"
 
 [dependencies]
-failure = "0.1.8"
+anyhow = "1.0.98"
+thiserror = "2.0.12"
 rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb.git", rev = "55d68c30c8d5a1924b794678d9f468f3559c2685", optional = true }
 
 [features]

@@ -1,4 +1,4 @@
-use witnet_data_structures::chain::{tapi::ActiveWips, Hash, PublicKeyHash, ReputationEngine};
+use witnet_data_structures::chain::{Hash, PublicKeyHash, ReputationEngine, tapi::ActiveWips};
 
 /// Calculate the target hash needed to create a valid VRF proof of eligibility used for block
 /// mining.

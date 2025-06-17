@@ -2,23 +2,22 @@
 
 #[cfg(test)]
 use std::cell::Cell;
-use std::io;
 use std::path::Path;
 
-use failure::Fail;
+use thiserror::Error;
 
 use crate::config::PartialConfig;
 
 /// `toml::de::Error`, but loading that configuration from a file
 /// might also fail with a `std::io::Error`.
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub enum Error {
     /// There was an error when trying to load configuration from a file.
-    #[fail(display = "Error reading config file: {}", _0)]
-    IOError(io::Error),
+    #[error("Error reading config file: {0}")]
+    IOError(std::io::Error),
     /// Indicates there was an error when trying to build a
     /// `witnet_config::config::PartialConfig` instance out of the Toml string given.
-    #[fail(display = "Error parsing config file: {}", _0)]
+    #[error("Error parsing config file: {0}")]
     ParseError(toml::de::Error),
 }
 
@@ -34,7 +33,7 @@ pub fn from_file<S: AsRef<Path>>(file: S) -> Result<PartialConfig, Error> {
 }
 
 #[cfg(not(test))]
-fn read_file_contents(file: &Path, contents: &mut String) -> io::Result<usize> {
+fn read_file_contents(file: &Path, contents: &mut String) -> std::io::Result<usize> {
     use std::fs::File;
     use std::io::Read;
 
@@ -51,7 +50,7 @@ pub fn from_str(contents: &str) -> Result<PartialConfig, toml::de::Error> {
 thread_local!(static FILE_CONTENTS: Cell<&'static str> = const { Cell::new("") });
 
 #[cfg(test)]
-fn read_file_contents(_filename: &Path, contents: &mut String) -> io::Result<usize> {
+fn read_file_contents(_filename: &Path, contents: &mut String) -> std::io::Result<usize> {
     FILE_CONTENTS.with(|cell| {
         let value = cell.get();
         contents.insert_str(0, value);

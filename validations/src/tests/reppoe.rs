@@ -1,9 +1,8 @@
 use approx::assert_abs_diff_eq;
 use witnet_data_structures::{
     chain::{
-        calculate_backup_witnesses,
-        tapi::{current_active_wips, ActiveWips},
-        Alpha, Hash, PublicKeyHash, Reputation, ReputationEngine,
+        Alpha, Hash, PublicKeyHash, Reputation, ReputationEngine, calculate_backup_witnesses,
+        tapi::{ActiveWips, current_active_wips},
     },
     transaction::DRTransaction,
 };
@@ -183,31 +182,45 @@ fn target_reppoe_specific_example_v1() {
 
     assert_eq!(
         rep_thresholds(1),
-        vec![280_000, 230_000, 190_000, 50_000, 140_000, 90_000, 10_000, 10_000]
+        vec![
+            280_000, 230_000, 190_000, 50_000, 140_000, 90_000, 10_000, 10_000
+        ]
     );
     assert_eq!(
         rep_thresholds(2),
-        vec![560_000, 460_000, 380_000, 100_000, 280_000, 180_000, 20_000, 20_000]
+        vec![
+            560_000, 460_000, 380_000, 100_000, 280_000, 180_000, 20_000, 20_000
+        ]
     );
     assert_eq!(
         rep_thresholds(3),
-        vec![840_000, 690_000, 570_000, 150_000, 420_000, 270_000, 30_000, 30_000]
+        vec![
+            840_000, 690_000, 570_000, 150_000, 420_000, 270_000, 30_000, 30_000
+        ]
     );
     assert_eq!(
         rep_thresholds(4),
-        vec![1_000_000, 1_000_000, 950_000, 250_000, 700_000, 450_000, 50_000, 50_000]
+        vec![
+            1_000_000, 1_000_000, 950_000, 250_000, 700_000, 450_000, 50_000, 50_000
+        ]
     );
     assert_eq!(
         rep_thresholds(5),
-        vec![1_000_000, 1_000_000, 1_000_000, 350_000, 980_000, 630_000, 70_000, 70_000]
+        vec![
+            1_000_000, 1_000_000, 1_000_000, 350_000, 980_000, 630_000, 70_000, 70_000
+        ]
     );
     assert_eq!(
         rep_thresholds(6),
-        vec![1_000_000, 1_000_000, 1_000_000, 750_000, 1_000_000, 1_000_000, 150_000, 150_000]
+        vec![
+            1_000_000, 1_000_000, 1_000_000, 750_000, 1_000_000, 1_000_000, 150_000, 150_000
+        ]
     );
     assert_eq!(
         rep_thresholds(7),
-        vec![1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 500_000, 500_000]
+        vec![
+            1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 500_000, 500_000
+        ]
     );
     assert_eq!(rep_thresholds(8), vec![1_000_000; 8]);
     assert_eq!(rep_thresholds(9), vec![1_000_000; 8]);

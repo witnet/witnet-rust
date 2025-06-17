@@ -3,7 +3,7 @@ use crate::{
     hash_functions::RadonHashFunctions,
     operators::bytes as bytes_operators,
     reducers::RadonReducers,
-    types::{array::RadonArray, bytes::RadonBytes, RadonType, RadonTypes},
+    types::{RadonType, RadonTypes, array::RadonArray, bytes::RadonBytes},
 };
 use serde_cbor::value::Value;
 

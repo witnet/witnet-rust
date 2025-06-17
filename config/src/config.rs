@@ -43,7 +43,7 @@ use std::{
     net::SocketAddr, path::PathBuf, time::Duration,
 };
 
-use serde::{de, Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, de};
 
 use partial_struct::PartialStruct;
 use witnet_crypto::hash::HashFunction;
@@ -1175,7 +1175,9 @@ impl Witnessing {
                 self.paranoid_percentage
             )
         } else if !self.allow_unproxied {
-            panic!("Unproxied retrieval is disabled through configuration, but no proxy addresses have been configured. At least one HTTP transport needs to be enabled. Please either set the `connections.unproxied_retrieval` setting to `true` or add the address of at least one proxy in `connections.retrieval_proxies`.")
+            panic!(
+                "Unproxied retrieval is disabled through configuration, but no proxy addresses have been configured. At least one HTTP transport needs to be enabled. Please either set the `connections.unproxied_retrieval` setting to `true` or add the address of at least one proxy in `connections.retrieval_proxies`."
+            )
         }
 
         // If unproxied retrievals is enabled, inject a `None` at the beginning, standing for the

@@ -1,30 +1,30 @@
-use failure::Fail;
 use jsonrpc_core as rpc;
 use serde_json::json;
+use thiserror::Error;
 
 use witnet_net::client::tcp;
 
 use crate::{actors, crypto, repository};
 
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub enum Error {
-    #[fail(display = "validation error ({:?})", _0)]
+    #[error("validation error ({0:?})")]
     Validation(ValidationErrors),
-    #[fail(display = "internal error: {}", _0)]
-    Internal(#[cause] failure::Error),
-    #[fail(display = "JsonRPC timeout error")]
+    #[error("internal error: {0}")]
+    Internal(anyhow::Error),
+    #[error("JsonRPC timeout error")]
     JsonRpcTimeout,
-    #[fail(display = "node error: {}", _0)]
-    Node(#[cause] failure::Error),
-    #[fail(display = "wallet is not connected to a node")]
+    #[error("node error: {0}")]
+    Node(anyhow::Error),
+    #[error("wallet is not connected to a node")]
     NodeNotConnected,
-    #[fail(display = "session not found")]
+    #[error("session not found")]
     SessionNotFound,
-    #[fail(display = "session(s) are still open")]
+    #[error("session(s) are still open")]
     SessionsStillOpen,
-    #[fail(display = "wallet not found")]
+    #[error("wallet not found")]
     WalletNotFound,
-    #[fail(display = "wallet with id {} already exists", _0)]
+    #[error("wallet with id {0} already exists")]
     WalletAlreadyExists(String),
 }
 
@@ -75,13 +75,13 @@ pub fn validation_error(err: ValidationErrors) -> Error {
 }
 
 /// Helper function to simplify .map_err on internal errors.
-pub fn internal_error<T: Fail>(err: T) -> Error {
-    Error::Internal(failure::Error::from(err))
+pub fn internal_error<T: std::error::Error + Send + Sync + 'static>(err: T) -> Error {
+    Error::Internal(anyhow::Error::from(err))
 }
 
 /// Helper function to simplify .map_err on node errors.
-pub fn node_error<T: Fail>(err: T) -> Error {
-    Error::Node(failure::Error::from(err))
+pub fn node_error<T: std::error::Error + Send + Sync + 'static>(err: T) -> Error {
+    Error::Node(anyhow::Error::from(err))
 }
 
 impl From<Error> for rpc::Error {

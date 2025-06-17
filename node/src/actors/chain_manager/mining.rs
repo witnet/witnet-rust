@@ -4,8 +4,8 @@ use std::{
     future,
     future::Future,
     sync::{
-        atomic::{self, AtomicU16},
         Arc,
+        atomic::{self, AtomicU16},
     },
 };
 
@@ -14,18 +14,20 @@ use actix::{
     WrapFuture,
 };
 use ansi_term::Color::{White, Yellow};
-use futures::future::{try_join_all, FutureExt};
+use futures::future::{FutureExt, try_join_all};
 
 use witnet_data_structures::{
+    DEFAULT_VALIDATOR_COUNT_FOR_TESTS,
     chain::{
-        tapi::{after_second_hard_fork, ActiveWips},
         Block, BlockHeader, BlockMerkleRoots, BlockTransactions, Bn256PublicKey, CheckpointBeacon,
         CheckpointVRF, ConsensusConstantsWit2, DataRequestOutput, EpochConstants, Hash, Hashable,
         Input, PublicKeyHash, RADTally, TransactionsPool, ValueTransferOutput,
+        tapi::{ActiveWips, after_second_hard_fork},
     },
     data_request::{
-        calculate_witness_reward, calculate_witness_reward_before_second_hard_fork, create_tally,
-        data_request_has_too_many_witnesses, DataRequestPool,
+        DataRequestPool, calculate_witness_reward,
+        calculate_witness_reward_before_second_hard_fork, create_tally,
+        data_request_has_too_many_witnesses,
     },
     error::TransactionError,
     get_environment, get_protocol_version,
@@ -45,13 +47,12 @@ use witnet_data_structures::{
     utxo_pool::{UnspentOutputsPool, UtxoDiff},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim, VrfMessage},
     wit::Wit,
-    DEFAULT_VALIDATOR_COUNT_FOR_TESTS,
 };
 use witnet_futures_utils::TryFutureExt2;
 use witnet_rad::{
     conditions::radon_report_from_error,
     error::RadError,
-    types::{serial_iter_decode, RadonTypes},
+    types::{RadonTypes, serial_iter_decode},
 };
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::{
@@ -462,7 +463,11 @@ impl ChainManager {
             if protocol_version >= V2_0 {
                 // In 2_x protocol, check if we have enough stake before attempting retrieval
                 if collateral_amount > available_stake - minimum_stake {
-                    log::debug!("Mining data request: Insufficient stake, the data request needs {} Wit but we have {} left", collateral_amount, available_stake);
+                    log::debug!(
+                        "Mining data request: Insufficient stake, the data request needs {} Wit but we have {} left",
+                        collateral_amount,
+                        available_stake
+                    );
                     continue;
                 }
             } else {
@@ -477,7 +482,10 @@ impl ChainManager {
                     // The block number must be lower than this limit
                     block_number_limit,
                 ) {
-                    log::debug!("Mining data request: Insufficient collateral, the data request needs {} mature wits", collateral_amount);
+                    log::debug!(
+                        "Mining data request: Insufficient collateral, the data request needs {} mature wits",
+                        collateral_amount
+                    );
                     continue;
                 }
             }
@@ -739,7 +747,7 @@ impl ChainManager {
                         let commit_body =
                             CommitTransactionBody::new(dr_pointer, commitment, vrf_proof_dr, inputs, outputs, bn256_public_key);
 
-                        signature_mngr::sign_transaction(&commit_body, 1)
+                        signature_mngr::sign_transaction_hash(commit_body.hash(), 1)
                             .map(|res| res
                                 .map(|commit_signatures| {
                                     let commit_transaction =
@@ -773,7 +781,7 @@ impl ChainManager {
     #[allow(clippy::needless_collect)]
     fn create_tally_transactions(
         &mut self,
-    ) -> impl Future<Output = Result<Vec<TallyTransaction>, ()>> {
+    ) -> impl Future<Output = Result<Vec<TallyTransaction>, ()>> + use<> {
         let block_epoch = self.current_epoch.unwrap();
         let data_request_pool = &self.chain_state.data_request_pool;
         let collateral_minimum = self

@@ -4,7 +4,7 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use crate::{
     error::RadError,
-    types::{array::RadonArray, RadonType, RadonTypes},
+    types::{RadonType, RadonTypes, array::RadonArray},
 };
 use witnet_data_structures::radon_report::ReportContext;
 
@@ -83,8 +83,8 @@ mod tests {
     use crate::{
         current_active_wips,
         error::RadError,
-        reducers::{reduce, RadonReducers},
-        types::{array::RadonArray, float::RadonFloat, RadonTypes},
+        reducers::{RadonReducers, reduce},
+        types::{RadonTypes, array::RadonArray, float::RadonFloat},
     };
     use witnet_data_structures::radon_report::ReportContext;
 

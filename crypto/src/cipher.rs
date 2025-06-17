@@ -1,23 +1,23 @@
 //! Cipher
 use aes::Aes256;
-use block_modes::{block_padding::Pkcs7, BlockMode, Cbc};
-use failure::Fail;
-use rand::{rngs::OsRng, RngCore};
+use block_modes::{BlockMode, Cbc, block_padding::Pkcs7};
+use rand::{Error as RandError, RngCore, rngs::OsRng};
+use thiserror::Error;
 
 type Aes256Cbc = Cbc<Aes256, Pkcs7>;
 
 /// Error that can be raised when encrypting/decrypting
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub enum Error {
     /// Block mode error
-    #[fail(display = "{}", _0)]
+    #[error("{0}")]
     BlockModeError(block_modes::BlockModeError),
     /// Invalid key IV length
-    #[fail(display = "{}", _0)]
+    #[error("{0}")]
     InvalidKeyIvLength(block_modes::InvalidKeyIvLength),
     /// Wrapper for random generation errors
-    #[fail(display = "Random generation error")]
-    Rng(rand::Error),
+    #[error("Randomness generation error: {0}")]
+    Rng(RandError),
 }
 
 /// Encrypt data with AES CBC using the supplied secret
@@ -41,7 +41,7 @@ pub fn decrypt_aes_cbc(secret: &[u8], ciphertext: &[u8], iv: &[u8]) -> Result<Ve
 /// Generate a random initialization vector of the given size in bytes
 pub fn generate_random(size: usize) -> Result<Vec<u8>, Error> {
     let mut iv = vec![0u8; size];
-    OsRng.fill_bytes(&mut iv);
+    OsRng.try_fill_bytes(&mut iv).map_err(Error::Rng)?;
 
     Ok(iv)
 }

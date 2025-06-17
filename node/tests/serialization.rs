@@ -1,5 +1,5 @@
 use bincode::{deserialize, serialize};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use std::fmt::Debug;
 use witnet_data_structures::chain::*;
 

@@ -8,11 +8,11 @@ use crate::{
 use actix::prelude::*;
 use std::{convert::TryFrom, sync::Arc, time::Duration};
 use web3::{
+    Web3,
     contract::{self, Contract},
     ethabi::{Bytes, Token},
     transports::Http,
     types::U256,
-    Web3,
 };
 use witnet_node::utils::stop_system_if_panicking;
 

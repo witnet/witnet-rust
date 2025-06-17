@@ -6,8 +6,8 @@ use std::{
     path::PathBuf,
     str::FromStr,
     sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicUsize, Ordering},
     },
 };
 
@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     actors::{
-        chain_manager::{run_dr_locally, ChainManager, ChainManagerError},
+        chain_manager::{ChainManager, ChainManagerError, run_dr_locally},
         epoch_manager::{EpochManager, EpochManagerError},
         inventory_manager::{InventoryManager, InventoryManagerError},
         json_rpc::Subscriptions,
@@ -47,8 +47,8 @@ use crate::{
 use witnet_crypto::key::KeyPath;
 use witnet_data_structures::{
     chain::{
-        tapi::ActiveWips, Block, DataRequestOutput, Epoch, EpochConstants, Hash, Hashable,
-        KeyedSignature, PublicKeyHash, RADType, StakeOutput, StateMachine, SyncStatus,
+        Block, DataRequestOutput, Epoch, EpochConstants, Hash, Hashable, KeyedSignature,
+        PublicKeyHash, RADType, StakeOutput, StateMachine, SyncStatus, tapi::ActiveWips,
     },
     get_environment, get_protocol_version,
     proto::versioning::{ProtocolVersion, VersionedHashable},
@@ -495,7 +495,10 @@ fn internal_error_s<T: std::fmt::Display>(e: T) -> jsonrpc_core::Error {
 
 /// Message that appears when calling a sensitive method when sensitive methods are disabled
 fn unauthorized_message(method_name: &str) -> String {
-    format!("Method {} not allowed while node setting json_rpc.enable_sensitive_methods is set to false", method_name)
+    format!(
+        "Method {} not allowed while node setting json_rpc.enable_sensitive_methods is set to false",
+        method_name
+    )
 }
 
 /// Inventory element: block, transaction, etc
@@ -730,7 +733,7 @@ pub async fn get_block(params: Params) -> Result<Value, Error> {
             Some(_) => {
                 return Err(Error::invalid_params(
                     "Second argument of `get_block` must have type `Bool`",
-                ))
+                ));
             }
         };
     } else {
@@ -2497,7 +2500,9 @@ pub async fn get_value_transfer(params: Result<GetValueTransferParams, Error>) -
             serde_json::from_value(sync_status).map_err(internal_error)?;
 
         if sync_status.node_state != StateMachine::Synced {
-            return Err(internal_error_s("The node is not synced yet. But you can use the `force: true` flag if you know what you are doing."));
+            return Err(internal_error_s(
+                "The node is not synced yet. But you can use the `force: true` flag if you know what you are doing.",
+            ));
         }
     }
     // This method piggybacks on the `get_transaction` method for fetching all the transaction facts

@@ -42,7 +42,7 @@ impl JsonRpcServer {
     }
 
     /// Method to process the configuration received from ConfigManager
-    pub fn initialize(mut self, runtime: tokio::runtime::Handle) -> Result<Self, failure::Error> {
+    pub fn initialize(mut self, runtime: tokio::runtime::Handle) -> Result<Self, anyhow::Error> {
         let subscriptions = self.subscriptions.clone();
 
         let enabled = self.config.enabled
@@ -55,7 +55,9 @@ impl JsonRpcServer {
 
         // Do not start the server if enabled = false or no transport is configured
         if !enabled {
-            log::warn!("JSON-RPC interface explicitly disabled by configuration or no address has been configured");
+            log::warn!(
+                "JSON-RPC interface explicitly disabled by configuration or no address has been configured"
+            );
 
             return Ok(self);
         }

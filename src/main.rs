@@ -12,9 +12,6 @@ fn main() {
     let args = cli::from_args();
     if let Err(e) = cli::exec(args) {
         eprintln!("Error: {}", e);
-        for cause in e.iter_causes() {
-            eprintln!("Cause: {}", cause);
-        }
         process::exit(1);
     }
 }

@@ -3,8 +3,8 @@
 use std::{
     cmp::Ordering,
     collections::{
-        hash_map::{Entry, RandomState},
         HashMap, VecDeque,
+        hash_map::{Entry, RandomState},
     },
     hash::{BuildHasher, Hash},
     iter,

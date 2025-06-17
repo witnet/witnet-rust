@@ -1,4 +1,4 @@
-use rand::{thread_rng, Rng};
+use rand::Rng;
 use witnet_data_structures::chain::{
     DataRequestOutput, Hash, Input, KeyedSignature, OutputPointer, PublicKeyHash, RADAggregate,
     RADRequest, RADRetrieve, RADTally, RADType, Secp256k1Signature, Signature, TransactionsPool,
@@ -42,40 +42,40 @@ fn random_request() -> RADRequest {
 }
 
 fn random_dr_output() -> DataRequestOutput {
-    let mut rng = thread_rng();
+    let mut rng = rand::thread_rng();
 
     DataRequestOutput {
         data_request: random_request(),
-        witness_reward: rng.gen(),
+        witness_reward: rng.r#gen(),
         // The number of witnesses changes the RAM usage considerably
         // More witnesses = more weight = less transactions in pool = less RAM usage
         witnesses: 2,
-        commit_and_reveal_fee: rng.gen(),
-        min_consensus_percentage: rng.gen(),
-        collateral: rng.gen(),
+        commit_and_reveal_fee: rng.r#gen(),
+        min_consensus_percentage: rng.r#gen(),
+        collateral: rng.r#gen(),
     }
 }
 
 fn random_transaction() -> (Transaction, u64) {
-    let mut rng = thread_rng();
+    let mut rng = rand::thread_rng();
 
     let num_inputs = rng.gen_range(1..3);
     let num_outputs = 2;
 
     let mut inputs = vec![];
     for _ in 0..num_inputs {
-        let random_32_bytes: [u8; 32] = rng.gen();
+        let random_32_bytes: [u8; 32] = rng.r#gen();
         let transaction_id = Hash::from(random_32_bytes.to_vec());
         let output_pointer = OutputPointer {
             transaction_id,
-            output_index: rng.gen(),
+            output_index: rng.r#gen(),
         };
         inputs.push(Input::new(output_pointer));
     }
 
     let mut outputs = vec![];
     for _ in 0..num_outputs {
-        let random_20_bytes: [u8; 20] = rng.gen();
+        let random_20_bytes: [u8; 20] = rng.r#gen();
         let pkh = PublicKeyHash::from_bytes(&random_20_bytes).unwrap();
         outputs.push(ValueTransferOutput {
             pkh,
@@ -92,7 +92,7 @@ fn random_transaction() -> (Transaction, u64) {
         public_key: Default::default(),
     };
 
-    let t = if rng.gen() {
+    let t = if rng.r#gen() {
         Transaction::ValueTransfer(VTTransaction {
             body: VTTransactionBody::new(inputs, outputs),
             signatures: vec![signature; num_inputs],
@@ -105,7 +105,7 @@ fn random_transaction() -> (Transaction, u64) {
         })
     };
 
-    let fee = rng.gen();
+    let fee = rng.r#gen();
 
     (t, fee)
 }

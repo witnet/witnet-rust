@@ -3,7 +3,7 @@
 //! It acts as a single entry point for getting and putting inventory items from and into StorageManager. This creates one more degree of abstraction between how storage works and the node business logic of the app.mod actor;
 
 use crate::utils::stop_system_if_panicking;
-use failure::Fail;
+use thiserror::Error;
 use witnet_data_structures::chain::PointerToBlock;
 
 mod actor;
@@ -21,24 +21,20 @@ impl Drop for InventoryManager {
 }
 
 /// Possible errors when interacting with InventoryManager
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub enum InventoryManagerError {
     /// An item does not exist
-    #[fail(display = "Item not found")]
+    #[error("Item not found")]
     ItemNotFound,
     /// A transaction pointer exists, but the corresponding block does not
-    #[fail(
-        display = "A transaction pointer exists, but the corresponding block does not: {:?}",
-        _0
-    )]
+    #[error("A transaction pointer exists, but the corresponding block does not: {0:?}")]
     NoPointedBlock(PointerToBlock),
     /// A transaction pointer exists, but the corresponding block does not contain that transaction
-    #[fail(
-        display = "A transaction pointer exists, but the corresponding block does not contain that transaction: {:?}",
-        _0
+    #[error(
+        "A transaction pointer exists, but the corresponding block does not contain that transaction: {0:?}"
     )]
     NoTransactionInPointedBlock(PointerToBlock),
     /// MailBoxError
-    #[fail(display = "{}", _0)]
-    MailBoxError(failure::Error),
+    #[error("{0}")]
+    MailBoxError(anyhow::Error),
 }

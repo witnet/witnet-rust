@@ -14,8 +14,8 @@ use crate::{
     error::TransactionError,
     fee::{AbsoluteFee, Fee},
     transaction::{
-        DRTransactionBody, StakeTransactionBody, UnstakeTransactionBody, VTTransactionBody,
-        INPUT_SIZE,
+        DRTransactionBody, INPUT_SIZE, StakeTransactionBody, UnstakeTransactionBody,
+        VTTransactionBody,
     },
     utxo_pool::{
         NodeUtxos, NodeUtxosRef, OwnUnspentOutputsPool, UnspentOutputsPool, UtxoDiff,
@@ -488,7 +488,7 @@ pub fn get_utxos_balance(
         pkh,
         |_| {},
         |x| {
-            let vto = &x.1 .0;
+            let vto = &x.1.0;
             if vto.time_lock <= now {
                 unlocked += vto.value;
             } else {
@@ -517,11 +517,11 @@ pub fn get_total_balance(
     all_utxos.visit_with_pkh(
         pkh,
         |x| {
-            let vto = &x.1 .0;
+            let vto = &x.1.0;
             confirmed += vto.value;
         },
         |x| {
-            let vto = &x.1 .0;
+            let vto = &x.1.0;
             total += vto.value;
         },
     );
@@ -757,7 +757,7 @@ pub fn transaction_inputs_sum(
     utxo_diff: &UtxoDiff,
     epoch: Epoch,
     epoch_constants: EpochConstants,
-) -> Result<u64, failure::Error> {
+) -> Result<u64, anyhow::Error> {
     let mut total_value: u64 = 0;
     let mut seen_output_pointers = HashSet::with_capacity(inputs.len());
 
@@ -892,8 +892,8 @@ mod tests {
     use std::{
         convert::TryFrom,
         sync::{
-            atomic::{AtomicU32, Ordering},
             Arc,
+            atomic::{AtomicU32, Ordering},
         },
     };
 
@@ -1463,15 +1463,17 @@ mod tests {
             }
         );
 
-        assert!(build_vtt_tx_with_timestamp(
-            vec![pay_bob(100)],
-            Fee::default(),
-            &mut own_utxos,
-            own_pkh,
-            &all_utxos,
-            1_000_001
-        )
-        .is_ok());
+        assert!(
+            build_vtt_tx_with_timestamp(
+                vec![pay_bob(100)],
+                Fee::default(),
+                &mut own_utxos,
+                own_pkh,
+                &all_utxos,
+                1_000_001
+            )
+            .is_ok()
+        );
     }
 
     #[test]

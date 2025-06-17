@@ -5,8 +5,8 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use failure::Fail;
 use serde::{Deserialize, Deserializer, Serialize};
+use thiserror::Error;
 use witnet_crypto::{
     key::{ExtendedSK, SK},
     mnemonic,
@@ -43,11 +43,9 @@ pub type Wallet = repository::Wallet<db::EncryptedDb>;
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct SessionId(String);
 
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub enum Errors {
-    #[fail(
-        display = "Tried to construct a `SessionId` from a `SubscriptionId` that is not a `String`"
-    )]
+    #[error("Tried to construct a `SessionId` from a `SubscriptionId` that is not a `String`")]
     SubscriptionIdIsNotValidSessionId,
 }
 

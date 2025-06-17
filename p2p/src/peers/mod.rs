@@ -1,6 +1,6 @@
 //! Library for managing a list of available peers
 
-use rand::{thread_rng, Rng};
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::{
     cmp,
@@ -17,7 +17,7 @@ use witnet_crypto::hash::calculate_sha256;
 use witnet_util::timestamp::get_timestamp;
 
 /// Peer information being used while listing available Witnet peers
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PeerInfo {
     /// The socket address for a potential peer
     pub address: SocketAddr,
@@ -26,7 +26,7 @@ pub struct PeerInfo {
 }
 
 /// Peers TBD
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct Peers {
     /// Flag whether the chain is bootstrapped, specially with regards to ice period
     pub bootstrapped: bool,
@@ -55,7 +55,7 @@ impl Default for Peers {
             ice_period: safe_ice_period_default(),
             new_bucket: Default::default(),
             server_address: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 0),
-            sk: thread_rng().gen(),
+            sk: rand::thread_rng().r#gen(),
             tried_bucket: Default::default(),
         }
     }
@@ -191,7 +191,7 @@ impl Peers {
         &mut self,
         addrs: Vec<SocketAddr>,
         src_address: Option<SocketAddr>,
-    ) -> Result<Vec<SocketAddr>, failure::Error> {
+    ) -> Result<Vec<SocketAddr>, anyhow::Error> {
         // Insert address
         // Note: if the peer address exists, the peer info will be overwritten
         let result = addrs
@@ -245,7 +245,7 @@ impl Peers {
     pub fn add_to_tried(
         &mut self,
         address: SocketAddr,
-    ) -> Result<Option<SocketAddr>, failure::Error> {
+    ) -> Result<Option<SocketAddr>, anyhow::Error> {
         // Insert address, silently ignoring unspecified addresses and "iced" addresses
         let result = if !address.ip().is_unspecified() && !self.ice_bucket_contains(&address) {
             let index = self.tried_bucket_index(&address);
@@ -314,7 +314,7 @@ impl Peers {
 
     /// Get a random socket address from the peers list
     /// This method provides the same probability to tried and new bucket peers
-    pub fn get_random_peers(&self, n: usize) -> Result<Vec<SocketAddr>, failure::Error> {
+    pub fn get_random_peers(&self, n: usize) -> Result<Vec<SocketAddr>, anyhow::Error> {
         let mut rng = rand::thread_rng();
 
         let tried_len = self.tried_bucket.len();
@@ -365,12 +365,12 @@ impl Peers {
     }
 
     /// Get all the peers from the tried bucket
-    pub fn get_all_from_tried(&self) -> Result<Vec<SocketAddr>, failure::Error> {
+    pub fn get_all_from_tried(&self) -> Result<Vec<SocketAddr>, anyhow::Error> {
         Ok(self.tried_bucket.values().map(|v| v.address).collect())
     }
 
     /// Get all the peers from the tried bucket
-    pub fn get_all_from_new(&self) -> Result<Vec<SocketAddr>, failure::Error> {
+    pub fn get_all_from_new(&self) -> Result<Vec<SocketAddr>, anyhow::Error> {
         Ok(self.new_bucket.values().map(|v| v.address).collect())
     }
 

@@ -1,4 +1,4 @@
-use crate::witnessing::{validate_transport_address, TransportAddressError};
+use crate::witnessing::{TransportAddressError, validate_transport_address};
 
 #[test]
 fn test_validate_transport_addresses() {

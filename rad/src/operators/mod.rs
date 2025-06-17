@@ -160,8 +160,8 @@ mod legacy {
             fromx::FromX,
             operators::RadonOpCodes,
             types::{
-                array::RadonArray, float::RadonFloat, integer::RadonInteger, map::RadonMap,
-                string::RadonString, RadonTypes,
+                RadonTypes, array::RadonArray, float::RadonFloat, integer::RadonInteger,
+                map::RadonMap, string::RadonString,
             },
         };
 

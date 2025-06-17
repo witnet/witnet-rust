@@ -20,7 +20,7 @@ use crate::{
 };
 
 /// Function to run the main system
-pub fn run(config: Arc<Config>, ops: NodeOps, callback: fn()) -> Result<(), failure::Error> {
+pub fn run(config: Arc<Config>, ops: NodeOps, callback: fn()) -> Result<(), anyhow::Error> {
     // Init system
     let system = System::new();
 

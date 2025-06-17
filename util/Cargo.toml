@@ -2,7 +2,7 @@
 name = "witnet_util"
 version = "0.3.2"
 authors = ["Witnet Foundation <info@witnet.foundation>"]
-edition = "2021"
+edition = "2024"
 workspace = ".."
 
 [dependencies]

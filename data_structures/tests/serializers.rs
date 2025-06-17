@@ -1,7 +1,7 @@
 use witnet_data_structures::{
     proto::{
-        versioning::{ProtocolVersion, Versioned},
         ProtobufConvert,
+        versioning::{ProtocolVersion, Versioned},
     },
     {chain::*, types::*},
 };

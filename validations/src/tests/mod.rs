@@ -13,12 +13,12 @@ use witnet_crypto::{
 };
 use witnet_data_structures::{
     chain::{
-        tapi::{all_wips_active, current_active_wips, ActiveWips, TapiEngine, FIRST_HARD_FORK},
+        tapi::{ActiveWips, FIRST_HARD_FORK, TapiEngine, all_wips_active, current_active_wips},
         *,
     },
     clear_protocol_info,
     data_request::{
-        calculate_tally_change, calculate_witness_reward, create_tally, DataRequestPool,
+        DataRequestPool, calculate_tally_change, calculate_witness_reward, create_tally,
     },
     error::{BlockError, DataRequestError, Secp256k1ConversionError, TransactionError},
     proto::versioning::{ProtocolVersion, VersionedHashable},
@@ -27,7 +27,7 @@ use witnet_data_structures::{
     register_protocol_version,
     staking::{
         helpers::StakeKey,
-        stakes::{process_stake_transactions, StakesTracker},
+        stakes::{StakesTracker, process_stake_transactions},
     },
     strum::IntoEnumIterator,
     transaction::*,
@@ -41,7 +41,7 @@ use witnet_rad::{
     error::RadError,
     filters::RadonFilters,
     reducers::RadonReducers,
-    types::{bytes::RadonBytes, integer::RadonInteger, RadonTypes},
+    types::{RadonTypes, bytes::RadonBytes, integer::RadonInteger},
 };
 
 use crate::validations::*;
@@ -115,7 +115,7 @@ fn active_wips_from_mainnet(block_epoch: Epoch) -> ActiveWips {
 
 fn verify_signatures_test(
     signatures_to_verify: Vec<SignaturesToVerify>,
-) -> Result<(), failure::Error> {
+) -> Result<(), anyhow::Error> {
     let vrf = &mut VrfCtx::secp256k1().unwrap();
 
     verify_signatures(signatures_to_verify, vrf).map(|_| ())
@@ -678,7 +678,7 @@ fn vtt_one_input_but_no_signature() {
 
 fn test_signature_empty_wrong_bad<F, H>(hashable: H, mut f: F)
 where
-    F: FnMut(H, KeyedSignature) -> Result<(), failure::Error>,
+    F: FnMut(H, KeyedSignature) -> Result<(), anyhow::Error>,
     H: VersionedHashable + Clone,
 {
     let protocol_version = ProtocolVersion::guess();
@@ -1939,7 +1939,7 @@ fn data_request_output_value_overflow() {
 
 // Helper function which creates a data request with a valid input with value 1000
 // and returns the validation error
-fn test_drtx(dr_output: DataRequestOutput) -> Result<(), failure::Error> {
+fn test_drtx(dr_output: DataRequestOutput) -> Result<(), anyhow::Error> {
     let mut signatures_to_verify = vec![];
     let vto = ValueTransferOutput {
         pkh: MY_PKH_1.parse().unwrap(),
@@ -1969,7 +1969,7 @@ fn test_drtx(dr_output: DataRequestOutput) -> Result<(), failure::Error> {
     .map(|_| ())
 }
 
-fn test_rad_request(data_request: RADRequest) -> Result<(), failure::Error> {
+fn test_rad_request(data_request: RADRequest) -> Result<(), anyhow::Error> {
     test_drtx(DataRequestOutput {
         witness_reward: DEFAULT_WITNESS_REWARD,
         witnesses: 2,
@@ -3111,7 +3111,7 @@ fn data_request_reward_collateral_ratio_limit() {
 }
 
 // Helper function to test a commit with an empty state (no utxos, no drs, etc)
-fn test_empty_commit(c_tx: &CommitTransaction) -> Result<(), failure::Error> {
+fn test_empty_commit(c_tx: &CommitTransaction) -> Result<(), anyhow::Error> {
     let mut signatures_to_verify = vec![];
     let dr_pool = DataRequestPool::default();
     let vrf_input = CheckpointVRF::default();
@@ -3154,7 +3154,7 @@ static DR_HASH: &str = "b64967ac190893e13083cc950b9e18e5fdb832051ca3aca5ea412124
 fn test_commit_with_dr_and_utxo_set(
     c_tx: &CommitTransaction,
     utxo_set: &UnspentOutputsPool,
-) -> Result<(), failure::Error> {
+) -> Result<(), anyhow::Error> {
     let block_number = 100_000;
     let utxo_diff = UtxoDiff::new(utxo_set, 0);
     let collateral_minimum = 1;
@@ -3318,7 +3318,7 @@ fn test_commit_with_collateral(
     utxo_set: &UnspentOutputsPool,
     collateral: (Vec<Input>, Vec<ValueTransferOutput>),
     block_number: u32,
-) -> Result<(), failure::Error> {
+) -> Result<(), anyhow::Error> {
     let mut signatures_to_verify = vec![];
     let mut dr_pool = DataRequestPool::default();
     let vrf_input = CheckpointVRF::default();
@@ -4296,7 +4296,7 @@ fn reveal_signatures() {
     rb.dr_pointer = dr_pointer;
     rb.pkh = MY_PKH_1.parse().unwrap();
 
-    let f = |rb, rs| -> Result<_, failure::Error> {
+    let f = |rb, rs| -> Result<_, anyhow::Error> {
         let r_tx = RevealTransaction::new(rb, vec![rs]);
         let mut signatures_to_verify = vec![];
         let ret = validate_reveal_transaction(&r_tx, &dr_pool, &mut signatures_to_verify)?;
@@ -8451,7 +8451,7 @@ fn tally_valid_3_reveals_1_no_reveal_invalid_script_arg() {
 #[test]
 fn tally_valid_4_reveals_majority_of_errors() {
     let stddev_cbor = vec![249, 0, 0]; // 0.0
-                                       // RetrieveTimeout
+    // RetrieveTimeout
     let reveals = vec![
         vec![216, 39, 129, 24, 49],
         vec![216, 39, 129, 24, 49],
@@ -8520,7 +8520,7 @@ fn tally_valid_4_reveals_majority_of_errors() {
 #[test]
 fn tally_valid_3_reveals_1_no_reveal_majority_of_errors() {
     let stddev_cbor = vec![249, 0, 0]; // 0.0
-                                       // RetrieveTimeout
+    // RetrieveTimeout
     let reveals = vec![
         vec![216, 39, 129, 24, 49],
         vec![216, 39, 129, 24, 49],
@@ -8600,7 +8600,7 @@ fn tally_valid_3_reveals_1_no_reveal_majority_of_errors() {
 fn tally_valid_2_reveals_2_no_reveals_majority_of_errors_insufficient_consensus() {
     let collateral = DEFAULT_COLLATERAL;
     let stddev_cbor = vec![249, 0, 0]; // 0.0
-                                       // RetrieveTimeout
+    // RetrieveTimeout
     let reveals = vec![vec![216, 39, 129, 24, 49], vec![216, 39, 129, 24, 49]];
     let (pkhs, dr_pkh, dr_pointer, mut dr_pool) =
         generic_tally_test_stddev_dr(4, reveals, stddev_cbor);
@@ -10573,7 +10573,7 @@ fn block_signatures() {
         b.block_header.proof = BlockEligibilityClaim::create(vrf, &secret_key, vrf_input).unwrap();
 
         let hashable = b;
-        let f = |mut b: Block, ks| -> Result<_, failure::Error> {
+        let f = |mut b: Block, ks| -> Result<_, anyhow::Error> {
             b.block_sig = ks;
             let mut signatures_to_verify = vec![];
             validate_block_signature(&b, &mut signatures_to_verify)?;
@@ -10656,14 +10656,14 @@ static GENESIS_BLOCK_HASH: &str =
     "0000000000000000000000000000000000000000000000000000000000000000";
 static LAST_BLOCK_HASH: &str = "62adde3e36db3f22774cc255215b2833575f66bf2204011f80c03d34c7c9ea41";
 
-fn test_block<F: FnMut(&mut Block) -> bool>(mut_block: F) -> Result<(), failure::Error> {
+fn test_block<F: FnMut(&mut Block) -> bool>(mut_block: F) -> Result<(), anyhow::Error> {
     test_block_with_drpool(mut_block, DataRequestPool::default())
 }
 
 fn test_block_with_epoch<F: FnMut(&mut Block) -> bool>(
     mut_block: F,
     epoch: Epoch,
-) -> Result<(), failure::Error> {
+) -> Result<(), anyhow::Error> {
     test_block_with_drpool_and_utxo_set(
         mut_block,
         DataRequestPool::default(),
@@ -10675,7 +10675,7 @@ fn test_block_with_epoch<F: FnMut(&mut Block) -> bool>(
 fn test_block_with_drpool<F: FnMut(&mut Block) -> bool>(
     mut_block: F,
     dr_pool: DataRequestPool,
-) -> Result<(), failure::Error> {
+) -> Result<(), anyhow::Error> {
     test_block_with_drpool_and_utxo_set(mut_block, dr_pool, UnspentOutputsPool::default(), E)
 }
 
@@ -10684,7 +10684,7 @@ fn test_block_with_drpool_and_utxo_set<F: FnMut(&mut Block) -> bool>(
     mut dr_pool: DataRequestPool,
     mut utxo_set: UnspentOutputsPool,
     current_epoch: u32,
-) -> Result<(), failure::Error> {
+) -> Result<(), anyhow::Error> {
     let vrf = &mut VrfCtx::secp256k1().unwrap();
     let rep_eng = ReputationEngine::new(100);
     let block_number = 100_000;
@@ -11063,7 +11063,7 @@ fn block_difficult_proof() {
     let b = Block::new(block_header, block_sig, txns);
 
     let x = {
-        let mut x = || -> Result<_, failure::Error> {
+        let mut x = || -> Result<_, anyhow::Error> {
             let mut signatures_to_verify = vec![];
 
             validate_block(
@@ -11684,7 +11684,7 @@ fn block_change_signals() {
 ///////////////////////////////////////////////////////////////////////////////
 // Block transaction tests: multiple blocks in sequence
 ///////////////////////////////////////////////////////////////////////////////
-fn test_blocks(txns: Vec<(BlockTransactions, u64)>) -> Result<(), failure::Error> {
+fn test_blocks(txns: Vec<(BlockTransactions, u64)>) -> Result<(), anyhow::Error> {
     test_blocks_with_limits(
         txns,
         MAX_VT_WEIGHT,
@@ -11700,7 +11700,7 @@ fn test_blocks_with_limits(
     max_dr_weight: u32,
     genesis_block_hash: Hash,
     protocol_version: Option<ProtocolVersion>,
-) -> Result<(), failure::Error> {
+) -> Result<(), anyhow::Error> {
     if txns.len() > 1 {
         // FIXME(#685): add sequence validations
         unimplemented!();

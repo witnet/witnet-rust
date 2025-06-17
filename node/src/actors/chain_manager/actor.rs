@@ -25,7 +25,7 @@ use witnet_util::timestamp::pretty_print;
 use crate::{
     actors::{
         chain_manager::{
-            handlers::EveryEpochPayload, ChainManager, ChainManagerError, ImportError,
+            ChainManager, ChainManagerError, ImportError, handlers::EveryEpochPayload,
         },
         epoch_manager::{EpochManager, EpochManagerError::CheckpointZeroInTheFuture},
         inventory_manager::InventoryManager,
@@ -37,7 +37,7 @@ use crate::{
         storage_keys,
     },
     config_mngr, signature_mngr, storage_mngr,
-    utils::{file_name_compose, serialize_to_file, Force},
+    utils::{Force, file_name_compose, serialize_to_file},
 };
 
 /// Implement Actor trait for `ChainManager`
@@ -172,7 +172,7 @@ impl ChainManager {
                     log::debug!("Initial WIT supply: {}", act.initial_supply);
                 }
 
-                storage_mngr::get_chain_state(&storage_keys::chain_state_key(magic))
+                storage_mngr::get_chain_state(storage_keys::chain_state_key(magic))
                     .into_actor(act)
                     .then(|chain_state_from_storage, _, _| {
                         let result = match chain_state_from_storage {
@@ -569,7 +569,7 @@ impl ChainManager {
     }
 
     /// Actor-aware wrapper around `static_snapshot_export`.
-    pub fn snapshot_export(&mut self) -> ResponseActFuture<Self, Result<String, failure::Error>> {
+    pub fn snapshot_export(&mut self) -> ResponseActFuture<Self, Result<String, anyhow::Error>> {
         Box::pin(actix::fut::wrap_future(Self::static_snapshot_export(
             self.sm_state,
             self.chain_state.clone(),
@@ -639,36 +639,43 @@ impl ChainManager {
                     );
                     let hashes = batch.map(|(_epoch, hash)| *hash).collect::<Vec<_>>();
 
-                    let fut =
-                        async move {
-                            log::info!(
-                                "Starting to fetch blocks batch #{} ({} to {} out of {})",
-                                i,
-                                from,
-                                to,
-                                total_blocks
-                            );
-                            let batch =
-                                InventoryManager::get_multiple_blocks(hashes.into_iter()).await?;
-                            log::info!(
-                                "Successfully fetched blocks batch #{} ({} to {} out of {})",
-                                i,
-                                from,
-                                to,
-                                total_blocks
-                            );
-                            log::info!(
-                            "Blocks batch #{} ({} to {} out of {}) is now being written into {}",
-                            i, from, to, total_blocks, path.display()
+                    let fut = async move {
+                        log::info!(
+                            "Starting to fetch blocks batch #{} ({} to {} out of {})",
+                            i,
+                            from,
+                            to,
+                            total_blocks
                         );
-                            serialize_to_file(&batch, &path)?;
-                            log::info!(
+                        let batch =
+                            InventoryManager::get_multiple_blocks(hashes.into_iter()).await?;
+                        log::info!(
+                            "Successfully fetched blocks batch #{} ({} to {} out of {})",
+                            i,
+                            from,
+                            to,
+                            total_blocks
+                        );
+                        log::info!(
+                            "Blocks batch #{} ({} to {} out of {}) is now being written into {}",
+                            i,
+                            from,
+                            to,
+                            total_blocks,
+                            path.display()
+                        );
+                        serialize_to_file(&batch, &path)?;
+                        log::info!(
                             "Successfully exported blocks batch #{} ({} to {} out of {}) into {}",
-                            i, from, to, total_blocks, path.display()
+                            i,
+                            from,
+                            to,
+                            total_blocks,
+                            path.display()
                         );
 
-                            Result::<(), failure::Error>::Ok(())
-                        };
+                        Result::<(), anyhow::Error>::Ok(())
+                    };
 
                     futs.push(fut);
                 }
@@ -698,7 +705,9 @@ impl ChainManager {
             }
             // Fail if not synced or not forced
             (current_state, _) => {
-                log::error!("Cannot export a chain snapshot while the node is not in Synced state. If you still want to export it, use the `force` flag.");
+                log::error!(
+                    "Cannot export a chain snapshot while the node is not in Synced state. If you still want to export it, use the `force` flag."
+                );
 
                 Err(ChainManagerError::NotSynced { current_state }.into())
             }
@@ -999,7 +1008,10 @@ impl ChainManager {
             }
 
             if let Some(chain_info) = &chain_state.chain_info {
-                log::info!("Importing chain snapshot now. After importing, the node should be synced up to superblock #{}.", chain_info.highest_superblock_checkpoint.checkpoint);
+                log::info!(
+                    "Importing chain snapshot now. After importing, the node should be synced up to superblock #{}.",
+                    chain_info.highest_superblock_checkpoint.checkpoint
+                );
             }
 
             // Import superblocks

@@ -16,9 +16,9 @@ use crate::{
     },
     error::TransactionError,
     proto::{
+        ProtobufConvert,
         schema::witnet,
         versioning::{ProtocolVersion, Versioned, VersionedHashable},
-        ProtobufConvert,
     },
     serialization_helpers::number_from_string,
     vrf::DataRequestEligibilityClaim,
@@ -132,7 +132,7 @@ impl<T> Memoized<T> {
 
 /// Transaction data structure
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
-#[protobuf_convert(pb = "witnet::Transaction")]
+#[protobuf_convert(source = "witnet::Transaction")]
 // FIXME(#649): Remove clippy skip error
 #[allow(clippy::large_enum_variant)]
 pub enum Transaction {
@@ -224,7 +224,7 @@ pub fn mint(tx: &Transaction) -> Option<&MintTransaction> {
 }
 
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
-#[protobuf_convert(pb = "witnet::VTTransaction")]
+#[protobuf_convert(source = "witnet::VTTransaction")]
 pub struct VTTransaction {
     pub body: VTTransactionBody,
     pub signatures: Vec<KeyedSignature>,
@@ -255,7 +255,7 @@ impl VTTransaction {
 }
 
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
-#[protobuf_convert(pb = "witnet::VTTransactionBody")]
+#[protobuf_convert(source = "witnet::VTTransactionBody")]
 pub struct VTTransactionBody {
     pub inputs: Vec<Input>,
     pub outputs: Vec<ValueTransferOutput>,
@@ -384,7 +384,7 @@ impl TxInclusionProof {
 }
 
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
-#[protobuf_convert(pb = "witnet::DRTransaction")]
+#[protobuf_convert(source = "witnet::DRTransaction")]
 pub struct DRTransaction {
     pub body: DRTransactionBody,
     pub signatures: Vec<KeyedSignature>,
@@ -432,7 +432,7 @@ impl DRTransaction {
 }
 
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
-#[protobuf_convert(pb = "witnet::DRTransactionBody")]
+#[protobuf_convert(source = "witnet::DRTransactionBody")]
 pub struct DRTransactionBody {
     pub inputs: Vec<Input>,
     pub outputs: Vec<ValueTransferOutput>,
@@ -502,7 +502,7 @@ impl DRTransactionBody {
 }
 
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
-#[protobuf_convert(pb = "witnet::CommitTransaction")]
+#[protobuf_convert(source = "witnet::CommitTransaction")]
 pub struct CommitTransaction {
     pub body: CommitTransactionBody,
     pub signatures: Vec<KeyedSignature>,
@@ -516,7 +516,7 @@ impl CommitTransaction {
 }
 
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
-#[protobuf_convert(pb = "witnet::CommitTransactionBody")]
+#[protobuf_convert(source = "witnet::CommitTransactionBody")]
 pub struct CommitTransactionBody {
     // DRTransaction hash
     pub dr_pointer: Hash,
@@ -576,7 +576,7 @@ impl CommitTransactionBody {
 }
 
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
-#[protobuf_convert(pb = "witnet::RevealTransaction")]
+#[protobuf_convert(source = "witnet::RevealTransaction")]
 pub struct RevealTransaction {
     pub body: RevealTransactionBody,
     pub signatures: Vec<KeyedSignature>,
@@ -590,7 +590,7 @@ impl RevealTransaction {
 }
 
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
-#[protobuf_convert(pb = "witnet::RevealTransactionBody")]
+#[protobuf_convert(source = "witnet::RevealTransactionBody")]
 pub struct RevealTransactionBody {
     // Inputs
     pub dr_pointer: Hash, // DTTransaction hash
@@ -616,7 +616,7 @@ impl RevealTransactionBody {
 }
 
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
-#[protobuf_convert(pb = "witnet::TallyTransaction")]
+#[protobuf_convert(source = "witnet::TallyTransaction")]
 pub struct TallyTransaction {
     /// DRTransaction hash
     pub dr_pointer: Hash,
@@ -700,7 +700,7 @@ impl TallyTransaction {
 }
 
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
-#[protobuf_convert(pb = "witnet::MintTransaction")]
+#[protobuf_convert(source = "witnet::MintTransaction")]
 pub struct MintTransaction {
     pub epoch: Epoch,
     pub outputs: Vec<ValueTransferOutput>,
@@ -776,7 +776,7 @@ impl MintTransaction {
 }
 
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
-#[protobuf_convert(pb = "witnet::StakeTransaction")]
+#[protobuf_convert(source = "witnet::StakeTransaction")]
 pub struct StakeTransaction {
     pub body: StakeTransactionBody,
     pub signatures: Vec<KeyedSignature>,
@@ -797,7 +797,7 @@ impl StakeTransaction {
 }
 
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
-#[protobuf_convert(pb = "witnet::StakeTransactionBody")]
+#[protobuf_convert(source = "witnet::StakeTransactionBody")]
 pub struct StakeTransactionBody {
     pub inputs: Vec<Input>,
     pub output: StakeOutput,
@@ -809,7 +809,7 @@ pub struct StakeTransactionBody {
 }
 
 impl StakeTransactionBody {
-    pub fn authorization_is_valid(&self) -> Result<(), failure::Error> {
+    pub fn authorization_is_valid(&self) -> Result<(), anyhow::Error> {
         let msg = Secp256k1Message::from_digest(self.output.key.withdrawer.as_secp256k1_msg());
         let public_key = PublicKey::from_slice(&self.output.authorization.public_key.bytes)?;
 
@@ -866,7 +866,7 @@ impl StakeTransactionBody {
 }
 
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
-#[protobuf_convert(pb = "witnet::UnstakeTransaction")]
+#[protobuf_convert(source = "witnet::UnstakeTransaction")]
 pub struct UnstakeTransaction {
     pub body: UnstakeTransactionBody,
     pub signature: KeyedSignature,
@@ -886,7 +886,7 @@ impl UnstakeTransaction {
 }
 
 #[derive(Debug, Default, Eq, PartialEq, Clone, Serialize, Deserialize, ProtobufConvert, Hash)]
-#[protobuf_convert(pb = "witnet::UnstakeTransactionBody")]
+#[protobuf_convert(source = "witnet::UnstakeTransactionBody")]
 pub struct UnstakeTransactionBody {
     pub operator: PublicKeyHash,
     pub withdrawal: ValueTransferOutput,

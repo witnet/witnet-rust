@@ -70,7 +70,8 @@ impl PeersManager {
     fn persist_peers(&self, ctx: &mut Context<Self>, storage_peers_period: Duration) {
         // Schedule the discovery_peers with a given period
         ctx.run_later(storage_peers_period, move |act, ctx| {
-            storage_mngr::put(&storage_keys::peers_key(act.get_magic()), &act.peers)
+            let peers = act.peers.clone();
+            storage_mngr::put(&storage_keys::peers_key(act.get_magic()), &peers)
                 .into_actor(act)
                 .map(|res, _act, _ctx| match res {
                     Ok(_) => log::trace!("PeersManager successfully persisted peers to storage"),

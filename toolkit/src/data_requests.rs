@@ -3,7 +3,7 @@ use witnet_data_structures::{
     chain::{DataRequestOutput, RADRequest},
     proto::ProtobufConvert,
 };
-use witnet_rad::{script::RadonScriptExecutionSettings, RADRequestExecutionReport};
+use witnet_rad::{RADRequestExecutionReport, script::RadonScriptExecutionSettings};
 
 use crate::errors::Error;
 

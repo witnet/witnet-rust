@@ -9,11 +9,11 @@ use std::{
     sync::RwLock,
 };
 
-use failure::Error;
+use anyhow::Error;
 use num_traits::{Saturating, Zero};
 use serde::{
-    de::{DeserializeOwned, MapAccess, Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
+    de::{DeserializeOwned, MapAccess, Visitor},
 };
 
 use crate::{

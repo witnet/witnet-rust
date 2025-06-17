@@ -1,11 +1,11 @@
 use std::convert::{TryFrom, TryInto};
 use std::fmt;
 
-use serde_cbor::value::{from_value, Value};
+use serde_cbor::value::{Value, from_value};
 
 use crate::{
     error::RadError,
-    operators::{boolean as boolean_operators, identity, Operable, RadonOpCodes},
+    operators::{Operable, RadonOpCodes, boolean as boolean_operators, identity},
     script::RadonCall,
     types::{RadonType, RadonTypes},
 };

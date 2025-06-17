@@ -1,4 +1,4 @@
-use actix::{prelude::*, ActorFutureExt, Context, Handler, ResponseActFuture, WrapFuture};
+use actix::{ActorFutureExt, Context, Handler, ResponseActFuture, WrapFuture, prelude::*};
 use futures_util::FutureExt;
 use witnet_data_structures::{
     chain::{
@@ -406,8 +406,8 @@ mod tests {
     use witnet_config::config::{Config, StorageBackend};
     use witnet_data_structures::{
         chain::{
-            tapi::ActiveWips, CheckpointBeacon, ConsensusConstantsWit2, EpochConstants, Input,
-            KeyedSignature, OutputPointer, PublicKeyHash, TransactionsPool, ValueTransferOutput,
+            CheckpointBeacon, ConsensusConstantsWit2, EpochConstants, Input, KeyedSignature,
+            OutputPointer, PublicKeyHash, TransactionsPool, ValueTransferOutput, tapi::ActiveWips,
         },
         data_request::DataRequestPool,
         staking::prelude::StakesTracker,
