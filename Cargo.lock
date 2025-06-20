@@ -213,14 +213,14 @@ version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0dde43e75fd43e8a1bf86103336bc699aa8d17ad1be60c76c0bdfd4828e19b78"
 dependencies = [
- "autocfg 1.4.0",
+ "autocfg 1.5.0",
 ]
 
 [[package]]
 name = "autocfg"
-version = "1.4.0"
+version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ace50bade8e6234aa140d9a2f552bbee1db4d353f69b8217bc503490fc1a9f26"
+checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 
 [[package]]
 name = "backtrace"
@@ -696,7 +696,7 @@ version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "058ed274caafc1f60c4997b5fc07bf7dc7cca454af7c6e81edffe5f33f70dace"
 dependencies = [
- "autocfg 1.4.0",
+ "autocfg 1.5.0",
  "cfg-if 0.1.10",
  "crossbeam-utils 0.7.2",
  "lazy_static",
@@ -722,7 +722,7 @@ version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3c7c73a2d1e9fc0886a08b93e98eb643461230d5f1925e4036204d5f2e261a8"
 dependencies = [
- "autocfg 1.4.0",
+ "autocfg 1.5.0",
  "cfg-if 0.1.10",
  "lazy_static",
 ]
@@ -982,12 +982,12 @@ checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 
 [[package]]
 name = "errno"
-version = "0.3.12"
+version = "0.3.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cea14ef9355e3beab063703aa9dab15afd25f0667c341310c1e5274bb1d0da18"
+checksum = "778e2ac28f6c47af28e4907f13ffd1e1ddbd400980a9abd7c8df189bf578a5ad"
 dependencies = [
  "libc",
- "windows-sys 0.59.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -2357,9 +2357,9 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
 name = "libc"
-version = "0.2.173"
+version = "0.2.174"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d8cfeafaffdbc32176b64fb251369d52ea9f0a8fbc6f8759edffef7b525d64bb"
+checksum = "1171693293099992e19cddea4e8b849964e9846f4acee11b3948bcc337be8776"
 
 [[package]]
 name = "libloading"
@@ -2461,7 +2461,7 @@ version = "0.4.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "96936507f153605bddfcda068dd804796c84324ed2510809e5b2a624c81da765"
 dependencies = [
- "autocfg 1.4.0",
+ "autocfg 1.5.0",
  "scopeguard 1.2.0",
 ]
 
@@ -2538,7 +2538,7 @@ version = "0.5.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "043175f069eda7b85febe4a74abbaeff828d9f8b448515d3151a14a3542811aa"
 dependencies = [
- "autocfg 1.4.0",
+ "autocfg 1.5.0",
 ]
 
 [[package]]
@@ -2772,7 +2772,7 @@ version = "0.1.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1429034a0490724d0075ebb2bc9e875d6503c3cf69e235a8941aa757d83ef5bf"
 dependencies = [
- "autocfg 1.4.0",
+ "autocfg 1.5.0",
  "num-integer",
  "num-traits",
 ]
@@ -2783,7 +2783,7 @@ version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "12ac428b1cb17fce6f731001d307d351ec70a6d202fc2e60f7d4c5e42d8f4f07"
 dependencies = [
- "autocfg 1.4.0",
+ "autocfg 1.5.0",
  "num-integer",
  "num-traits",
 ]
@@ -2805,7 +2805,7 @@ version = "0.2.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841"
 dependencies = [
- "autocfg 1.4.0",
+ "autocfg 1.5.0",
  "libm",
 ]
 
@@ -5760,6 +5760,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "windows-sys"
+version = "0.60.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f2f500e4d28234f72040990ec9d39e3a6b950f9f22d3dba18416c35882612bcb"
+dependencies = [
+ "windows-targets 0.53.2",
+]
+
+[[package]]
 name = "windows-targets"
 version = "0.42.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6049,7 +6058,7 @@ dependencies = [
 
 [[package]]
 name = "witnet"
-version = "2.0.10"
+version = "2.0.11"
 dependencies = [
  "ansi_term",
  "anyhow",
@@ -6112,7 +6121,7 @@ dependencies = [
 
 [[package]]
 name = "witnet-centralized-ethereum-bridge"
-version = "2.0.10"
+version = "2.0.11"
 dependencies = [
  "actix",
  "async-jsonrpc-client",
@@ -6140,7 +6149,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_config"
-version = "2.0.10"
+version = "2.0.11"
 dependencies = [
  "directories-next",
  "log 0.4.27",
@@ -6178,7 +6187,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_data_structures"
-version = "2.0.10"
+version = "2.0.11"
 dependencies = [
  "anyhow",
  "bech32 0.11.0",
@@ -6246,7 +6255,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_node"
-version = "2.0.10"
+version = "2.0.11"
 dependencies = [
  "actix",
  "ansi_term",
@@ -6363,7 +6372,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_toolkit"
-version = "2.0.10"
+version = "2.0.11"
 dependencies = [
  "anyhow",
  "hex",
@@ -6411,7 +6420,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_wallet"
-version = "2.0.10"
+version = "2.0.11"
 dependencies = [
  "actix",
  "anyhow",
@@ -6521,18 +6530,18 @@ dependencies = [
 
 [[package]]
 name = "zerocopy"
-version = "0.8.25"
+version = "0.8.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a1702d9583232ddb9174e01bb7c15a2ab8fb1bc6f227aa1233858c351a3ba0cb"
+checksum = "1039dd0d3c310cf05de012d8a39ff557cb0d23087fd44cad61df08fc31907a2f"
 dependencies = [
  "zerocopy-derive",
 ]
 
 [[package]]
 name = "zerocopy-derive"
-version = "0.8.25"
+version = "0.8.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "28a6e20d751156648aa063f3800b706ee209a32c0b4d9f24be3d980b01be55ef"
+checksum = "9ecf5b4cc5364572d7f4c329661bcc82724222973f2cab6f050a4e5c22f75181"
 dependencies = [
  "proc-macro2 1.0.95",
  "quote 1.0.40",
