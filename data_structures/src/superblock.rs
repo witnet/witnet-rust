@@ -507,7 +507,11 @@ impl SuperBlockState {
                 // mechanism was delayed 8 more weeks to allow fore gathering more insight on how
                 // PoS is working in practice, to make sure that the mechanism is secure with the
                 // actual network facts, not only assumptions.
-                if (304_896..355_968).contains(&superblock_index) {
+                //
+                // EDIT2: now that a decision has been made for a proper decentralized superblock
+                // committee selection mechanism, the deadline for this is removed, but it is set to
+                // happen together with the activation of V2_1.
+                if superblock_index > 304_896 {
                     WIT2_BOOTSTRAP_COMMITTEE
                         .iter()
                         .map(|address| address.parse().expect("Malformed signing committee"))
