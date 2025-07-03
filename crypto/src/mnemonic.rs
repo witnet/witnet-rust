@@ -174,7 +174,7 @@ impl MnemonicGenerator {
         };
 
         // We handle the entropy directly here to avoid tiny-bip39's reliance on outdated rand lib
-        let entropy = &mut Vec::with_capacity(mnemonic_type.entropy_bits() / 8);
+        let entropy = &mut vec![0u8; mnemonic_type.entropy_bits() / 8];
         rand::thread_rng().fill_bytes(entropy);
         let mnemonic = bip39::Mnemonic::from_entropy(entropy, lang).unwrap();
 
