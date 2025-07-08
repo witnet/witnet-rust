@@ -1,6 +1,6 @@
 [package]
 name = "witnet-centralized-ethereum-bridge"
-version = "2.0.13"
+version = "2.0.14"
 authors = ["Witnet Foundation <info@witnet.foundation>"]
 edition = "2024"
 
