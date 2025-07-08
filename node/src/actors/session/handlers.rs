@@ -134,7 +134,7 @@ impl StreamHandler<Result<BytesMut, Error>> for Session {
 
         match result {
             Err(err) => {
-                log::error!("Error decoding message: {:?}", err);
+                log::error!("Error decoding message: {err:?}");
 
                 // Remove this address from tried bucket and ice it
                 self.remove_and_ice_peer();
@@ -256,7 +256,7 @@ impl StreamHandler<Result<BytesMut, Error>> for Session {
 
                         futures::future::try_join_all(item_requests)
                             .into_actor(self)
-                            .map_err(|e, _, _| log::error!("Inventory request error: {}", e))
+                            .map_err(|e, _, _| log::error!("Inventory request error: {e}"))
                             .and_then(move |item_responses, session, _| {
                                 let mut send_superblock_votes = false;
                                 for (i, item_response) in item_responses.into_iter().enumerate() {
@@ -280,23 +280,17 @@ impl StreamHandler<Result<BytesMut, Error>> for Session {
                                             match inventory[i] {
                                                 InventoryEntry::Block(hash) => {
                                                     log::warn!(
-                                                        "Inventory request: {}: block {}",
-                                                        e,
-                                                        hash
+                                                        "Inventory request: {e}: block {hash}"
                                                     );
                                                 }
                                                 InventoryEntry::Tx(hash) => {
                                                     log::warn!(
-                                                        "Inventory request: {}: transaction {}",
-                                                        e,
-                                                        hash
+                                                        "Inventory request: {e}: transaction {hash}"
                                                     );
                                                 }
                                                 InventoryEntry::SuperBlock(index) => {
                                                     log::warn!(
-                                                        "Inventory request: {}: superblock {}",
-                                                        e,
-                                                        index
+                                                        "Inventory request: {e}: superblock {index}"
                                                     );
                                                 }
                                             }
@@ -325,11 +319,11 @@ impl StreamHandler<Result<BytesMut, Error>> for Session {
                                             }
                                         }
                                         Err(e) => {
-                                            log::error!("Inventory request error (votes): {}", e)
+                                            log::error!("Inventory request error (votes): {e}")
                                         }
                                     })
                                     .map_err(|e, _act, _ctx| {
-                                        log::error!("Inventory request error (votes): {}", e)
+                                        log::error!("Inventory request error (votes): {e}")
                                     });
 
                                 if send_superblock_votes {
@@ -402,11 +396,8 @@ impl StreamHandler<Result<BytesMut, Error>> for Session {
                     /////////////////////
                     (session_type, session_status, msg_type) => {
                         log::warn!(
-                            "Message of type {} for session (type: {:?}, status: {:?}) is \
-                             not supported",
-                            msg_type,
-                            session_type,
-                            session_status
+                            "Message of type {msg_type} for session (type: {session_type:?}, status: {session_status:?}) is \
+                             not supported"
                         );
                     }
                 };
@@ -653,7 +644,7 @@ fn peer_discovery_peers(
             src_address: Some(src_address),
         });
     } else {
-        log::debug!("{} sent unwanted \"peers\"(possibly attack?)", src_address,);
+        log::debug!("{src_address} sent unwanted \"peers\"(possibly attack?)",);
 
         // If the "peers" messages was unwanted one, put the peer into iced
         peers_manager_addr.do_send(RemoveAddressesFromTried {
@@ -720,7 +711,7 @@ fn inventory_process_block(session: &mut Session, _ctx: &mut Context<Session>, b
                         // requested_block_hashes, this branch should be unreachable.
                         // But if it happens, immediately exit the iterator and send an empty AddBlocks
                         // message to ChainManager.
-                        log::warn!("Unexpected missing block: {}", hash);
+                        log::warn!("Unexpected missing block: {hash}");
 
                         None
                     }
@@ -876,7 +867,7 @@ fn check_beacon_compatibility(
                 "Current SuperBlock beacon: {:?}",
                 current_beacon.highest_superblock_checkpoint
             );
-            log::trace!("Target SuperBlock beacon: {:?}", my_beacon);
+            log::trace!("Target SuperBlock beacon: {my_beacon:?}");
 
             Err(HandshakeError::PeerBeaconOld {
                 current_beacon: my_beacon,
@@ -897,7 +888,7 @@ fn check_beacon_compatibility(
                     "Current SuperBlock beacon: {:?}",
                     current_beacon.highest_superblock_checkpoint
                 );
-                log::trace!("Target SuperBlock beacon: {:?}", my_beacon);
+                log::trace!("Target SuperBlock beacon: {my_beacon:?}");
 
                 Err(HandshakeError::PeerBeaconDifferentBlockHash {
                     current_beacon: my_beacon,
@@ -1342,8 +1333,7 @@ mod tests {
             assert_eq!(
                 check_timestamp_drift(current_ts, *received_ts, max_ts_diff),
                 Ok(()),
-                "{}",
-                received_ts
+                "{received_ts}"
             );
         }
         let invalid_ts = [
@@ -1391,8 +1381,7 @@ mod tests {
             assert_eq!(
                 check_timestamp_drift(current_ts, *received_ts, max_ts_diff),
                 Ok(()),
-                "{}",
-                received_ts
+                "{received_ts}"
             );
         }
     }
@@ -1411,8 +1400,7 @@ mod tests {
                 current_ts,
                 timestamp_diff: -1001,
             }),
-            "{}",
-            received_ts
+            "{received_ts}"
         );
 
         // Timestamps from the future have positive diff
@@ -1423,8 +1411,7 @@ mod tests {
                 current_ts,
                 timestamp_diff: 1001,
             }),
-            "{}",
-            received_ts
+            "{received_ts}"
         );
 
         // If the difference in timestamps is greater in magnitude than i64::MIN,
@@ -1436,8 +1423,7 @@ mod tests {
                 current_ts,
                 timestamp_diff: i64::MIN,
             }),
-            "{}",
-            received_ts
+            "{received_ts}"
         );
     }
 }

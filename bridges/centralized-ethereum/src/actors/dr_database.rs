@@ -30,7 +30,7 @@ impl DrDatabase {
         async move {
             match f.await {
                 Ok(_) => log::debug!("Bridge database successfully persisted"),
-                Err(e) => log::error!("Bridge database error during persistence: {}", e),
+                Err(e) => log::error!("Bridge database error during persistence: {e}"),
             }
         }
     }
@@ -130,7 +130,7 @@ impl Actor for DrDatabase {
                         }
                     }
                     Err(e) => {
-                        panic!("Error while getting bridge database from storage: {}", e);
+                        panic!("Error while getting bridge database from storage: {e}");
                     }
                 },
             );
@@ -195,7 +195,7 @@ impl Handler<SetDrInfoBridge> for DrDatabase {
         self.dr.insert(dr_id, dr_info);
 
         self.max_dr_id = cmp::max(self.max_dr_id, dr_id);
-        log::debug!("Data request #{} inserted with state {}", dr_id, dr_state);
+        log::debug!("Data request #{dr_id} inserted with state {dr_state}");
 
         // Persist Data Request Database
         ctx.spawn(self.persist().into_actor(self));
@@ -259,7 +259,7 @@ impl Handler<SetDrState> for DrDatabase {
         match self.dr.entry(dr_id) {
             Entry::Occupied(entry) => {
                 entry.into_mut().dr_state = DrState::Finished;
-                log::debug!("Data request #{} updated to state {}", dr_id, dr_state,);
+                log::debug!("Data request #{dr_id} updated to state {dr_state}",);
             }
             Entry::Vacant(entry) => {
                 entry.insert(DrInfoBridge {
@@ -268,7 +268,7 @@ impl Handler<SetDrState> for DrDatabase {
                     dr_tx_hash: None,
                     dr_tx_creation_timestamp: None,
                 });
-                log::debug!("Data request #{} inserted with state {}", dr_id, dr_state,);
+                log::debug!("Data request #{dr_id} inserted with state {dr_state}",);
             }
         }
 

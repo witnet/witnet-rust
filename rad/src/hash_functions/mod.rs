@@ -33,7 +33,7 @@ pub enum RadonHashFunctions {
 
 impl fmt::Display for RadonHashFunctions {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "RadonHashFunctions::{:?}", self)
+        write!(f, "RadonHashFunctions::{self:?}")
     }
 }
 

@@ -233,7 +233,7 @@ impl Peers {
             })
             .collect();
 
-        log::trace!("Added new peers: \n{}", self);
+        log::trace!("Added new peers: \n{self}");
 
         Ok(result)
     }
@@ -250,7 +250,7 @@ impl Peers {
         let result = if !address.ip().is_unspecified() && !self.ice_bucket_contains(&address) {
             let index = self.tried_bucket_index(&address);
 
-            log::trace!("Added a tried peer: \n{}", self);
+            log::trace!("Added a tried peer: \n{self}");
 
             self.tried_bucket
                 .insert(
@@ -287,7 +287,7 @@ impl Peers {
                     .filter(|entry| entry.address == *address)
                     .is_some()
                 {
-                    log::trace!("Removed a tried peer address: \n{}", self);
+                    log::trace!("Removed a tried peer address: \n{self}");
 
                     self.tried_bucket.remove(&bucket_index)
                 } else {
@@ -307,7 +307,7 @@ impl Peers {
             .map(|info| info.address)
             .collect();
 
-        log::trace!("Removed new peers: \n{}", self);
+        log::trace!("Removed new peers: \n{self}");
 
         v
     }
@@ -378,21 +378,21 @@ impl Peers {
     pub fn clear_tried_bucket(&mut self) {
         self.tried_bucket.clear();
 
-        log::trace!("Cleared tried bucket: \n{}", self);
+        log::trace!("Cleared tried bucket: \n{self}");
     }
 
     /// Clear new addresses bucket
     pub fn clear_new_bucket(&mut self) {
         self.new_bucket.clear();
 
-        log::trace!("Cleared new bucket: \n{}", self);
+        log::trace!("Cleared new bucket: \n{self}");
     }
 
     /// Clear ice bucket
     pub fn clear_ice_bucket(&mut self) {
         self.ice_bucket.clear();
 
-        log::trace!("Cleared ice bucket: \n{}", self);
+        log::trace!("Cleared ice bucket: \n{self}");
     }
 
     /// Put a peer address into the ice bucket using the current timestamp as the tag for tracking
@@ -404,7 +404,7 @@ impl Peers {
     /// Put a peer address into the ice bucket using the provided timestamp as the tag for tracking
     /// when the address became iced.
     pub fn ice_peer_address_pure(&mut self, address: &SocketAddr, timestamp: i64) -> bool {
-        log::debug!("Putting peer address {} into the ice bucket", address);
+        log::debug!("Putting peer address {address} into the ice bucket");
 
         self.ice_bucket.insert(*address, timestamp);
 
@@ -413,17 +413,14 @@ impl Peers {
 
     /// Remove address from the ice bucket, ignoring the ice period
     pub fn remove_from_ice(&mut self, address: &SocketAddr) {
-        log::trace!("Removing peer address {} from the ice bucket", address);
+        log::trace!("Removing peer address {address} from the ice bucket");
 
         self.ice_bucket.remove(address);
     }
 
     /// Remove a list of addresses from the ice bucket, ignoring the ice_period
     pub fn remove_many_from_ice(&mut self, addresses: &[SocketAddr]) {
-        log::trace!(
-            "Removing the following peer addresses from the ice bucket: {:?}",
-            addresses
-        );
+        log::trace!("Removing the following peer addresses from the ice bucket: {addresses:?}");
         for address in addresses {
             self.remove_from_ice(address)
         }

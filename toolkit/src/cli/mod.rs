@@ -21,13 +21,13 @@ pub(crate) fn process_command(command: commands::Command) -> i32 {
     }
     // The output of successful commands is printed to `stdout`, and a `0` exit code is returned
     .map(|result| {
-        println!("{}", result);
+        println!("{result}");
 
         0
     })
     // The output of failed commands is printed to `stderr`, and a `1` exit code is returned
     .unwrap_or_else(|error| {
-        eprintln!("{}", error);
+        eprintln!("{error}");
 
         1
     })

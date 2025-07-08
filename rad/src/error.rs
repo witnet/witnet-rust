@@ -306,7 +306,7 @@ impl RadError {
                 if let SerdeCborValue::Integer(error_code) = head {
                     let error_code = u8::try_from(*error_code).map_err(|_| {
                         RadError::DecodeRadonErrorBadCode {
-                            actual_type: format!("{:?}", head),
+                            actual_type: format!("{head:?}"),
                         }
                     })?;
                     let kind = RadonErrors::try_from(error_code)
@@ -324,7 +324,7 @@ impl RadError {
                     )?)
                 } else {
                     Err(RadError::DecodeRadonErrorBadCode {
-                        actual_type: format!("{:?}", head),
+                        actual_type: format!("{head:?}"),
                     })
                 }
             }
@@ -426,7 +426,7 @@ impl RadError {
             args: T,
         ) -> Result<SerdeCborValue, RadError> {
             serde_cbor::value::to_value(&args).map_err(|_| RadError::EncodeRadonErrorArguments {
-                error_args: format!("{:?}", args),
+                error_args: format!("{args:?}"),
             })
         }
 
@@ -447,7 +447,7 @@ impl RadError {
                     // Only serialize the message
                     (_, Some(message)) => message.clone(),
                     // But if there is no message, serialize the debug representation of inner
-                    (Some(inner), None) => format!("inner: {:?}", inner),
+                    (Some(inner), None) => format!("inner: {inner:?}"),
                     // And if there is no inner, serialize this string
                     (None, None) => "inner: None".to_string(),
                 };
@@ -463,7 +463,7 @@ impl RadError {
                     (Some(inner), None) => {
                         // Fix #1993 by emulating a bug from old versions of Rust (rust-lang/rust#83046)
                         if_rust_version::if_rust_version! { >= 1.53 {
-                            format!("inner: {:?}", inner).replace('\'', "\\'")
+                            format!("inner: {inner:?}").replace('\'', "\\'")
                         } else {
                             format!("inner: {:?}", inner)
                         }}
@@ -489,7 +489,7 @@ impl RadError {
                 // This can only happen if `serialize_args` is called with a non-tuple argument
                 // For example:
                 // `serialize_args(x)` is invalid, it should be `serialize_args((x,))`
-                panic!("Args should be an array, is {:?}", value);
+                panic!("Args should be an array, is {value:?}");
             }
         }
 
@@ -680,7 +680,7 @@ mod tests {
                 message: Some("Only the message field is serialized".to_string()),
             },
             // If this panics after adding a new `RadonTypes`, add a new example above
-            _ => panic!("No example for {:?}", radon_errors),
+            _ => panic!("No example for {radon_errors:?}"),
         }
     }
 
@@ -723,14 +723,14 @@ mod tests {
                     // Good, but we need some test arguments
                     rad_error_example(radon_errors)
                 }
-                Err(e) => panic!("RadonErrors::{:?}: {}", radon_errors, e),
+                Err(e) => panic!("RadonErrors::{radon_errors:?}: {e}"),
             };
 
             // Now try the inverse: convert from RadError to RadonErrors
             let again_radon_errors = rad_error.try_into_error_code();
             match again_radon_errors {
                 Ok(x) => assert_eq!(x, radon_errors),
-                Err(e) => panic!("RadonErrors::{:?}: {}", radon_errors, e),
+                Err(e) => panic!("RadonErrors::{radon_errors:?}: {e}"),
             }
         }
     }
@@ -750,13 +750,13 @@ mod tests {
                     // Good, but we need some test arguments
                     rad_error_example(radon_errors)
                 }
-                Err(e) => panic!("RadonErrors::{:?}: {}", radon_errors, e),
+                Err(e) => panic!("RadonErrors::{radon_errors:?}: {e}"),
             };
 
             // Now try to serialize the resulting rad_error
             let serde_cbor_array = match rad_error.try_into_cbor_array() {
                 Ok(x) => x,
-                Err(e) => panic!("RadonErrors::{:?}: {}", radon_errors, e),
+                Err(e) => panic!("RadonErrors::{radon_errors:?}: {e}"),
             };
             // The first element of the serialized CBOR array is the error code
             // the rest are arguments
@@ -769,7 +769,7 @@ mod tests {
 
             match deserialized_rad_error {
                 Ok(x) => assert_eq!(x, rad_error),
-                Err(e) => panic!("RadonErrors::{:?}: {}", radon_errors, e),
+                Err(e) => panic!("RadonErrors::{radon_errors:?}: {e}"),
             }
         }
     }

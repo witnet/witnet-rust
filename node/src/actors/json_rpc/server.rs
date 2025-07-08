@@ -76,7 +76,7 @@ impl JsonRpcServer {
         // Add HTTP transport if enabled
         if let Some(address) = self.config.http_address {
             let address = address.to_string();
-            log::info!("HTTP JSON-RPC interface will listen on {}", address);
+            log::info!("HTTP JSON-RPC interface will listen on {address}");
             server.add_transport(witty_jsonrpc::transports::http::HttpTransport::new(
                 witty_jsonrpc::transports::http::HttpTransportSettings { address },
             ));
@@ -84,7 +84,7 @@ impl JsonRpcServer {
         // Add TCP transport if enabled
         if let Some(address) = self.config.tcp_address {
             let address = address.to_string();
-            log::info!("TCP JSON-RPC interface will listen on {}", address);
+            log::info!("TCP JSON-RPC interface will listen on {address}");
             server.add_transport(witty_jsonrpc::transports::tcp::TcpTransport::new(
                 witty_jsonrpc::transports::tcp::TcpTransportSettings { address },
             ));
@@ -92,7 +92,7 @@ impl JsonRpcServer {
         // Add WebSockets transport if enabled
         if let Some(address) = self.config.ws_address {
             let address = address.to_string();
-            log::info!("WebSockets JSON-RPC interface will listen on {}", address);
+            log::info!("WebSockets JSON-RPC interface will listen on {address}");
             server.add_transport(witty_jsonrpc::transports::ws::WsTransport::new(
                 witty_jsonrpc::transports::ws::WsTransportSettings { address },
             ));
@@ -106,7 +106,7 @@ impl JsonRpcServer {
                 self.server = Some(server);
             }
             Err(error) => {
-                log::error!("Error trying to start JSON-RPC server: {:?}", error);
+                log::error!("Error trying to start JSON-RPC server: {error:?}");
 
                 return Err(error.into());
             }
@@ -143,7 +143,7 @@ impl Handler<BlockNotify> for JsonRpcServer {
                     subscription: subscription.clone(),
                 });
                 if let Err(e) = sink.notify(notification) {
-                    log::error!("Failed to send notification: {:?}", e);
+                    log::error!("Failed to send notification: {e:?}");
                 }
             }
         } else {
@@ -168,13 +168,13 @@ impl Handler<SuperBlockNotify> for JsonRpcServer {
         if let Ok(subscriptions) = self.subscriptions.lock() {
             if let Some(superblocks_subscriptions) = subscriptions.get("superblocks") {
                 for (subscription, (sink, _params)) in superblocks_subscriptions {
-                    log::debug!("Sending superblock notification through sink {:?}", sink);
+                    log::debug!("Sending superblock notification through sink {sink:?}");
                     let notification = jsonrpc_core::Params::from(SubscriptionResult {
                         result: hashes.clone(),
                         subscription: subscription.clone(),
                     });
                     if let Err(e) = sink.notify(notification) {
-                        log::error!("Failed to send notification: {:?}", e);
+                        log::error!("Failed to send notification: {e:?}");
                     }
                 }
             } else {
@@ -201,7 +201,7 @@ impl Handler<NodeStatusNotify> for JsonRpcServer {
                     subscription: subscription.clone(),
                 });
                 if let Err(e) = sink.notify(notification) {
-                    log::error!("Failed to send notification: {:?}", e);
+                    log::error!("Failed to send notification: {e:?}");
                 }
             }
         } else {

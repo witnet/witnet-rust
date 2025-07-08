@@ -75,7 +75,7 @@ impl From<Vec<u8>> for RadonBytes {
 impl fmt::Display for RadonBytes {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let hex_value = hex::encode(&self.value);
-        write!(f, "{}({:?})", RADON_BYTES_TYPE_NAME, hex_value)
+        write!(f, "{RADON_BYTES_TYPE_NAME}({hex_value:?})")
     }
 }
 

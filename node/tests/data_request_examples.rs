@@ -71,23 +71,23 @@ fn run_dr_locally_with_data(
         )?);
     }
 
-    log::info!("Running aggregation with values {:?}", retrieval_results);
+    log::info!("Running aggregation with values {retrieval_results:?}");
     let aggregation_result = witnet_rad::run_aggregation(
         retrieval_results,
         dr.data_request.aggregate.clone(),
         &all_wips_active(),
     )?;
-    log::info!("Aggregation result: {:?}", aggregation_result);
+    log::info!("Aggregation result: {aggregation_result:?}");
 
     // Assume that all the required witnesses will report the same value
     let reported_values: Result<Vec<RadonTypes>, _> = vec![aggregation_result; dr.witnesses.into()]
         .into_iter()
         .map(RadonTypes::try_from)
         .collect();
-    log::info!("Running tally with values {:?}", reported_values);
+    log::info!("Running tally with values {reported_values:?}");
     let tally_result =
         witnet_rad::run_tally(reported_values?, &dr.data_request.tally, &all_wips_active())?;
-    log::info!("Tally result: {:?}", tally_result);
+    log::info!("Tally result: {tally_result:?}");
 
     Ok(tally_result)
 }
@@ -102,7 +102,7 @@ fn parse_examples() {
             None => {
                 // The value did not exist before
                 // Please create a test for it below and then manually add it to existing_examples
-                panic!("New example does not have test: {}", v);
+                panic!("New example does not have test: {v}");
             }
             Some((expected_dro, example_data, expected_result)) => {
                 // This print is intentional, so when this test fails we know which example failed
@@ -137,7 +137,7 @@ fn parse_examples() {
 
     if !existing_examples.is_empty() {
         let eev: Vec<_> = existing_examples.keys().collect();
-        panic!("Old examples no longer exist: {:?}", eev);
+        panic!("Old examples no longer exist: {eev:?}");
     }
 }
 

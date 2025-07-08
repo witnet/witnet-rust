@@ -104,7 +104,7 @@ impl PriorityEngine {
     /// Push a new `Priorities` entry into the engine.
     #[inline]
     pub fn push_priorities(&mut self, priorities: Priorities) {
-        log::trace!("Pushing new transaction priorities entry: {:?}", priorities);
+        log::trace!("Pushing new transaction priorities entry: {priorities:?}");
         // If we hit the capacity limit, pop from the back first so the queue does not grow
         if self.priorities.len() == self.capacity {
             self.priorities.pop_back();
@@ -150,7 +150,7 @@ impl fmt::Debug for PriorityEngine {
             .priorities
             .iter()
             .enumerate()
-            .map(|(i, fees)| format!("{:>4} → {:?}", i, fees))
+            .map(|(i, fees)| format!("{i:>4} → {fees:?}"))
             .join("\n");
 
         write!(

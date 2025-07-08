@@ -110,10 +110,7 @@ impl SessionsManager {
                     .then(|res, act, _ctx| {
                         // Process the response from peers manager
                         let addresses = act.process_get_peer_response(res);
-                        log::debug!(
-                            "Trying to create a new outbound connection to {:?}",
-                            addresses
-                        );
+                        log::debug!("Trying to create a new outbound connection to {addresses:?}",);
 
                         for address in addresses {
                             // Get ConnectionsManager from registry and send an OutboundTcpConnect message to it
@@ -155,15 +152,12 @@ impl SessionsManager {
         response
             // Unwrap the Result<PeersSocketAddrResult, MailboxError>
             .unwrap_or_else(|e| {
-                log::error!("Failed to communicate with PeersManager: {}", e);
+                log::error!("Failed to communicate with PeersManager: {e}");
                 Ok(vec![])
             })
             // Unwrap the PeersSocketAddrResult
             .unwrap_or_else(|e| {
-                log::error!(
-                    "Error when trying to get a peer address from PeersManager: {}",
-                    e
-                );
+                log::error!("Error when trying to get a peer address from PeersManager: {e}",);
                 vec![]
             })
             // Filter the result checking if outbound address is eligible as new peer
@@ -189,7 +183,7 @@ impl SessionsManager {
             .map(move |res, act, _ctx| match res {
                 Ok(Some(f)) => act.epoch_constants = Some(f),
                 Ok(None) => log::error!("Failed to get epoch constants"),
-                Err(err) => log::error!("Failed to get epoch constants: {:?}", err),
+                Err(err) => log::error!("Failed to get epoch constants: {err:?}"),
             })
             .wait(ctx);
     }

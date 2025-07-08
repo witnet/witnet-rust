@@ -17,12 +17,12 @@ fn epoch_zero_range() {
 
     // [1000, 1089] are in epoch 0
     for now in zero..zero + period {
-        assert_eq!(em.epoch_at(now), Ok(0), "Error at {}", now);
+        assert_eq!(em.epoch_at(now), Ok(0), "Error at {now}");
     }
 
     // 1090 is the start of epoch 1
     let now = zero + period;
-    assert_eq!(em.epoch_at(now), Ok(1), "Error at {}", now);
+    assert_eq!(em.epoch_at(now), Ok(1), "Error at {now}");
 
     // Epoch 0: t = 1000
     assert_eq!(em.epoch_timestamp(0), Ok(zero));
@@ -72,7 +72,7 @@ fn epoch_v2() {
 
     // [1000, 1049] are in epoch 0
     for now in zero..zero + period {
-        assert_eq!(em.epoch_at(now), Ok(0), "Error at {}", now);
+        assert_eq!(em.epoch_at(now), Ok(0), "Error at {now}");
     }
 
     // 1050 is the start of epoch 1
@@ -85,17 +85,17 @@ fn epoch_v2() {
 
     // [1100, 1149] is part of period 2
     for now in zero + 2 * period..zero + 3 * period {
-        assert_eq!(em.epoch_at(now), Ok(2), "Error at {}", now);
+        assert_eq!(em.epoch_at(now), Ok(2), "Error at {now}");
     }
 
     // [1950, 1050] are part of epoch 19 and more
     for now in zero + 19 * period..zero + 21 * period {
         if now < 2000 {
-            assert_eq!(em.epoch_at(now), Ok(19), "Error at {}", now);
+            assert_eq!(em.epoch_at(now), Ok(19), "Error at {now}");
         } else if now < 2025 {
-            assert_eq!(em.epoch_at(now), Ok(20), "Error at {}", now);
+            assert_eq!(em.epoch_at(now), Ok(20), "Error at {now}");
         } else {
-            assert_eq!(em.epoch_at(now), Ok(21), "Error at {}", now);
+            assert_eq!(em.epoch_at(now), Ok(21), "Error at {now}");
         }
     }
 

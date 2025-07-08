@@ -39,8 +39,7 @@ fn test_tally_precondition_clause_3_ints_vs_1_float() {
         assert_eq!(errors, vec![false, false, false, false]);
     } else {
         panic!(
-            "The result of the tally precondition clause was not `MajorityOfValues`. It was: {:?}",
-            tally_precondition_clause_result
+            "The result of the tally precondition clause was not `MajorityOfValues`. It was: {tally_precondition_clause_result:?}"
         );
     }
 }
@@ -66,8 +65,7 @@ fn test_tally_precondition_clause_full_consensus() {
         assert_eq!(errors, vec![false, false]);
     } else {
         panic!(
-            "The result of the tally precondition clause was not `MajorityOfValues`. It was: {:?}",
-            tally_precondition_clause_result
+            "The result of the tally precondition clause was not `MajorityOfValues`. It was: {tally_precondition_clause_result:?}"
         );
     }
 }
@@ -93,8 +91,7 @@ fn test_tally_precondition_clause_exact_consensus() {
         assert_eq!(errors, vec![false, false]);
     } else {
         panic!(
-            "The result of the tally precondition clause was not `MajorityOfValues`. It was: {:?}",
-            tally_precondition_clause_result
+            "The result of the tally precondition clause was not `MajorityOfValues`. It was: {tally_precondition_clause_result:?}"
         );
     }
 }
@@ -127,8 +124,7 @@ fn test_tally_precondition_clause_3_ints_vs_1_error() {
         assert_eq!(errors, vec![false, true, false, false]);
     } else {
         panic!(
-            "The result of the tally precondition clause was not `MajorityOfValues`. It was: {:?}",
-            tally_precondition_clause_result
+            "The result of the tally precondition clause was not `MajorityOfValues`. It was: {tally_precondition_clause_result:?}"
         );
     }
 }
@@ -159,8 +155,7 @@ fn test_tally_precondition_clause_majority_of_errors() {
         assert_eq!(errors_mode, rad_err);
     } else {
         panic!(
-            "The result of the tally precondition clause was not `MajorityOfErrors`. It was: {:?}",
-            tally_precondition_clause_result
+            "The result of the tally precondition clause was not `MajorityOfErrors`. It was: {tally_precondition_clause_result:?}"
         );
     }
 }
@@ -226,8 +221,7 @@ fn test_tally_precondition_clause_3_errors_vs_2_ints_and_2_floats() {
         assert_eq!(errors_mode, rad_err);
     } else {
         panic!(
-            "The result of the tally precondition clause was not `MajorityOfErrors`. It was: {:?}",
-            tally_precondition_clause_result
+            "The result of the tally precondition clause was not `MajorityOfErrors`. It was: {tally_precondition_clause_result:?}"
         );
     }
 }
@@ -273,8 +267,7 @@ fn test_tally_precondition_clause_all_errors() {
         assert_eq!(errors_mode, rad_err);
     } else {
         panic!(
-            "The result of the tally precondition clause was not `MajorityOfErrors`. It was: {:?}",
-            tally_precondition_clause_result
+            "The result of the tally precondition clause was not `MajorityOfErrors`. It was: {tally_precondition_clause_result:?}"
         );
     }
 }

@@ -106,8 +106,7 @@ impl EthPoller {
             if let (Ok(next_dr_id), Ok(Ok(mut last_dr_id))) = (next_dr_id, last_dr_id) {
                 if last_dr_id < skip_first {
                     log::debug!(
-                        "Skipping first {} queries as per SKIP_FIRST config param",
-                        skip_first
+                        "Skipping first {skip_first} queries as per SKIP_FIRST config param"
                     );
                     last_dr_id = skip_first;
                 }
@@ -141,18 +140,18 @@ impl EthPoller {
                             let status: u8 = status.to_string().parse().unwrap();
                             match WitnetQueryStatus::from_code(status) {
                                 WitnetQueryStatus::Unknown => {
-                                    log::warn!("Skipped unavailable query [{}]", query_id);
+                                    log::warn!("Skipped unavailable query [{query_id}]");
                                     dr_database_addr.do_send(SetDrState {
                                         dr_id: query_id,
                                         dr_state: DrState::Dismissed,
                                     });
                                 }
                                 WitnetQueryStatus::Posted => {
-                                    log::info!("Detected new query [{}]", query_id);
+                                    log::info!("Detected new query [{query_id}]");
                                     posted_ids.push(Token::Uint(query_id));
                                 }
                                 WitnetQueryStatus::Reported | WitnetQueryStatus::Finalized => {
-                                    log::info!("Skipped already solved query [{}]", query_id);
+                                    log::info!("Skipped already solved query [{query_id}]");
                                     dr_database_addr.do_send(SetDrState {
                                         dr_id: query_id,
                                         dr_state: DrState::Finished,
@@ -183,8 +182,7 @@ impl EthPoller {
                                 }
                             } else {
                                 log::error!(
-                                    "Fail to extract Witnet request bytecodes from queries {:?}",
-                                    posted_ids
+                                    "Fail to extract Witnet request bytecodes from queries {posted_ids:?}"
                                 );
                             }
                         }

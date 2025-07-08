@@ -52,14 +52,14 @@ impl From<UtxoWriteBatch> for WriteBatch {
         for item in x.v {
             match item {
                 UtxoWriteBatchItem::Put(k, v) => {
-                    let key_string = format!("UTXO-{}", k);
+                    let key_string = format!("UTXO-{k}");
                     batch.put(
                         key_string.into_bytes(),
                         bincode::serialize(&v).expect("bincode fail"),
                     );
                 }
                 UtxoWriteBatchItem::Delete(k) => {
-                    let key_string = format!("UTXO-{}", k);
+                    let key_string = format!("UTXO-{k}");
                     batch.delete(key_string.as_bytes().to_vec());
                 }
                 UtxoWriteBatchItem::Raw(x) => {
@@ -115,7 +115,7 @@ impl<S: Storage> Storage for UtxoDbWrapStorage<S> {
 // bytes.
 impl<S: Storage> UtxoDb for UtxoDbWrapStorage<S> {
     fn get_utxo(&self, k: &OutputPointer) -> Result<Option<(ValueTransferOutput, u32)>, Error> {
-        let key_string = format!("UTXO-{}", k);
+        let key_string = format!("UTXO-{k}");
 
         Ok(self.0.get(key_string.as_bytes())?.map(|bytes| {
             bincode::deserialize::<(ValueTransferOutput, u32)>(&bytes).expect("bincode fail")

@@ -50,7 +50,7 @@ fn main() {
         })
         .expect("Error setting handler for both SIGINT (Ctrl+C) and SIGTERM (kill)");
     }) {
-        log::error!("{}", err);
+        log::error!("{err}");
         std::process::exit(1);
     }
 }
@@ -61,14 +61,14 @@ fn run(callback: fn()) -> Result<(), String> {
     let config = if app.env {
         config::from_env()
             .map(Arc::new)
-            .map_err(|e| format!("Error reading configuration from environment: {}", e))?
+            .map_err(|e| format!("Error reading configuration from environment: {e}"))?
     } else {
         config::from_file(
             app.config
                 .unwrap_or_else(|| "witnet_centralized_ethereum_bridge.toml".into()),
         )
         .map(Arc::new)
-        .map_err(|e| format!("Error reading configuration file: {}", e))?
+        .map_err(|e| format!("Error reading configuration file: {e}"))?
     };
 
     // Init system

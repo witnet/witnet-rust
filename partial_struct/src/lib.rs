@@ -144,7 +144,7 @@ fn get_attributes(orig: &[syn::Attribute]) -> (Vec<syn::Attribute>, Action) {
                                     _ => panic!("ty literal is not a string"),
                                 },
                                 name => {
-                                    panic!("unknown name-value option {}", name);
+                                    panic!("unknown name-value option {name}");
                                 }
                             }
                         }

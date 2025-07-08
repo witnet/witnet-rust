@@ -353,8 +353,7 @@ fn test_create_transaction_components_when_wallet_have_no_utxos() {
 
     assert!(
         matches!(err, repository::Error::InsufficientBalance { .. }),
-        "{:?}",
-        err
+        "{err:?}"
     );
 }
 
@@ -1339,8 +1338,7 @@ fn test_create_vtt_with_locked_balance() {
 
     assert!(
         matches!(err, repository::Error::InsufficientBalance { .. }),
-        "{:?}",
-        err
+        "{err:?}"
     );
 }
 
@@ -1652,8 +1650,7 @@ fn test_create_vt_components_weighted_fee_3() {
 
     assert!(
         matches!(err, repository::Error::InsufficientBalance { .. }),
-        "{:?}",
-        err
+        "{err:?}"
     );
 }
 
@@ -1980,8 +1977,7 @@ fn test_create_vt_components_weighted_fee_without_outputs() {
 
     assert!(
         matches!(err, repository::Error::InsufficientBalance { .. }),
-        "{:?}",
-        err
+        "{err:?}"
     );
 }
 
@@ -2040,8 +2036,7 @@ fn test_create_vt_components_weighted_fee_with_too_large_fee() {
     assert_eq!(
         mem::discriminant(&repository::Error::FeeTooLarge),
         mem::discriminant(&err),
-        "{:?}",
-        err,
+        "{err:?}",
     );
 }
 #[test]
@@ -2104,8 +2099,7 @@ fn test_create_vt_weight_too_large() {
     assert_eq!(
         mem::discriminant(&repository::Error::MaximumVTTWeightReached(value)),
         mem::discriminant(&err),
-        "{:?}",
-        err,
+        "{err:?}",
     );
 }
 
@@ -2203,8 +2197,7 @@ fn test_create_dr_components_weighted_fee_2_not_enough_funds() {
 
     assert!(
         matches!(err, repository::Error::InsufficientBalance { .. }),
-        "{:?}",
-        err
+        "{err:?}"
     );
 }
 
@@ -2349,8 +2342,7 @@ fn test_create_dr_components_weighted_fee_without_outputs() {
 
     assert!(
         matches!(err, repository::Error::InsufficientBalance { .. }),
-        "{:?}",
-        err
+        "{err:?}"
     );
 }
 
@@ -2406,8 +2398,7 @@ fn test_create_dr_components_weighted_fee_weight_too_large() {
             request
         ))),
         mem::discriminant(&err),
-        "{:?}",
-        err,
+        "{err:?}",
     );
 }
 
@@ -2459,8 +2450,7 @@ fn test_create_dr_components_weighted_fee_fee_too_large() {
     assert_eq!(
         mem::discriminant(&repository::Error::FeeTooLarge),
         mem::discriminant(&err),
-        "{:?}",
-        err,
+        "{err:?}",
     );
 }
 
@@ -2686,8 +2676,7 @@ fn test_create_transaction_components_filter_from_address_3() {
 
     assert!(
         matches!(err, repository::Error::InsufficientBalance { .. }),
-        "{:?}",
-        err
+        "{err:?}"
     );
 }
 
@@ -2766,8 +2755,7 @@ fn test_create_transaction_components_does_not_use_unconfirmed_utxos() {
 
     assert!(
         matches!(err, repository::Error::InsufficientBalance { .. }),
-        "{:?}",
-        err
+        "{err:?}"
     );
 
     // But creating a transaction that only uses the confirmed UTXO works
@@ -2943,8 +2931,7 @@ fn test_create_vtt_selecting_utxos() {
 
     assert!(
         matches!(err, repository::Error::InsufficientBalance { .. }),
-        "{:?}",
-        err
+        "{err:?}"
     );
 
     // In case of using the big utxo, everything goes well
@@ -3047,8 +3034,7 @@ fn test_create_transaction_components_does_not_use_unconfirmed_utxos_and_selecti
 
     assert!(
         matches!(err, repository::Error::InsufficientBalance { .. }),
-        "{:?}",
-        err
+        "{err:?}"
     );
 }
 

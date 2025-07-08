@@ -242,7 +242,7 @@ async fn create_bn256_key() -> Result<Bn256SecretKey, anyhow::Error> {
         Err(e) => {
             // This should never happen, as any 256-bit integer can be converted into a valid
             // BN256 secret key
-            log::error!("Failed to generate BN256 secret key: {}", e);
+            log::error!("Failed to generate BN256 secret key: {e}");
             return Err(e);
         }
     };
@@ -254,7 +254,7 @@ async fn create_bn256_key() -> Result<Bn256SecretKey, anyhow::Error> {
         Err(e) => {
             // This should never happen, as any valid private key can be used to derive a valid
             // BN256 public key
-            log::error!("Failed to derive BN256 public key: {}", e);
+            log::error!("Failed to derive BN256 public key: {e}");
             Err(e)
         }
     }
@@ -268,7 +268,7 @@ impl Actor for SignatureManager {
 
         self.vrf_ctx = VrfCtx::secp256k1()
             .map_err(|e| {
-                log::error!("Failed to initialize VRF context: {}", e);
+                log::error!("Failed to initialize VRF context: {e}");
                 // Stop the node
                 ctx.stop();
             })
@@ -551,7 +551,7 @@ impl Actor for SignatureManagerAdapter {
         }
         .into_actor(self)
         .map_err(|err, _act, _ctx| {
-            log::error!("Failed to configure master key: {}", err);
+            log::error!("Failed to configure master key: {err}");
             System::current().stop_with_code(1);
         })
         .map(|_res: Result<(), ()>, _act, _ctx| ())
@@ -569,7 +569,7 @@ impl Actor for SignatureManagerAdapter {
         }
         .into_actor(self)
         .map_err(|err: anyhow::Error, _act, _ctx| {
-            log::warn!("Failed to configure BN256 key: {}", err);
+            log::warn!("Failed to configure BN256 key: {err}");
         })
         .map(|_res: Result<(), ()>, _act, _ctx| ())
         .wait(ctx);

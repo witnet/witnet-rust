@@ -80,7 +80,7 @@ impl WitPoller {
                 Some(consensus_constants) => consensus_constants,
                 None => match get_consensus_constants(witnet_client.clone()).await {
                     Ok(consensus_constants) => {
-                        log::info!("Protocol consensus constants: {:?}", consensus_constants);
+                        log::info!("Protocol consensus constants: {consensus_constants:?}");
                         consensus_constants
                     }
                     Err(_) => {
@@ -133,7 +133,7 @@ impl WitPoller {
                                 current_commit_round: dr_commits_round,
                                 ..
                             })) => {
-                                log::info!("[{}] <= dr_tx = {}", dr_id, dr_tx_hash);
+                                log::info!("[{dr_id}] <= dr_tx = {dr_tx_hash}");
 
                                 let result = tally.tally.clone();
                                 // Get timestamp of the epoch at which all data request commit txs
@@ -164,24 +164,17 @@ impl WitPoller {
                             }
                             Err(e) => {
                                 log::error!(
-                                    "[{}] => cannot deserialize dr_tx = {}: {:?}",
-                                    dr_id,
-                                    dr_tx_hash,
-                                    e
+                                    "[{dr_id}] => cannot deserialize dr_tx = {dr_tx_hash}: {e:?}"
                                 );
                             }
                         };
                     } else {
-                        log::debug!("[{}] <> dr_tx = {}", dr_id, dr_tx_hash);
+                        log::debug!("[{dr_id}] <> dr_tx = {dr_tx_hash}");
                     }
 
                     let elapsed_secs = current_timestamp - dr_tx_creation_timestamp;
                     if elapsed_secs >= timeout_secs {
-                        log::warn!(
-                            "[{}] => will retry new dr_tx after {} secs",
-                            dr_id,
-                            elapsed_secs
-                        );
+                        log::warn!("[{dr_id}] => will retry new dr_tx after {elapsed_secs} secs");
                         DrDatabase::from_registry()
                             .send(SetDrInfoBridge(
                                 dr_id,
@@ -246,7 +239,7 @@ async fn get_consensus_constants(
         Ok(value) => serde_json::from_value::<ConsensusConstants>(value)
             .expect("failed to deserialize consensus constants"),
         Err(e) => {
-            log::error!("error in getConsensusConstants call: {:?}", e);
+            log::error!("error in getConsensusConstants call: {e:?}");
             return Err(());
         }
     };
@@ -279,7 +272,7 @@ async fn get_dr_timestamp(
     let block = match report {
         Ok(value) => serde_json::from_value::<Block>(value).expect("failed to deserialize block"),
         Err(e) => {
-            log::error!("error in getBlock call ({}): {:?}", drt_block_hash, e);
+            log::error!("error in getBlock call ({drt_block_hash}): {e:?}");
             return Err(());
         }
     };
@@ -333,7 +326,7 @@ async fn get_protocol_info(witnet_client: Addr<JsonRpcClient>) -> Result<Protoco
         Ok(value) => Ok(serde_json::from_value::<ProtocolInfo>(value)
             .expect("failed to deserialize protocol info")),
         Err(e) => {
-            log::error!("Error when getting protocol info: {:?}", e);
+            log::error!("Error when getting protocol info: {e:?}");
             Err(())
         }
     }

@@ -222,12 +222,12 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
                                 match e {
                                     // Lack of eligibility is logged as debug
                                     e @ ChainManagerError::NotEligible => {
-                                        log::debug!("{}", e);
+                                        log::debug!("{e}");
                                     }
                                     // Any other errors are logged as warning (considering that this is a best-effort
                                     // method)
                                     e => {
-                                        log::warn!("{}", e);
+                                        log::warn!("{e}");
                                     }
                                 }
                             }
@@ -430,7 +430,7 @@ impl Handler<AddBlocks> for ChainManager {
                                     beacon: last_beacon,
                                 });
                             }
-                            Err(e) => log::error!("Failed to consolidate genesis block: {}", e),
+                            Err(e) => log::error!("Failed to consolidate genesis block: {e}"),
                         }
                     } else {
                         log::debug!("Unhandled AddBlocks message");
@@ -704,17 +704,14 @@ impl Handler<AddBlocks> for ChainManager {
                                 consolidated_superblock_index,
                                 current_superblock_index,
                             }) => {
-                            log::warn!("Received unexpected block {} for superblock index (consolidated: {}, current {}). Delaying synchronization until next epoch.",
-                            wrong_index,
-                            consolidated_superblock_index,
-                            current_superblock_index,
+                            log::warn!("Received unexpected block {wrong_index} for superblock index (consolidated: {consolidated_superblock_index}, current {current_superblock_index}). Delaying synchronization until next epoch.",
 
                         );
                             act.update_state_machine(StateMachine::WaitingConsensus, ctx);
                             act.sync_waiting_for_add_blocks_since = None;
                         }
                         Err(e) => {
-                            log::error!("Unexpected error while splitting received blocks {:?}", e)
+                            log::error!("Unexpected error while splitting received blocks {e:?}")
                         }
                     };
                 }
@@ -749,7 +746,7 @@ fn log_sync_progress(
     stage: &str,
 ) {
     if num_processed_blocks == 0 {
-        log::debug!("{}: sync done, 0 blocks processed", stage);
+        log::debug!("{stage}: sync done, 0 blocks processed");
     } else {
         let last_processed_block = &blocks[num_processed_blocks - 1];
         let epoch_of_the_last_block = last_processed_block.block_header.beacon.checkpoint;
@@ -828,7 +825,7 @@ impl PeersBeacons {
             beacon_peers_map.entry(v).or_default().push(k.to_string());
         }
 
-        format!("{:?}", beacon_peers_map)
+        format!("{beacon_peers_map:?}")
     }
 
     /// Run the consensus on the beacons, will return the most common beacon.
@@ -1043,9 +1040,7 @@ impl Handler<PeersBeacons> for ChainManager {
         } else if pb_len < peers_needed_for_consensus {
             // Not enough outbound peers, do not unregister any peers
             log::debug!(
-                "Got {} peers but need at least {} to calculate the consensus",
-                pb_len,
-                peers_needed_for_consensus
+                "Got {pb_len} peers but need at least {peers_needed_for_consensus} to calculate the consensus"
             );
             vec![]
         } else {
@@ -1086,7 +1081,7 @@ impl Handler<PeersBeacons> for ChainManager {
                             target.block.checkpoint,
                             target.block.hash_prev_block
                         );
-                        log::debug!("{:#?}", target);
+                        log::debug!("{target:#?}");
 
                         let our_beacon = self.get_chain_beacon();
                         log::debug!(
@@ -1113,10 +1108,8 @@ impl Handler<PeersBeacons> for ChainManager {
                             // Fork case
                             log::warn!(
                                 "[CONSENSUS]: The local chain is apparently forked.\n\
-                                We are on {:?} but the network is on {:?}.\n\
-                                The node will automatically try to recover from this forked situation by restoring the chain state from the storage.",
-                                our_beacon,
-                                consensus_beacon
+                                We are on {our_beacon:?} but the network is on {consensus_beacon:?}.\n\
+                                The node will automatically try to recover from this forked situation by restoring the chain state from the storage."
                             );
 
                             self.initialize_from_storage(ctx);
@@ -1155,8 +1148,7 @@ impl Handler<PeersBeacons> for ChainManager {
                                     }
                                     Err(e) => {
                                         log::debug!(
-                                            "Failed to consolidate consensus candidate: {}",
-                                            e
+                                            "Failed to consolidate consensus candidate: {e}"
                                         );
                                     }
                                 }
@@ -1203,9 +1195,7 @@ impl Handler<PeersBeacons> for ChainManager {
                         {
                             // Fork case
                             log::warn!(
-                                "[CONSENSUS]: We are on {:?} but the network is on {:?}",
-                                our_beacon,
-                                consensus_beacon
+                                "[CONSENSUS]: We are on {our_beacon:?} but the network is on {consensus_beacon:?}"
                             );
 
                             self.initialize_from_storage(ctx);
@@ -1254,9 +1244,7 @@ impl Handler<PeersBeacons> for ChainManager {
                     )) => {
                         // We are out of consensus!
                         log::warn!(
-                            "[CONSENSUS]: We are on {:?} but the network is on {:?}",
-                            our_beacon,
-                            consensus_beacon,
+                            "[CONSENSUS]: We are on {our_beacon:?} but the network is on {consensus_beacon:?}",
                         );
 
                         // We will move to AlmostSynced to disable mining while preserving network
@@ -1279,8 +1267,7 @@ impl Handler<PeersBeacons> for ChainManager {
                             // There is no consensus because of a tie, do not rewind?
                             // For example this could happen when each peer reports a different beacon...
                             log::warn!(
-                                "[CONSENSUS]: We are on {:?} but the network has no consensus",
-                                our_beacon
+                                "[CONSENSUS]: We are on {our_beacon:?} but the network has no consensus"
                             );
                         }
 
@@ -1359,7 +1346,7 @@ impl Handler<BuildVtt> for ChainManager {
             msg.dry_run,
         ) {
             Err(e) => {
-                log::error!("Error when building value transfer transaction: {}", e);
+                log::error!("Error when building value transfer transaction: {e}");
                 Box::pin(actix::fut::err(e.into()))
             }
             Ok(vtt) => {
@@ -1386,7 +1373,7 @@ impl Handler<BuildVtt> for ChainManager {
                             }
                         }
                         Err(e) => {
-                            log::error!("Failed to sign value transfer transaction: {}", e);
+                            log::error!("Failed to sign value transfer transaction: {e}");
                             Either::Right(actix::fut::result(Err(e)))
                         }
                     });
@@ -1427,7 +1414,7 @@ impl Handler<BuildStake> for ChainManager {
             msg.dry_run,
         ) {
             Err(e) => {
-                log::error!("Error when building stake transaction: {}", e);
+                log::error!("Error when building stake transaction: {e}");
                 Box::pin(actix::fut::err(e.into()))
             }
             Ok(st) => {
@@ -1454,7 +1441,7 @@ impl Handler<BuildStake> for ChainManager {
                             }
                         }
                         Err(e) => {
-                            log::error!("Failed to sign stake transaction: {}", e);
+                            log::error!("Failed to sign stake transaction: {e}");
                             Either::Right(actix::fut::result(Err(e)))
                         }
                     });
@@ -1483,7 +1470,7 @@ impl Handler<BuildUnstake> for ChainManager {
             withdrawer: self.own_pkh.unwrap(),
         }) {
             Err(e) => {
-                log::error!("Error when building unstake transaction: {}", e);
+                log::error!("Error when building unstake transaction: {e}");
                 Box::pin(actix::fut::err(e.into()))
             }
             Ok(nonce) => {
@@ -1498,7 +1485,7 @@ impl Handler<BuildUnstake> for ChainManager {
                 };
                 match transaction_factory::build_ut(msg.operator, withdrawal, msg.fee, nonce) {
                     Err(e) => {
-                        log::error!("Error when building unstake transaction: {}", e);
+                        log::error!("Error when building unstake transaction: {e}");
                         Box::pin(actix::fut::err(e.into()))
                     }
                     Ok(ut) => {
@@ -1528,7 +1515,7 @@ impl Handler<BuildUnstake> for ChainManager {
                                     }
                                 }
                                 Err(e) => {
-                                    log::error!("Failed to sign unstake transaction: {}", e);
+                                    log::error!("Failed to sign unstake transaction: {e}");
                                     Either::Right(actix::fut::result(Err(e)))
                                 }
                             });
@@ -1561,7 +1548,7 @@ impl Handler<QueryStakes> for ChainManager {
         // on actual ordering field) older than calculated `since_epoch`:
         let since_epoch: u64 = if since >= 0 {
             since.try_into().inspect_err(|&e| {
-                log::warn!("Invalid 'since' limit on QueryStakes: {}", e);
+                log::warn!("Invalid 'since' limit on QueryStakes: {e}");
             })?
         } else {
             (i64::from(self.current_epoch.unwrap()) + since)
@@ -1713,11 +1700,11 @@ impl Handler<BuildDrt> for ChainManager {
             msg.dry_run,
         ) {
             Err(e) => {
-                log::error!("Error when building data request transaction: {}", e);
+                log::error!("Error when building data request transaction: {e}");
                 Box::pin(actix::fut::err(e.into()))
             }
             Ok(drt) => {
-                log::debug!("Created drt:\n{:?}", drt);
+                log::debug!("Created drt:\n{drt:?}");
                 let fut = signature_mngr::sign_transaction_hash(drt.hash(), drt.inputs.len())
                     .into_actor(self)
                     .then(move |s, act, _ctx| match s {
@@ -1741,7 +1728,7 @@ impl Handler<BuildDrt> for ChainManager {
                             }
                         }
                         Err(e) => {
-                            log::error!("Failed to sign data request transaction: {}", e);
+                            log::error!("Failed to sign data request transaction: {e}");
                             Either::Right(actix::fut::result(Err(e)))
                         }
                     });
@@ -1776,7 +1763,7 @@ impl Handler<GetDataRequestInfo> for ChainManager {
         {
             Box::pin(future::ready(Ok(dr_info)))
         } else {
-            let dr_pointer_string = format!("DR-REPORT-{}", dr_pointer);
+            let dr_pointer_string = format!("DR-REPORT-{dr_pointer}");
             // Otherwise, try to get it from storage
             let fut = async move {
                 let dr_info = storage_mngr::get::<_, DataRequestInfo>(&dr_pointer_string).await?;
@@ -1841,10 +1828,7 @@ impl Handler<GetBalance2> for ChainManager {
             }
             GetBalance2::Address(pkh) => {
                 let pkh = try_do_magic_into_pkh(pkh.clone()).map_err(|e| {
-                    log::warn!(
-                        "Failed to convert {:?} into a valid public key hash: {e}",
-                        pkh
-                    );
+                    log::warn!("Failed to convert {pkh:?} into a valid public key hash: {e}");
                     e
                 })?;
                 let mut balance = transaction_factory::get_utxos_balance(
@@ -2203,12 +2187,12 @@ impl Handler<TryMineBlock> for ChainManager {
             match e {
                 // Lack of eligibility is logged as debug
                 e @ ChainManagerError::NotEligible => {
-                    log::debug!("{}", e);
+                    log::debug!("{e}");
                 }
                 // Any other errors are logged as warning (considering that this is a best-effort
                 // method)
                 e => {
-                    log::warn!("{}", e);
+                    log::warn!("{e}");
                 }
             }
         }
@@ -2243,7 +2227,7 @@ impl Handler<AddCommitReveal> for ChainManager {
                 get_timestamp(),
             )
             .map_err(|e, _, _| {
-                log::warn!("Failed to add commit transaction: {}", e);
+                log::warn!("Failed to add commit transaction: {e}");
                 e
             }),
         )
@@ -2285,15 +2269,12 @@ impl Handler<AddSuperBlock> for ChainManager {
                 self.sync_superblock = Some((received_superblock_hash, msg.superblock));
             } else {
                 log::debug!(
-                    "Received superblock {} when expecting superblock {}",
-                    received_superblock_hash,
-                    target_superblock_hash
+                    "Received superblock {received_superblock_hash} when expecting superblock {target_superblock_hash}"
                 );
             }
         } else {
             log::debug!(
-                "Received superblock {} when expecting no superblock",
-                received_superblock_hash
+                "Received superblock {received_superblock_hash} when expecting no superblock"
             );
         }
     }

@@ -348,11 +348,7 @@ pub fn attach_subscriptions<H>(
     // Wrapped in `Arc` for spawning the subscriptions in other threads safely
     let subscribe_arc = Arc::new(
         move |params: Params, meta: H::Metadata, subscriber: Subscriber| {
-            log::debug!(
-                "Called subscribe method with params {:?} and meta {:?}",
-                params,
-                meta
-            );
+            log::debug!("Called subscribe method with params {params:?} and meta {meta:?}");
 
             // Main business logic for registering a new subscription
             let register = |topic: String, params: Value, subscriber: Subscriber| {
@@ -402,8 +398,7 @@ pub fn attach_subscriptions<H>(
                         other => {
                             // If the topic is unknown, reject the subscription
                             log::error!(
-                                "got a subscription request for an unsupported topic: {}",
-                                other
+                                "got a subscription request for an unsupported topic: {other}"
                             );
 
                             subscriber
@@ -426,11 +421,7 @@ pub fn attach_subscriptions<H>(
     // Wrapped in `Arc` for spawning the unsubscriptions in other threads safely
     let unsubscribe_arc = Arc::new(
         move |id: SubscriptionId, meta: Option<H::Metadata>| -> BoxFuture<JsonRpcResult> {
-            log::debug!(
-                "called unsubscribe method for id {:?} with meta {:?}",
-                id,
-                meta
-            );
+            log::debug!("called unsubscribe method for id {id:?} with meta {meta:?}");
 
             match subscriptions.lock() {
                 Ok(mut subscriptions) => {
@@ -480,7 +471,7 @@ pub fn attach_api<H>(
 fn internal_error<T: std::fmt::Debug>(e: T) -> jsonrpc_core::Error {
     jsonrpc_core::Error {
         code: jsonrpc_core::ErrorCode::InternalError,
-        message: format!("{:?}", e),
+        message: format!("{e:?}"),
         data: None,
     }
 }
@@ -488,7 +479,7 @@ fn internal_error<T: std::fmt::Debug>(e: T) -> jsonrpc_core::Error {
 fn internal_error_s<T: std::fmt::Display>(e: T) -> jsonrpc_core::Error {
     jsonrpc_core::Error {
         code: jsonrpc_core::ErrorCode::InternalError,
-        message: format!("{}", e),
+        message: format!("{e}"),
         data: None,
     }
 }
@@ -496,8 +487,7 @@ fn internal_error_s<T: std::fmt::Display>(e: T) -> jsonrpc_core::Error {
 /// Message that appears when calling a sensitive method when sensitive methods are disabled
 fn unauthorized_message(method_name: &str) -> String {
     format!(
-        "Method {} not allowed while node setting json_rpc.enable_sensitive_methods is set to false",
-        method_name
+        "Method {method_name} not allowed while node setting json_rpc.enable_sensitive_methods is set to false"
     )
 }
 
@@ -563,10 +553,7 @@ pub async fn inventory(params: Result<InventoryItem, Error>) -> JsonRpcResult {
         }
 
         inv_elem => {
-            log::debug!(
-                "Invalid type of inventory item from JSON-RPC: {:?}",
-                inv_elem
-            );
+            log::debug!("Invalid type of inventory item from JSON-RPC: {inv_elem:?}");
             Err(Error::invalid_params("Item type not implemented"))
         }
     }
@@ -602,7 +589,7 @@ pub async fn get_block_chain(params: Result<Option<GetBlockChainParams>, Error>)
                 let epoch_and_hash: Vec<_> = vec_inv_entry
                     .into_iter()
                     .map(|(epoch, hash)| {
-                        let hash_string = format!("{}", hash);
+                        let hash_string = format!("{hash}");
                         (epoch, hash_string)
                     })
                     .collect();
@@ -1373,7 +1360,7 @@ pub async fn get_public_key() -> JsonRpcResult {
     signature_mngr::public_key()
         .map(|res| {
             res.map_err(internal_error).map(|pk| {
-                log::debug!("{:?}", pk);
+                log::debug!("{pk:?}");
                 pk.to_bytes().to_vec().into()
             })
         })
@@ -1421,7 +1408,7 @@ pub async fn create_vrf(params: Result<Vec<u8>, Error>) -> JsonRpcResult {
     signature_mngr::vrf_prove(VrfMessage::set_data(data))
         .map(|res| {
             res.map_err(internal_error).map(|(proof, _hash)| {
-                log::debug!("{:?}", proof);
+                log::debug!("{proof:?}");
                 proof.get_proof().into()
             })
         })
@@ -2106,10 +2093,7 @@ pub async fn stake(params: Result<BuildStakeParams, Error>) -> JsonRpcResult {
         .clone()
         .try_do_magic(|hex_str| PublicKeyHash::from_bech32(get_environment(), &hex_str))
         .map_err(internal_error)?;
-    log::debug!(
-        "[STAKE] Creating stake transaction with withdrawer address: {}",
-        withdrawer
-    );
+    log::debug!("[STAKE] Creating stake transaction with withdrawer address: {withdrawer}");
 
     // This is the actual message that gets signed as part of the authorization
     let msg = withdrawer.as_secp256k1_msg();
@@ -2147,8 +2131,7 @@ pub async fn stake(params: Result<BuildStakeParams, Error>) -> JsonRpcResult {
         .map_err(internal_error)?;
     let validator = PublicKeyHash::from_public_key(&authorization.public_key);
     log::debug!(
-        "[STAKE] A stake authorization was provided, and it was signed by validator {}",
-        validator
+        "[STAKE] A stake authorization was provided, and it was signed by validator {validator}"
     );
 
     let key = StakeKey {
@@ -2661,10 +2644,7 @@ mod tests {
 
         let inv_elem = InventoryItem::Block(block);
         let s = serde_json::to_string(&inv_elem).unwrap();
-        let msg = format!(
-            r#"{{"jsonrpc":"2.0","method":"inventory","params":{},"id":1}}"#,
-            s
-        );
+        let msg = format!(r#"{{"jsonrpc":"2.0","method":"inventory","params":{s},"id":1}}"#);
 
         // Expected result: true
         let expected = r#"{"jsonrpc":"2.0","error":{"code":-32603,"message":"MailboxError(Mailbox has closed)"},"id":1}"#.to_string();
@@ -2807,7 +2787,7 @@ mod tests {
         let inv_elem = InventoryItem::Block(block);
         let s = serde_json::to_string(&inv_elem).unwrap();
         let expected = r#"{"block":{"block_header":{"signals":0,"beacon":{"checkpoint":0,"hashPrevBlock":"0000000000000000000000000000000000000000000000000000000000000000"},"merkle_roots":{"mint_hash":"0000000000000000000000000000000000000000000000000000000000000000","vt_hash_merkle_root":"0000000000000000000000000000000000000000000000000000000000000000","dr_hash_merkle_root":"0000000000000000000000000000000000000000000000000000000000000000","commit_hash_merkle_root":"0000000000000000000000000000000000000000000000000000000000000000","reveal_hash_merkle_root":"0000000000000000000000000000000000000000000000000000000000000000","tally_hash_merkle_root":"0000000000000000000000000000000000000000000000000000000000000000","stake_hash_merkle_root":"0000000000000000000000000000000000000000000000000000000000000000","unstake_hash_merkle_root":"0000000000000000000000000000000000000000000000000000000000000000"},"proof":{"proof":{"proof":[],"public_key":{"compressed":0,"bytes":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}}},"bn256_public_key":null},"block_sig":{"signature":{"Secp256k1":{"der":[]}},"public_key":{"compressed":0,"bytes":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}},"txns":{"mint":{"epoch":0,"outputs":[]},"value_transfer_txns":[],"data_request_txns":[{"body":{"inputs":[{"output_pointer":"0000000000000000000000000000000000000000000000000000000000000000:0"}],"outputs":[{"pkh":"wit1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqwrt3a4","value":0,"time_lock":0}],"dr_output":{"data_request":{"time_lock":0,"retrieve":[{"kind":"HTTP-GET","url":"https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22"},{"kind":"HTTP-GET","url":"https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22"}],"aggregate":{"filters":[],"reducer":0},"tally":{"filters":[],"reducer":0}},"witness_reward":0,"witnesses":0,"commit_and_reveal_fee":0,"min_consensus_percentage":0,"collateral":0}},"signatures":[{"signature":{"Secp256k1":{"der":[]}},"public_key":{"compressed":0,"bytes":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}}]}],"commit_txns":[],"reveal_txns":[],"tally_txns":[],"stake_txns":[],"unstake_txns":[]}}}"#;
-        assert_eq!(s, expected, "\n{}\n", s);
+        assert_eq!(s, expected, "\n{s}\n");
     }
 
     #[test]
@@ -2845,7 +2825,7 @@ mod tests {
         let inv_elem = InventoryItem::Transaction(transaction);
         let s = serde_json::to_string(&inv_elem).unwrap();
         let expected = r#"{"transaction":{"DataRequest":{"body":{"inputs":[{"output_pointer":"0909090909090909090909090909090909090909090909090909090909090909:0"}],"outputs":[],"dr_output":{"data_request":{"time_lock":0,"retrieve":[{"kind":"HTTP-GET","url":"https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22","script":[0]},{"kind":"HTTP-GET","url":"https://openweathermap.org/data/2.5/weather?id=2950159&appid=b6907d289e10d714a6e88b30761fae22","script":[0]}],"aggregate":{"filters":[],"reducer":0},"tally":{"filters":[],"reducer":0}},"witness_reward":0,"witnesses":0,"commit_and_reveal_fee":0,"min_consensus_percentage":0,"collateral":0}},"signatures":[{"signature":{"Secp256k1":{"der":[]}},"public_key":{"compressed":0,"bytes":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]}}]}}}"#;
-        assert_eq!(s, expected, "\n{}\n", s);
+        assert_eq!(s, expected, "\n{s}\n");
     }
 
     fn build_hardcoded_transaction(data_request: RADRequest) -> Transaction {
@@ -2892,7 +2872,7 @@ mod tests {
         let build_drt = BuildDrt::default();
         let s = serde_json::to_string(&build_drt).unwrap();
         let expected = r#"{"dro":{"data_request":{"time_lock":0,"retrieve":[],"aggregate":{"filters":[],"reducer":0},"tally":{"filters":[],"reducer":0}},"witness_reward":0,"witnesses":0,"commit_and_reveal_fee":0,"min_consensus_percentage":0,"collateral":0},"fee":{"absolute":0},"dry_run":false}"#;
-        assert_eq!(s, expected, "\n{}\n", s);
+        assert_eq!(s, expected, "\n{s}\n");
     }
 
     #[ignore]
@@ -2979,7 +2959,7 @@ mod tests {
         ];
 
         for method_name in expected_sensitive_methods {
-            let msg = format!(r#"{{"jsonrpc":"2.0","method":"{}","id":1}}"#, method_name);
+            let msg = format!(r#"{{"jsonrpc":"2.0","method":"{method_name}","id":1}}"#);
             let error_msg = format!(
                 r#"{{"jsonrpc":"2.0","error":{{"code":-32603,"message":{:?}}},"id":1}}"#,
                 unauthorized_message(method_name)

@@ -40,7 +40,7 @@ pub enum RadonFilters {
 
 impl fmt::Display for RadonFilters {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "RadonFilters::{:?}", self)
+        write!(f, "RadonFilters::{self:?}")
     }
 }
 

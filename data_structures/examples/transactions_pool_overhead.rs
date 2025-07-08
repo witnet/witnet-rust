@@ -113,7 +113,7 @@ fn random_transaction() -> (Transaction, u64) {
 fn main() {
     let mut pool = TransactionsPool::new();
     let testnet_weight_limit = 192_000_000;
-    println!("Setting weight limit to {}", testnet_weight_limit);
+    println!("Setting weight limit to {testnet_weight_limit}");
     pool.set_total_weight_limit(testnet_weight_limit, 1.0);
 
     let mut limit_reached = false;
@@ -123,7 +123,7 @@ fn main() {
         let removed_transactions = pool.insert(transaction, fee);
 
         if !limit_reached && !removed_transactions.is_empty() {
-            println!("Limit reached after {} transactions", i);
+            println!("Limit reached after {i} transactions");
             limit_reached = true;
         }
     }

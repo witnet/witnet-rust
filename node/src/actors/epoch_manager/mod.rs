@@ -168,7 +168,7 @@ impl EpochManager {
                 fut::ok(())
             })
             .map_err(|err, _, _| {
-                log::error!("Couldn't process config: {}", err);
+                log::error!("Couldn't process config: {err}");
             })
             .map(|_res: Result<(), ()>, _act, _ctx| ())
             .wait(ctx);
@@ -205,10 +205,7 @@ impl EpochManager {
     /// Method to monitor checkpoints and execute some actions on each
     fn checkpoint_monitor(&self, ctx: &mut Context<Self>, time_to_next_checkpoint: Duration) {
         // Wait until next checkpoint to execute the periodic function
-        log::debug!(
-            "Checkpoint monitor: time to next checkpoint: {:?}",
-            time_to_next_checkpoint
-        );
+        log::debug!("Checkpoint monitor: time to next checkpoint: {time_to_next_checkpoint:?}");
         ctx.run_later(time_to_next_checkpoint, move |act, ctx| {
             let current_epoch = act.current_epoch();
             log::debug!(
@@ -370,10 +367,7 @@ impl<T: Send> SendableNotification for SingleEpochSubscription<T> {
             // Send EpochNotification message back to the subscriber
             self.recipient.do_send(msg);
         } else {
-            log::error!(
-                "No payload to be sent back to the subscribed actor for epoch {:?}",
-                epoch
-            );
+            log::error!("No payload to be sent back to the subscribed actor for epoch {epoch:?}");
         }
     }
 }

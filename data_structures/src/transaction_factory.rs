@@ -1239,7 +1239,7 @@ mod tests {
                     assert_eq!(&dr_tx.body.outputs[0].pkh, pkh);
                 }
             }
-            t => panic!("Unexpected transaction type: {:?}", t),
+            t => panic!("Unexpected transaction type: {t:?}"),
         }
     }
 
@@ -1291,7 +1291,7 @@ mod tests {
         let outputs = vec![];
         let (mut own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
         // Outputs was empty, so own_utxos is also empty
-        assert!(own_utxos.is_empty(), "{:?}", own_utxos);
+        assert!(own_utxos.is_empty(), "{own_utxos:?}");
 
         // Building a zero value transaction returns an error
         assert_eq!(
@@ -1349,7 +1349,7 @@ mod tests {
         let outputs = vec![pay_alice(200), pay_bob(500), pay_bob(800)];
         let (own_utxos, all_utxos) = build_utxo_set(outputs, None, vec![]);
         // There were zero pay_me outputs
-        assert!(own_utxos.is_empty(), "{:?}", own_utxos);
+        assert!(own_utxos.is_empty(), "{own_utxos:?}");
 
         let outputs = vec![pay_me(50), pay_me(100)];
         let (own_utxos, all_utxos) = build_utxo_set(outputs, (own_utxos, all_utxos), vec![]);
@@ -1529,7 +1529,7 @@ mod tests {
 
         // Execute transaction t1
         let (own_utxos, _all_utxos) = build_utxo_set(vec![], (own_utxos1, all_utxos1), vec![t1]);
-        assert!(own_utxos.is_empty(), "{:?}", own_utxos);
+        assert!(own_utxos.is_empty(), "{own_utxos:?}");
     }
 
     #[test]
@@ -1624,7 +1624,7 @@ mod tests {
         .unwrap();
         // Execute transaction t5
         let (own_utxos, _all_utxos) = build_utxo_set(vec![], (own_utxos, all_utxos), vec![t5]);
-        assert!(own_utxos.is_empty(), "{:?}", own_utxos);
+        assert!(own_utxos.is_empty(), "{own_utxos:?}");
     }
 
     #[test]
@@ -1829,7 +1829,7 @@ mod tests {
         .unwrap();
         // Execute transaction t6
         let (own_utxos, _all_utxos) = build_utxo_set(vec![], (own_utxos, all_utxos), vec![t6]);
-        assert!(own_utxos.is_empty(), "{:?}", own_utxos);
+        assert!(own_utxos.is_empty(), "{own_utxos:?}");
     }
 
     #[test]
@@ -1988,7 +1988,7 @@ mod tests {
 
         // Execute transaction t2
         let (own_utxos, _all_utxos) = build_utxo_set(vec![], (own_utxos, all_utxos), vec![t2]);
-        assert!(own_utxos.is_empty(), "{:?}", own_utxos);
+        assert!(own_utxos.is_empty(), "{own_utxos:?}");
     }
 
     #[test]

@@ -51,13 +51,7 @@ impl fmt::Display for Wit {
         let (amount_wits, amount_nanowits) = self.wits_and_nanowits();
         let width = usize::from(WIT_DECIMAL_PLACES);
 
-        write!(
-            f,
-            "{}.{:0width$}",
-            amount_wits,
-            amount_nanowits,
-            width = width
-        )
+        write!(f, "{amount_wits}.{amount_nanowits:0width$}",)
     }
 }
 

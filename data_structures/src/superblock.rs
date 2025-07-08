@@ -283,7 +283,7 @@ impl SuperBlockState {
     }
 
     fn insert_vote(&mut self, sbv: SuperBlockVote) -> AddSuperBlockVote {
-        log::trace!("Superblock insert vote {:?}", sbv);
+        log::trace!("Superblock insert vote {sbv:?}");
         // If the superblock vote is valid, store it
         let pkh = sbv.secp256k1_signature.public_key.pkh();
 
@@ -754,10 +754,7 @@ pub fn mining_build_superblock(
         {
             let ars_root = hash_merkle_tree_root(ars_ordered_hash_leaves);
             log::trace!(
-                "Created superblock #{} with hash_prev_block {}, ARS {}, blocks []",
-                index,
-                last_block_in_previous_superblock,
-                ars_root,
+                "Created superblock #{index} with hash_prev_block {last_block_in_previous_superblock}, ARS {ars_root}, blocks []",
             );
 
             SuperBlock::new(
@@ -793,12 +790,7 @@ pub fn mining_build_superblock(
                 })
                 .collect();
             log::trace!(
-                "Created superblock #{} with hash_prev_block {}, ARS {}, signing_committee_length: {}, blocks {:?}",
-                index,
-                last_block_in_previous_superblock,
-                ars_root,
-                signing_committee_length,
-                blocks
+                "Created superblock #{index} with hash_prev_block {last_block_in_previous_superblock}, ARS {ars_root}, signing_committee_length: {signing_committee_length}, blocks {blocks:?}"
             );
 
             SuperBlock::new(

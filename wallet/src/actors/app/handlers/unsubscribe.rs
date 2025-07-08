@@ -17,6 +17,6 @@ impl Handler<UnsubscribeRequest> for app::App {
         _ctx: &mut Self::Context,
     ) -> Self::Result {
         self.unsubscribe(&id)
-            .map(|()| log::debug!("Subscription {:?} removed", id))
+            .map(|()| log::debug!("Subscription {id:?} removed"))
     }
 }

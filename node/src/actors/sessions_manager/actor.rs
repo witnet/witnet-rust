@@ -75,7 +75,7 @@ impl Actor for SessionsManager {
 
                 fut::ok(())
             })
-            .map_err(|err, _, _| log::error!("Sessions manager startup error: {}", err))
+            .map_err(|err, _, _| log::error!("Sessions manager startup error: {err}"))
             .map(|_res: Result<(), ()>, _act, _ctx| ())
             .wait(ctx);
 

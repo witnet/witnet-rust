@@ -99,19 +99,19 @@ pub fn wallet_description() -> Key<&'static str, String> {
 /// A wallet's name.
 #[inline]
 pub fn wallet_id_name(id: &str) -> Key<String, String> {
-    Key::new(format!("{}name", id))
+    Key::new(format!("{id}name"))
 }
 
 /// A wallet's encryption salt.
 #[inline]
 pub fn wallet_id_salt(wallet_id: &str) -> Key<String, Vec<u8>> {
-    Key::new(format!("{}salt", wallet_id))
+    Key::new(format!("{wallet_id}salt"))
 }
 
 /// A wallet's encryption iv.
 #[inline]
 pub fn wallet_id_iv(wallet_id: &str) -> Key<String, Vec<u8>> {
-    Key::new(format!("{}iv", wallet_id))
+    Key::new(format!("{wallet_id}iv"))
 }
 
 /// A wallet's generated account indexes.
@@ -135,39 +135,38 @@ pub fn wallet_last_sync() -> Key<&'static str, CheckpointBeacon> {
 /// An account's external key.
 #[inline]
 pub fn account_key(account_index: u32, keychain: u32) -> Key<String, ExtendedSK> {
-    Key::new(format!("account-{}-{}-key", account_index, keychain))
+    Key::new(format!("account-{account_index}-{keychain}-key"))
 }
 
 /// An account's total balance.
 #[inline]
 pub fn account_balance(account_index: u32) -> Key<String, model::BalanceInfo> {
-    Key::new(format!("account-{}-balance", account_index))
+    Key::new(format!("account-{account_index}-balance"))
 }
 
 /// An account's UTXO set.
 #[inline]
 pub fn account_utxo_set(account_index: u32) -> Key<String, model::UtxoSet> {
-    Key::new(format!("account-{}-utxo-set", account_index))
+    Key::new(format!("account-{account_index}-utxo-set"))
 }
 
 /// An account's stake output set.
 #[inline]
 pub fn account_stake_output_set(account_index: u32) -> Key<String, model::StakeOutputSet> {
-    Key::new(format!("account-{}-stake-output-set", account_index))
+    Key::new(format!("account-{account_index}-stake-output-set"))
 }
 
 /// An account's next index to use for generating an address.
 #[inline]
 pub fn account_next_index(account_index: u32, keychain: u32) -> Key<String, u32> {
-    Key::new(format!("account-{}-{}-next-index", account_index, keychain))
+    Key::new(format!("account-{account_index}-{keychain}-next-index"))
 }
 
 /// A wallet's account address.
 #[inline]
 pub fn address(account_index: u32, keychain: u32, key_index: u32) -> Key<String, String> {
     Key::new(format!(
-        "account-{}-key-{}-{}-address",
-        account_index, keychain, key_index
+        "account-{account_index}-key-{keychain}-{key_index}-address"
     ))
 }
 
@@ -175,8 +174,7 @@ pub fn address(account_index: u32, keychain: u32, key_index: u32) -> Key<String,
 #[inline]
 pub fn address_path(account_index: u32, keychain: u32, key_index: u32) -> Key<String, String> {
     Key::new(format!(
-        "account-{}-key-{}-{}-address-path",
-        account_index, keychain, key_index
+        "account-{account_index}-key-{keychain}-{key_index}-address-path"
     ))
 }
 
@@ -188,8 +186,7 @@ pub fn address_pkh(
     key_index: u32,
 ) -> Key<String, PublicKeyHash> {
     Key::new(format!(
-        "account-{}-key-{}-{}-address-pkh",
-        account_index, keychain, key_index
+        "account-{account_index}-key-{keychain}-{key_index}-address-pkh"
     ))
 }
 
@@ -201,8 +198,7 @@ pub fn address_info(
     key_index: u32,
 ) -> Key<String, model::AddressInfo> {
     Key::new(format!(
-        "account-{}-key-{}-{}-address-info",
-        account_index, keychain, key_index
+        "account-{account_index}-key-{keychain}-{key_index}-address-info"
     ))
 }
 
@@ -221,13 +217,13 @@ pub fn pkh(pkh: &PublicKeyHash) -> Key<Vec<u8>, model::Path> {
 /// An custom key decided by the client to store something.
 #[inline]
 pub fn custom(key: &str) -> Key<String, String> {
-    Key::new(format!("custom-{}", key))
+    Key::new(format!("custom-{key}"))
 }
 
 /// A created transaction pending to be sent or removed.
 #[inline]
 pub fn transaction(transaction_hash: &str) -> Key<String, Transaction> {
-    Key::new(format!("transaction-{}", transaction_hash))
+    Key::new(format!("transaction-{transaction_hash}"))
 }
 
 /// An index of transaction hashes.
@@ -239,15 +235,14 @@ pub fn transactions_index(transaction_hash: &[u8]) -> Key<Vec<u8>, u32> {
 /// Next transaction id.
 #[inline]
 pub fn transaction_next_id(account_index: u32) -> Key<String, u32> {
-    Key::new(format!("account-{}-transactions-next-id", account_index))
+    Key::new(format!("account-{account_index}-transactions-next-id"))
 }
 
 /// Transaction hash.
 #[inline]
 pub fn transaction_hash(account_index: u32, transaction_id: u32) -> Key<String, Vec<u8>> {
     Key::new(format!(
-        "account-{}-transaction-{}-hash",
-        account_index, transaction_id
+        "account-{account_index}-transaction-{transaction_id}-hash"
     ))
 }
 
@@ -258,8 +253,7 @@ pub fn transaction_movement(
     transaction_id: u32,
 ) -> Key<String, model::BalanceMovement> {
     Key::new(format!(
-        "account-{}-transaction-{}-movement",
-        account_index, transaction_id
+        "account-{account_index}-transaction-{transaction_id}-movement"
     ))
 }
 

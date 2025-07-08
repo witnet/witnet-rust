@@ -217,8 +217,7 @@ mod tests {
             // The actor has panicked, so the result is Err(MailboxError)
             assert!(
                 matches!(res, Err(MailboxError::Closed)),
-                "expected `Err(MailboxError::Closed)`, got `{:?}`",
-                res
+                "expected `Err(MailboxError::Closed)`, got `{res:?}`"
             );
 
             // Try to send a new message to the actor
