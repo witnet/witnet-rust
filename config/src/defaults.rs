@@ -548,20 +548,20 @@ impl Defaults for Testnet {
     /// First superblocks signing committee
     fn consensus_constants_bootstrapping_committee(&self) -> Vec<String> {
         vec![
-            "twit1f0am8c97q2ygkz3q6jyd2x29s8zaxqlxcqltxx".to_string(),
-            "twit1pc8jzqph4t0md02e6fgwgsw26yll20p98c3pgh".to_string(),
-            "twit1mseplfttj5vvm8r7d5pn5je9dd02el4hw4w4cp".to_string(),
-            "twit1najvm34rta4vnkpfax8kk0vhpntg5lgdz8wc33".to_string(),
+            "twit164wvguueu2uuf8ernlw7d40fjalg4njqdzzxyx".to_string(),
+            "twit1la2gphmexpqx5r5kx957632j9ryzudwvlwqslj".to_string(),
+            "twit1nfnfj9t6farlsxxlr7egechguxvje9qlu263w4".to_string(),
+            "twit1kk29qm846g96xze9hurhra7rfak3s997fxdq0g".to_string(),
         ]
     }
 
     fn consensus_constants_checkpoint_zero_timestamp(&self) -> i64 {
-        // Thursday, 29-Jan-2025, 20:00 UTC
-        1_738_180_800
+        // Tuesday, 08-Jul-2025, 19:00 UTC
+        1_752_001_200
     }
 
     fn consensus_constants_genesis_hash(&self) -> Hash {
-        "5aaafb853ce897c1431ee5babc5533650d37c4fab44045bde9c74a3fff8c080e"
+        "1eed88826bdaf4b1f222bf19c0ebd372d2f6a6af2f23430fc22ee0d0911d8db0"
             .parse()
             .unwrap()
     }
@@ -573,8 +573,8 @@ impl Defaults for Testnet {
     fn protocol_versions(&self) -> HashMap<ProtocolVersion, (Epoch, u16)> {
         [
             (ProtocolVersion::V1_7, (0, 45)),
-            (ProtocolVersion::V1_8, (101, 45)),
-            (ProtocolVersion::V2_0, (281, 20)),
+            (ProtocolVersion::V1_8, (15, 45)),
+            (ProtocolVersion::V2_0, (45, 20)),
         ]
         .into_iter()
         .collect()

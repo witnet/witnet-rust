@@ -1,0 +1,99 @@
+environment = "testnet"
+
+[connections]
+# Server address tells what local interface and port the Witnet node server should bind to.
+# This will probably look like `0.0.0.0:21337` or `192.168.x.x:21337`, but it totally depends on your local network.
+server_addr = "0.0.0.0:21337"
+# Public address needs to match your *public* IP and port, assuming your router is configured to forward incoming
+# connections to the local IP of the device the node is running. Failure to configure this setting will result in your
+# node not receiving inbound connections (see: https://docs.witnet.io/try/run-a-node/#open-your-ports).
+public_addr = "0.0.0.0:21337"
+# List of bootstrap peer addresses. The first time that a node runs, it connects to some of these addresses and query
+# them for a list of all the addresses they know. From that moment on, the addresses listed here are not given any
+# preference over addresses that have been discovered in any way.
+known_peers = [
+    "18.188.231.190:31337",
+    "18.188.231.190:32337",
+    "18.188.231.190:33337",
+    "18.188.231.190:34337",
+    "18.188.231.190:35337",
+    "18.188.231.190:36337",
+]
+
+# How many peer connections to stablish before considering that is safe to decide what the best chain tip is, based on
+# the beacons that those peers are announcing.
+outbound_limit = 2
+# Period for opening new peer connections while the current number of peers is lower than `outbound_limit`.
+bootstrap_peers_period_seconds = 1
+# Reject (tarpit) inbound connections coming from addresses that are alike (i.e. by default having the first 18 bits equal),
+# so as to prevent sybil peers from monopolizing our inbound capacity.
+reject_sybil_inbounds = false
+
+[storage]
+# Path of the folder where RocksDB storage files will be written to.
+db_path = ".witnet/storage"
+
+[jsonrpc]
+# Enables or disables the JSON-RPC server altogether. This is needed for using the CLI methods of the node.
+enabled = true
+# The addresses (IP and port) which the JSON-RPC server binds to.
+# WARNING: these should be kept to a local, private address (e.g. 127.0.0.1) to prevent any device in your local network
+# (and potentially, the internet) from messing with your JSON-RPC server.
+# JSON-RPC over plain TCP (required for CLI usage). Set `enabled` above to `false` to disable.
+tcp_address = "127.0.0.1:21338"
+# JSON-RPC over HTTP. Remove the line to disable it.
+http_address = "127.0.0.1:21339"
+# JSON-RPC over WebSockets. Remove the line to disable it.
+ws_address = "127.0.0.1:21340"
+
+[ntp]
+# Period for checking the local system clock drift against a public NTP server.
+update_period_seconds = 1024
+
+[mining]
+# Enable or disable mining and participation in resolving data requests.
+enabled = true
+# Limit the number of retrievals that the node will perform during a single epoch. Due to the locking, highly
+# side-effected nature of performing HTTP GET requests, a limit needs to be enforced on the number of retrievals that
+# we are willing to perform by unit of time.
+# Raising this limit too high may make the node unresponsive to time-critical events, which could potentially lead to
+# desynchronization, forking or slashing.
+# This is assumed to be a safe default and it should never cause any node to refrain from participating in data requests
+# for which it was eligible.
+data_request_max_retrievals_per_epoch = 30
+# Limit the number of milliseconds that the node is willing to wait for a data source in from data request to response.
+data_request_timeout_milliseconds = 2000
+# Path for the `genesis_block.json` file that contains the initial wit allocations that need to be built into the first
+# block in the block chain.
+genesis_path = "/tmp/testnet-2/genesis_block.json"
+# `mint_external_address` and `mint_external_percentage` enable splitting the mint reward between the node's
+# own address and an "external" address, e.g. a the address of a wallet. `mint_external_percentage` indicates
+# the percentage of the block rewards that will be assigned to `mint_external_address` (50% by default)
+#mint_external_address = "twit1jqgf4rxjrgas3kdhj3t4cr3mg3n33m8zw0aglr"
+#mint_external_percentage = 50
+# Set a minimum fee you require before your node includes a value transfer transaction into a block
+minimum_vtt_fee_nanowits = 1
+
+[witnessing]
+# Tells how strict or lenient to be with inconsistent data sources. Paranoid level is defined as percentage of
+# successful retrievals over total number of retrieval transports. That is, if we have 3 proxies in addition to the
+# default unproxied transport (4), and we set the paranoid percentage to 51 (51%), the node will only from commit to
+# requests in which "half plus one" of the data sources are in consensus (3 out of 4). For the typical setup in which
+# only 1 proxy is used (e.g. the SOCKS5 endpoint from a local Tor client node), 51 (51%) results in a "fully paranoid"
+# behavior, i.e. the node will only commit if all data sources are consistent.
+paranoid_percentage = 51
+# Add URLs here to be used as proxies when performing data retrieval. This allows retrieving data sources through
+# different transports so as to ensure that the data sources are consistent and we are taking as small of a risk as
+# possible when committing to specially crafted data requests that may be potentially ill-intended.
+# The currently supported proxy protocols are HTTP, HTTPS, SOCKS4 (with and without authentication) and SOCKS5 (with and
+# without authentication)
+proxies = []
+
+[log]
+# Logging level, i.e. from more verbose to quieter: "trace" > "debug" > "info" > "warn" > "error" > "none"
+level = "info"
+
+[wallet]
+# The address (IP and port) of a Witnet node's JSON-RPC server. This should normally match `json_rpc.server_address`.
+# If more than one address is provided, the wallet will choose one at random.
+node_url = "127.0.0.1:21338"

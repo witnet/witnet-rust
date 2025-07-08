@@ -39,10 +39,10 @@ const WIT2_BOOTSTRAP_COMMITTEE: [&str; 12] = [
 
 /// Committee for superblock indices during the bootstrapping of wit/2
 const WIT2_BOOTSTRAP_COMMITTEE_TEST: [&str; 4] = [
-    "twit1f0am8c97q2ygkz3q6jyd2x29s8zaxqlxcqltxx",
-    "twit1pc8jzqph4t0md02e6fgwgsw26yll20p98c3pgh",
-    "twit1mseplfttj5vvm8r7d5pn5je9dd02el4hw4w4cp",
-    "twit1najvm34rta4vnkpfax8kk0vhpntg5lgdz8wc33",
+    "twit164wvguueu2uuf8ernlw7d40fjalg4njqdzzxyx",
+    "twit1la2gphmexpqx5r5kx957632j9ryzudwvlwqslj",
+    "twit1nfnfj9t6farlsxxlr7egechguxvje9qlu263w4",
+    "twit1kk29qm846g96xze9hurhra7rfak3s997fxdq0g",
 ];
 
 /// Possible result of SuperBlockState::add_vote
