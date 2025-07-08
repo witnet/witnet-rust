@@ -163,13 +163,13 @@ impl Session {
                     }
                     Ok(Err(CheckpointZeroInTheFuture(zero))) => {
                         let date = pretty_print(zero, 0);
-                        log::warn!("Network bootstrapping is scheduled for {:?}. The node will remain idle and delay chain bootstrapping until then. Wait for it!", date);
+                        log::warn!("Network bootstrapping is scheduled for {date:?}. The node will remain idle and delay chain bootstrapping until then. Wait for it!");
                         // Subscribe to all epochs with an EveryEpochPayload
                         epoch_manager_addr
                             .do_send(Subscribe::to_all(chain_manager_addr, EveryEpochPayload));
                     }
                     error => {
-                        log::error!("Current epoch could not be retrieved from EpochManager: {:?}", error);
+                        log::error!("Current epoch could not be retrieved from EpochManager: {error:?}");
                     }
                 }
 

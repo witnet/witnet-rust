@@ -121,13 +121,9 @@ impl actix::Handler<Load> for ConfigManager {
 
     fn handle(&mut self, Load(source): Load, _ctx: &mut Self::Context) -> Self::Result {
         self.load_config(&source)
-            .inspect(|_| log::info!("Loaded new configuration from source: {:?}", source))
+            .inspect(|_| log::info!("Loaded new configuration from source: {source:?}"))
             .map_err(|e| {
-                log::error!(
-                    "Failed to load new configuration from source: {:?}, error: {}",
-                    source,
-                    e
-                );
+                log::error!("Failed to load new configuration from source: {source:?}, error: {e}");
                 e
             })
     }

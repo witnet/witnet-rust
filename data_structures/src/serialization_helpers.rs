@@ -562,8 +562,7 @@ impl<'de> Visitor<'de> for RADRetrieveSerializationHelperVersionedVisitor {
                 ))
             }
             unknown_version => Err(de::Error::custom(format!(
-                "RADRetrieve: unknown db_version {}, expected one of 0, 1, 2, 3",
-                unknown_version
+                "RADRetrieve: unknown db_version {unknown_version}, expected one of 0, 1, 2, 3"
             ))),
         }
     }

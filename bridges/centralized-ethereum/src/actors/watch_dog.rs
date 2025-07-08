@@ -139,7 +139,7 @@ impl WatchDog {
         if let Some(wit_balance) = wit_balance {
             if wit_balance > self.start_wit_balance.unwrap_or_default() {
                 self.start_wit_balance = Some(wit_balance);
-                log::warn!("Wit account refunded to {} $WIT", wit_balance);
+                log::warn!("Wit account refunded to {wit_balance} $WIT");
             }
         }
         if self.drs_history.is_none() && drs_history.is_some() {
@@ -178,7 +178,7 @@ impl WatchDog {
                 let daily_queries = (f64::from(total_queries - drs_history.2)
                     / f64::from(running_secs))
                     * 86400_f64;
-                metrics.push_str(&format!("\"drsDailyQueries\": {:.1}, ", daily_queries));
+                metrics.push_str(&format!("\"drsDailyQueries\": {daily_queries:.1}, "));
 
                 let last_dismissed = drs_dismissed - drs_history.1;
                 metrics.push_str(&format!("\"drsLastDismissed\": {last_dismissed}, "));
@@ -254,27 +254,23 @@ impl WatchDog {
             metrics.push_str(&format!("\"evmAccount\": \"{eth_account}\", "));
             if eth_balance.is_some() {
                 let eth_balance = eth_balance.unwrap();
-                metrics.push_str(&format!("\"evmBalance\": {:.5}, ", eth_balance));
+                metrics.push_str(&format!("\"evmBalance\": {eth_balance:.5}, "));
                 metrics.push_str(&format!("\"evmContract\": \"{eth_contract_address}\", "));
                 if let Some(eth_contract_class) = eth_contract_class {
                     if let Some(eth_contract_version) = eth_contract_version {
                         metrics.push_str(&format!(
-                            "\"evmContractVersion\": \"{}:{}\", ",
-                            eth_contract_class, eth_contract_version
+                            "\"evmContractVersion\": \"{eth_contract_class}:{eth_contract_version}\", "
                         ));
                     } else {
-                        metrics.push_str(&format!(
-                            "\"evmContractVersion\": {:?}, ",
-                            eth_contract_class
-                        ));
+                        metrics
+                            .push_str(&format!("\"evmContractVersion\": {eth_contract_class:?}, "));
                     }
                 }
                 if let Some(start_eth_balance) = start_eth_balance {
                     let eth_hourly_earnings =
                         ((eth_balance - start_eth_balance) / f64::from(running_secs)) * 3600_f64;
                     metrics.push_str(&format!(
-                        "\"evmHourlyEarnings\": {:.5}, ",
-                        eth_hourly_earnings
+                        "\"evmHourlyEarnings\": {eth_hourly_earnings:.5}, "
                     ));
                 }
             }
@@ -302,14 +298,13 @@ impl WatchDog {
                 }
                 if wit_balance.is_some() {
                     let wit_balance = wit_balance.unwrap();
-                    metrics.push_str(&format!("\"witBalance\": {:.5}, ", wit_balance));
+                    metrics.push_str(&format!("\"witBalance\": {wit_balance:.5}, "));
                     if let Some(start_wit_balance) = start_wit_balance {
                         let wit_hourly_expenditure = ((start_wit_balance - wit_balance)
                             / f64::from(running_secs))
                             * 3600_f64;
                         metrics.push_str(&format!(
-                            "\"witHourlyExpenditure\": {:.1}, ",
-                            wit_hourly_expenditure
+                            "\"witHourlyExpenditure\": {wit_hourly_expenditure:.1}, "
                         ));
                         if wit_hourly_expenditure > 0.0
                             && wit_balance / wit_hourly_expenditure < 72.0
@@ -322,8 +317,7 @@ impl WatchDog {
                 metrics.push_str(&format!("\"witNodeSocket\": \"{wit_jsonrpc_socket}\", "));
                 if let Some(wit_utxos_above_threshold) = wit_utxos_above_threshold {
                     metrics.push_str(&format!(
-                        "\"witUtxosAboveThreshold\": {}, ",
-                        wit_utxos_above_threshold
+                        "\"witUtxosAboveThreshold\": {wit_utxos_above_threshold}, "
                     ));
                     if wit_utxos_above_threshold < 10 && status == WatchDogStatus::UpAndRunning {
                         status = WatchDogStatus::WitUtxosLow;
@@ -334,7 +328,7 @@ impl WatchDog {
             }
 
             metrics.push_str(&format!("\"runningSecs\": {running_secs}, "));
-            metrics.push_str(&format!("\"status\": \"{}\"", status));
+            metrics.push_str(&format!("\"status\": \"{status}\""));
             metrics.push('}');
 
             log::info!("{metrics}");
@@ -397,7 +391,7 @@ async fn check_eth_account_balance(
             web3::types::SyncState::Syncing(_) => Err(WatchDogStatus::EvmSyncing),
         },
         Err(e) => {
-            log::debug!("check_eth_account_balance => {}", e);
+            log::debug!("check_eth_account_balance => {e}");
 
             Err(WatchDogStatus::EvmErrors)
         }
@@ -424,11 +418,11 @@ async fn check_wit_connection_status(
             }
         }
         Ok(Err(err)) => {
-            log::debug!("check_wit_connection_status => {}", err);
+            log::debug!("check_wit_connection_status => {err}");
             Err(WatchDogStatus::WitDisconnect)
         }
         Err(err) => {
-            log::debug!("check_wit_connection_status => {}", err);
+            log::debug!("check_wit_connection_status => {err}");
             Err(WatchDogStatus::WitDisconnect)
         }
     }
@@ -444,7 +438,7 @@ async fn fetch_wit_info(
         Ok(Ok(res)) => serde_json::from_value::<String>(res).ok(),
         Ok(Err(_)) => None,
         Err(err) => {
-            log::debug!("fetch_wit_info => method: getPkh; error: {}", err);
+            log::debug!("fetch_wit_info => method: getPkh; error: {err}");
             return Err(WatchDogStatus::WitErrors);
         }
     };
@@ -459,7 +453,7 @@ async fn fetch_wit_info(
             let res = match res {
                 Ok(res) => res,
                 Err(err) => {
-                    log::debug!("fetch_wit_info => method: getBalance; error: {}", err);
+                    log::debug!("fetch_wit_info => method: getBalance; error: {err}");
                     return Err(WatchDogStatus::WitErrors);
                 }
             };
@@ -469,7 +463,7 @@ async fn fetch_wit_info(
                     None => None,
                 },
                 Err(err) => {
-                    log::debug!("fetch_wit_info => method: getBalance; error: {}", err);
+                    log::debug!("fetch_wit_info => method: getBalance; error: {err}");
                     return Err(WatchDogStatus::WitErrors);
                 }
             }
@@ -487,7 +481,7 @@ async fn fetch_wit_info(
             let res = match res {
                 Ok(res) => res,
                 Err(err) => {
-                    log::debug!("fetch_wit_info => method: getUtxoInfo; error: {}", err);
+                    log::debug!("fetch_wit_info => method: getUtxoInfo; error: {err}");
                     return Err(WatchDogStatus::WitErrors);
                 }
             };
@@ -509,7 +503,7 @@ async fn fetch_wit_info(
                     }
                 }
                 Err(err) => {
-                    log::debug!("fetch_wit_info => method: getUtxoInfo; error: {}", err);
+                    log::debug!("fetch_wit_info => method: getUtxoInfo; error: {err}");
                     return Err(WatchDogStatus::WitErrors);
                 }
             }

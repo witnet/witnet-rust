@@ -72,7 +72,7 @@ impl JsonRpcClient {
             .clone();
         let (_handle, socket) = TcpSocket::new(&url).map_err(|_| Error::InvalidUrl)?;
 
-        log::info!("TCP socket is now connected to {}", url);
+        log::info!("TCP socket is now connected to {url}");
 
         let client = Self {
             _handle,
@@ -109,9 +109,9 @@ impl JsonRpcClient {
             .expect("At this point there should be at least one URL set for connecting the client");
 
         // Connect to the new URL
-        log::info!("Reconnecting TCP client to {}", url);
+        log::info!("Reconnecting TCP client to {url}");
         let (_handle, socket) = TcpSocket::new(&url)
-            .map_err(|e| log::error!("Reconnection error: {}", e))
+            .map_err(|e| log::error!("Reconnection error: {e}"))
             .expect("TCP socket reconnection should not panic, as the only possible error is malformed URL");
 
         // Update connection info
@@ -179,11 +179,11 @@ impl JsonRpcClient {
         let res = Compat01As03::new(f).await;
 
         if let Ok(resp) = &res {
-            log::trace!(">> Received response: {:?}", resp);
+            log::trace!(">> Received response: {resp:?}");
         }
 
         res.map_err(|err| {
-            log::trace!(">> Received error: {}", err);
+            log::trace!(">> Received error: {err}");
             Error::RequestFailed {
                 message: err.to_string(),
                 error_kind: err.0,
@@ -327,7 +327,7 @@ impl Handler<Request> for JsonRpcClient {
                     act.reset_backoff_time()
                 })
                 .map_err(|err| {
-                    log::error!("JSONRPC Request error: {:?}", err);
+                    log::error!("JSONRPC Request error: {err:?}");
                     if is_connection_error(&err) {
                         // Backoff time is increased
                         act.increase_backoff_time();
@@ -360,11 +360,7 @@ impl Handler<Subscribe> for JsonRpcClient {
     fn handle(&mut self, subscribe: Subscribe, ctx: &mut Self::Context) -> Self::Result {
         let request = subscribe.0.clone();
         let topic = subscription_topic_from_request(&request);
-        log::debug!(
-            "Handling Subscribe message for topic {}. Request is {:?}",
-            topic,
-            request
-        );
+        log::debug!("Handling Subscribe message for topic {topic}. Request is {request:?}");
 
         ctx.address()
             .send(request.clone())
@@ -383,7 +379,7 @@ impl Handler<Subscribe> for JsonRpcClient {
                             let id = id.clone();
                             res.map(move |value| {
                                 log::debug!("<< Forwarding notification from node to subscribers",);
-                                log::trace!("<< {:?}", value);
+                                log::trace!("<< {value:?}");
                                 NotifySubscriptionId { id, value }
                             })
                             .map_err(|err| Error::RequestFailed {
@@ -393,7 +389,7 @@ impl Handler<Subscribe> for JsonRpcClient {
                         });
                         Self::add_stream(stream, ctx);
                         if let Some(method) = request.params.get(0) {
-                            log::info!("Client {} subscription created", method);
+                            log::info!("Client {method} subscription created");
                         }
                     }
                     Ok(_) => {
@@ -401,15 +397,13 @@ impl Handler<Subscribe> for JsonRpcClient {
                     }
                     Err(err) => {
                         log::error!(
-                            "Could not subscribe to topic {}. Delaying subscription. Error was: {}",
-                            topic,
-                            err
+                            "Could not subscribe to topic {topic}. Delaying subscription. Error was: {err}"
                         );
                         act.pending_subscriptions.insert(topic, subscribe);
                     }
                 },
                 Err(err) => {
-                    log::error!("Couldn't subscribe: {}", err);
+                    log::error!("Couldn't subscribe: {err}");
                 }
             })
             .spawn(ctx);
@@ -449,7 +443,7 @@ impl StreamHandler<Result<NotifySubscriptionId, Error>> for JsonRpcClient {
             }
             Err(err) => {
                 // TODO: how to handle this error?
-                log::error!("Subscription failed: {}", err);
+                log::error!("Subscription failed: {err}");
             }
         }
     }

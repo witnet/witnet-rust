@@ -115,7 +115,7 @@ impl RadonTypes {
                 error_args,
             )?)),
             value => Err(RadError::DecodeRadonErrorNotArray {
-                actual_type: format!("{:?}", value),
+                actual_type: format!("{value:?}"),
             }),
         }
     }
@@ -154,7 +154,7 @@ impl TypeLike for RadonTypes {
                         inner: Some(Box::new(error)),
                         message: None,
                     };
-                    log::warn!("{}", unhandled_rad_error);
+                    log::warn!("{unhandled_rad_error}");
                     RadonError::new(unhandled_rad_error)
                 }))
             }
@@ -237,14 +237,14 @@ impl std::hash::Hash for RadonTypes {
 impl fmt::Display for RadonTypes {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            RadonTypes::Array(inner) => write!(f, "RadonTypes::{}", inner),
-            RadonTypes::Boolean(inner) => write!(f, "RadonTypes::{}", inner),
-            RadonTypes::Bytes(inner) => write!(f, "RadonTypes::{}", inner),
-            RadonTypes::Float(inner) => write!(f, "RadonTypes::{}", inner),
-            RadonTypes::Integer(inner) => write!(f, "RadonTypes::{}", inner),
-            RadonTypes::Map(inner) => write!(f, "RadonTypes::{}", inner),
-            RadonTypes::RadonError(inner) => write!(f, "RadonTypes::{}", inner),
-            RadonTypes::String(inner) => write!(f, "RadonTypes::{}", inner),
+            RadonTypes::Array(inner) => write!(f, "RadonTypes::{inner}"),
+            RadonTypes::Boolean(inner) => write!(f, "RadonTypes::{inner}"),
+            RadonTypes::Bytes(inner) => write!(f, "RadonTypes::{inner}"),
+            RadonTypes::Float(inner) => write!(f, "RadonTypes::{inner}"),
+            RadonTypes::Integer(inner) => write!(f, "RadonTypes::{inner}"),
+            RadonTypes::Map(inner) => write!(f, "RadonTypes::{inner}"),
+            RadonTypes::RadonError(inner) => write!(f, "RadonTypes::{inner}"),
+            RadonTypes::String(inner) => write!(f, "RadonTypes::{inner}"),
         }
     }
 }
@@ -332,8 +332,7 @@ impl TryFrom<RadonTypes> for Value {
             RadonTypes::Boolean(radon_boolean) => radon_boolean.try_into(),
             RadonTypes::Bytes(radon_bytes) => radon_bytes.try_into(),
             RadonTypes::RadonError(error) => panic!(
-                "Should never try to build a `serde_cbor::Value` from `RadonTypes::RadonError`. Error was: {:?}",
-                error
+                "Should never try to build a `serde_cbor::Value` from `RadonTypes::RadonError`. Error was: {error:?}"
             ),
             RadonTypes::Float(radon_float) => radon_float.try_into(),
             RadonTypes::Integer(radon_integer) => radon_integer.try_into(),

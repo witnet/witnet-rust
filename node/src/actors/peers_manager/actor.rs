@@ -35,12 +35,11 @@ impl Actor for PeersManager {
 
                 // Add all peers
                 log::info!(
-                    "Adding the following peer addresses from config: {:?}",
-                    known_peers
+                    "Adding the following peer addresses from config: {known_peers:?}"
                 );
                 match act.peers.add_to_new(known_peers.clone(), None) {
                     Ok(_duplicated_peers) => {}
-                    Err(e) => log::error!("Error when adding peer addresses from config: {}", e),
+                    Err(e) => log::error!("Error when adding peer addresses from config: {e}"),
                 }
 
                 let consensus_constants = config.consensus_constants.clone();
@@ -59,7 +58,7 @@ impl Actor for PeersManager {
                             Ok(None) => {
                                 // peers_from_storage can be None if the storage does not contain that key
                             }
-                            Err(e) => log::error!("Couldn't get peers from storage: {}", e),
+                            Err(e) => log::error!("Couldn't get peers from storage: {e}"),
                         }
                     })
                     .spawn(ctx);
@@ -97,7 +96,7 @@ impl Actor for PeersManager {
             })
             .map(|res, _, _| match res {
                 Ok(()) => {}
-                Err(err) => log::error!("Peer discovery failed: {}", err),
+                Err(err) => log::error!("Peer discovery failed: {err}"),
             })
             .wait(ctx);
     }

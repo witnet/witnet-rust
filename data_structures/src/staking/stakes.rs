@@ -831,7 +831,7 @@ where
     // When adding stake, epochs get averaged but nonces get overwritten
     stakes.add_stake(key, coins, epoch, true, minimum_stakeable.into())?;
 
-    log::debug!("Current state of the stakes tracker: {:#?}", stakes);
+    log::debug!("Current state of the stakes tracker: {stakes:#?}");
 
     Ok(())
 }
@@ -893,7 +893,7 @@ where
     // When removing stake, epochs get averaged but nonces get overwritten
     stakes.remove_stake(key, coins, epoch, true, minimum_stakeable.into())?;
 
-    log::debug!("Current state of the stakes tracker: {:#?}", stakes);
+    log::debug!("Current state of the stakes tracker: {stakes:#?}");
 
     Ok(())
 }

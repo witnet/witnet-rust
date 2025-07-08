@@ -107,11 +107,11 @@ impl Handler<GetRandomPeers> for PeersManager {
 
         match result {
             Ok(peers) => {
-                log::debug!("Selected random peer addresses: {:?}", peers);
+                log::debug!("Selected random peer addresses: {peers:?}");
                 Ok(peers)
             }
             error => {
-                log::error!("Error selecting a random peer address: {:?}", error);
+                log::error!("Error selecting a random peer address: {error:?}");
                 error
             }
         }

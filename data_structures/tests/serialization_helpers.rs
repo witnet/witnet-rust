@@ -64,7 +64,7 @@ fn deserialize_utxo_selection_strategy_object_invalid_from() {
         serde_json::from_str(r#"{"strategy": "Random", "from": "potato"}"#);
     assert_eq!(
         d.unwrap_err().to_string(),
-        "Failed to deserialize Bech32: invalid length at line 1 column 40"
+        "Failed to deserialize Bech32: parsing failed at line 1 column 40"
     );
 }
 

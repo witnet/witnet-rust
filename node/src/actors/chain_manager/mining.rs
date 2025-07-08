@@ -172,7 +172,7 @@ impl ChainManager {
 
         signature_mngr::vrf_prove(VrfMessage::block_mining(vrf_input))
             .map(move |res| {
-                res.map_err(|e| log::error!("Failed to create block eligibility proof: {}", e))
+                res.map_err(|e| log::error!("Failed to create block eligibility proof: {e}"))
                     .map(move |(vrf_proof, vrf_proof_hash)| {
                         // For legacy protocol versions, check if our proof meets some thresholds
 
@@ -246,7 +246,7 @@ impl ChainManager {
 
                 signature_mngr::sign_data(block_header_data)
                     .map(|res| {
-                        res.map_err(|e| log::error!("Couldn't sign beacon: {}", e))
+                        res.map_err(|e| log::error!("Couldn't sign beacon: {e}"))
                             .map(|block_sig| Block::new(block_header, block_sig, txns))
                     })
                     .into_actor(act)
@@ -275,7 +275,7 @@ impl ChainManager {
 
                     act.process_candidate(block);
                 })
-                .map_err(|e, _, _| log::error!("Error trying to mine a block: {}", e))
+                .map_err(|e, _, _| log::error!("Error trying to mine a block: {e}"))
             })
             .map(|_res: Result<(), ()>, _act, _ctx| ())
             .wait(ctx);
@@ -339,11 +339,7 @@ impl ChainManager {
             u32::try_from(rep_eng.ars().active_identities_number()).unwrap();
         log::debug!("{} data requests for this epoch", dr_pointers.len());
         log::debug!(
-            "Reputation: {}, eligibility: {}, total: {}, active identities: {}",
-            my_reputation,
-            my_eligibility,
-            total_active_reputation,
-            num_active_identities,
+            "Reputation: {my_reputation}, eligibility: {my_eligibility}, total: {total_active_reputation}, active identities: {num_active_identities}",
         );
 
         // `current_retrieval_count` keeps track of how many sources are being retrieved in this
@@ -464,9 +460,7 @@ impl ChainManager {
                 // In 2_x protocol, check if we have enough stake before attempting retrieval
                 if collateral_amount > available_stake - minimum_stake {
                     log::debug!(
-                        "Mining data request: Insufficient stake, the data request needs {} Wit but we have {} left",
-                        collateral_amount,
-                        available_stake
+                        "Mining data request: Insufficient stake, the data request needs {collateral_amount} Wit but we have {available_stake} left"
                     );
                     continue;
                 }
@@ -483,8 +477,7 @@ impl ChainManager {
                     block_number_limit,
                 ) {
                     log::debug!(
-                        "Mining data request: Insufficient collateral, the data request needs {} mature wits",
-                        collateral_amount
+                        "Mining data request: Insufficient collateral, the data request needs {collateral_amount} mature wits"
                     );
                     continue;
                 }
@@ -504,9 +497,7 @@ impl ChainManager {
                 .map(move |res|
                     res.map_err(move |e| {
                         log::error!(
-                            "Couldn't create VRF proof for data request {}: {}",
-                            dr_pointer,
-                            e
+                            "Couldn't create VRF proof for data request {dr_pointer}: {e}"
                         )
                     })
                         .map(move |(vrf_proof, vrf_proof_hash)| {
@@ -514,18 +505,16 @@ impl ChainManager {
                             let proof_invalid = vrf_proof_hash > target_hash;
 
                             log::debug!(
-                                "{} witnesses and {} backup witnesses",
-                                num_witnesses,
-                                num_backup_witnesses
+                                "{num_witnesses} witnesses and {num_backup_witnesses} backup witnesses"
                             );
                             log::debug!(
                                 "Probability to be eligible for this data request: {:.6}%",
                                 probability * 100.0
                             );
-                            log::trace!("[DR] Target hash: {}", target_hash);
-                            log::trace!("[DR] Our proof:   {}", vrf_proof_hash);
+                            log::trace!("[DR] Target hash: {target_hash}");
+                            log::trace!("[DR] Our proof:   {vrf_proof_hash}");
                             if proof_invalid {
-                                log::debug!("No eligibility for data request {}", dr_pointer);
+                                log::debug!("No eligibility for data request {dr_pointer}");
                                 Err(())
                             } else {
                                 log::info!(
@@ -653,7 +642,7 @@ impl ChainManager {
                                 actix::fut::err(())
                             }
                             Err(e) => {
-                                log::error!("Unexpected error when trying to select UTXOs to be used for collateral in data request {}: {}", dr_pointer, e);
+                                log::error!("Unexpected error when trying to select UTXOs to be used for collateral in data request {dr_pointer}: {e}");
                                 actix::fut::err(())
                             }
                         }
@@ -680,7 +669,7 @@ impl ChainManager {
                                     Ok(value) => {
                                 if let RadonTypes::RadonError(error) = &value.result {
                                     if error.inner() == &RadError::InconsistentSource {
-                                        log::warn!("Refraining not to commit to data request {} because the sources are apparently inconsistent", dr_pointer);
+                                        log::warn!("Refraining not to commit to data request {dr_pointer} because the sources are apparently inconsistent");
                                         return Err(())
                                     }
                                 }
@@ -688,14 +677,14 @@ impl ChainManager {
                                 Ok((vrf_proof, collateral, value))
                             },
                                     Err(e) => {
-                                        log::error!("Couldn't resolve rad request {}: {}", dr_pointer, e);
+                                        log::error!("Couldn't resolve rad request {dr_pointer}: {e}");
                                         Err(())
                                     }
                                 })
                                 .map_err(move |e| {
                                     // If resolving a data request results in a panic in the
                                     // message handler, ignore this data request
-                                    log::error!("Couldn't resolve rad request {}: {}", dr_pointer, e)
+                                    log::error!("Couldn't resolve rad request {dr_pointer}: {e}")
                                 })
                         )
                         .into_actor(act)
@@ -715,11 +704,11 @@ impl ChainManager {
                         Ok(reveal_bytes) => actix::fut::ok((reveal_bytes, vrf_proof_dr, collateral)),
                         Err(e) => {
                             if active_wips.wip0026() {
-                                log::warn!("Couldn't encode reveal value to bytes, will commit RadError::EncodeReveal instead: {}", e);
+                                log::warn!("Couldn't encode reveal value to bytes, will commit RadError::EncodeReveal instead: {e}");
                                 let reveal_bytes: Vec<u8> = RadonTypes::RadonError(RadonError::try_from(RadError::EncodeReveal).unwrap()).encode().unwrap();
                                 actix::fut::ok((reveal_bytes, vrf_proof_dr, collateral))
                             } else {
-                                log::error!("Couldn't encode reveal value to bytes: {}", e);
+                                log::error!("Couldn't encode reveal value to bytes: {e}");
                                 actix::fut::err(())
                             }
                         }
@@ -738,7 +727,7 @@ impl ChainManager {
                     async move {
                         let reveal_signatures = signature_mngr::sign_transaction(&reveal_body, 1)
                             .await
-                            .map_err(|e| log::error!("Couldn't sign reveal body: {}", e))?;
+                            .map_err(|e| log::error!("Couldn't sign reveal body: {e}"))?;
 
                         // Commitment is the hash of the RevealTransaction signature
                         // that will be published later
@@ -756,7 +745,7 @@ impl ChainManager {
                                         RevealTransaction::new(reveal_body, reveal_signatures);
                                     (commit_transaction, reveal_transaction)
                                 })
-                                .map_err(|e| log::error!("Couldn't sign commit body: {}", e)))
+                                .map_err(|e| log::error!("Couldn't sign commit body: {e}")))
                             .await
                     }
                         .into_actor(act)
@@ -819,7 +808,7 @@ impl ChainManager {
                     let active_wips_inside_move = active_wips.clone();
 
                     async move {
-                        log::debug!("Building tally for data request {}", dr_pointer);
+                        log::debug!("Building tally for data request {dr_pointer}");
 
                         // Use the serial decoder to decode all the reveals in a lossy way, i.e. will
                         // ignore reveals that cannot be decoded. At this point, reveals that cannot be
@@ -876,7 +865,7 @@ impl ChainManager {
                                 // RadError::Unknown
                                 // This is because this block must have a tally transaction to be
                                 // considered valid
-                                log::warn!("Couldn't run tally: {}", e);
+                                log::warn!("Couldn't run tally: {e}");
                                 if after_second_hard_fork(block_epoch, get_environment()) {
                                     radon_report_from_error(RadError::Unknown, reveals.len())
                                 } else {
@@ -994,10 +983,7 @@ pub fn build_block(
         let transaction_fee = match vt_transaction_fee(vt_tx, &utxo_diff, epoch, epoch_constants) {
             Ok(x) => x,
             Err(e) => {
-                log::warn!(
-                    "Error when calculating transaction fee for transaction: {}",
-                    e
-                );
+                log::warn!("Error when calculating transaction fee for transaction: {e}");
                 continue;
             }
         };
@@ -1102,10 +1088,7 @@ pub fn build_block(
         let transaction_fee = match dr_transaction_fee(dr_tx, &utxo_diff, epoch, epoch_constants) {
             Ok(x) => x,
             Err(e) => {
-                log::warn!(
-                    "Error when calculating transaction fee for transaction: {}",
-                    e
-                );
+                log::warn!("Error when calculating transaction fee for transaction: {e}");
                 continue;
             }
         };
@@ -1133,7 +1116,7 @@ pub fn build_block(
 
                 // Temporarily insert the data request into the dr_pool
                 if let Err(e) = dr_pool.process_data_request(dr_tx, epoch, None) {
-                    log::error!("Error adding data request to the data request pool: {}", e);
+                    log::error!("Error adding data request to the data request pool: {e}");
                     continue;
                 }
                 if let Some(dr_state) = dr_pool.data_request_state_mutable(&dr_tx.hash()) {
@@ -1194,8 +1177,7 @@ pub fn build_block(
             let validator_pkh = st_tx.body.output.authorization.public_key.pkh();
             if included_validators.contains(&validator_pkh) {
                 log::debug!(
-                    "Cannot include more than one stake transaction for {} in a single block",
-                    validator_pkh
+                    "Cannot include more than one stake transaction for {validator_pkh} in a single block"
                 );
                 continue;
             }
@@ -1228,10 +1210,7 @@ pub fn build_block(
                 match st_transaction_fee(st_tx, &utxo_diff, epoch, epoch_constants) {
                     Ok(x) => x,
                     Err(e) => {
-                        log::warn!(
-                            "Error when calculating transaction fee for transaction: {}",
-                            e
-                        );
+                        log::warn!("Error when calculating transaction fee for transaction: {e}");
                         continue;
                     }
                 };
@@ -1274,8 +1253,7 @@ pub fn build_block(
             let validator_pkh = ut_tx.body.operator;
             if included_validators.contains(&validator_pkh) {
                 log::debug!(
-                    "Cannot include more than one unstake transaction for {} in a single block",
-                    validator_pkh
+                    "Cannot include more than one unstake transaction for {validator_pkh} in a single block"
                 );
                 continue;
             }

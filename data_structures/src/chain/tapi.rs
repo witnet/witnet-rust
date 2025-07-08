@@ -309,7 +309,7 @@ impl BitTapiCounter {
 
     pub fn remove(&mut self, bit: usize) {
         if bit >= self.info.len() {
-            log::error!("Tapi Engine: This bit position ({}) is invalid", bit,);
+            log::error!("Tapi Engine: This bit position ({bit}) is invalid",);
         } else {
             self.info[bit] = None;
 

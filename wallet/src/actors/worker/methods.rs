@@ -97,8 +97,7 @@ impl Worker {
                     .map_err(|e| Error::KeyGen(crypto::Error::Deserialization(e)))?;
                 if !external_path.is_master() {
                     return Err(Error::KeyGen(crypto::Error::InvalidKeyPath(format!(
-                        "{}",
-                        external_path
+                        "{external_path}"
                     ))));
                 }
 
@@ -107,8 +106,7 @@ impl Worker {
 
                 if !internal_path.is_master() {
                     return Err(Error::KeyGen(crypto::Error::InvalidKeyPath(format!(
-                        "{}",
-                        internal_path
+                        "{internal_path}"
                     ))));
                 }
 
@@ -355,7 +353,7 @@ impl Worker {
         )?);
         log::debug!("Extracting public data for wallet {wallet_id}.");
         let data = wallet.public_data()?;
-        log::debug!("Wallet data: {:?}", data);
+        log::debug!("Wallet data: {data:?}");
 
         Ok(types::UnlockedSessionWallet {
             wallet,
@@ -653,7 +651,7 @@ impl Worker {
                     .or_else(|| {
                         Some(Err(Error::OutputIndexNotFound(
                             output.output_index,
-                            format!("{:?}", txn),
+                            format!("{txn:?}"),
                         )))
                     }),
                 Transaction::DataRequest(dr) => dr
@@ -665,7 +663,7 @@ impl Worker {
                     .or_else(|| {
                         Some(Err(Error::OutputIndexNotFound(
                             output.output_index,
-                            format!("{:?}", txn),
+                            format!("{txn:?}"),
                         )))
                     }),
                 Transaction::Tally(tally) => tally
@@ -676,7 +674,7 @@ impl Worker {
                     .or_else(|| {
                         Some(Err(Error::OutputIndexNotFound(
                             output.output_index,
-                            format!("{:?}", txn),
+                            format!("{txn:?}"),
                         )))
                     }),
                 Transaction::Mint(mint) => mint
@@ -687,7 +685,7 @@ impl Worker {
                     .or_else(|| {
                         Some(Err(Error::OutputIndexNotFound(
                             output.output_index,
-                            format!("{:?}", txn),
+                            format!("{txn:?}"),
                         )))
                     }),
                 Transaction::Commit(commit) => commit
@@ -699,7 +697,7 @@ impl Worker {
                     .or_else(|| {
                         Some(Err(Error::OutputIndexNotFound(
                             output.output_index,
-                            format!("{:?}", txn),
+                            format!("{txn:?}"),
                         )))
                     }),
                 Transaction::Stake(st) => st.body.change.clone().map(Ok),
@@ -713,7 +711,7 @@ impl Worker {
 
     /// Ask a Witnet node for the contents of a transaction
     pub async fn query_transaction(&self, txn_hash: String) -> Result<Transaction> {
-        log::debug!("Getting transaction with hash {} ", txn_hash);
+        log::debug!("Getting transaction with hash {txn_hash} ");
         let method = String::from("getTransaction");
         let params = txn_hash;
 
@@ -739,7 +737,7 @@ impl Worker {
         &self,
         data_request_id: String,
     ) -> Result<DataRequestInfo> {
-        log::debug!("Getting data request report with id {} ", data_request_id);
+        log::debug!("Getting data request report with id {data_request_id} ");
         let method = String::from("dataRequestReport");
         let params = data_request_id;
 
@@ -751,7 +749,7 @@ impl Worker {
 
         match res {
             Ok(json) => {
-                log::trace!("dataRequestReport request result: {:?}", json);
+                log::trace!("dataRequestReport request result: {json:?}");
                 serde_json::from_value::<DataRequestInfo>(json).map_err(node_error)
             }
             Err(err) => {
@@ -784,12 +782,7 @@ impl Worker {
         // Notify client if error occurred while syncing
         if let Err(ref e) = sync_result {
             let sync_end = wallet.lock_and_read_state(|state| state.last_sync.checkpoint)?;
-            log::error!(
-                "Error while synchronizing (start: {}, end:{}): {}",
-                sync_start,
-                sync_end,
-                e
-            );
+            log::error!("Error while synchronizing (start: {sync_start}, end:{sync_end}): {e}");
             if let Error::JsonRpcTimeout = e {
                 log::error!("JsonRpc timeout error during synchronization");
             } else {
@@ -887,7 +880,7 @@ impl Worker {
             let block_chain: Vec<ChainEntry> = futures::executor::block_on(get_block_chain_future)?;
 
             let batch_size = i128::try_from(block_chain.len()).unwrap();
-            log::debug!("[SU] Received chain: {:?}", block_chain);
+            log::debug!("[SU] Received chain: {block_chain:?}");
 
             // For each of the blocks we have been informed about, ask a Witnet node for its contents
             for ChainEntry(_epoch, id) in block_chain {
@@ -922,9 +915,7 @@ impl Worker {
                 break;
             } else {
                 log::info!(
-                    "[SU] Wallet {} is now synced up to beacon {:?}, looking for more blocks...",
-                    wallet_id,
-                    latest_beacon
+                    "[SU] Wallet {wallet_id} is now synced up to beacon {latest_beacon:?}, looking for more blocks..."
                 );
                 since_beacon = latest_beacon;
             }
@@ -936,11 +927,7 @@ impl Worker {
         )]);
         self.notify_client(wallet, sink, events).ok();
 
-        log::info!(
-            "[SU] Wallet {} is now synced up to latest beacon ({:?})",
-            wallet_id,
-            latest_beacon
-        );
+        log::info!("[SU] Wallet {wallet_id} is now synced up to latest beacon ({latest_beacon:?})");
 
         Ok(())
     }
@@ -953,11 +940,7 @@ impl Worker {
     /// A limit can be required on this side, but take into account that the node is not forced to
     /// honor it.
     pub async fn get_block_chain(&self, epoch: i64, limit: i64) -> Result<Vec<types::ChainEntry>> {
-        log::debug!(
-            "Getting block chain from epoch {} (limit = {})",
-            epoch,
-            limit
-        );
+        log::debug!("Getting block chain from epoch {epoch} (limit = {limit})");
 
         let method = String::from("getBlockChain");
         let params = GetBlockChainParams { epoch, limit };
@@ -969,7 +952,7 @@ impl Worker {
 
         match res {
             Ok(json) => {
-                log::trace!("getBlockChain request result: {:?}", json);
+                log::trace!("getBlockChain request result: {json:?}");
                 match serde_json::from_value::<Vec<types::ChainEntry>>(json).map_err(node_error) {
                     Ok(blocks) => Ok(blocks),
                     Err(e) => Err(e),
@@ -984,7 +967,7 @@ impl Worker {
 
     /// Ask a Witnet node for the contents of a single block.
     pub async fn get_block(&self, block_id: String) -> Result<(Block, bool)> {
-        log::debug!("Getting block with id {} ", block_id);
+        log::debug!("Getting block with id {block_id} ");
         let method = String::from("getBlock");
         let params = vec![Value::String(block_id), Value::Bool(false)];
 
@@ -996,7 +979,7 @@ impl Worker {
 
         match res {
             Ok(json) => {
-                log::trace!("getBlock request result: {:?}", json);
+                log::trace!("getBlock request result: {json:?}");
                 // Set confirmed to true if the result contains {"confirmed": true}
                 let mut confirmed = false;
                 if let Some(obj) = json.as_object() {
@@ -1188,7 +1171,7 @@ impl Worker {
         wallet: types::SessionWallet,
         sink: types::DynamicSink,
     ) -> Result<()> {
-        log::debug!("The current node status is {:?}", status);
+        log::debug!("The current node status is {status:?}");
         // Notify about the changed node status.
         let events = vec![types::Event::NodeStatus(status)];
         self.notify_client(&wallet, sink.clone(), Some(events)).ok();

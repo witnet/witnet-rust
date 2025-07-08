@@ -79,7 +79,7 @@ pub fn raw(addr: SocketAddr) -> Result<(), anyhow::Error> {
         }
         let response = send_request(&mut stream, &request)?;
         // The response includes a newline, so use print instead of println
-        print!("{}", response);
+        print!("{response}");
     }
 }
 
@@ -93,11 +93,11 @@ pub fn get_blockchain(addr: SocketAddr, epoch: i64, limit: i64) -> Result<(), an
             serde_json::to_string(&params).unwrap()
         ),
     )?;
-    log::info!("{}", response);
+    log::info!("{response}");
     let block_chain: ResponseBlockChain<'_> = parse_response(&response)?;
 
     for (epoch, hash) in block_chain {
-        println!("block for epoch #{} had digest {}", epoch, hash);
+        println!("block for epoch #{epoch} had digest {hash}");
     }
 
     Ok(())
@@ -121,7 +121,7 @@ pub fn get_supply_info(addr: SocketAddr) -> Result<(), anyhow::Error> {
     let response = send_request(&mut stream, request)?;
     let supply_info = parse_response::<SupplyInfo>(&response)?;
 
-    log::info!("{:?}", supply_info);
+    log::info!("{supply_info:?}");
 
     println!(
         "\nSupply info at {} (epoch {}):\n",
@@ -219,9 +219,9 @@ pub fn get_balance(
         serde_json::to_string(&target).unwrap(),
         serde_json::to_string(&simple).unwrap(),
     );
-    log::info!("{}", request);
+    log::info!("{request}");
     let response = send_request(&mut stream, &request)?;
-    log::info!("{}", response);
+    log::info!("{response}");
 
     let balances = parse_response::<NodeBalance>(&response)?;
     let list: Vec<_> = match balances {
@@ -247,9 +247,8 @@ pub fn get_balance(
             let confirmed = balance.get_confirmed().unwrap_or(total);
             let pending = wit_difference_to_string(confirmed, total);
             println!(
-                "Confirmed balance:   {} wits\n\
-                 Pending balance:     {} wits",
-                confirmed, pending
+                "Confirmed balance:   {confirmed} wits\n\
+                 Pending balance:     {pending} wits"
             );
         }
     }
@@ -272,10 +271,10 @@ pub fn get_pkh(addr: SocketAddr) -> Result<(), anyhow::Error> {
     let mut stream = start_client(addr)?;
     let request = r#"{"jsonrpc": "2.0","method": "getPkh", "id": "1"}"#;
     let response = send_request(&mut stream, request)?;
-    log::info!("{}", response);
+    log::info!("{response}");
     let pkh = parse_response::<PublicKeyHash>(&response)?;
 
-    println!("{}", pkh);
+    println!("{pkh}");
     println!("Testnet address: {}", pkh.bech32(Environment::Testnet));
     println!("Mainnet address: {}", pkh.bech32(Environment::Mainnet));
 
@@ -297,7 +296,7 @@ pub fn get_utxo_info(
             let request = r#"{"jsonrpc": "2.0","method": "getPkh", "id": "1"}"#;
             let response = send_request(&mut stream, request)?;
             let node_pkh = parse_response::<PublicKeyHash>(&response)?;
-            log::info!("Node pkh: {}", node_pkh);
+            log::info!("Node pkh: {node_pkh}");
 
             node_pkh
         }
@@ -428,7 +427,7 @@ pub fn get_reputation(
                 let request = r#"{"jsonrpc": "2.0","method": "getPkh", "id": "1"}"#;
                 let response = send_request(&mut stream, request)?;
                 let node_pkh = parse_response::<PublicKeyHash>(&response)?;
-                log::info!("Node pkh: {}", node_pkh);
+                log::info!("Node pkh: {node_pkh}");
 
                 node_pkh
             }
@@ -482,7 +481,7 @@ pub fn get_miners(addr: SocketAddr, start: i64, end: i64, csv: bool) -> Result<(
             serde_json::to_string(&params).unwrap()
         ),
     )?;
-    log::info!("{}", response);
+    log::info!("{response}");
     let block_chain: ResponseBlockChain<'_> = parse_response(&response)?;
     let mut hm = HashMap::new();
 
@@ -493,20 +492,16 @@ pub fn get_miners(addr: SocketAddr, start: i64, end: i64, csv: bool) -> Result<(
     }
     for (epoch, hash) in block_chain {
         let request = format!(
-            r#"{{"jsonrpc": "2.0","method": "getBlock", "params": [{:?}], "id": "1"}}"#,
-            hash,
+            r#"{{"jsonrpc": "2.0","method": "getBlock", "params": [{hash:?}], "id": "1"}}"#,
         );
         let response = send_request(&mut stream, &request)?;
         let block: Block = parse_response(&response)?;
         let miner_hash = block.block_sig.public_key.pkh().to_string();
 
         if csv {
-            println!("{};{};{}", epoch, hash, miner_hash);
+            println!("{epoch};{hash};{miner_hash}");
         } else {
-            println!(
-                "Block for epoch #{} had digest {} ans was mined by {}",
-                epoch, hash, miner_hash
-            );
+            println!("Block for epoch #{epoch} had digest {hash} ans was mined by {miner_hash}");
         }
 
         *hm.entry(miner_hash).or_insert(0) += 1;
@@ -521,9 +516,9 @@ pub fn get_miners(addr: SocketAddr, start: i64, end: i64, csv: bool) -> Result<(
     }
     for (miner, n) in scoreboard.iter() {
         if csv {
-            println!("{};{}", miner, n);
+            println!("{miner};{n}");
         } else {
-            println!("{} has mined {} blocks", miner, n);
+            println!("{miner} has mined {n} blocks");
         }
     }
 
@@ -532,13 +527,11 @@ pub fn get_miners(addr: SocketAddr, start: i64, end: i64, csv: bool) -> Result<(
 
 pub fn get_block(addr: SocketAddr, hash: String) -> Result<(), anyhow::Error> {
     let mut stream = start_client(addr)?;
-    let request = format!(
-        r#"{{"jsonrpc": "2.0","method": "getBlock", "params": [{:?}], "id": "1"}}"#,
-        hash,
-    );
+    let request =
+        format!(r#"{{"jsonrpc": "2.0","method": "getBlock", "params": [{hash:?}], "id": "1"}}"#,);
     let response = send_request(&mut stream, &request)?;
 
-    println!("{}", response);
+    println!("{response}");
 
     Ok(())
 }
@@ -546,12 +539,11 @@ pub fn get_block(addr: SocketAddr, hash: String) -> Result<(), anyhow::Error> {
 pub fn get_transaction(addr: SocketAddr, hash: String) -> Result<(), anyhow::Error> {
     let mut stream = start_client(addr)?;
     let request = format!(
-        r#"{{"jsonrpc": "2.0","method": "getTransaction", "params": [{:?}], "id": "1"}}"#,
-        hash,
+        r#"{{"jsonrpc": "2.0","method": "getTransaction", "params": [{hash:?}], "id": "1"}}"#,
     );
     let response = send_request(&mut stream, &request)?;
 
-    println!("{}", response);
+    println!("{response}");
 
     Ok(())
 }
@@ -561,13 +553,12 @@ pub fn get_output(addr: SocketAddr, pointer: String) -> Result<(), anyhow::Error
     let output_pointer = OutputPointer::from_str(&pointer)?;
     let request_payload = serde_json::to_string(&output_pointer)?;
     let _request = format!(
-        r#"{{"jsonrpc": "2.0","method": "getOutput", "params": [{}], "id": "1"}}"#,
-        request_payload,
+        r#"{{"jsonrpc": "2.0","method": "getOutput", "params": [{request_payload}], "id": "1"}}"#,
     );
     //let response = send_request(&mut stream, request)?;
     let response = "unimplemented yet";
 
-    println!("{}", response);
+    println!("{response}");
 
     Ok(())
 }
@@ -602,7 +593,7 @@ pub fn send_vtt(
             log::info!("No pkh specified, will default to node pkh");
             let (node_pkh, ..) =
                 issue_method("getPkh", None::<serde_json::Value>, &mut stream, id.next())?;
-            log::info!("Node pkh: {}", node_pkh);
+            log::info!("Node pkh: {node_pkh}");
 
             node_pkh
         }
@@ -714,9 +705,9 @@ pub fn send_vtt(
     // This is kept like this strictly for backwards compatibility.
     // TODO: wouldn't it be better to always print the response or both?
     if dry_run {
-        println!("{}", request);
+        println!("{request}");
     } else {
-        println!("{}", response);
+        println!("{response}");
     }
 
     Ok(())
@@ -747,9 +738,7 @@ fn deserialize_and_validate_hex_dr(
 
     if dr_bytes != witnet_dr_bytes {
         log::warn!(
-            "Data request uses an invalid serialization, will be ignored.\nINPUT BYTES: {:02x?}\nWIT DR BYTES: {:02x?}",
-            dr_bytes,
-            witnet_dr_bytes
+            "Data request uses an invalid serialization, will be ignored.\nINPUT BYTES: {dr_bytes:02x?}\nWIT DR BYTES: {witnet_dr_bytes:02x?}"
         );
         log::warn!(
             "This usually happens when some fields are set to 0. \
@@ -787,7 +776,7 @@ pub fn send_dr(
         //  transaction?
         let tally_result = run_dr_locally(&dro)?;
 
-        println!("Request run locally with Tally result: {}", tally_result);
+        println!("Request run locally with Tally result: {tally_result}");
     } else {
         // Prepare for fee estimation if no fee value was specified
         let (fee, estimate) = unwrap_fee_or_estimate_priority(fee, &mut stream, &mut id)?;
@@ -865,7 +854,7 @@ pub fn send_dr(
         let (_, (_, response)): (DRTransaction, _) =
             issue_method("sendRequest", Some(params), &mut stream, id.next())?;
 
-        println!("{}", response);
+        println!("{response}");
     }
 
     Ok(())
@@ -1013,8 +1002,8 @@ pub fn send_st(
         let (st, (request, response)): (StakeTransaction, _) =
             issue_method("stake", Some(build_stake_params), &mut stream, id.next())?;
 
-        println!("> {}", request);
-        println!("< {}", response);
+        println!("> {request}");
+        println!("< {response}");
 
         let environment = get_environment();
         let value = Wit::from_nanowits(st.body.output.value).to_string();
@@ -1029,8 +1018,7 @@ pub fn send_st(
         let withdrawer = dry.withdrawer.bech32(environment);
 
         println!(
-            "Congratulations! {} Wit have been staked by addresses {:?} onto validator {}, using {} as the withdrawal address.",
-            value, staker, validator, withdrawer
+            "Congratulations! {value} Wit have been staked by addresses {staker:?} onto validator {validator}, using {withdrawer} as the withdrawal address."
         );
     } else {
         println!("The stake facts have not been confirmed. No stake transaction has been created.");
@@ -1071,10 +1059,7 @@ pub fn authorize_st(addr: SocketAddr, withdrawer: Option<String>) -> Result<(), 
         .light_color(unicode::Dense1x2::Dark)
         .build();
 
-    println!(
-        "Authorization code:\n{}\nQR code for myWitWallet:\n{}",
-        auth_string, auth_ascii
-    );
+    println!("Authorization code:\n{auth_string}\nQR code for myWitWallet:\n{auth_ascii}");
 
     Ok(())
 }
@@ -1109,9 +1094,9 @@ pub fn send_ut(
     // This is kept like this strictly for backwards compatibility.
     // TODO: wouldn't it be better to always print the response or both?
     if dry_run {
-        println!("{}", request);
+        println!("{request}");
     } else {
-        println!("{}", response);
+        println!("{response}");
     }
 
     Ok(())
@@ -1132,20 +1117,20 @@ pub fn master_key_export(
             let public_key = ExtendedPK::from_secret_key(&private_key);
             let pkh = PublicKey::from(public_key.key).pkh();
             if let Some(base_path) = write_to_path {
-                let path = base_path.join(format!("private_key_{}.txt", pkh));
+                let path = base_path.join(format!("private_key_{pkh}.txt"));
                 let mut file = create_private_file(&path)?;
-                file.write_all(format!("{}\n", private_key_slip32).as_bytes())?;
+                file.write_all(format!("{private_key_slip32}\n").as_bytes())?;
                 let full_path = Path::new(&path);
                 println!(
                     "Private key written to {}",
                     full_path.canonicalize()?.as_path().display()
                 );
             } else {
-                println!("Private key for pkh {}:\n{}", pkh, private_key_slip32);
+                println!("Private key for pkh {pkh}:\n{private_key_slip32}");
             }
         }
         Err(error) => {
-            println!("{}", error);
+            println!("{error}");
         }
     }
 
@@ -1339,8 +1324,7 @@ pub fn data_request_report(
 ) -> Result<(), anyhow::Error> {
     let mut stream = start_client(addr)?;
     let request = format!(
-        r#"{{"jsonrpc": "2.0","method": "getTransaction", "params": [{:?}], "id": "1"}}"#,
-        hash,
+        r#"{{"jsonrpc": "2.0","method": "getTransaction", "params": [{hash:?}], "id": "1"}}"#,
     );
     let response = send_request(&mut stream, &request)?;
     let transaction: GetTransactionOutput = parse_response(&response)?;
@@ -1387,8 +1371,7 @@ pub fn data_request_report(
             (None, None, None, None, None)
         } else {
             let request = format!(
-                r#"{{"jsonrpc": "2.0","method": "dataRequestReport", "params": [{:?}], "id": "1"}}"#,
-                hash,
+                r#"{{"jsonrpc": "2.0","method": "dataRequestReport", "params": [{hash:?}], "id": "1"}}"#,
             );
             let response = send_request(&mut stream, &request)?;
             let dr_info: DataRequestInfo = parse_response(&response)?;
@@ -1396,7 +1379,7 @@ pub fn data_request_report(
             let data_request_state = DataRequestState {
                 stage: dr_info
                     .current_stage
-                    .map(|x| format!("{:?}", x))
+                    .map(|x| format!("{x:?}"))
                     .unwrap_or_else(|| "FINISHED".to_string()),
                 current_commit_round: dr_info.current_commit_round,
                 current_reveal_round: dr_info.current_reveal_round,
@@ -1495,7 +1478,7 @@ pub fn data_request_report(
                                         if reward == 0 {
                                             "0".to_string()
                                         } else {
-                                            format!("+{}", reward)
+                                            format!("+{reward}")
                                         }
                                     }
                                 }
@@ -1531,7 +1514,7 @@ pub fn data_request_report(
         println!("{}", serde_json::to_string_pretty(&dr_info)?);
     } else {
         // dr_info already ends with a newline, no need to println
-        print!("{}", dr_info);
+        print!("{dr_info}");
     }
 
     Ok(())
@@ -1554,8 +1537,7 @@ pub fn search_requests(
         (None, Some(dr_tx_hash)) => {
             // Use dr_output_bytes from data request provided as argument
             let request = format!(
-                r#"{{"jsonrpc": "2.0","method": "getTransaction", "params": [{:?}], "id": "1"}}"#,
-                dr_tx_hash,
+                r#"{{"jsonrpc": "2.0","method": "getTransaction", "params": [{dr_tx_hash:?}], "id": "1"}}"#,
             );
             let response = send_request(&mut stream, &request)?;
             let transaction: GetTransactionOutput = parse_response(&response)?;
@@ -1596,8 +1578,7 @@ pub fn search_requests(
 
     for (_epoch, hash) in block_chain {
         let request = format!(
-            r#"{{"jsonrpc": "2.0","method": "getBlock", "params": [{:?}], "id": "1"}}"#,
-            hash,
+            r#"{{"jsonrpc": "2.0","method": "getBlock", "params": [{hash:?}], "id": "1"}}"#,
         );
         let response = send_request(&mut stream, &request)?;
         let block: Block = parse_response(&response)?;
@@ -1607,7 +1588,7 @@ pub fn search_requests(
             let dr_output_bytes = dr_output.to_pb_bytes()?;
             if dr_output_bytes == expected_dr_output_bytes {
                 let dr_hash = data_request.hash();
-                println!("{}", dr_hash);
+                println!("{dr_hash}");
             }
         }
     }
@@ -1688,10 +1669,7 @@ pub fn get_node_stats(addr: SocketAddr) -> Result<(), anyhow::Error> {
 
     if let Some(current_epoch) = sync_status.current_epoch {
         if sync_status.node_state == StateMachine::Synced {
-            println!(
-                "The node is synchronized and the current epoch is {}",
-                current_epoch
-            );
+            println!("The node is synchronized and the current epoch is {current_epoch}");
         } else {
             // Show progress log
             let mut percent_done_float =
@@ -1701,7 +1679,7 @@ pub fn get_node_stats(addr: SocketAddr) -> Result<(), anyhow::Error> {
             if sync_status.chain_beacon.checkpoint != current_epoch && percent_done_float > 99.99 {
                 percent_done_float = 99.99;
             }
-            let percent_done_string = format!("{:.2}%", percent_done_float);
+            let percent_done_string = format!("{percent_done_float:.2}%");
             let node_state = sync_status.node_state;
 
             println!(
@@ -1736,8 +1714,7 @@ pub fn get_protocol(addr: SocketAddr) -> Result<(), anyhow::Error> {
 
     println!(
         "Protocol Info:\n\
-     - Current protocol version: {}",
-        version
+     - Current protocol version: {version}"
     );
 
     Ok(())
@@ -1779,13 +1756,12 @@ pub fn add_peers(addr: SocketAddr, peers: Vec<SocketAddr>) -> Result<(), anyhow:
             }
 
             let request = format!(
-                r#"{{"jsonrpc": "2.0","method": "addPeers", "params": {:?}, "id": "1"}}"#,
-                params
+                r#"{{"jsonrpc": "2.0","method": "addPeers", "params": {params:?}, "id": "1"}}"#
             );
             let response = send_request(&mut stream, &request)?;
             let response: bool = parse_response(&response)?;
             if response {
-                println!("Successfully added peer addresses: {:?}", params);
+                println!("Successfully added peer addresses: {params:?}");
             } else {
                 bail!("Failed to add peer addresses: {:?}", params);
             }
@@ -1793,13 +1769,12 @@ pub fn add_peers(addr: SocketAddr, peers: Vec<SocketAddr>) -> Result<(), anyhow:
     } else {
         let params: Vec<String> = peers.into_iter().map(|addr| addr.to_string()).collect();
         let request = format!(
-            r#"{{"jsonrpc": "2.0","method": "addPeers", "params": {:?}, "id": "1"}}"#,
-            params
+            r#"{{"jsonrpc": "2.0","method": "addPeers", "params": {params:?}, "id": "1"}}"#
         );
         let response = send_request(&mut stream, &request)?;
         let response: bool = parse_response(&response)?;
         if response {
-            println!("Successfully added peer addresses: {:?}", params);
+            println!("Successfully added peer addresses: {params:?}");
         } else {
             bail!("Failed to add peer addresses: {:?}", params);
         }
@@ -1876,7 +1851,7 @@ pub fn signaling_info(addr: SocketAddr) -> Result<(), anyhow::Error> {
         .iter()
         .sorted_by(|a, b| a.1.cmp(b.1));
     for (upgrade, epoch) in sorted_upgrades {
-        println!("- Epoch {}: {}", epoch, upgrade);
+        println!("- Epoch {epoch}: {upgrade}");
     }
     println!("\nList of pending upgrades:");
     for i in signaling_info.pending_upgrades {
@@ -1897,16 +1872,14 @@ pub fn signaling_info(addr: SocketAddr) -> Result<(), anyhow::Error> {
             let non_signaling_block = blocks_last_period.saturating_sub(i.votes);
             let upcoming_blocks = next_check.saturating_sub(signaling_info.epoch);
             println!(
-                "    Blocks: {} signaling, {} non-signaling, {} upcoming",
-                signaling_blocks, non_signaling_block, upcoming_blocks
+                "    Blocks: {signaling_blocks} signaling, {non_signaling_block} non-signaling, {upcoming_blocks} upcoming"
             );
 
             let percentage = i.votes.saturating_mul(100) / i.period;
             let relative_percentage =
                 i.votes.saturating_mul(100) / std::cmp::max(1, blocks_last_period);
             println!(
-                "    Total percentage achieved: {}%. Relative percentage: {}%",
-                percentage, relative_percentage
+                "    Total percentage achieved: {percentage}%. Relative percentage: {relative_percentage}%"
             );
 
             let percentage_target = 80;
@@ -1937,9 +1910,9 @@ pub fn priority(addr: SocketAddr, json: bool) -> Result<(), anyhow::Error> {
 
     // JSON mode skips parsing of the JSONRPC response and rather outputs the JSON string as such
     if json {
-        println!("{}", response);
+        println!("{response}");
     } else {
-        println!("{}", estimate);
+        println!("{estimate}");
     }
 
     Ok(())
@@ -2095,12 +2068,12 @@ pub fn claim(
             .public_key
             .to_bytes()
             .iter()
-            .fold(String::new(), |acc, x| format!("{}{:02x}", acc, x)),
+            .fold(String::new(), |acc, x| format!("{acc}{x:02x}")),
         signature: signature
             .signature
             .to_bytes()?
             .iter()
-            .fold(String::new(), |acc, x| format!("{}{:02x}", acc, x)),
+            .fold(String::new(), |acc, x| format!("{acc}{x:02x}")),
     }) {
         Ok(signed_data) => {
             if let Some(base_path) = write_to_path {
@@ -2110,14 +2083,14 @@ pub fn claim(
                     PublicKeyHash::from_public_key(&signature.public_key)
                 ));
                 let mut file = File::create(&path)?;
-                file.write_all(format!("{}\n", signed_data).as_bytes())?;
+                file.write_all(format!("{signed_data}\n").as_bytes())?;
                 let full_path = Path::new(&path);
                 println!(
                     "Signed claiming data written to {}",
                     full_path.canonicalize()?.as_path().display()
                 );
             } else {
-                println!("Signed claiming data:\n{}", signed_data);
+                println!("Signed claiming data:\n{signed_data}");
             }
         }
         Err(error) => bail!("Failed to sign claiming data: {:?}", error),
@@ -2169,7 +2142,7 @@ struct ProtocolError(String);
 // Required for Fail derive
 impl fmt::Display for ServerError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&format!("{:?}", self))?;
+        f.write_str(&format!("{self:?}"))?;
         Ok(())
     }
 }
@@ -2186,14 +2159,14 @@ impl fmt::Display for ProtocolError {
 }
 
 fn start_client(addr: SocketAddr) -> Result<TcpStream, anyhow::Error> {
-    log::info!("Connecting to JSON-RPC server at {}", addr);
+    log::info!("Connecting to JSON-RPC server at {addr}");
     let stream = TcpStream::connect(addr);
 
     stream.map_err(Into::into)
 }
 
 fn send_request<S: Read + Write>(stream: &mut S, request: &str) -> Result<String, io::Error> {
-    log::trace!("> {}", request);
+    log::trace!("> {request}");
     stream.write_all(request.as_bytes())?;
     // Write missing newline, if needed
     match bytecount::count(request.as_bytes(), b'\n') {
@@ -2209,7 +2182,7 @@ fn send_request<S: Read + Write>(stream: &mut S, request: &str) -> Result<String
     let mut r = BufReader::new(stream);
     let mut response = String::new();
     r.read_line(&mut response)?;
-    log::trace!("< {}", response);
+    log::trace!("< {response}");
     Ok(response)
 }
 
@@ -2224,7 +2197,7 @@ fn parse_response<'a, T: Deserialize<'a>>(response: &'a str) -> Result<T, anyhow
             }
         }
         Err(e) => {
-            log::info!("{}", e);
+            log::info!("{e}");
             let error_json: JsonRpcError = serde_json::from_str(response)?;
             Err(error_json.error.into())
         }
@@ -2284,10 +2257,7 @@ fn prompt_user_for_priority_selection(
         "Please choose one of the following options depending on how urgently you want this transaction to be mined into a block:"
     );
     for (i, (label, priority, fee, time_to_block, ..)) in estimates.iter().enumerate() {
-        println!(
-            "[{}] {} (around {}) → {} Wit (priority = {})",
-            i, label, time_to_block, fee, priority
-        );
+        println!("[{i}] {label} (around {time_to_block}) → {fee} Wit (priority = {priority})");
     }
     let options = (0..estimates.len()).map(|x| usize::to_string(&x)).join("/");
 
@@ -2299,8 +2269,7 @@ fn prompt_user_for_priority_selection(
     let fee;
     loop {
         print!(
-            "Please type the number of your preferred priority tier and press Enter ({}): ",
-            options
+            "Please type the number of your preferred priority tier and press Enter ({options}): "
         );
         io::stdout().flush()?;
         input.clear();
@@ -2312,8 +2281,7 @@ fn prompt_user_for_priority_selection(
         {
             fee = selected_fee;
             println!(
-                "You have selected priority tier ({}) \"{}\"\n- A fee of {} Wit will be used\n- Priority is {}.\n- The expected time-to-block is {}",
-                selected, label, selected_fee, priority, time_to_block
+                "You have selected priority tier ({selected}) \"{label}\"\n- A fee of {selected_fee} Wit will be used\n- Priority is {priority}.\n- The expected time-to-block is {time_to_block}"
             );
             break;
         } else {
@@ -2348,7 +2316,7 @@ fn prompt_user_for_stake_confirmation(data: &BuildStakeResponse) -> Result<bool,
         .enumerate()
     {
         let address = address.bech32(environment);
-        println!("║    #{:0>2}: {: <69}║", i, address);
+        println!("║    #{i:0>2}: {address: <69}║");
     }
     println!("╟──────────────────────────────────────────────────────────────────────────────╢");
     println!("║ 2. VALIDATOR ADDRESS                                                         ║");

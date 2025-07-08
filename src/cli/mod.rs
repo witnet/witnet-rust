@@ -57,7 +57,7 @@ pub fn exec(
     let _guard = init_logger(log_opts);
     witnet_data_structures::set_environment(config.environment);
 
-    log::debug!("{:#?}", config);
+    log::debug!("{config:#?}");
     for (version, epoch_period) in config.protocol.iter() {
         if let Some((epoch, period)) = epoch_period {
             register_protocol_version(version, epoch, period);
@@ -315,8 +315,6 @@ fn user_agent_includes_witnet_version() {
 
     assert!(
         user_agent.contains(witnet_version),
-        "user agent {:?} does not match the current witnet version {:?}",
-        user_agent,
-        witnet_version
+        "user agent {user_agent:?} does not match the current witnet version {witnet_version:?}"
     );
 }

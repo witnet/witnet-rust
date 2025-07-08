@@ -28,7 +28,7 @@ pub trait Database {
         let opt = self.get_opt(key)?;
 
         opt.ok_or_else(|| Error::DbKeyNotFound {
-            key: format!("{:?}", key),
+            key: format!("{key:?}"),
         })
     }
 
@@ -89,7 +89,7 @@ pub trait GetWith {
         let opt = self.get_with_opt(key, with)?;
 
         opt.ok_or_else(|| Error::DbKeyNotFound {
-            key: format!("{:?}", key),
+            key: format!("{key:?}"),
         })
     }
     fn get_with_opt<K, V, F>(&self, key: &Key<K, V>, with: F) -> Result<Option<V>>

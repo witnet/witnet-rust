@@ -94,7 +94,7 @@ impl DrSender {
                 witnet_node_pkh = match res {
                     Ok(Ok(res)) => match serde_json::from_value::<String>(res) {
                         Ok(pkh) => {
-                            log::info!("Pkh is {}", pkh);
+                            log::info!("Pkh is {pkh}");
 
                             Some(pkh)
                         }
@@ -163,14 +163,14 @@ impl DrSender {
                                     }
                                     Err(e) => {
                                         // Unexpected error deserializing hash
-                                        panic!("[{}] >< cannot deserialize dr_tx: {}", dr_id, e);
+                                        panic!("[{dr_id}] >< cannot deserialize dr_tx: {e}");
                                     }
                                 }
                             }
                             Err(e) => {
                                 // Error sending transaction: node not synced, not enough balance, etc.
                                 // Do nothing, will retry later.
-                                log::error!("[{}] >< cannot broadcast dr_tx: {}", dr_id, e);
+                                log::error!("[{dr_id}] >< cannot broadcast dr_tx: {e}");
                                 // In this case, refrain from trying to send remaining data requests,
                                 // and let the dr_sender actor try again on next poll.
                                 return witnet_node_pkh;
@@ -180,7 +180,7 @@ impl DrSender {
                     Err(err) => {
                         // Error deserializing or validating data request: mark data request as
                         // error and report error as result to ethereum.
-                        log::error!("[{}] >< unacceptable data request: {}", dr_id, err);
+                        log::error!("[{dr_id}] >< unacceptable data request: {err}");
                         let result = err.encode_cbor();
                         // In this case there is no data request transaction, so
                         // we set both the dr_tx_hash and dr_tally_tx_hash to zero values.
@@ -252,22 +252,22 @@ impl fmt::Display for DrSenderError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             DrSenderError::Deserialization { msg } => {
-                write!(f, "Deserialization: {}", msg)
+                write!(f, "Deserialization: {msg}")
             }
             DrSenderError::Validation { msg } => {
-                write!(f, "Validation: {}", msg)
+                write!(f, "Validation: {msg}")
             }
             DrSenderError::RadonValidation { msg } => {
-                write!(f, "Radon validation: {}", msg)
+                write!(f, "Radon validation: {msg}")
             }
             DrSenderError::InvalidCollateral { msg } => {
-                write!(f, "Invalid collateral: {}", msg)
+                write!(f, "Invalid collateral: {msg}")
             }
             DrSenderError::InvalidReward { msg } => {
-                write!(f, "Invalid reward: {}", msg)
+                write!(f, "Invalid reward: {msg}")
             }
             DrSenderError::InvalidValue { msg } => {
-                write!(f, "Invalid value: {}", msg)
+                write!(f, "Invalid value: {msg}")
             }
             DrSenderError::ValueGreaterThanAllowed {
                 dr_value_nanowits,
@@ -275,8 +275,7 @@ impl fmt::Display for DrSenderError {
             } => {
                 write!(
                     f,
-                    "data request value ({}) higher than maximum allowed ({})",
-                    dr_value_nanowits, dr_max_value_nanowits
+                    "data request value ({dr_value_nanowits}) higher than maximum allowed ({dr_max_value_nanowits})"
                 )
             }
         }
@@ -346,10 +345,7 @@ fn deserialize_and_validate_dr_bytes(
                     reward_collateral_ratio,
                 );
                 log::warn!(
-                    "DRO [{}]: witnessing collateral ({}) increased to minimum ({})",
-                    dro_hash,
-                    dro_prev_collateral,
-                    dr_min_collateral_nanowits
+                    "DRO [{dro_hash}]: witnessing collateral ({dro_prev_collateral}) increased to minimum ({dr_min_collateral_nanowits})"
                 );
                 log::warn!(
                     "DRO [{}]: witnessing reward ({}) proportionally increased ({})",

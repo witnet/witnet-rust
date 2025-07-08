@@ -157,7 +157,7 @@ impl Handler<CreateVttRequest> for app::App {
                     },
                 )
                 .map_err(|err, _, _| {
-                    log::error!("Failed to create a VTT: {}", err);
+                    log::error!("Failed to create a VTT: {err}");
 
                     err
                 })
@@ -190,7 +190,7 @@ pub fn validate_output_addresses(
                 });
             })
             .map_err(|err| {
-                log::warn!("Invalid address: {}", err);
+                log::warn!("Invalid address: {err}");
 
                 app::field_error("address", "Address failed to deserialize.")
             })?;

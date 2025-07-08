@@ -175,14 +175,14 @@ impl Handler<DrReporterMsg> for DrReporter {
                             Unit::Wei(&x.to_string()).to_eth_str().unwrap_or_default()
                         );
                     } else if eth_from_balance_alert {
-                        log::info!("EVM address {} recovered funds.", eth_from);
+                        log::info!("EVM address {eth_from} recovered funds.");
                         eth_from_balance_alert = false;
                     }
 
                     x
                 }
                 Err(e) => {
-                    log::error!("Error geting balance from address {}: {:?}", eth_from, e);
+                    log::error!("Error geting balance from address {eth_from}: {e:?}");
 
                     return eth_from_balance_alert;
                 }
@@ -198,7 +198,7 @@ impl Handler<DrReporterMsg> for DrReporter {
             let eth_gas_price = match eth.gas_price().await {
                 Ok(x) => x,
                 Err(e) => {
-                    log::error!("Error estimating network gas price: {}", e);
+                    log::error!("Error estimating network gas price: {e}");
 
                     return eth_from_balance_alert;
                 }
@@ -254,7 +254,7 @@ impl Handler<DrReporterMsg> for DrReporter {
                 let receipt = tokio::time::timeout(eth_tx_timeout, receipt_fut).await;
                 match receipt {
                     Ok(Ok(receipt)) => {
-                        log::debug!("{:?} <> {:?}", dr_ids, receipt);
+                        log::debug!("{dr_ids:?} <> {receipt:?}");
                         match handle_receipt(&receipt).await {
                             Ok(()) => {
                                 let mut dismissed_dr_reports: HashSet<DrId> = Default::default();
@@ -264,9 +264,7 @@ impl Handler<DrReporterMsg> for DrReporter {
                                     {
                                         if dismissed_dr_reports.insert(dismissed_dr_id) {
                                             log::warn!(
-                                                "[{}] >< dismissed due to \"{}\" ...",
-                                                dismissed_dr_id,
-                                                reason
+                                                "[{dismissed_dr_id}] >< dismissed due to \"{reason}\" ..."
                                             );
                                         }
                                     }
@@ -389,10 +387,7 @@ fn parse_batch_report_error_log(
     match (&query_id.value, &reason.value) {
         (Token::Uint(query_id), Token::String(reason)) => Some((*query_id, reason.to_string())),
         _ => {
-            log::error!(
-                "Invalid BatchReportError params: {:?}",
-                batch_report_error_log_params
-            );
+            log::error!("Invalid BatchReportError params: {batch_report_error_log_params:?}");
             None
         }
     }
@@ -435,8 +430,8 @@ async fn split_by_gas_limit(
         if let Err(e) = estimated_gas {
             if batch_params.len() <= 1 {
                 // Skip this single-query batch if still not possible to estimate gas
-                log::error!("Cannot estimate gas limit: {:?}", e);
-                log::warn!("Skipping report batch: {:?}", batch_params);
+                log::error!("Cannot estimate gas limit: {e:?}");
+                log::warn!("Skipping report batch: {batch_params:?}");
             } else {
                 // Split batch in half if gas estimation is not possible
                 let (batch_tuples_1, batch_tuples_2) =
@@ -520,7 +515,7 @@ async fn split_by_gas_limit(
             // }
             Err(e) => {
                 if batch_params.len() <= 1 {
-                    log::error!("Cannot estimate report profit: {:?}", e);
+                    log::error!("Cannot estimate report profit: {e:?}");
                 }
             }
         };
@@ -556,8 +551,7 @@ mod tests {
     fn u256_saturating_mul_f64(a: U256, b: f64) -> U256 {
         assert!(
             b >= 0.0,
-            "u256_mul_f64 only supports positive floating point values, got {}",
-            b
+            "u256_mul_f64 only supports positive floating point values, got {b}"
         );
 
         // Prevent doing any further calculations if we're multiplying zero by something else.
@@ -616,7 +610,7 @@ mod tests {
     fn report_result_type_check() {
         let wrb_contract_abi_json: &[u8] = include_bytes!("../../../wrb_abi.json");
         let mut wrb_contract_abi = web3::ethabi::Contract::load(wrb_contract_abi_json)
-            .map_err(|e| format!("Unable to load WRB contract from ABI: {:?}", e))
+            .map_err(|e| format!("Unable to load WRB contract from ABI: {e:?}"))
             .unwrap();
         hack_fix_functions_with_multiple_definitions(&mut wrb_contract_abi);
 
@@ -672,7 +666,7 @@ mod tests {
     fn parse_logs_report_result_batch() {
         let wrb_contract_abi_json: &[u8] = include_bytes!("../../../wrb_abi.json");
         let mut wrb_contract_abi = web3::ethabi::Contract::load(wrb_contract_abi_json)
-            .map_err(|e| format!("Unable to load WRB contract from ABI: {:?}", e))
+            .map_err(|e| format!("Unable to load WRB contract from ABI: {e:?}"))
             .unwrap();
         hack_fix_functions_with_multiple_definitions(&mut wrb_contract_abi);
 

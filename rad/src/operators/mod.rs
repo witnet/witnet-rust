@@ -110,7 +110,7 @@ pub enum RadonOpCodes {
 
 impl fmt::Display for RadonOpCodes {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
