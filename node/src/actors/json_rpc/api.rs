@@ -44,14 +44,18 @@ use crate::{
     config_mngr, signature_mngr,
     utils::Force,
 };
-use witnet_crypto::key::KeyPath;
+use witnet_crypto::{hash::calculate_sha256, key::KeyPath};
 use witnet_data_structures::{
     chain::{
-        Block, DataRequestOutput, Epoch, EpochConstants, Hash, Hashable, KeyedSignature,
-        PublicKeyHash, RADType, StakeOutput, StateMachine, SyncStatus, tapi::ActiveWips,
+        Block, DataRequestInfo, DataRequestOutput, DataRequestStage, Epoch, EpochConstants, Hash,
+        Hashable, KeyedSignature, PublicKeyHash, RADType, StakeOutput, StateMachine, SyncStatus,
+        tapi::ActiveWips,
     },
     get_environment, get_protocol_version,
-    proto::versioning::{ProtocolVersion, VersionedHashable},
+    proto::{
+        ProtobufConvert,
+        versioning::{ProtocolVersion, VersionedHashable},
+    },
     staking::prelude::*,
     transaction::{Transaction, VTTransaction},
     vrf::VrfMessage,
@@ -100,6 +104,9 @@ pub fn attach_regular_methods<H>(
     });
     server.add_actix_method(system, "getBlock", |params: Params| {
         Box::pin(get_block(params))
+    });
+    server.add_actix_method(system, "getDataRequest", |params: Params| {
+        Box::pin(get_data_request(params.parse()))
     });
     server.add_actix_method(system, "getTransaction", |params: Params| {
         Box::pin(get_transaction(params.parse()))
@@ -2570,36 +2577,320 @@ pub async fn get_value_transfer(params: Result<GetValueTransferParams, Error>) -
                     value,
                 })
             } else {
-                // The timestamp can be only derived from the block epoch once the epoch constants are
-                // known (this is specially relevant after the V2_0+ fork)
-                let epoch_constants: EpochConstants =
-                    match EpochManager::from_registry().send(GetEpochConstants).await {
-                        Ok(Some(epoch_constats)) => epoch_constats,
-                        Err(e) => Err(internal_error(e))?,
-                        _ => Err(internal_error(""))?,
-                    };
-                let timestamp = match transaction.block_epoch {
-                    Some(block_epoch) => epoch_constants
-                        .epoch_timestamp(block_epoch)
-                        .ok()
-                        .map(|(timestamp, _)| timestamp),
-                    None => None,
-                };
+/// Joins potential outputs for the `get_data_request` method.
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(untagged)]
+pub enum GetDataRequestOutput {
+    /// Ethereal mode, extremely abridged.
+    Ethereal(GetDataRequestEtherealOutput),
+    /// Full mode, resemble the response of `data_request_report`.
+    Full(GetDataRequestFullOutput),
+}
 
-                GetValueTransfersOutput::Simple(GetValueTransferSimpleOutput {
-                    metadata,
-                    recipient,
-                    sender,
-                    status,
-                    timestamp,
-                    value,
-                })
-            }
+/// Different modes for the `get_value_transfer` method.
+#[derive(Debug, Default, Deserialize, PartialEq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum GetDataRequestMode {
+    /// Ethereal mode: returns only basic data with EVM-friendly data types.
+    Ethereal,
+    /// Full mode: returns the same information as the `get_transaction` method.
+    #[default]
+    Full,
+}
+
+/// Parameters for the `get_data_request` method.
+#[derive(Debug, Deserialize, Serialize)]
+pub struct GetDataRequestParams {
+    hash: MagicEither<String, Hash>,
+    #[serde(default)]
+    mode: GetDataRequestMode,
+    #[serde(default)]
+    force: bool,
+}
+
+/// Enumerates all the states in which a data reuqest transaction can be.
+#[derive(Debug, Default, Deserialize, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DataRequestStatus {
+    /// A transaction that never made it into a block (e.g. double spent, replaced by fee, etc.)
+    Cancelled,
+    /// A data request transaction that is still in the mempool, waiting to join a block.
+    #[default]
+    Pending,
+    /// A data request transaction that got included in a block and is currently in COMMIT phase.
+    Committing,
+    /// A data request transaction that got included in a block and is currently in REVEAL phase.
+    Revealing,
+    /// A data request transaction that got solved.
+    Solved,
+    /// A data request transaction whose tally result got included in a block that was eventually reverted, afterwards.
+    Reverted,
+}
+
+/// Full output for the `get_data_request` method.
+///
+/// This is used with the `full` mode.
+#[derive(Debug, Deserialize, Serialize)]
+pub struct GetDataRequestFullOutput {
+    status: DataRequestStatus,
+    report: DataRequestInfo,
+}
+
+/// Extremely abridged output for the `get_data_request` method.
+///
+/// This is used with the `ethereal` mode.
+#[derive(Debug, Deserialize, Serialize)]
+pub struct GetDataRequestEtherealOutput {
+    block_epoch: Option<u32>,
+    block_hash: Option<Hash>,
+    confirmed: bool,
+    query: Option<DataRequestQueryParams>,
+    result: Option<DataRequestQueryResult>,
+    status: DataRequestStatus,
+}
+
+/// Radon specs attached to every data request transaction.
+#[derive(Debug, Deserialize, Serialize)]
+pub struct DataRequestQueryParams {
+    collateral: u64,
+    dro_hash: Hash,
+    rad_hash: Hash,
+    weight: u32,
+    witnesses: u16,
+}
+
+/// Radon specs attached to every data request transaction.
+#[derive(Debug, Deserialize, Serialize)]
+pub struct DataRequestQueryResult {
+    cbor_bytes: String,
+    confirmations: u32,
+    timestamp: i64,
+}
+
+/// Query data request transaction status and result data, if solved
+pub async fn get_data_request(params: Result<GetDataRequestParams, Error>) -> JsonRpcResult {
+    let params = params?;
+    let hash = params
+        .hash
+        .try_do_magic(|string| Hash::from_str(&string))
+        .map_err(internal_error)?;
+
+    // Unless forced, we need to make sure that the node is fully synchronized, otherwise the
+    // transaction statuses might be off
+    if !params.force {
+        let sync_status = status().await?;
+        let sync_status: SyncStatus =
+            serde_json::from_value(sync_status).map_err(internal_error)?;
+
+        if sync_status.node_state != StateMachine::Synced {
+            return Err(internal_error_s(
+                "The node is not synced yet. But you can use the `force: true` flag if you know what you are doing.",
+            ));
+        }
+    }
+
+    // This method piggybacks on the `data_request_report` method for fetching data request transaction facts
+    let report = data_request_report(Ok((hash,))).await?;
+    let report: DataRequestInfo = serde_json::from_value(report).map_err(internal_error)?;
+    let status = if report.block_hash_tally_tx.is_some() {
+        DataRequestStatus::Solved
+    } else if report.block_hash_dr_tx.is_some() {
+        match report.current_stage {
+            Some(DataRequestStage::COMMIT) => DataRequestStatus::Committing,
+            Some(_) => DataRequestStatus::Revealing,
+            None => DataRequestStatus::Solved,
+        }
+    } else {
+        DataRequestStatus::Pending
+    };
+
+    // retrieve and compute output data
+    let output = if params.mode == GetDataRequestMode::Full {
+        // For the "full" mode, the response resembles that of `get_transaction`
+        GetDataRequestOutput::Full(GetDataRequestFullOutput { status, report })
+    } else {
+        // Get current epoch
+        let current_epoch = match EpochManager::from_registry().send(GetEpoch).await {
+            Ok(Ok(current_epoch)) => current_epoch,
+            Ok(Err(e)) => return Err(internal_error(e)),
+            Err(e) => return Err(internal_error(e)),
         };
 
-        serde_json::to_value(output).map_err(internal_error)
-    } else {
-        Err(internal_error_s("wrong transaction type"))
+        // Get data request transaction's block epoch:
+        let block_hash = report.block_hash_dr_tx;
+
+        let block_epoch = if let Some(block_hash) = block_hash {
+            match get_block_epoch(block_hash).await {
+                Ok((block_epoch, _)) => Some(block_epoch),
+                Err(_) => None,
+            }
+        } else {
+            None
+        };
+
+        // Get data request tally transaction's block epoch:
+        let (tally_epoch, confirmed) = if let Some(block_hash_tally_tx) = report.block_hash_tally_tx
+        {
+            match get_block_epoch(block_hash_tally_tx).await {
+                Ok((tally_epoch, confirmed)) => (Some(tally_epoch), confirmed),
+                Err(_) => (None, false),
+            }
+        } else {
+            (None, false)
+        };
+
+        // Compute confirmations of the data request tally transaction
+        let confirmations = tally_epoch
+            .map(|tally_epoch| current_epoch.saturating_sub(tally_epoch).saturating_sub(1));
+
+        // The timestamp can be only derived from the block epoch once the epoch constants are
+        // known (this is specially relevant after the V2_0+ fork)
+        let epoch_constants: EpochConstants =
+            match EpochManager::from_registry().send(GetEpochConstants).await {
+                Ok(Some(epoch_constats)) => epoch_constats,
+                Err(e) => Err(internal_error(e))?,
+                _ => Err(internal_error(""))?,
+            };
+        let timestamp = match block_epoch {
+            Some(block_epoch) => epoch_constants
+                .epoch_timestamp(
+                    block_epoch.saturating_add(1u32 + report.current_commit_round as u32),
+                )
+                .ok()
+                .map(|(timestamp, _)| timestamp),
+            None => None,
+        };
+
+        GetDataRequestOutput::Ethereal(GetDataRequestEtherealOutput {
+            block_epoch,
+            block_hash,
+            confirmed,
+            query: get_dr_query_params(hash).await.ok(),
+            result: if let Some(confirmations) = confirmations {
+                Some(DataRequestQueryResult {
+                    cbor_bytes: hex::encode(report.tally.unwrap_or_default().tally),
+                    confirmations,
+                    timestamp: timestamp.unwrap_or_default(),
+                })
+            } else {
+                None
+            },
+            status,
+        })
+    };
+
+    serde_json::to_value(output).map_err(internal_error)
+}
+
+async fn get_dr_query_params(dr_tx_hash: Hash) -> Result<DataRequestQueryParams, Error> {
+    let inventory_manager = InventoryManager::from_registry();
+    let res = inventory_manager
+        .send(GetItemTransaction { hash: dr_tx_hash })
+        .await;
+    match res {
+        Ok(Ok((transaction, _, _))) => {
+            let weight = transaction.weight();
+            match transaction {
+                Transaction::DataRequest(dr_tx) => Ok(DataRequestQueryParams {
+                    dro_hash: dr_tx.body.dr_output.hash(),
+                    rad_hash: calculate_sha256(
+                        &dr_tx.body.dr_output.data_request.to_pb_bytes().unwrap(),
+                    )
+                    .into(),
+                    collateral: dr_tx.body.dr_output.collateral,
+                    weight,
+                    witnesses: dr_tx.body.dr_output.witnesses,
+                }),
+                _ => Err(internal_error("Not a data request transaction")),
+            }
+        }
+        Ok(Err(InventoryManagerError::ItemNotFound)) => {
+            let chain_manager = ChainManager::from_registry();
+            let res = chain_manager
+                .send(GetMemoryTransaction { hash: dr_tx_hash })
+                .await;
+
+            match res {
+                Ok(Ok(transaction)) => {
+                    let weight = transaction.weight();
+                    match transaction {
+                        Transaction::DataRequest(dr_tx) => Ok(DataRequestQueryParams {
+                            dro_hash: dr_tx.body.dr_output.hash(),
+                            rad_hash: calculate_sha256(
+                                &dr_tx.body.dr_output.data_request.to_pb_bytes().unwrap(),
+                            )
+                            .into(),
+                            collateral: dr_tx.body.dr_output.collateral,
+                            weight,
+                            witnesses: dr_tx.body.dr_output.witnesses,
+                        }),
+                        _ => Err(internal_error("Not a data request transaction")),
+                    }
+                }
+                Ok(Err(())) => {
+                    let err = internal_error(InventoryManagerError::ItemNotFound);
+                    Err(err)
+                }
+                Err(e) => {
+                    let err = internal_error(e);
+                    Err(err)
+                }
+            }
+        }
+        Ok(Err(e)) => {
+            let err = internal_error(e);
+            Err(err)
+        }
+        Err(e) => {
+            let err = internal_error(e);
+            Err(err)
+        }
+    }
+}
+
+async fn get_block_epoch(block_hash: Hash) -> Result<(u32, bool), Error> {
+    let inventory_manager = InventoryManager::from_registry();
+
+    let res = inventory_manager
+        .send(GetItemBlock { hash: block_hash })
+        .await;
+
+    match res {
+        Ok(Ok(output)) => {
+            let block_epoch = output.block_header.beacon.checkpoint;
+            let block_hash = output.versioned_hash(get_protocol_version(Some(block_epoch)));
+
+            // Check if this block is confirmed by a majority of superblock votes
+            let chain_manager = ChainManager::from_registry();
+            let res = chain_manager
+                .send(IsConfirmedBlock {
+                    block_hash,
+                    block_epoch,
+                })
+                .await;
+
+            match res {
+                Ok(Ok(confirmed)) => {
+                    Ok((block_epoch, confirmed))
+                }
+                Ok(Err(e)) => {
+                    let err = internal_error(e);
+                    Err(err)
+                }
+                Err(e) => {
+                    let err = internal_error(e);
+                    Err(err)
+                }
+            }
+        }
+        Ok(Err(e)) => {
+            let err = internal_error(e);
+            Err(err)
+        }
+        Err(e) => {
+            let err = internal_error(e);
+            Err(err)
+        }
     }
 }
 
@@ -2921,6 +3212,7 @@ mod tests {
                 "getBlock",
                 "getBlockChain",
                 "getConsensusConstants",
+                "getDataRequest",
                 "getMempool",
                 "getPkh",
                 "getPublicKey",
