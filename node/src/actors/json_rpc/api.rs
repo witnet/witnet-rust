@@ -2796,20 +2796,22 @@ pub async fn get_data_request(params: Result<GetDataRequestParams, Error>) -> Js
             None => None,
         };
 
+        // Get data request transaction's query parameters
+        let query = get_dr_query_params(hash).await.ok();
+
+        // Get data request transaction's query result, if any
+        let result = confirmations.map(|confirmations| DataRequestQueryResult {
+            cbor_bytes: hex::encode(report.tally.unwrap_or_default().tally),
+            confirmations,
+            timestamp: timestamp.unwrap_or_default(),
+        });
+
         GetDataRequestOutput::Ethereal(GetDataRequestEtherealOutput {
             block_epoch,
             block_hash,
             confirmed,
-            query: get_dr_query_params(hash).await.ok(),
-            result: if let Some(confirmations) = confirmations {
-                Some(DataRequestQueryResult {
-                    cbor_bytes: hex::encode(report.tally.unwrap_or_default().tally),
-                    confirmations,
-                    timestamp: timestamp.unwrap_or_default(),
-                })
-            } else {
-                None
-            },
+            query,
+            result,
             status,
         })
     };
