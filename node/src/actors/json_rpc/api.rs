@@ -2437,6 +2437,7 @@ pub struct GetValueTransferEtherealOutput {
     metadata: String,
     recipient: String,
     sender: String,
+    timestamp: Option<i64>,
     value: u64,
 }
 
@@ -2547,6 +2548,22 @@ pub async fn get_value_transfer(params: Result<GetValueTransferParams, Error>) -
                 .map(hex::encode)
                 .collect::<Vec<_>>();
 
+            // The timestamp can be only derived from the block epoch once the epoch constants are
+            // known (this is specially relevant after the V2_0+ fork)
+            let epoch_constants: EpochConstants =
+                match EpochManager::from_registry().send(GetEpochConstants).await {
+                    Ok(Some(epoch_constats)) => epoch_constats,
+                    Err(e) => Err(internal_error(e))?,
+                    _ => Err(internal_error(""))?,
+                };
+            let timestamp = match transaction.block_epoch {
+                Some(block_epoch) => epoch_constants
+                    .epoch_timestamp(block_epoch)
+                    .ok()
+                    .map(|(timestamp, _)| timestamp),
+                None => None,
+            };
+
             if params.mode == GetValueTransferMode::Ethereal {
                 // Ethereal mode needs some extra processing of the output to simplify data types
                 let finalized = status.discriminant();
@@ -2557,9 +2574,27 @@ pub async fn get_value_transfer(params: Result<GetValueTransferParams, Error>) -
                     metadata,
                     recipient,
                     sender,
+                    timestamp,
                     value,
                 })
             } else {
+                GetValueTransfersOutput::Simple(GetValueTransferSimpleOutput {
+                    metadata,
+                    recipient,
+                    sender,
+                    status,
+                    timestamp,
+                    value,
+                })
+            }
+        };
+
+        serde_json::to_value(output).map_err(internal_error)
+    } else {
+        Err(internal_error_s("wrong transaction type"))
+    }
+}
+
 /// Joins potential outputs for the `get_data_request` method.
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(untagged)]
@@ -2853,9 +2888,7 @@ async fn get_block_epoch(block_hash: Hash) -> Result<(u32, bool), Error> {
                 .await;
 
             match res {
-                Ok(Ok(confirmed)) => {
-                    Ok((block_epoch, confirmed))
-                }
+                Ok(Ok(confirmed)) => Ok((block_epoch, confirmed)),
                 Ok(Err(e)) => {
                     let err = internal_error(e);
                     Err(err)
