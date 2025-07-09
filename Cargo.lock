@@ -1743,9 +1743,9 @@ dependencies = [
 
 [[package]]
 name = "hyper-util"
-version = "0.1.14"
+version = "0.1.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc2fdfdbff08affe55bb779f33b053aa1fe5dd5b54c257343c17edfa55711bdb"
+checksum = "7f66d5bd4c6f02bf0542fad85d626775bab9258cf795a4256dcaf3161114d1df"
 dependencies = [
  "base64 0.22.1",
  "bytes 1.10.1",
@@ -3247,13 +3247,13 @@ checksum = "7edddbd0b52d732b21ad9a5fab5c704c14cd949e5e9a1ec5929a24fded1b904c"
 
 [[package]]
 name = "plist"
-version = "1.7.3"
+version = "1.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "546b279bf0638ee811d9e47de2ca5b66575a543035d79fdf83959dd2f5c3b4c3"
+checksum = "3af6b589e163c5a788fab00ce0c0366f6efbb9959c2f9874b224936af7fce7e1"
 dependencies = [
  "base64 0.22.1",
  "indexmap",
- "quick-xml 0.37.5",
+ "quick-xml 0.38.0",
  "serde",
  "time",
 ]
@@ -3470,9 +3470,9 @@ dependencies = [
 
 [[package]]
 name = "quick-xml"
-version = "0.37.5"
+version = "0.38.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "331e97a1af0bf59823e6eadffe373d7b27f485be8748f71471c662c1f269b7fb"
+checksum = "8927b0664f5c5a98265138b7e3f90aa19a6b21353182469ace36d4ac527b7b1b"
 dependencies = [
  "memchr",
 ]
@@ -6072,7 +6072,7 @@ dependencies = [
 
 [[package]]
 name = "witnet"
-version = "2.0.14"
+version = "2.0.15"
 dependencies = [
  "ansi_term",
  "anyhow",
@@ -6135,7 +6135,7 @@ dependencies = [
 
 [[package]]
 name = "witnet-centralized-ethereum-bridge"
-version = "2.0.14"
+version = "2.0.15"
 dependencies = [
  "actix",
  "async-jsonrpc-client",
@@ -6163,7 +6163,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_config"
-version = "2.0.14"
+version = "2.0.15"
 dependencies = [
  "directories-next",
  "log 0.4.27",
@@ -6201,7 +6201,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_data_structures"
-version = "2.0.14"
+version = "2.0.15"
 dependencies = [
  "anyhow",
  "bech32 0.11.0",
@@ -6269,7 +6269,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_node"
-version = "2.0.14"
+version = "2.0.15"
 dependencies = [
  "actix",
  "ansi_term",
@@ -6386,7 +6386,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_toolkit"
-version = "2.0.14"
+version = "2.0.15"
 dependencies = [
  "anyhow",
  "hex",
@@ -6434,7 +6434,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_wallet"
-version = "2.0.14"
+version = "2.0.15"
 dependencies = [
  "actix",
  "anyhow",
