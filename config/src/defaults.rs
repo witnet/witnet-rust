@@ -556,8 +556,8 @@ impl Defaults for Testnet {
     }
 
     fn consensus_constants_checkpoint_zero_timestamp(&self) -> i64 {
-        // Tuesday, 08-Jul-2025, 19:00 UTC
-        1_752_001_200
+        // Wednesday, 09-Jul-2025, 18:00 UTC
+        1_752_084_000
     }
 
     fn consensus_constants_genesis_hash(&self) -> Hash {
