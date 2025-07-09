@@ -579,10 +579,13 @@ pub fn data_request_has_too_many_witnesses(
     if ProtocolVersion::from_epoch_opt(epoch) < ProtocolVersion::V2_0 {
         false
     } else {
-        match get_environment() {
-            Environment::Mainnet => usize::from(dr_output.witnesses) > validator_count / 4,
-            _ => usize::from(dr_output.witnesses) > validator_count / 2,
-        }
+        let divider = if let Environment::Mainnet = get_environment() {
+            4
+        } else {
+            2
+        };
+
+        usize::from(dr_output.witnesses) > validator_count / divider
     }
 }
 
