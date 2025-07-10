@@ -182,8 +182,7 @@ impl ExtendedSK {
 
         if expected_len != actual_len {
             return Err(KeyError::Deserialization(format!(
-                "invalid data length, expected: {}, got: {}",
-                expected_len, actual_len
+                "invalid data length, expected: {expected_len}, got: {actual_len}",
             )));
         }
 
@@ -211,7 +210,7 @@ impl ExtendedSK {
     pub fn to_slip32(&self, path: &KeyPath) -> Result<String, KeyError> {
         let depth = path.depth();
         let depth = u8::try_from(depth).map_err(|_| {
-            KeyError::Serialization(format!("path depth '{}' is greater than 255", depth,))
+            KeyError::Serialization(format!("path depth '{depth}' is greater than 255"))
         })?;
 
         let capacity = 1     // 1 byte for depth
@@ -422,11 +421,11 @@ impl KeyPath {
 impl fmt::Display for KeyPath {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let path = self.iter().fold("m".to_string(), |mut path, index| {
-            path.push_str(format!("/{}", index).as_ref());
+            path.push_str(format!("/{index}").as_ref());
             path
         });
 
-        write!(f, "{}", path)
+        write!(f, "{path}")
     }
 }
 

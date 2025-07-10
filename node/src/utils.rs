@@ -45,7 +45,7 @@ pub fn stop_system_if_panicking(actor_name: &str) {
     if std::thread::panicking() {
         // If no actix system is running, this method does nothing
         if let Some(system) = System::try_current() {
-            log::error!("Panic in {}, shutting down system", actor_name);
+            log::error!("Panic in {actor_name}, shutting down system");
             system.stop_with_code(1);
         }
     }
@@ -231,7 +231,7 @@ pub fn file_name_compose(mut path: PathBuf, suffix: Option<String>) -> PathBuf {
         path.extension().and_then(std::ffi::OsStr::to_str),
         suffix,
     ) {
-        path.set_file_name(format!("{}-{}.{}", file_name, suffix, extension))
+        path.set_file_name(format!("{file_name}-{suffix}.{extension}"))
     }
 
     path

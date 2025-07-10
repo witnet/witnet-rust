@@ -202,7 +202,7 @@ pub fn unpack_subscript(value: &Value) -> Result<Vec<RadonCall>, RadError> {
 }
 
 fn errorify(kind: RadError) -> RadError {
-    log::error!("Error unpacking a RADON script: {:?}", kind);
+    log::error!("Error unpacking a RADON script: {kind:?}");
 
     kind
 }
@@ -580,7 +580,7 @@ mod tests {
                 Some(vec![Value::Text(String::from("temp"))]),
             ),
         ];
-        println!("{:?}", expected);
+        println!("{expected:?}");
 
         let output = unpack_radon_script(&packed).unwrap();
 

@@ -28,13 +28,13 @@ pub fn create_wrb_contract(
     eth_witnet_oracle: H160,
 ) -> (Web3<Http>, Contract<Http>) {
     let web3_http = web3::transports::Http::new(eth_jsonrpc_url)
-        .map_err(|e| format!("Failed to connect to Ethereum client.\nError: {:?}", e))
+        .map_err(|e| format!("Failed to connect to Ethereum client.\nError: {e:?}"))
         .unwrap();
     let web3 = web3::Web3::new(web3_http);
     // Why read files at runtime when you can read files at compile time
     let wrb_contract_abi_json: &[u8] = include_bytes!("../../wrb_abi.json");
     let mut wrb_contract_abi = web3::ethabi::Contract::load(wrb_contract_abi_json)
-        .map_err(|e| format!("Unable to load WRB contract from ABI: {:?}", e))
+        .map_err(|e| format!("Unable to load WRB contract from ABI: {e:?}"))
         .unwrap();
 
     // Fix issue #2046, manually select the desired function when multiple candidates have the same name
@@ -63,8 +63,7 @@ fn hack_fix_functions_with_multiple_definitions(wrb_contract_abi: &mut web3::eth
         assert_eq!(
             definitions.len(),
             1,
-            "function {:?} is duplicated in ABI",
-            function_name
+            "function {function_name:?} is duplicated in ABI"
         );
     }
 }
@@ -80,27 +79,19 @@ pub async fn check_witnet_node_running(witnet_addr: &str) -> Result<(), String> 
 
     match res {
         Ok(Ok(x)) => {
-            log::debug!("Witnet node is running at {}: {:?}", witnet_addr, x);
+            log::debug!("Witnet node is running at {witnet_addr}: {x:?}");
 
             Ok(())
         }
         Ok(Err(e)) => {
-            log::warn!(
-                "Witnet node is running at {} but not synced: {:?}",
-                witnet_addr,
-                e
-            );
+            log::warn!("Witnet node is running at {witnet_addr} but not synced: {e:?}");
 
             Ok(())
         }
         Err(_elapsed) => {
             // elapsed.to_string() returns "deadline has elapsed" which is hard to understand
             let e = "timeout";
-            log::error!(
-                "Failed to connect to witnet node at {} error: {}",
-                witnet_addr,
-                e
-            );
+            log::error!("Failed to connect to witnet node at {witnet_addr} error: {e}");
 
             Err(e.to_string())
         }
@@ -110,7 +101,7 @@ pub async fn check_witnet_node_running(witnet_addr: &str) -> Result<(), String> 
 /// Check if the ethereum node is running
 pub async fn check_ethereum_node_running(eth_jsonrpc_url: &str) -> Result<(), String> {
     let web3_http = web3::transports::Http::new(eth_jsonrpc_url)
-        .map_err(|e| format!("Failed to connect to Ethereum client.\nError: {:?}", e))
+        .map_err(|e| format!("Failed to connect to Ethereum client.\nError: {e:?}"))
         .unwrap();
     let web3 = web3::Web3::new(web3_http);
 
@@ -118,11 +109,11 @@ pub async fn check_ethereum_node_running(eth_jsonrpc_url: &str) -> Result<(), St
     let res = web3.eth().syncing().await;
     match res {
         Ok(syncing) => {
-            log::debug!("Ethereum node is running at {}", eth_jsonrpc_url);
+            log::debug!("Ethereum node is running at {eth_jsonrpc_url}");
             match syncing {
                 web3::types::SyncState::NotSyncing => {}
                 web3::types::SyncState::Syncing(sync_info) => {
-                    log::warn!("Ethereum provider is syncing: {:?}", sync_info);
+                    log::warn!("Ethereum provider is syncing: {sync_info:?}");
                 }
             }
 
@@ -135,13 +126,13 @@ pub async fn check_ethereum_node_running(eth_jsonrpc_url: &str) -> Result<(), St
                 {
                     // Ignore this error because it can be caused by a non-standard ethereum provider
                     // https://github.com/witnet/witnet-rust/issues/2141
-                    log::debug!("Ethereum node is running at {}", eth_jsonrpc_url);
+                    log::debug!("Ethereum node is running at {eth_jsonrpc_url}");
                     log::warn!("Ethereum provider returned `true` on eth_syncing method");
 
                     Ok(())
                 }
                 _ => {
-                    log::error!("Failed to connect to ethereum node: {}", e);
+                    log::error!("Failed to connect to ethereum node: {e}");
 
                     Err(e.to_string())
                 }
@@ -165,7 +156,7 @@ pub async fn handle_receipt(receipt: &TransactionReceipt) -> Result<(), ()> {
             Err(())
         }
         x => {
-            log::error!("Unknown return code, should be 0 or 1, is: {:?}", x);
+            log::error!("Unknown return code, should be 0 or 1, is: {x:?}");
             Err(())
         }
     }
@@ -181,7 +172,7 @@ mod tests {
         // internally, so here we call it to ensure the ABI is correct.
         let wrb_contract_abi_json: &[u8] = include_bytes!("../../wrb_abi.json");
         let mut wrb_contract_abi = web3::ethabi::Contract::load(wrb_contract_abi_json)
-            .map_err(|e| format!("Unable to load WRB contract from ABI: {:?}", e))
+            .map_err(|e| format!("Unable to load WRB contract from ABI: {e:?}"))
             .unwrap();
         hack_fix_functions_with_multiple_definitions(&mut wrb_contract_abi);
     }

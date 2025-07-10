@@ -1888,7 +1888,7 @@ pub fn update_utxo_diff<'a, IterInputs, IterOutputs>(
             if output.time_lock < checkpoint_zero_timestamp.try_into().unwrap() {
                 let epoch_timestamp = match epoch_constants.epoch_timestamp(epoch) {
                     Ok((timestamp, _)) => timestamp,
-                    Err(e) => panic!("Failed to get timestamp for epoch {}: {}", epoch, e),
+                    Err(e) => panic!("Failed to get timestamp for epoch {epoch}: {e}"),
                 };
                 ValueTransferOutput {
                     pkh: output.pkh,
@@ -2582,7 +2582,7 @@ pub fn reset_data_request_stage(
 ) {
     // Reset newly added data requests
     if data_requests_to_reset.contains(&dr_pointer) {
-        log::debug!("Reset temporarily added data request {}", dr_pointer);
+        log::debug!("Reset temporarily added data request {dr_pointer}");
         if let Some(dr_state) = dr_pool.data_request_state_mutable(&dr_pointer) {
             dr_state.set_stage(DataRequestStage::COMMIT);
         }
@@ -2615,8 +2615,8 @@ pub fn validate_genesis_block(
         Ok(())
     } else {
         Err(BlockError::GenesisBlockMismatch {
-            block: format!("{:?}", genesis_block),
-            expected: format!("{:?}", new_genesis),
+            block: format!("{genesis_block:?}"),
+            expected: format!("{new_genesis:?}"),
         })
     }
 }

@@ -61,7 +61,7 @@ impl ConnectionsManager {
                                 yield InboundTcpConnect::new(st);
                             }
                             Err(err) => {
-                                log::error!("Error incoming listener: {}", err);
+                                log::error!("Error incoming listener: {err}");
                             }
                         }
                     }
@@ -72,7 +72,7 @@ impl ConnectionsManager {
                     &config.connections.server_addr
                 );
             })
-            .map_err(|err, _, _| log::error!("P2P server failed to start: {}", err))
+            .map_err(|err, _, _| log::error!("P2P server failed to start: {err}"))
             .map(|_res: Result<(), ()>, _act, _ctx| ())
             .wait(ctx);
     }
@@ -98,7 +98,7 @@ impl ConnectionsManager {
         // Process the Result<ResolverResult, MailboxError>
         match response {
             Err(error) => {
-                log::error!("Unsuccessful communication with resolver: {}", error);
+                log::error!("Unsuccessful communication with resolver: {error}");
                 actix::fut::err(())
             }
             Ok(res) => {
@@ -106,9 +106,7 @@ impl ConnectionsManager {
                 match res {
                     Err(error) => {
                         log::debug!(
-                            "Failed to connect to peer address {} with error: {:?}",
-                            address,
-                            error
+                            "Failed to connect to peer address {address} with error: {error:?}"
                         );
                         // Try to evict this address from `tried` buckets, and put them into the
                         // `ice` bucket instead
@@ -119,9 +117,9 @@ impl ConnectionsManager {
                     Ok(stream) => {
                         stream
                             .peer_addr()
-                            .map(|ip| log::debug!("Connected to peer {:?}", ip))
+                            .map(|ip| log::debug!("Connected to peer {ip:?}"))
                             .unwrap_or_else(|err| {
-                                log::error!("Peer address error in stream: {}", err)
+                                log::error!("Peer address error in stream: {err}")
                             });
 
                         // Request the creation of a new session actor from connection

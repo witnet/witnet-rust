@@ -67,7 +67,7 @@ pub fn update_global_timestamp(addr: &str) {
             }
         }
         Err(e) => {
-            log::warn!("NTP request failed: {}", e);
+            log::warn!("NTP request failed: {e}");
         }
     }
 }

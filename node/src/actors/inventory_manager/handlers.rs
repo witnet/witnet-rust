@@ -40,7 +40,7 @@ impl InventoryManager {
 
         let total = msg.items.len();
         for (i, item) in msg.items.into_iter().enumerate() {
-            log::trace!("Adding item {} out of {}", i, total);
+            log::trace!("Adding item {i} out of {total}");
 
             match item {
                 StoreInventoryItem::Block(block) => {
@@ -82,45 +82,42 @@ impl InventoryManager {
         let tx_len = transactions_to_add.len();
         let superblock_len = superblocks_to_add.len();
 
-        log::trace!("Persisting {} blocks to storage", block_len);
+        log::trace!("Persisting {block_len} blocks to storage");
 
         // Store all the blocks, and then store all the transactions
         Box::pin(
             storage_mngr::put_batch(&blocks_to_add)
                 .into_actor(self)
                 .map_err(|e, _, _| {
-                    log::error!("Error when writing blocks to storage: {}", e);
+                    log::error!("Error when writing blocks to storage: {e}");
 
                     InventoryManagerError::MailBoxError(e)
                 })
                 .and_then(move |(), act, _| {
-                    log::trace!("Successfully persisted {} blocks to storage", block_len);
-                    log::trace!("Persisting {} transactions to storage", tx_len);
+                    log::trace!("Successfully persisted {block_len} blocks to storage");
+                    log::trace!("Persisting {tx_len} transactions to storage");
 
                     storage_mngr::put_batch(&transactions_to_add)
                         .into_actor(act)
                         .map_err(|e, _, _| {
-                            log::error!("Error when writing transactions to storage: {}", e);
+                            log::error!("Error when writing transactions to storage: {e}");
 
                             InventoryManagerError::MailBoxError(e)
                         })
                 })
                 .and_then(move |(), act, _| {
-                    log::trace!("Successfully persisted {} transactions to storage", tx_len);
+                    log::trace!("Successfully persisted {tx_len} transactions to storage");
 
                     storage_mngr::put_batch(&superblocks_to_add)
                         .into_actor(act)
                         .map_err(|e, _, _| {
-                            log::error!("Error when writing superblocks to storage: {}", e);
+                            log::error!("Error when writing superblocks to storage: {e}");
 
                             InventoryManagerError::MailBoxError(e)
                         })
                 })
                 .and_then(move |(), _, _| {
-                    log::trace!(
-                        "Successfully persisted {} superblocks to storage",
-                        superblock_len
-                    );
+                    log::trace!("Successfully persisted {superblock_len} superblocks to storage");
 
                     actix::fut::ok(())
                 }),
@@ -208,7 +205,7 @@ impl InventoryManager {
                                     InventoryManagerError::NoPointedBlock(pointer_to_block),
                                 ),
                                 Err(e) => {
-                                    log::error!("Couldn't get item from storage: {}", e);
+                                    log::error!("Couldn't get item from storage: {e}");
                                     fut::err(e)
                                 }
                             }
@@ -224,7 +221,7 @@ impl InventoryManager {
                     fut
                 }
                 Err(e) => {
-                    log::error!("Couldn't get item from storage: {}", e);
+                    log::error!("Couldn't get item from storage: {e}");
                     let fut: ResponseActFuture<
                         Self,
                         Result<(Transaction, PointerToBlock, Epoch), InventoryManagerError>,
@@ -250,7 +247,7 @@ impl InventoryManager {
                     Some(superblock) => fut::ok(superblock),
                 },
                 Err(e) => {
-                    log::error!("Couldn't get item from storage: {}", e);
+                    log::error!("Couldn't get item from storage: {e}");
 
                     fut::err(InventoryManagerError::MailBoxError(e))
                 }
@@ -264,7 +261,7 @@ impl InventoryManager {
         let backend = storage_mngr::get_backend()
             .await
             .unwrap_or_else(|err| {
-                panic!("Failed to get storage backend: {}", err);
+                panic!("Failed to get storage backend: {err}");
             })
             .as_arc_dyn_storage();
 
@@ -303,7 +300,7 @@ impl InventoryManager {
                 if let Ok(Some(block)) = response {
                     Some(block)
                 } else {
-                    log::error!("No block found with hash {}. Error: {:?}", hash, response);
+                    log::error!("No block found with hash {hash}. Error: {response:?}");
 
                     None
                 }

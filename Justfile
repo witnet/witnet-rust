@@ -3,7 +3,7 @@ ci +flags="":
     just versions 2>/dev/null || just install-setup
     cargo fmt --all -- --check
     just clippy
-    cargo test --all --verbose {{flags}}
+    cargo test --workspace --verbose {{flags}} -- --test-threads=1
 
 # install clippy
 install-clippy:
@@ -30,8 +30,8 @@ export CLIPPY_LINTS := '-D warnings -D clippy::cast-lossless -D clippy::cast-pos
 
 # run clippy
 clippy +flags="":
-    cargo clippy --all --all-features -- $CLIPPY_LINTS {{flags}}
-    cargo clippy --all --all-targets --all-features -- $CLIPPY_LINTS -A clippy::many-single-char-names {{flags}}
+    cargo clippy --workspace --all-features -- $CLIPPY_LINTS {{flags}}
+    cargo clippy --workspace --all-targets --all-features -- $CLIPPY_LINTS -A clippy::many-single-char-names {{flags}}
 
 
 # run formatter

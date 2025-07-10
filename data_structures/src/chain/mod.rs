@@ -1326,7 +1326,7 @@ impl fmt::Display for Hash {
         match self {
             Hash::SHA256(h) => f.write_str(
                 h.iter()
-                    .fold(String::new(), |acc, x| format!("{}{:02x}", acc, x))
+                    .fold(String::new(), |acc, x| format!("{acc}{x:02x}"))
                     .as_str(),
             )?,
         };
@@ -1414,7 +1414,7 @@ impl FromStr for Hash {
 
 impl fmt::Debug for Hash {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self)
+        write!(f, "{self}")
     }
 }
 
@@ -1523,7 +1523,7 @@ impl PublicKeyHash {
     pub fn to_hex(self) -> String {
         self.hash
             .iter()
-            .fold(String::new(), |acc, x| format!("{}{:02x}", acc, x))
+            .fold(String::new(), |acc, x| format!("{acc}{x:02x}"))
     }
 
     /// Deserialize PKH from hex bytes
@@ -2170,7 +2170,7 @@ impl RADRetrieve {
             field_names.sort();
 
             for field in field_names {
-                write!(s, "{}, ", field).unwrap();
+                write!(s, "{field}, ").unwrap();
             }
 
             // Remove last ", "
@@ -3245,8 +3245,7 @@ impl TransactionsPool {
                 |mut reveals_vec, (dr_pointer, reveals)| {
                     if let Some(dr_output) = dr_pool.get_dr_output(dr_pointer) {
                         let n_reveals = reveals.len();
-                        reveals_vec
-                            .extend(reveals.iter().map(|(_h, r)| re_hash_index.get(r).unwrap()));
+                        reveals_vec.extend(reveals.values().map(|r| re_hash_index.get(r).unwrap()));
 
                         total_fee += dr_output.commit_and_reveal_fee * n_reveals as u64;
                     }
@@ -3458,10 +3457,7 @@ impl TransactionsPool {
                 }
             }
             tx => {
-                panic!(
-                    "Transaction kind not supported by TransactionsPool: {:?}",
-                    tx
-                );
+                panic!("Transaction kind not supported by TransactionsPool: {tx:?}");
             }
         }
 
@@ -3696,7 +3692,7 @@ impl fmt::Display for OutputPointer {
 
 impl fmt::Debug for OutputPointer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self)
+        write!(f, "{self}")
     }
 }
 
@@ -4117,11 +4113,7 @@ impl AltKeys {
         if v.is_valid() {
             self.bn256.insert(k, v)
         } else {
-            log::warn!(
-                "Ignoring invalid bn256 public key {:02x?} specified by PKH {:02x?}",
-                v,
-                k
-            );
+            log::warn!("Ignoring invalid bn256 public key {v:02x?} specified by PKH {k:02x?}",);
             None
         }
     }

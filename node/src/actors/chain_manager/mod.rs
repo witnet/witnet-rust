@@ -295,7 +295,7 @@ impl ChainManager {
         let chain_state_path = path.clone();
         let chain_state = Box::pin(async move {
             let path_display = chain_state_path.display().to_string();
-            log::debug!("Trying to read chain state from file {}", path_display);
+            log::debug!("Trying to read chain state from file {path_display}");
 
             // Open file, create reader, and decode using bincode
             let chain_state =
@@ -317,7 +317,7 @@ impl ChainManager {
         let superblocks = Box::pin(async move {
             // Derive superblocks file path from the base path
             let path_display = superblocks_path.display().to_string();
-            log::debug!("Trying to read superblocks file at {}", path_display);
+            log::debug!("Trying to read superblocks file at {path_display}");
 
             // Open file, create reader, and decode using bincode
             let superblocks: Vec<_> =
@@ -473,17 +473,13 @@ impl ChainManager {
 
         if let Some(superblock_index) = superblock_index {
             log::debug!(
-                "Persisting chain state for superblock #{} with chain beacon {:?} and super beacon {:?}",
-                superblock_index,
-                chain_beacon,
-                superblock_beacon
+                "Persisting chain state for superblock #{superblock_index} with chain beacon {chain_beacon:?} and super beacon {superblock_beacon:?}"
             );
 
             assert_eq!(superblock_beacon.checkpoint, superblock_index);
         } else {
             log::debug!(
-                "Persisting chain state during synchronization, chain beacon: {:?}",
-                chain_beacon
+                "Persisting chain state during synchronization, chain beacon: {chain_beacon:?}"
             );
         }
 
@@ -507,10 +503,7 @@ impl ChainManager {
             fut::ok(())
         })
         .map_err(|err, _, _| {
-            log::error!(
-                "Failed to persist previous_chain_state into storage: {}",
-                err
-            )
+            log::error!("Failed to persist previous_chain_state into storage: {err}")
         });
 
         Box::pin(fut)
@@ -533,7 +526,7 @@ impl ChainManager {
         )
         .into_actor(self)
         .map_err(|err, _, _| {
-            log::error!("Failed to persist empty chain state into storage: {}", err);
+            log::error!("Failed to persist empty chain state into storage: {err}");
         })
         .and_then(|(), act, ctx| {
             log::info!("Successfully persisted empty chain state into storage");
@@ -573,12 +566,7 @@ impl ChainManager {
             .map(move |res, act, ctx| {
                 match res {
                     Ok(Ok(block)) => {
-                        log::info!(
-                            "REWIND [{}/{}] Got block {} from storage",
-                            epoch,
-                            last_epoch,
-                            hash
-                        );
+                        log::info!("REWIND [{epoch}/{last_epoch}] Got block {hash} from storage");
                         act.process_requested_block(ctx, block, true)
                             .expect("resync from storage fail");
                         // We need to persist the chain state periodically, otherwise the entire
@@ -592,10 +580,10 @@ impl ChainManager {
                         act.resync_from_storage(block_list, ctx, done);
                     }
                     Ok(Err(e)) => {
-                        panic!("{:?}", e);
+                        panic!("{e:?}");
                     }
                     Err(e) => {
-                        panic!("{:?}", e);
+                        panic!("{e:?}");
                     }
                 }
             })
@@ -626,7 +614,7 @@ impl ChainManager {
                 })
                 .map_err(|err, _, _| {
                     // Error when sending message
-                    log::error!("Unsuccessful communication with InventoryManager: {}", err);
+                    log::error!("Unsuccessful communication with InventoryManager: {err}");
 
                     err.into()
                 }),
@@ -639,7 +627,7 @@ impl ChainManager {
             .into_iter()
             .map(|dr_info| {
                 let dr_pointer = &dr_info.tally.as_ref().unwrap().dr_pointer;
-                let dr_pointer_string = format!("DR-REPORT-{}", dr_pointer);
+                let dr_pointer_string = format!("DR-REPORT-{dr_pointer}");
 
                 (dr_pointer_string, dr_info)
             })
@@ -648,12 +636,11 @@ impl ChainManager {
         storage_mngr::put_batch(&kvs)
             .into_actor(self)
             .map_err(|e, _, _| {
-                log::error!("Failed to persist data request report into storage: {}", e)
+                log::error!("Failed to persist data request report into storage: {e}")
             })
             .and_then(move |_, _, _| {
                 log::trace!(
-                    "Successfully persisted reports for {} data requests into storage",
-                    kvs_len
+                    "Successfully persisted reports for {kvs_len} data requests into storage"
                 );
                 fut::ok(())
             })
@@ -793,10 +780,7 @@ impl ChainManager {
                 let vrf_proof = match block.block_header.proof.proof.proof_to_hash(vrf_ctx) {
                     Ok(vrf) => vrf,
                     Err(e) => {
-                        log::warn!(
-                            "Block candidate has an invalid mining eligibility proof: {}",
-                            e
-                        );
+                        log::warn!("Block candidate has an invalid mining eligibility proof: {e}");
 
                         // In order to do not block possible validate candidates in AlmostSynced
                         // state, we would broadcast the errors too
@@ -856,9 +840,7 @@ impl ChainManager {
                     ) != Ordering::Greater
                     {
                         log::debug!(
-                            "Ignoring new block candidate ({}) because a better one ({}) has been already validated",
-                            hash_block,
-                            best_hash
+                            "Ignoring new block candidate ({hash_block}) because a better one ({best_hash}) has been already validated"
                         );
 
                         return;
@@ -905,11 +887,7 @@ impl ChainManager {
                         self.broadcast_item(InventoryItem::Block(block));
                     }
                     Err(e) => {
-                        log::warn!(
-                            "Error when processing a block candidate {}: {}",
-                            hash_block,
-                            e
-                        );
+                        log::warn!("Error when processing a block candidate {hash_block}: {e}");
 
                         // In order to do not block possible validate candidates in AlmostSynced
                         // state, we would broadcast the errors too
@@ -919,7 +897,7 @@ impl ChainManager {
                     }
                 }
             } else {
-                log::trace!("Block candidate already seen: {}", hash_block);
+                log::trace!("Block candidate already seen: {hash_block}");
             }
         } else {
             log::warn!("ChainManager doesn't have current epoch");
@@ -1027,8 +1005,7 @@ impl ChainManager {
                     if stakes.total_staked() >= Wit::from(min_total_stake) {
                         let scheduled_epoch = block_epoch + activation_delay;
                         log::info!(
-                            "The stake threshold for activating protocol V2_0 has been met. Protocol V2_0 will be scheduled for epoch {}",
-                            scheduled_epoch
+                            "The stake threshold for activating protocol V2_0 has been met. Protocol V2_0 will be scheduled for epoch {scheduled_epoch}"
                         );
                         // Register the 2_0 protocol into global state
                         register_protocol_version(
@@ -1273,7 +1250,7 @@ impl ChainManager {
                 signature_mngr::bn256_sign(bn256_message)
                     .map(|res| {
                         res.map_err(|e| {
-                            log::error!("Failed to sign superblock with bn256 key: {}", e);
+                            log::error!("Failed to sign superblock with bn256 key: {e}");
                         })
                     })
                     .into_actor(act)
@@ -1294,8 +1271,7 @@ impl ChainManager {
                                 })
                                 .map_err(|e| {
                                     log::error!(
-                                        "Failed to sign superblock with secp256k1 key: {}",
-                                        e
+                                        "Failed to sign superblock with secp256k1 key: {e}"
                                     );
                                 })
                             })
@@ -1349,7 +1325,7 @@ impl ChainManager {
         let superblock_period = u32::from(consensus_constants.superblock_period);
 
         for superblock_vote in std::mem::take(&mut self.temp_superblock_votes) {
-            log::debug!("add_temp_superblock_votes {:?}", superblock_vote);
+            log::debug!("add_temp_superblock_votes {superblock_vote:?}");
             // Check if we already received this vote
             if self.chain_state.superblock_state.contains(&superblock_vote) {
                 continue;
@@ -1361,7 +1337,7 @@ impl ChainManager {
             }])
             .map(|res| {
                 res.map_err(|e| {
-                    log::error!("Verify superblock vote signature: {}", e);
+                    log::error!("Verify superblock vote signature: {e}");
                 })
             })
             .into_actor(self)
@@ -1407,7 +1383,7 @@ impl ChainManager {
         }])
         .into_actor(self)
         .map_err(|e, _act, _ctx| {
-            log::error!("Verify superblock vote signature: {}", e);
+            log::error!("Verify superblock vote signature: {e}");
         })
         .and_then(move |(), act, _ctx| {
             // Check if we already received this vote (again, because this future can be executed
@@ -1471,7 +1447,7 @@ impl ChainManager {
                 })
                 .into_actor(act)
                 .map_err(|e, _act, _ctx| {
-                    log::error!("Forward superblock vote: {}", e);
+                    log::error!("Forward superblock vote: {e}");
                 })
         })
         .map(|_res: Result<(), ()>, _act, _ctx| ())
@@ -1528,7 +1504,7 @@ impl ChainManager {
                 return Box::pin(actix::fut::ok(()));
             }
             Err(e) => {
-                log::warn!("Cannot add transaction: {}", e);
+                log::warn!("Cannot add transaction: {e}");
                 return Box::pin(actix::fut::err(e.into()));
             }
         }
@@ -1686,7 +1662,7 @@ impl ChainManager {
                 async {
                     match signature_mngr::bn256_sign(bn256_message).await {
                         Err(e) => {
-                            log::error!("Failed to sign superblock with bn256 key: {}", e);
+                            log::error!("Failed to sign superblock with bn256 key: {e}");
                             Err(())
                         }
                         Ok(bn256_keyed_signature) => {
@@ -1704,8 +1680,7 @@ impl ChainManager {
                                 })
                                 .map_err(|e| {
                                     log::error!(
-                                        "Failed to sign superblock with secp256k1 key: {}",
-                                        e
+                                        "Failed to sign superblock with secp256k1 key: {e}"
                                     );
                                 })
                         }
@@ -1786,10 +1761,7 @@ impl ChainManager {
 
         let superblock_index = block_epoch / superblock_period;
         if superblock_index == 0 {
-            panic!(
-                "Superblock 0 should not be created! Block epoch: {}",
-                block_epoch
-            );
+            panic!("Superblock 0 should not be created! Block epoch: {block_epoch}");
         }
         // This is the superblock for which we will be counting votes, and if there is consensus,
         // it will be the new consolidated superblock
@@ -1814,11 +1786,11 @@ impl ChainManager {
                     .then(move |res| match res {
                         Ok(Ok(block)) => future::ready(Ok(block.block_header)),
                         Ok(Err(e)) => {
-                            log::error!("Error in GetItemBlock {}: {}", hash, e);
+                            log::error!("Error in GetItemBlock {hash}: {e}");
                             future::ready(Err(()))
                         }
                         Err(e) => {
-                            log::error!("Error in GetItemBlock {}: {}", hash, e);
+                            log::error!("Error in GetItemBlock {hash}: {e}");
                             future::ready(Err(()))
                         }
                     })
@@ -1877,14 +1849,14 @@ impl ChainManager {
                         if voted_superblock_beacon.checkpoint + 1 != superblock_index {
                             // Warn when there is are missing superblocks between the one that will be
                             // consolidated and the one that will be created
-                            log::warn!("Counting votes for Superblock {:?} when the current superblock index is {}", voted_superblock_beacon, superblock_index);
+                            log::warn!("Counting votes for Superblock {voted_superblock_beacon:?} when the current superblock index is {superblock_index}");
                         }
 
                         act.chain_state.superblock_state.has_consensus()
                     }
 
                 } else {
-                    log::debug!("The node is not synced yet, so assume that superblock {:?} is valid", voted_superblock_beacon);
+                    log::debug!("The node is not synced yet, so assume that superblock {voted_superblock_beacon:?} is valid");
 
                     // If the node is not synced yet, assume that the superblock is valid.
                     // This is because the node is consolidating blocks received during the synchronization
@@ -2017,8 +1989,7 @@ impl ChainManager {
                             );
                     log::debug!("Current tip of the chain: {:?}", act.get_chain_beacon());
                     log::debug!(
-                                "The last block of the consolidated superblock is {}",
-                                last_hash
+                                "The last block of the consolidated superblock is {last_hash}"
                             );
 
                     // Update mempool after superblock consolidation
@@ -2194,7 +2165,7 @@ impl ChainManager {
     fn update_state_machine(&mut self, next_state: StateMachine, ctx: &mut Context<Self>) {
         let same_state = self.sm_state == next_state;
         match (&self.sm_state, &next_state) {
-            (old, _new) if same_state => log::debug!("State machine staying in state {:?}", old),
+            (old, _new) if same_state => log::debug!("State machine staying in state {old:?}"),
             (_, StateMachine::Synced) => log::debug!(
                 "State machine is transitioning from {:?} into {:?}\n{}",
                 self.sm_state,
@@ -2307,7 +2278,7 @@ impl ChainManager {
 
         for block in blocks.iter() {
             if let Err(e) = self.process_requested_block(ctx, block.clone(), false) {
-                log::error!("Error processing block: {}", e);
+                log::error!("Error processing block: {e}");
                 if num_processed_blocks > 0 {
                     // Restore only in case there were several blocks consolidated before
                     // This is not needed if the error is in the first block because
@@ -2423,7 +2394,7 @@ impl ChainManager {
             limit_from_end,
         }: GetBlocksEpochRange,
     ) -> Vec<(Epoch, Hash)> {
-        log::debug!("GetBlocksEpochRange received {:?}", range);
+        log::debug!("GetBlocksEpochRange received {range:?}");
 
         // Accept this message in any state
         // TODO: we should only accept this message in Synced state, but that breaks the
@@ -2499,11 +2470,11 @@ impl ChainManager {
                             future::ready(Ok(transactions))
                         }
                         Ok(Err(e)) => {
-                            log::error!("Error in GetItemBlock {}: {}", hash, e);
+                            log::error!("Error in GetItemBlock {hash}: {e}");
                             future::ready(Err(()))
                         }
                         Err(e) => {
-                            log::error!("Error in GetItemBlock {}: {}", hash, e);
+                            log::error!("Error in GetItemBlock {hash}: {e}");
                             future::ready(Err(()))
                         }
                     })
@@ -2583,7 +2554,7 @@ impl ChainManager {
 
         let fut = async move {
             let block_hashes = res.into_iter().map(|(_epoch, hash)| hash);
-            log::debug!("Updating TAPI votes from blocks since #{}", init);
+            log::debug!("Updating TAPI votes from blocks since #{init}");
             let mut block_counter = 0;
             let aux = block_hashes.map(move |hash| {
                 block_counter += 1;
@@ -2593,16 +2564,16 @@ impl ChainManager {
                         Ok(Ok(block)) => {
                             if block_counter % 1000 == 0 {
                                 let block_epoch = block.block_header.beacon.checkpoint;
-                                log::debug!("[{}/{}] Updating TAPI votes", block_epoch, end);
+                                log::debug!("[{block_epoch}/{end}] Updating TAPI votes");
                             }
                             future::ready(Ok(block.block_header))
                         }
                         Ok(Err(e)) => {
-                            log::error!("Error in GetItemBlock {}: {}", hash, e);
+                            log::error!("Error in GetItemBlock {hash}: {e}");
                             future::ready(Err(()))
                         }
                         Err(e) => {
-                            log::error!("Error in GetItemBlock {}: {}", hash, e);
+                            log::error!("Error in GetItemBlock {hash}: {e}");
                             future::ready(Err(()))
                         }
                     })
@@ -2721,9 +2692,7 @@ pub enum ImportError {
     ///
     /// This error can be defeated by using the `force` flag.
     #[display(
-        fmt = "The chain to be imported is behind our local chain ({} > {}). If you still want to import it, use the `force` flag.",
-        imported,
-        local
+        fmt = "The chain to be imported is behind our local chain ({imported} > {local}). If you still want to import it, use the `force` flag."
     )]
     ChainTip {
         /// The epoch of the imported chain tip.
@@ -2732,13 +2701,13 @@ pub enum ImportError {
         local: Epoch,
     },
     /// A file cannot be deserialized.
-    #[display(fmt = "Error deserializing file at {}", path)]
+    #[display(fmt = "Error deserializing file at {path}")]
     Deserialize {
         /// The path of the file that cannot be deserialized.
         path: String,
     },
     /// A file cannot be read.
-    #[display(fmt = "Error reading file at {}", path)]
+    #[display(fmt = "Error reading file at {path}")]
     FileRead {
         /// The path of the file that cannot be read.
         path: String,
@@ -2784,10 +2753,7 @@ impl ChainStateSnapshot {
         let superblock_beacon = state.get_superblock_beacon();
 
         log::debug!(
-            "Taking snapshot at superblock #{}. Chain beacon {:?}, superblock beacon {:?}",
-            superblock_index,
-            chain_beacon,
-            superblock_beacon
+            "Taking snapshot at superblock #{superblock_index}. Chain beacon {chain_beacon:?}, superblock beacon {superblock_beacon:?}"
         );
 
         let last_block_according_to_superblock =
@@ -2801,15 +2767,14 @@ impl ChainStateSnapshot {
 
         if let Some((prev_chain_state, prev_super_epoch)) = self.previous_chain_state.as_mut() {
             if *prev_super_epoch == superblock_index {
-                log::warn!("ChainState snapshot {} already exists", superblock_index);
+                log::warn!("ChainState snapshot {superblock_index} already exists");
                 if prev_chain_state == state {
                     false
                 } else {
                     // Only allow overwriting a different chain state if the superblock index is 0
                     if superblock_index == 0 {
                         log::warn!(
-                            "ChainState mismatch in superblock #{}. Overwritting old with new",
-                            superblock_index
+                            "ChainState mismatch in superblock #{superblock_index}. Overwritting old with new"
                         );
                         *prev_chain_state = state.clone();
 
@@ -2817,15 +2782,13 @@ impl ChainStateSnapshot {
                     } else {
                         // Two snapshots of the same superblock should be identical, this is a bug
                         panic!(
-                            "ChainState mismatch for superblock #{}: `{:?} != {:?}`",
-                            superblock_index, prev_chain_state, state
+                            "ChainState mismatch for superblock #{superblock_index}: `{prev_chain_state:?} != {state:?}`"
                         );
                     }
                 }
             } else {
                 log::warn!(
-                    "Overwriting old chain state snapshot, it was superblock #{}",
-                    prev_super_epoch
+                    "Overwriting old chain state snapshot, it was superblock #{prev_super_epoch}"
                 );
                 self.previous_chain_state = Some((state.clone(), superblock_index));
 
@@ -2852,8 +2815,7 @@ impl ChainStateSnapshot {
         } else if self.highest_persisted_superblock == super_epoch {
             // This can happen during reorganizations
             log::debug!(
-                "Tried to persist chain state for superblock #{} but it is already persisted",
-                super_epoch
+                "Tried to persist chain state for superblock #{super_epoch} but it is already persisted"
             );
 
             None
@@ -2867,10 +2829,7 @@ impl ChainStateSnapshot {
             if skipped_superblocks > 0 {
                 // This can happen when a new node is synchronizing: it will consolidate the top of
                 // chain without consolidating all the previous superblocks
-                log::debug!(
-                    "Skipped {} superblocks in consolidation",
-                    skipped_superblocks
-                );
+                log::debug!("Skipped {skipped_superblocks} superblocks in consolidation");
             }
 
             // Replace self.previous_chain_state with None to prevent consolidating the same chain
@@ -2878,8 +2837,7 @@ impl ChainStateSnapshot {
             if let Some((chain_state, prev_super_epoch)) = self.previous_chain_state.take() {
                 if prev_super_epoch != super_epoch {
                     panic!(
-                        "Cannot persist chain state. There is no snapshot for superblock #{}. The current snapshot is for superblock #{}",
-                        super_epoch, prev_super_epoch
+                        "Cannot persist chain state. There is no snapshot for superblock #{super_epoch}. The current snapshot is for superblock #{prev_super_epoch}"
                     );
                 }
 
@@ -3300,7 +3258,7 @@ fn update_pools(
 
         // IMPORTANT: Update the data request pool after updating reputation info
         if let Err(e) = data_request_pool.process_tally(ta_tx, &block_hash) {
-            log::error!("Error processing tally transaction:\n{}", e);
+            log::error!("Error processing tally transaction:\n{e}");
         }
 
         transactions_pool.clear_reveals_from_finished_dr(&ta_tx.dr_pointer);
@@ -3314,8 +3272,7 @@ fn update_pools(
         let dr_hash = dr_tx.versioned_hash(protocol);
         if data_requests_with_too_many_witnesses.contains(&dr_hash) {
             log::debug!(
-                "Skipping data request {} as it was already processed with a TooManyWitnesses error",
-                dr_hash
+                "Skipping data request {dr_hash} as it was already processed with a TooManyWitnesses error"
             );
             transactions_pool.dr_remove(dr_tx);
             continue;
@@ -3325,7 +3282,7 @@ fn update_pools(
             block.block_header.beacon.checkpoint,
             Some(block_hash),
         ) {
-            log::error!("Error processing data request transaction:\n{}", e);
+            log::error!("Error processing data request transaction:\n{e}");
         } else {
             transactions_pool.dr_remove(dr_tx);
         }
@@ -3333,7 +3290,7 @@ fn update_pools(
 
     for co_tx in &block.txns.commit_txns {
         if let Err(e) = data_request_pool.process_commit(co_tx, epoch, &block_hash) {
-            log::error!("Error processing commit transaction:\n{}", e);
+            log::error!("Error processing commit transaction:\n{e}");
         } else {
             if co_tx.body.proof.proof.pkh() == own_pkh {
                 node_stats.commits_count += 1;
@@ -3350,7 +3307,7 @@ fn update_pools(
 
     for re_tx in &block.txns.reveal_txns {
         if let Err(e) = data_request_pool.process_reveal(re_tx, epoch, &block_hash) {
-            log::error!("Error processing reveal transaction:\n{}", e);
+            log::error!("Error processing reveal transaction:\n{e}");
         }
         let re_hash = re_tx.versioned_hash(protocol);
         transactions_pool.remove_one_reveal(&re_tx.body.dr_pointer, &re_tx.body.pkh, &re_hash);
@@ -3508,10 +3465,7 @@ fn update_reputation(
                     .reputation_penalization_factor
                     .powf(f64::from(*num_lies));
             let slashed_rep = own_rep.0 - (after_slashed_rep as u32);
-            log::info!(
-                "Your reputation score has been slashed by {} points",
-                slashed_rep
-            );
+            log::info!("Your reputation score has been slashed by {slashed_rep} points");
         }
 
         (
@@ -3552,10 +3506,7 @@ fn update_reputation(
         let expire_alpha = Alpha(new_alpha.0 + consensus_constants.reputation_expire_alpha_diff);
         let honest_gain = honests.into_iter().map(|pkh| {
             if own_pkh == pkh {
-                log::info!(
-                    "Your reputation score has increased by {} points",
-                    rep_reward
-                );
+                log::info!("Your reputation score has increased by {rep_reward} points");
             }
             (pkh, Reputation(rep_reward))
         });
@@ -3591,7 +3542,7 @@ fn update_reputation(
         .ars_mut()
         .update(revealers.chain(vec![miner_pkh]), block_epoch)
     {
-        log::error!("Error updating reputation in consolidation: {}", e);
+        log::error!("Error updating reputation in consolidation: {e}");
     }
 
     // Retain identities that exist in the ARS
@@ -3673,7 +3624,7 @@ fn show_info_dr(data_request_pool: &DataRequestPool, block: &Block) {
         )
     };
 
-    log::debug!("{}", tapi);
+    log::debug!("{tapi}");
 
     if info.is_empty() {
         log::info!(
@@ -3710,7 +3661,7 @@ fn show_sync_progress(
     if beacon.checkpoint != target_checkpoint && percent_done_float > 99.99 {
         percent_done_float = 99.99;
     }
-    let percent_done_string = format!("{:.2}%", percent_done_float);
+    let percent_done_string = format!("{percent_done_float:.2}%");
 
     // Block age is actually the difference in age: it assumes that the last
     // block is 0 seconds old
@@ -3748,9 +3699,7 @@ fn current_committee_size_requirement(
 ) -> u32 {
     assert!(
         last_consolidated_checkpoint <= current_checkpoint,
-        "Something went wrong as the last consolidated checkpoint is bigger than our current checkpoint {} > {}",
-        last_consolidated_checkpoint,
-        current_checkpoint
+        "Something went wrong as the last consolidated checkpoint is bigger than our current checkpoint {last_consolidated_checkpoint} > {current_checkpoint}"
     );
     // If the last consolidated superblock or the current checkpoint is below last_checkpoint_signed_by_bootstrap, return the default committee size
     if last_consolidated_checkpoint <= last_checkpoint_signed_by_bootstrap {
@@ -3782,7 +3731,7 @@ fn current_committee_size_requirement(
 /// transactions. This will log the removed transactions.
 pub fn log_removed_transactions(removed_transactions: &[Transaction], inserted_tx_hash: Hash) {
     if removed_transactions.is_empty() {
-        log::trace!("Transaction {} added successfully", inserted_tx_hash);
+        log::trace!("Transaction {inserted_tx_hash} added successfully");
     } else {
         let mut removed_tx_hashes: Vec<String> = vec![];
         // The transaction we tried to insert may be among the removed transactions
@@ -3798,18 +3747,12 @@ pub fn log_removed_transactions(removed_transactions: &[Transaction], inserted_t
         }
 
         if removed_the_one_we_just_inserted {
-            log::trace!(
-                "Transaction {} was not added because the fee was too low",
-                inserted_tx_hash
-            );
+            log::trace!("Transaction {inserted_tx_hash} was not added because the fee was too low");
         } else {
-            log::trace!("Transaction {} added successfully", inserted_tx_hash);
+            log::trace!("Transaction {inserted_tx_hash} added successfully");
         }
 
-        log::debug!(
-            "Removed the following transactions: {:?}",
-            removed_tx_hashes
-        );
+        log::debug!("Removed the following transactions: {removed_tx_hashes:?}");
     }
 }
 
@@ -3833,23 +3776,23 @@ pub fn run_dr_locally(dr: &DataRequestOutput) -> Result<RadonTypes, anyhow::Erro
         retrieval_results.push(run_retrieval_blocking(r)?);
     }
 
-    log::info!("Running aggregation with values {:?}", retrieval_results);
+    log::info!("Running aggregation with values {retrieval_results:?}");
     let aggregation_result = witnet_rad::run_aggregation(
         retrieval_results,
         dr.data_request.aggregate.clone(),
         &active_wips,
     )?;
-    log::info!("Aggregation result: {:?}", aggregation_result);
+    log::info!("Aggregation result: {aggregation_result:?}");
 
     // Assume that all the required witnesses will report the same value
     let reported_values: Result<Vec<RadonTypes>, _> = vec![aggregation_result; dr.witnesses.into()]
         .into_iter()
         .map(RadonTypes::try_from)
         .collect();
-    log::info!("Running tally with values {:?}", reported_values);
+    log::info!("Running tally with values {reported_values:?}");
     let tally_result =
         witnet_rad::run_tally(reported_values?, &dr.data_request.tally, &active_wips)?;
-    log::info!("Tally result: {:?}", tally_result);
+    log::info!("Tally result: {tally_result:?}");
 
     Ok(tally_result)
 }
@@ -4665,7 +4608,7 @@ mod tests {
             );
             let res = fut.into_normal_future(&mut chain_manager, &mut ctx).await;
             // Transaction is valid
-            assert!(res.is_ok(), "{:?}", res);
+            assert!(res.is_ok(), "{res:?}");
             // Transaction is added to the pool
             assert_eq!(chain_manager.transactions_pool.vt_len(), 1);
         });

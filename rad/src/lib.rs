@@ -327,7 +327,7 @@ async fn http_response(
         Ok(value) => {
             headers.insert(USER_AGENT, value);
         }
-        Err(e) => log::warn!("Got invalid user agent {}", e),
+        Err(e) => log::warn!("Got invalid user agent {e}"),
     };
 
     // Add extra_headers from retrieve.headers
@@ -931,7 +931,7 @@ mod tests {
 
         match result {
             RadonTypes::Float(_) => {}
-            err => panic!("Error in run_retrieval: {:?}", err),
+            err => panic!("Error in run_retrieval: {err:?}"),
         }
     }
 
@@ -1946,7 +1946,7 @@ mod tests {
             match Uri::try_from(proxy.clone()) {
                 Ok(uri) => transports.push(uri),
                 Err(_) => {
-                    log::error!("Could not convert {} to witnet_rad::Uri", proxy);
+                    log::error!("Could not convert {proxy} to witnet_rad::Uri");
                 }
             }
         }
@@ -1989,7 +1989,7 @@ mod tests {
                         });
                 }
                 Err(e) => {
-                    println!("Encountered error for proxy {:?}: {}", transport, e);
+                    println!("Encountered error for proxy {transport:?}: {e}");
                 }
             }
         }

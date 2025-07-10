@@ -85,7 +85,7 @@ fn parse_element_map(input: &minidom::Element, depth: u8) -> Result<RadonTypes, 
 
     let mut map: BTreeMap<String, RadonTypes> = BTreeMap::new();
     for (k, v) in input.attrs() {
-        map.insert(format!("@{}", k), RadonString::from(v).into());
+        map.insert(format!("@{k}"), RadonString::from(v).into());
     }
 
     let mut element_children = vec![];

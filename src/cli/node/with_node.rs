@@ -162,7 +162,7 @@ pub fn exec_cmd(
         Command::ShowConfig => {
             let serialized = toml::to_string(&config.to_partial()).unwrap();
             println!("\n# Config");
-            println!("{}", serialized);
+            println!("{serialized}");
             Ok(())
         }
         Command::Run(params) => {

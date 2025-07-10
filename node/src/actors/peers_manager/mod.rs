@@ -76,7 +76,7 @@ impl PeersManager {
                 .map(|res, _act, _ctx| match res {
                     Ok(_) => log::trace!("PeersManager successfully persisted peers to storage"),
                     Err(err) => {
-                        log::error!("Peers manager persist peers to storage failed: {}", err)
+                        log::error!("Peers manager persist peers to storage failed: {err}")
                     }
                 })
                 .spawn(ctx);
@@ -90,7 +90,7 @@ impl PeersManager {
 
         match self.peers.add_to_new(known_peers, None) {
             Ok(_duplicated_peers) => {}
-            Err(e) => log::error!("Error when adding peer addresses from config: {}", e),
+            Err(e) => log::error!("Error when adding peer addresses from config: {e}"),
         }
     }
 
@@ -103,7 +103,7 @@ impl PeersManager {
         match self.peers.tried_bucket_get_timestamp(index) {
             None => {
                 // Empty slot, try new peer
-                log::debug!("Trying new address {} ", address);
+                log::debug!("Trying new address {address} ");
                 connections_manager_addr.do_send(OutboundTcpConnect {
                     address,
                     session_type: SessionType::Feeler,
@@ -114,7 +114,7 @@ impl PeersManager {
                 let old_address = self.peers.tried_bucket_get_address(index).unwrap();
 
                 // Try a connection with the old address
-                log::debug!("Trying old address {} ", address);
+                log::debug!("Trying old address {address} ");
                 connections_manager_addr.do_send(OutboundTcpConnect {
                     address: old_address,
                     session_type: SessionType::Feeler,
@@ -172,7 +172,7 @@ impl PeersManager {
             // they never get stuck in the `ice` bucket
             let addresses = act.peers.extract_melted_peers_from_ice_bucket();
             if !addresses.is_empty() {
-                log::debug!("Melting these addresses: {:?}", addresses);
+                log::debug!("Melting these addresses: {addresses:?}");
                 let _res = act.peers.add_to_new(addresses, None);
             }
 

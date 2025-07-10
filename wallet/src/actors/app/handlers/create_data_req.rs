@@ -142,13 +142,13 @@ fn validate(
         required_reward_collateral_ratio,
         &current_active_wips(),
     )
-    .map_err(|err| app::field_error("request", format!("{}", err)));
+    .map_err(|err| app::field_error("request", format!("{err}")));
 
     let data_request = witnet_validations::validations::validate_rad_request(
         &req.data_request,
         &current_active_wips(),
     )
-    .map_err(|err| app::field_error("dataRequest", format!("{}", err)));
+    .map_err(|err| app::field_error("dataRequest", format!("{err}")));
 
     app::combine_field_errors(request, data_request, move |_, _| req)
 }

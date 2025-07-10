@@ -120,13 +120,13 @@ impl fmt::Display for ResolverError {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ResolverError::Resolver(s) => {
-                write!(fmt, "Failed resolving hostname: {}", s)
+                write!(fmt, "Failed resolving hostname: {s}")
             }
-            ResolverError::InvalidInput(s) => write!(fmt, "Invalid input: {}", s),
+            ResolverError::InvalidInput(s) => write!(fmt, "Invalid input: {s}"),
             ResolverError::Timeout => {
                 write!(fmt, "Timeout out while establishing connection")
             }
-            ResolverError::IoError(e) => write!(fmt, "{}", e),
+            ResolverError::IoError(e) => write!(fmt, "{e}"),
         }
     }
 }
@@ -158,7 +158,7 @@ impl Actor for Resolver {
                 None => match AsyncResolver::tokio_from_system_conf() {
                     Ok(resolver) => Ok(resolver),
                     Err(err) => {
-                        log::warn!("Can not create system dns resolver: {}", err);
+                        log::warn!("Can not create system dns resolver: {err}");
                         AsyncResolver::tokio(ResolverConfig::default(), ResolverOpts::default())
                     }
                 },
@@ -333,7 +333,7 @@ impl ActorFuture<Resolver> for ResolveFut {
                     }
                 }
                 Poll::Ready(Err(err)) => {
-                    Poll::Ready(Err(ResolverError::Resolver(format!("{}", err))))
+                    Poll::Ready(Err(ResolverError::Resolver(format!("{err}"))))
                 }
             }
         }

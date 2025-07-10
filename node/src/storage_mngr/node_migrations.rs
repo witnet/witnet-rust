@@ -97,7 +97,7 @@ fn migrate_chain_state_v4_to_v5(old_chain_state_bytes: &[u8]) -> Vec<u8> {
 fn migrate_chain_state(mut bytes: Vec<u8>) -> Result<ChainState, anyhow::Error> {
     loop {
         let version = check_chain_state_version(&bytes);
-        log::info!("Chain state version as read from storage is {:?}", version);
+        log::info!("Chain state version as read from storage is {version:?}");
 
         match version {
             Ok(0) => {

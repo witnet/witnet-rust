@@ -171,7 +171,7 @@ fn random_nonce() -> u64 {
 pub fn user_agent() -> String {
     let release = option_env!("CARGO_PKG_VERSION").unwrap_or_else(|| "unspecified");
 
-    format!("witnet-rust {}", release)
+    format!("witnet-rust {release}")
 }
 
 fn u128_to_be_u32(x: u128) -> [u32; 4] {

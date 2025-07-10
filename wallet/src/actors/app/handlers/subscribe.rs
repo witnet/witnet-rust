@@ -28,13 +28,9 @@ impl Handler<Subscribe> for app::App {
         _ctx: &mut Self::Context,
     ) -> Self::Result {
         self.subscribe(session_id.clone(), subscription_id, sink)
-            .map(|()| log::debug!("Created subscription for session: {}", session_id))
+            .map(|()| log::debug!("Created subscription for session: {session_id}"))
             .map_err(|err| {
-                log::error!(
-                    "Couldn't create subscription for session {}: {}",
-                    session_id,
-                    err
-                );
+                log::error!("Couldn't create subscription for session {session_id}: {err}");
                 err
             })
     }

@@ -180,7 +180,7 @@ impl DataRequestPool {
         block_hash: &Hash,
     ) -> Result<(), anyhow::Error> {
         let tx_hash = commit.versioned_hash(ProtocolVersion::from_epoch(epoch));
-        log::debug!("Adding commit tx {}: {:?}", tx_hash, commit);
+        log::debug!("Adding commit tx {tx_hash}: {commit:?}");
         // For a commit output, we need to get the corresponding data request input
         let dr_pointer = commit.body.dr_pointer;
 
@@ -326,8 +326,7 @@ impl DataRequestPool {
                             {
                                 log::info!(
                                     "The sent commit transaction has not been \
-                                     selected to be part of the data request {:?}",
-                                    dr_pointer
+                                     selected to be part of the data request {dr_pointer:?}"
                                 );
                             }
                         }
@@ -813,7 +812,7 @@ where
         }
 
         let tally_bytes = Vec::try_from(report).unwrap_or_else(|e| {
-            log::warn!("Failed to serialize tally result. Error was: {:?}", e);
+            log::warn!("Failed to serialize tally result. Error was: {e:?}");
 
             tally_bytes_on_encode_error
         });

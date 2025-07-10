@@ -59,17 +59,14 @@ impl fmt::Display for WitnessingConfigError {
             WitnessingConfigError::Addresses(addresses) => {
                 let interpolation = addresses
                     .iter()
-                    .map(|(address, error)| format!("{} ({})", address, error))
+                    .map(|(address, error)| format!("{address} ({error})"))
                     .join("\n- ");
 
-                format!(
-                    "The following transport addresses are invalid:\n- {}",
-                    interpolation
-                )
+                format!("The following transport addresses are invalid:\n- {interpolation}")
             }
         };
 
-        write!(f, "Invalid witnessing configuration. {}", submessage)
+        write!(f, "Invalid witnessing configuration. {submessage}")
     }
 }
 

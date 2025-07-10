@@ -31,7 +31,7 @@ impl NodeClient {
     pub async fn valid_connection(&self) -> bool {
         let url = self.current_url().await;
 
-        log::debug!("Validating connection to {}", url);
+        log::debug!("Validating connection to {url}");
 
         let request = Request::method("syncStatus").timeout(Duration::from_secs(2));
         let response = self.actor.send(request).await;

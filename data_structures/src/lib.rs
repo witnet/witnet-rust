@@ -118,10 +118,10 @@ pub fn set_environment(environment: Environment) {
     match ENVIRONMENT.write() {
         Ok(mut x) => {
             *x = environment;
-            log::debug!("Set environment to {}", environment);
+            log::debug!("Set environment to {environment}");
         }
         Err(e) => {
-            log::error!("Failed to set environment: {}", e);
+            log::error!("Failed to set environment: {e}");
         }
     }
 }
@@ -176,7 +176,7 @@ pub fn set_protocol_version(protocol_version: ProtocolVersion) {
 }
 
 pub fn load_protocol_info(info: ProtocolInfo) {
-    log::info!("Loading protocol versions data in bulk: {:?}", info);
+    log::info!("Loading protocol versions data in bulk: {info:?}");
     let mut protocol_info = PROTOCOL.write().unwrap();
     *protocol_info = info;
 }

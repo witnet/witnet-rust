@@ -169,7 +169,7 @@ impl Session {
                         );
                     }
                 }
-                log::trace!("\t{:?}", msg);
+                log::trace!("\t{msg:?}");
                 self.framed.write(bytes.as_slice().into());
             }
             Err(e) => {
@@ -179,7 +179,7 @@ impl Session {
                     self.remote_addr,
                     e,
                 );
-                log::trace!("\t{:?}", msg);
+                log::trace!("\t{msg:?}");
             }
         }
     }
@@ -209,7 +209,7 @@ impl Session {
             }
         }
 
-        log::trace!("\t{:?}", msg);
+        log::trace!("\t{msg:?}");
     }
 
     // Remove this address from tried bucket and move to the ice bucket

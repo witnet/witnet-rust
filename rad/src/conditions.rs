@@ -156,10 +156,9 @@ pub fn evaluate_tally_precondition_clause(
                             Err(RadError::ModeTie { values, max_count })
                         }
                     }
-                    Err(e) => panic!(
-                        "Unexpected error when applying filter_mode on array of errors: {}",
-                        e
-                    ),
+                    Err(e) => {
+                        panic!("Unexpected error when applying filter_mode on array of errors: {e}")
+                    }
                 }
             }
             // Majority of values, compute and filter liars

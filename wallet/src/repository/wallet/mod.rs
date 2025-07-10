@@ -354,7 +354,7 @@ where
             unconfirmed: balance_info,
             confirmed: balance_info,
         };
-        log::debug!("Wallet {id} has balance: {:?}", balance);
+        log::debug!("Wallet {id} has balance: {balance:?}");
 
         let last_sync = db
             .get(&keys::wallet_last_sync())
@@ -365,9 +365,7 @@ where
 
         let last_confirmed = last_sync;
         log::debug!(
-            "Wallet {id} has last_sync={:?} and last_confirmed={:?}",
-            last_sync,
-            last_confirmed
+            "Wallet {id} has last_sync={last_sync:?} and last_confirmed={last_confirmed:?}"
         );
 
         let external_key = db.get_with(
@@ -577,11 +575,7 @@ where
         let mut addresses = Vec::with_capacity(range.len());
 
         log::debug!(
-            "Retrieving external addresses in range {:?}. Start({}), End({}), Total({})",
-            range,
-            start,
-            end,
-            total
+            "Retrieving external addresses in range {range:?}. Start({start}), End({end}), Total({total})"
         );
         for index in range.rev() {
             let address = self._get_address(&state, account, keychain, index)?;
@@ -679,9 +673,7 @@ where
                         }
                         Err(e) => {
                             log::error!(
-                                "Error while retrieving transaction with index {}: {}",
-                                index,
-                                e
+                                "Error while retrieving transaction with index {index}: {e}"
                             );
                         }
                     }
@@ -725,14 +717,11 @@ where
         .to_string();
 
         if let Some(address) = state.pending_addresses_by_path.get(&path) {
-            log::trace!("Address {} found in memory", path);
+            log::trace!("Address {path} found in memory");
 
             Ok(address.clone())
         } else {
-            log::trace!(
-                "Address {} not found in memory, looking for it in storage...",
-                path,
-            );
+            log::trace!("Address {path} not found in memory, looking for it in storage...",);
             let address = self.db.get(&keys::address(account, keychain, index))?;
             let pkh = self.db.get(&keys::address_pkh(account, keychain, index))?;
             let info = self.db.get(&keys::address_info(account, keychain, index))?;
@@ -885,7 +874,7 @@ where
                 }
                 Ok(None) => {}
                 e @ Err(_) => {
-                    log::error!("Error while indexing transaction: {:?}", e);
+                    log::error!("Error while indexing transaction: {e:?}");
                     e?;
                 }
             }
@@ -935,7 +924,7 @@ where
                             .map(|dr_movement| (dr_movement, txn_id))
                     })
                 {
-                    log::debug!("Found a tally for data request {:?} that was in DB", txn_id);
+                    log::debug!("Found a tally for data request {txn_id:?} that was in DB");
                     match &dr_movement.transaction.data.clone() {
                         model::TransactionData::DataRequest(dr_data) => {
                             let mut dr_movement_to_update = dr_movement;
@@ -1567,9 +1556,7 @@ where
                     };
 
                     log::trace!(
-                        "Updating address:\nOld: {:?}\nNew: {:?}",
-                        old_address,
-                        updated_address
+                        "Updating address:\nOld: {old_address:?}\nNew: {updated_address:?}"
                     );
 
                     *old_address = Arc::new(updated_address);
@@ -1648,10 +1635,7 @@ where
             state
                 .local_movements
                 .insert(txn_hash, account_mutation.balance_movement.clone());
-            log::debug!(
-                "Local pending movement added for transaction id: {})",
-                txn_hash
-            );
+            log::debug!("Local pending movement added for transaction id: {txn_hash})");
             state.balance.local = state
                 .balance
                 .local
@@ -2055,12 +2039,11 @@ where
 
         // Retrieve and remove pending changes of the block
         let block_state = state.pending_blocks.remove(block_hash).ok_or_else(|| {
-            Error::BlockConsolidation(format!("beacon not found for pending block {}", block_hash))
+            Error::BlockConsolidation(format!("beacon not found for pending block {block_hash}"))
         })?;
         let mut movements = state.pending_movements.remove(block_hash).ok_or_else(|| {
             Error::BlockConsolidation(format!(
-                "balance movements not found for pending block {}",
-                block_hash
+                "balance movements not found for pending block {block_hash}"
             ))
         })?;
         movements.extend(
@@ -2069,8 +2052,7 @@ where
                 .remove(block_hash)
                 .ok_or_else(|| {
                     Error::BlockConsolidation(format!(
-                        "balance movements not found for pending block {}",
-                        block_hash
+                        "balance movements not found for pending block {block_hash}"
                     ))
                 })?,
         );
@@ -2080,8 +2062,7 @@ where
             .remove(block_hash)
             .ok_or_else(|| {
                 Error::BlockConsolidation(format!(
-                    "address infos not found for pending block {}",
-                    block_hash
+                    "address infos not found for pending block {block_hash}"
                 ))
             })?;
 
@@ -2234,8 +2215,7 @@ fn extract_inputs_and_outputs(
         Transaction::Unstake(unstake) => (vec![], vec![unstake.body.withdrawal.clone()], None),
         _ => {
             return Err(Error::UnsupportedTransactionType(format!(
-                "{:?}",
-                transaction
+                "{transaction:?}"
             )));
         }
     };
@@ -2376,7 +2356,7 @@ fn build_tally_report(
 
             Ok(reveals.values().cloned().collect::<Vec<model::Reveal>>())
         }
-        _ => Err(Error::WrongMetadataType(format!("{:?}", tally))),
+        _ => Err(Error::WrongMetadataType(format!("{tally:?}"))),
     }?;
 
     Ok(model::TallyReport {
@@ -2428,12 +2408,7 @@ fn calculate_transaction_ranges(
     let total = total_local + total_pending + total_db;
     let db = min(total.saturating_sub(offset), max_db);
 
-    log::debug!(
-        "Will retrieve {} from local, {} from pending and {} from DB",
-        local,
-        pending,
-        db
-    );
+    log::debug!("Will retrieve {local} from local, {pending} from pending and {db} from DB");
 
     let local_range = if local > 0 {
         let init = total_local - offset;

@@ -3308,7 +3308,7 @@ fn test_commit_difficult_proof() {
     match x.unwrap_err().downcast::<TransactionError>().unwrap() {
         TransactionError::DataRequestEligibilityDoesNotMeetTarget { target_hash, .. }
             if target_hash == Hash::with_first_u32(0x003f_ffff) => {}
-        e => panic!("{:?}", e),
+        e => panic!("{e:?}"),
     }
 }
 
@@ -3767,8 +3767,7 @@ fn commitment_collateral_zero_value_output() {
     let err = x.unwrap_err().downcast::<TransactionError>().unwrap();
     assert!(
         matches!(err, TransactionError::ZeroValueOutput { output_id: 0, .. }),
-        "assertion failed: `(left == right)`\n  left: `{:?}`,\n right: `ZeroValueOutput`",
-        err
+        "assertion failed: `(left == right)`\n  left: `{err:?}`,\n right: `ZeroValueOutput`"
     );
 }
 
@@ -10939,7 +10938,7 @@ fn block_signals_can_be_anything() {
 
             true
         }) {
-            panic!("Failed to validate block with signals {}: {:?}", signals, e);
+            panic!("Failed to validate block with signals {signals}: {e:?}");
         }
     }
 }
@@ -10972,7 +10971,7 @@ fn block_difficult_proof() {
     let mut rep_eng = ReputationEngine::new(100);
     rep_eng
         .ars_mut()
-        .push_activity((0..512).map(|x| PublicKeyHash::from_hex(&format!("{:040}", x)).unwrap()));
+        .push_activity((0..512).map(|x| PublicKeyHash::from_hex(&format!("{x:040}")).unwrap()));
     let mut utxo_set = UnspentOutputsPool::default();
     let block_number = 0;
     let stakes = StakesTracker::default();

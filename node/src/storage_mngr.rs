@@ -350,7 +350,7 @@ fn wrap_storage_as_nodestorage<S: Storage + Send + Sync + 'static>(
     let mut total_utxos = 0;
     let log_progress_cache_utxos_by_pkh = |i: usize| {
         if i > 0 && i % 100_000 == 0 {
-            log::debug!("Initializing UTXO cache: {} UTXOs processed", i);
+            log::debug!("Initializing UTXO cache: {i} UTXOs processed");
         }
 
         total_utxos = i;
@@ -362,7 +362,7 @@ fn wrap_storage_as_nodestorage<S: Storage + Send + Sync + 'static>(
             UtxoDbWrapStorage(db),
             log_progress_cache_utxos_by_pkh,
         )?;
-        log::info!("Initialized UTXO cache.  {} UTXOs processed", total_utxos);
+        log::info!("Initialized UTXO cache.  {total_utxos} UTXOs processed");
         Ok(Arc::new(cache_db))
     } else {
         Ok(Arc::new(UtxoDbWrapStorage(db)))
@@ -434,7 +434,7 @@ impl Actor for StorageManagerAdapter {
         }
         .into_actor(self)
         .map_err(|err, _act, _ctx| {
-            log::error!("Failed to configure backend: {}", err);
+            log::error!("Failed to configure backend: {err}");
             System::current().stop_with_code(1);
         })
         .map(|_res: Result<(), ()>, _act, _ctx| ())

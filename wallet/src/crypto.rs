@@ -49,7 +49,7 @@ pub fn gen_master_key(seed: &str, salt: &[u8], source: &types::SeedSource) -> Re
             let (key, path) =
                 ExtendedSK::from_slip32(slip32.as_ref()).map_err(Error::Deserialization)?;
             if !path.is_master() {
-                return Err(Error::InvalidKeyPath(format!("{}", path)));
+                return Err(Error::InvalidKeyPath(format!("{path}")));
             }
 
             key

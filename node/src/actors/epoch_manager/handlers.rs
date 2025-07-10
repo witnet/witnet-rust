@@ -23,16 +23,12 @@ impl Handler<GetEpoch> for EpochManager {
         let checkpoint = self.current_epoch();
         checkpoint
             .as_ref()
-            .map(|checkpoint| log::trace!("Asked for current epoch (#{})", checkpoint))
+            .map(|checkpoint| log::trace!("Asked for current epoch (#{checkpoint})"))
             .unwrap_or_else(|error| match error {
-                EpochManagerError::CheckpointZeroInTheFuture(_) => log::debug!(
-                    "Failed to retrieve epoch when asked to. Error was: {:?}",
-                    error
-                ),
-                _ => log::error!(
-                    "Failed to retrieve epoch when asked to. Error was: {:?}",
-                    error
-                ),
+                EpochManagerError::CheckpointZeroInTheFuture(_) => {
+                    log::debug!("Failed to retrieve epoch when asked to. Error was: {error:?}")
+                }
+                _ => log::error!("Failed to retrieve epoch when asked to. Error was: {error:?}"),
             });
         checkpoint
     }

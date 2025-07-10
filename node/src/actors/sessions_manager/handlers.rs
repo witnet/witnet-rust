@@ -297,7 +297,7 @@ where
                         .send(msg.command)
                         .await
                         .map_err(|e| {
-                            log::error!("Anycast error: {}", e);
+                            log::error!("Anycast error: {e}");
                         })
                 }
             })
@@ -378,7 +378,7 @@ impl Handler<EpochNotification<()>> for SessionsManager {
         match self.try_send_peers_beacons(ctx) {
             Ok(()) => {}
             Err(NotSendingPeersBeaconsBecause::NotEnoughBeacons) => {}
-            Err(e) => log::debug!("{}", e),
+            Err(e) => log::debug!("{e}"),
         }
 
         // Check if we need to update the epoch constants
@@ -462,7 +462,7 @@ impl Handler<PeerBeacon> for SessionsManager {
         match self.try_send_peers_beacons(ctx) {
             Ok(()) => {}
             Err(NotSendingPeersBeaconsBecause::NotEnoughBeacons) => {}
-            Err(e) => log::debug!("{}", e),
+            Err(e) => log::debug!("{e}"),
         }
     }
 }

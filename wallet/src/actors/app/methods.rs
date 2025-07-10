@@ -511,20 +511,17 @@ impl App {
                 if let Some(session) = slf.state.sessions.get_mut(&session_id) {
                     if !session.session_extended {
                         match slf.close_session(session_id.clone()) {
-                            Ok(_) => log::info!("Session {} expired", session_id),
+                            Ok(_) => log::info!("Session {session_id} expired"),
                             Err(err) => {
-                                log::error!("Session {} couldn't be closed: {}", session_id, err)
+                                log::error!("Session {session_id} couldn't be closed: {err}")
                             }
                         }
                     } else {
                         session.session_extended = false;
-                        log::debug!("Session {} expiration time has been extended", session_id)
+                        log::debug!("Session {session_id} expiration time has been extended")
                     }
                 } else {
-                    log::debug!(
-                        "Session {} cannot be closed because it already expired",
-                        session_id
-                    )
+                    log::debug!("Session {session_id} cannot be closed because it already expired")
                 }
             },
         ))
@@ -597,8 +594,8 @@ impl App {
             "blocks" => self.handle_block_notification(value),
             "superblocks" => self.handle_superblock_notification(value),
             _ => {
-                log::debug!("Unhandled `{}` notification", topic);
-                log::trace!("Payload is {:?}", value);
+                log::debug!("Unhandled `{topic}` notification");
+                log::trace!("Payload is {value:?}");
 
                 Ok(())
             }
@@ -686,7 +683,7 @@ impl App {
             .flatten_err()
             .map(|res| {
                 match &res {
-                    Ok(res) => log::debug!("Inventory request result: {:?}", res),
+                    Ok(res) => log::debug!("Inventory request result: {res:?}"),
                     Err(err) => log::warn!("Inventory request failed: {}", &err),
                 }
 
@@ -732,7 +729,7 @@ impl App {
                             })
                         }
                         Err(e) => {
-                            log::error!("Error while adding local pending movement: {}", e);
+                            log::error!("Error while adding local pending movement: {e}");
 
                             actix::fut::err(Error::Internal(anyhow::Error::from(e)))
                         }
@@ -806,7 +803,7 @@ impl App {
                 "Any JSON-RPC method name should be serializable using `serde_json::to_value`",
             ));
 
-        log::debug!("Subscribing to {} notifications: {:?}", method, request);
+        log::debug!("Subscribing to {method} notifications: {request:?}");
 
         self.get_client()
             .actor
@@ -827,7 +824,7 @@ impl App {
             .params(())
             .expect("params failed serialization");
 
-        log::debug!("Sending periodic request: {:?}", req);
+        log::debug!("Sending periodic request: {req:?}");
 
         let f = self
             .get_client()
@@ -836,9 +833,9 @@ impl App {
             .flatten_err()
             .map(|res: Result<_>| {
                 if let Ok(res) = &res {
-                    log::debug!("Periodic request result: {:?}", res);
+                    log::debug!("Periodic request result: {res:?}");
                     let status = serde_json::from_value::<SyncStatus>(res.clone());
-                    log::debug!("The result of the node status is {:?}", status);
+                    log::debug!("The result of the node status is {status:?}");
                 }
 
                 res
@@ -909,7 +906,7 @@ impl App {
         let f = fut::result(match seed_source.as_ref() {
             "xprv" => validate_xprv(seed_data, backup_password),
             "mnemonics" => mnemonic::Mnemonic::from_phrase(seed_data)
-                .map_err(|err| Error::Validation(app::field_error("seed_data", format!("{}", err))))
+                .map_err(|err| Error::Validation(app::field_error("seed_data", format!("{err}"))))
                 .map(types::SeedSource::Mnemonics),
             _ => Err(Error::Validation(app::field_error(
                 "seed_source",
@@ -1026,7 +1023,7 @@ pub fn validate(
         "xprv" => validate_xprv(seed_data, backup_password)
             .map_err(|e| app::field_error("seed_data", e.to_string())),
         "mnemonics" => mnemonic::Mnemonic::from_phrase(seed_data)
-            .map_err(|err| app::field_error("seed_data", format!("{}", err)))
+            .map_err(|err| app::field_error("seed_data", format!("{err}")))
             .map(types::SeedSource::Mnemonics),
         _ => Err(app::field_error(
             "seed_source",

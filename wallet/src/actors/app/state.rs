@@ -118,7 +118,7 @@ impl State {
         match self.sessions.get_mut(&session_id) {
             Some(_) => {
                 self.update_sink(&session_id, None);
-                log::debug!("Desubscribed subscription {}", session_id);
+                log::debug!("Desubscribed subscription {session_id}");
 
                 Ok(())
             }

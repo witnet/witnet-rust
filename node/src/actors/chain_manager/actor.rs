@@ -77,7 +77,7 @@ impl Actor for ChainManager {
 
         self.vrf_ctx = VrfCtx::secp256k1()
             .map_err(|e| {
-                log::error!("Failed to create VRF context: {}", e);
+                log::error!("Failed to create VRF context: {e}");
                 // Stop the node
                 ctx.stop();
             })
@@ -104,7 +104,7 @@ impl ChainManager {
         let fut = config_mngr::get()
             .into_actor(self)
             .map_err(|err, _act, _ctx| {
-                log::error!("Couldn't get config: {}", err);
+                log::error!("Couldn't get config: {err}");
             })
             .and_then(|config, act, _ctx| {
                 let consensus_constants = config.consensus_constants.clone();
@@ -163,7 +163,7 @@ impl ChainManager {
                 let genesis_block =
                     GenesisBlockInfo::from_path(&config.mining.genesis_path, consensus_constants.bootstrap_hash, consensus_constants.genesis_hash)
                         .map_err(|e| {
-                            log::error!("Failed to load genesis block from config: {}", e);
+                            log::error!("Failed to load genesis block from config: {e}");
                             System::current().stop_with_code(1);
                         }).ok();
 
@@ -178,7 +178,7 @@ impl ChainManager {
                         let result = match chain_state_from_storage {
                             Ok(x) => (x, config),
                             Err(e) => {
-                                panic!("Error while getting chain state from storage: {}", e);
+                                panic!("Error while getting chain state from storage: {e}");
                             }
                         };
 
@@ -298,7 +298,7 @@ impl ChainManager {
                             res.as_arc_dyn_utxo_db()
                         })
                         .map_err(|err, _act, _ctx| {
-                            log::error!("Failed to get storage backend: {}", err);
+                            log::error!("Failed to get storage backend: {err}");
                         }))
                 };
 
@@ -314,10 +314,9 @@ impl ChainManager {
                     let removed_utxos = chain_state.unspent_outputs_pool.delete_all_from_db();
                     if removed_utxos > 0 {
                         log::warn!(
-                            "Found {} UTXOs already in the database. Assuming that this is \
+                            "Found {removed_utxos} UTXOs already in the database. Assuming that this is \
                             because a previous migration was interrupted, the UTXOs have \
-                            been deleted and the migration will restart from scratch.",
-                            removed_utxos
+                            been deleted and the migration will restart from scratch."
                         );
                     }
                     chain_state
@@ -327,9 +326,7 @@ impl ChainManager {
                             |i, total| {
                                 if i % 10000 == 0 {
                                     log::info!(
-                                        "UTXO set migration v3: [{}/{}]",
-                                        i,
-                                        total,
+                                        "UTXO set migration v3: [{i}/{total}]",
                                     );
                                 }
                             }
@@ -349,8 +346,7 @@ impl ChainManager {
                         })
                         .map_err(|err, _, _| {
                             log::error!(
-                    "Failed to persist chain_state into storage: {}",
-                    err
+                    "Failed to persist chain_state into storage: {err}"
                 )
                         });
 
@@ -408,7 +404,7 @@ impl ChainManager {
                     let info_genesis =
                         GenesisBlockInfo::from_path(&config.mining.genesis_path, consensus_constants.bootstrap_hash, consensus_constants.genesis_hash)
                             .map_err(|e| {
-                                log::error!("Failed to create genesis block: {}", e);
+                                log::error!("Failed to create genesis block: {e}");
                                 log::error!("Genesis block could be downloaded in: https://github.com/witnet/genesis_block");
                                 System::current().stop_with_code(1);
                             }).ok();
@@ -480,13 +476,13 @@ impl ChainManager {
     /// database.
     pub async fn check_only_one_chain_state_in_storage() {
         let config = config_mngr::get().await.unwrap_or_else(|err| {
-            panic!("Couldn't get config: {}", err);
+            panic!("Couldn't get config: {err}");
         });
 
         let backend = storage_mngr::get_backend()
             .await
             .unwrap_or_else(|err| {
-                panic!("Failed to get storage backend: {}", err);
+                panic!("Failed to get storage backend: {err}");
             })
             .as_arc_dyn_storage();
 
@@ -533,16 +529,15 @@ impl ChainManager {
                     // We would need to delete existing chain state and all utxos to be able to
                     // reuse this storage, so ask the user to delete the storage.
                     let key_str: String =
-                        bincode::deserialize(key).unwrap_or_else(|_e| format!("{:?}", key));
+                        bincode::deserialize(key).unwrap_or_else(|_e| format!("{key:?}"));
                     panic!(
                         "Storage already contains a chain state with different magic number.\n\
-                        Expected magic: {:?}, found in storage: {:?}.\n\
+                        Expected magic: {expected_magic:?}, found in storage: {key_str:?}.\n\
                         Please backup the master key if needed, delete the storage and try again.\n\
                         To backup the master key, you need to go back to the previous environment \
                         (testnet or mainnet) and use the exportMasterKey command.\n\
                         Help: make sure that the storage folder is not used in multiple environments \
-                        (testnet and mainnet).",
-                        expected_magic, key_str
+                        (testnet and mainnet)."
                     );
                 }
             }
@@ -553,16 +548,15 @@ impl ChainManager {
                 let expected_magic = storage_keys::chain_state_key(magic);
                 let key_strs: Vec<String> = all_chain_states
                     .iter()
-                    .map(|key| bincode::deserialize(key).unwrap_or_else(|_e| format!("{:?}", key)))
+                    .map(|key| bincode::deserialize(key).unwrap_or_else(|_e| format!("{key:?}")))
                     .collect();
                 panic!(
                     "Storage contains more than one chain state with different magic numbers.\n\
-                    Expected magic: {:?}, found in storage: {:?}.\n\
+                    Expected magic: {expected_magic:?}, found in storage: {key_strs:?}.\n\
                     Please backup the master key if needed, delete the storage and try again.\n\
                     To backup the master key, downgrade to witnet 1.4.3 and use the exportMasterKey command.\n\
                     Help: make sure that the storage folder is not used in multiple environments \
-                    (testnet and mainnet).",
-                    expected_magic, key_strs
+                    (testnet and mainnet)."
                 );
             }
         }
@@ -592,14 +586,10 @@ impl ChainManager {
 
                 // Compose the path of the file to write the snapshot to, and create the file
                 let base_path = path.join(format!(
-                    "witnet_chain_snapshot_{}_{}.bin",
-                    environment, checkpoint
+                    "witnet_chain_snapshot_{environment}_{checkpoint}.bin"
                 ));
                 let base_path_display = base_path.display().to_string();
-                log::info!(
-                    "Snapshot will be created and written into {}",
-                    base_path_display
-                );
+                log::info!("Snapshot will be created and written into {base_path_display}");
 
                 // Copy the chain state and bundle UTXO set into it
                 // TODO: Avoid double-cloning and having the UTXO set twice, by rather constructing
@@ -624,37 +614,25 @@ impl ChainManager {
                 let batch_size = 50_000;
                 let total_blocks = chain_state.block_chain.len();
                 log::info!(
-                    "Starting to fetch all {} blocks in chunks of {} blocks...",
-                    total_blocks,
-                    batch_size
+                    "Starting to fetch all {total_blocks} blocks in chunks of {batch_size} blocks..."
                 );
                 let mut futs = Vec::new();
                 let batches = chain_state.block_chain.iter().chunks(batch_size);
                 for (i, batch) in (&batches).into_iter().enumerate() {
                     let from = i * batch_size;
                     let to = total_blocks.min(i * batch_size + batch_size - 1);
-                    let path = file_name_compose(
-                        base_path.clone(),
-                        Some(format!("blocks_batch_{:0>4}", i)),
-                    );
+                    let path =
+                        file_name_compose(base_path.clone(), Some(format!("blocks_batch_{i:0>4}")));
                     let hashes = batch.map(|(_epoch, hash)| *hash).collect::<Vec<_>>();
 
                     let fut = async move {
                         log::info!(
-                            "Starting to fetch blocks batch #{} ({} to {} out of {})",
-                            i,
-                            from,
-                            to,
-                            total_blocks
+                            "Starting to fetch blocks batch #{i} ({from} to {to} out of {total_blocks})"
                         );
                         let batch =
                             InventoryManager::get_multiple_blocks(hashes.into_iter()).await?;
                         log::info!(
-                            "Successfully fetched blocks batch #{} ({} to {} out of {})",
-                            i,
-                            from,
-                            to,
-                            total_blocks
+                            "Successfully fetched blocks batch #{i} ({from} to {to} out of {total_blocks})"
                         );
                         log::info!(
                             "Blocks batch #{} ({} to {} out of {}) is now being written into {}",
@@ -687,18 +665,13 @@ impl ChainManager {
                     .collect::<Vec<_>>()
                     .await;
                 log::info!(
-                    "Succesfully exported all {} blocks in chunks of {} blocks...",
-                    total_blocks,
-                    batch_size
+                    "Succesfully exported all {total_blocks} blocks in chunks of {batch_size} blocks..."
                 );
 
                 // Finally serialize and write the chain state itself
-                log::info!("Exporting chain state it into {}", base_path_display);
+                log::info!("Exporting chain state it into {base_path_display}");
                 serialize_to_file(&chain_state, &base_path)?;
-                log::info!(
-                    "Success! Finished exporting chain snapshot into {}",
-                    base_path_display
-                );
+                log::info!("Success! Finished exporting chain snapshot into {base_path_display}");
 
                 // Return the path of the exported chain state
                 Ok(base_path_display)
@@ -724,7 +697,7 @@ impl ChainManager {
         epoch_manager_addr.send(GetEpochConstants).into_actor(self).then(move |res, act, _ctx| {
             match res {
                 Ok(f) => act.epoch_constants = f,
-                error => log::error!("Failed to get epoch constants: {:?}", error),
+                error => log::error!("Failed to get epoch constants: {error:?}"),
             }
 
             epoch_manager_addr2
@@ -752,14 +725,14 @@ impl ChainManager {
                     }
                     Ok(Err(CheckpointZeroInTheFuture(zero))) => {
                         let date = pretty_print(zero, 0);
-                        log::warn!("Network bootstrapping is scheduled for {:?}. The node will remain idle and delay chain bootstrapping until then. Wait for it!", date);
+                        log::warn!("Network bootstrapping is scheduled for {date:?}. The node will remain idle and delay chain bootstrapping until then. Wait for it!");
 
                         // Subscribe to all epochs with an EveryEpochPayload
                         epoch_manager_addr
                             .do_send(Subscribe::to_all(chain_manager_addr, EveryEpochPayload));
                     }
                     error => {
-                        log::error!("Current epoch could not be retrieved from EpochManager: {:?}", error);
+                        log::error!("Current epoch could not be retrieved from EpochManager: {error:?}");
                     }
                 }
 
@@ -773,15 +746,12 @@ impl ChainManager {
         signature_mngr::pkh()
             .into_actor(self)
             .map_err(|e, _act, _ctx| {
-                log::error!(
-                    "Error while getting public key hash from signature manager: {}",
-                    e
-                );
+                log::error!("Error while getting public key hash from signature manager: {e}");
             })
             .and_then(|res, act, _ctx| {
                 act.own_pkh = Some(res);
                 log::debug!("Address successfully loaded from signature manager");
-                log::info!("Node identity / address: {}", res);
+                log::info!("Node identity / address: {res}");
 
                 // Telemetry is configured here to avoid a race condition if configured directly
                 // upon actor start because of asynchronous nature of `get_key` function.
@@ -798,10 +768,7 @@ impl ChainManager {
         signature_mngr::bn256_public_key()
             .into_actor(self)
             .map_err(|e, _act, _ctx| {
-                log::error!(
-                    "Error while getting bn256 public key from signature manager: {}",
-                    e
-                );
+                log::error!("Error while getting bn256 public key from signature manager: {e}");
             })
             .and_then(|res, act, _ctx| {
                 act.bn256_public_key = Some(res);
@@ -818,7 +785,7 @@ impl ChainManager {
     ) -> ResponseActFuture<Self, Result<(), ImportError>> {
         // Write superblocks into storage
         let superblocks_count = superblocks.len();
-        log::info!("Importing {} superblocks into storage", superblocks_count);
+        log::info!("Importing {superblocks_count} superblocks into storage");
         for (i, superblock) in superblocks.into_iter().enumerate() {
             if i % 10_000 == 0 {
                 log::info!(
@@ -908,7 +875,7 @@ impl ChainManager {
         // Reuse the existing UTXO database: simply wipe it and insert the new stuff later
         let mut old_utxos = self.chain_state.unspent_outputs_pool.clone();
         let drop_count = old_utxos.delete_all_from_db();
-        log::info!("Dropped {} UTXOs from persistent UTXO set", drop_count);
+        log::info!("Dropped {drop_count} UTXOs from persistent UTXO set");
         // This is exactly where the chain state is replaced
         self.chain_state = chain_state;
         self.chain_state.unspent_outputs_pool = old_utxos;
@@ -921,9 +888,9 @@ impl ChainManager {
                 &mut self.chain_state.unspent_outputs_pool_old_migration_db,
                 |i, total| {
                     if i % 100_000 == 0 {
-                        log::info!("Importing UTXOs into persistent UTXO set ({}/{})", i, total);
+                        log::info!("Importing UTXOs into persistent UTXO set ({i}/{total})");
                     } else {
-                        log::debug!("Importing UTXOs into persistent UTXO set ({}/{})", i, total);
+                        log::debug!("Importing UTXOs into persistent UTXO set ({i}/{total})");
                     }
                 },
             );
@@ -931,7 +898,7 @@ impl ChainManager {
         // Find and index our own UTXOs from the UTXO set
         let mut own_utxos = OwnUnspentOutputsPool::new();
         let own_pkh = self.own_pkh.unwrap();
-        log::info!("Trying to find and index unspent outputs for {}", own_pkh);
+        log::info!("Trying to find and index unspent outputs for {own_pkh}");
         self.chain_state.unspent_outputs_pool.visit_with_pkh(
             own_pkh,
             |(output_pointer, _)| {
@@ -1063,7 +1030,7 @@ impl ChainManager {
             self.snapshot_import_fut(import, force)
                 .map(|res, _act, _ctx| {
                     if let Err(err) = &res {
-                        log::error!("{}", err);
+                        log::error!("{err}");
                     }
 
                     res

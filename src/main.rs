@@ -11,7 +11,7 @@ mod cli;
 fn main() {
     let args = cli::from_args();
     if let Err(e) = cli::exec(args) {
-        eprintln!("Error: {}", e);
+        eprintln!("Error: {e}");
         process::exit(1);
     }
 }
