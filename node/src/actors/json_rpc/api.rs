@@ -2687,6 +2687,7 @@ pub struct GetDataRequestEtherealOutput {
 /// Radon specs attached to every data request transaction.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct DataRequestQueryParams {
+    bytecode: String,
     collateral: u64,
     dro_hash: Hash,
     rad_hash: Hash,
@@ -2828,16 +2829,17 @@ async fn get_dr_query_params(dr_tx_hash: Hash) -> Result<DataRequestQueryParams,
         Ok(Ok((transaction, _, _))) => {
             let weight = transaction.weight();
             match transaction {
-                Transaction::DataRequest(dr_tx) => Ok(DataRequestQueryParams {
-                    dro_hash: dr_tx.body.dr_output.hash(),
-                    rad_hash: calculate_sha256(
-                        &dr_tx.body.dr_output.data_request.to_pb_bytes().unwrap(),
-                    )
-                    .into(),
-                    collateral: dr_tx.body.dr_output.collateral,
-                    weight,
-                    witnesses: dr_tx.body.dr_output.witnesses,
-                }),
+                Transaction::DataRequest(dr_tx) => {
+                    let bytecode = dr_tx.body.dr_output.data_request.to_pb_bytes().unwrap_or_default();
+                    Ok(DataRequestQueryParams {
+                        bytecode: hex::encode(&bytecode),
+                        dro_hash: dr_tx.body.dr_output.hash(),
+                        rad_hash: calculate_sha256(&bytecode).into(),
+                        collateral: dr_tx.body.dr_output.collateral,
+                        weight,
+                        witnesses: dr_tx.body.dr_output.witnesses,
+                    })
+                },
                 _ => Err(internal_error("Not a data request transaction")),
             }
         }
@@ -2851,16 +2853,17 @@ async fn get_dr_query_params(dr_tx_hash: Hash) -> Result<DataRequestQueryParams,
                 Ok(Ok(transaction)) => {
                     let weight = transaction.weight();
                     match transaction {
-                        Transaction::DataRequest(dr_tx) => Ok(DataRequestQueryParams {
-                            dro_hash: dr_tx.body.dr_output.hash(),
-                            rad_hash: calculate_sha256(
-                                &dr_tx.body.dr_output.data_request.to_pb_bytes().unwrap(),
-                            )
-                            .into(),
-                            collateral: dr_tx.body.dr_output.collateral,
-                            weight,
-                            witnesses: dr_tx.body.dr_output.witnesses,
-                        }),
+                        Transaction::DataRequest(dr_tx) => {
+                            let bytecode = dr_tx.body.dr_output.data_request.to_pb_bytes().unwrap_or_default();
+                            Ok(DataRequestQueryParams {
+                                bytecode: hex::encode(&bytecode),
+                                dro_hash: dr_tx.body.dr_output.hash(),
+                                rad_hash: calculate_sha256(&bytecode).into(),
+                                collateral: dr_tx.body.dr_output.collateral,
+                                weight,
+                                witnesses: dr_tx.body.dr_output.witnesses,
+                            })
+                        },
                         _ => Err(internal_error("Not a data request transaction")),
                     }
                 }
