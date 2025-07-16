@@ -2626,7 +2626,7 @@ pub struct GetDataRequestParams {
     force: bool,
 }
 
-/// Enumerates all the states in which a data reuqest transaction can be.
+/// Enumerates the states in which a data request transaction can be, from the point-of-view of the data requester.
 #[derive(Debug, Default, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DataRequestStatus {
