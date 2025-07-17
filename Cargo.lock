@@ -1419,9 +1419,9 @@ dependencies = [
 
 [[package]]
 name = "h2"
-version = "0.3.26"
+version = "0.3.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81fe527a889e1532da5c525686d96d4c2e74cdd345badf8dfef9f6b39dd5f5e8"
+checksum = "0beca50380b1fc32983fc1cb4587bfa4bb9e78fc259aad4a0032d2080309222d"
 dependencies = [
  "bytes 1.10.1",
  "fnv",
@@ -1662,7 +1662,7 @@ dependencies = [
  "futures-channel",
  "futures-core",
  "futures-util",
- "h2 0.3.26",
+ "h2 0.3.27",
  "http 0.2.12",
  "http-body 0.4.6",
  "httparse",
@@ -3819,7 +3819,7 @@ dependencies = [
  "encoding_rs",
  "futures-core",
  "futures-util",
- "h2 0.3.26",
+ "h2 0.3.27",
  "http 0.2.12",
  "http-body 0.4.6",
  "hyper 0.14.32",
@@ -4003,22 +4003,22 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "1.0.7"
+version = "1.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c71e83d6afe7ff64890ec6b71d6a69bb8a610ab78ce364b3352876bb4c801266"
+checksum = "11181fbabf243db407ef8df94a6ce0b2f9a733bd8be4ad02b4eda9602296cac8"
 dependencies = [
  "bitflags 2.9.1",
  "errno",
  "libc",
  "linux-raw-sys 0.9.4",
- "windows-sys 0.59.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
 name = "rustls"
-version = "0.23.28"
+version = "0.23.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7160e3e10bf4535308537f3c4e1641468cd0e485175d6163087c0393c7d46643"
+checksum = "2491382039b29b9b11ff08b76ff6c97cf287671dbb74f0be44bda389fffe9bd1"
 dependencies = [
  "once_cell",
  "rustls-pki-types",
@@ -4047,9 +4047,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-webpki"
-version = "0.103.3"
+version = "0.103.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e4a72fe2bcf7a6ac6fd7d0b9e5cb68aeb7d4c0a0271730218b3e92d43b4eb435"
+checksum = "0a17884ae0c1b773f1ccd2bd4a8c72f16da897310a98b0e84bf349ad5ead92fc"
 dependencies = [
  "ring 0.17.14",
  "rustls-pki-types",
@@ -4668,7 +4668,7 @@ dependencies = [
  "fastrand",
  "getrandom 0.3.3",
  "once_cell",
- "rustix 1.0.7",
+ "rustix 1.0.8",
  "windows-sys 0.59.0",
 ]
 
@@ -5137,7 +5137,7 @@ checksum = "41fe8c660ae4257887cf66394862d21dbca4a6ddd26f04a3560410406a2f819a"
 dependencies = [
  "indexmap",
  "toml_datetime",
- "winnow 0.7.11",
+ "winnow 0.7.12",
 ]
 
 [[package]]
@@ -6035,9 +6035,9 @@ dependencies = [
 
 [[package]]
 name = "winnow"
-version = "0.7.11"
+version = "0.7.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74c7b26e3480b707944fc872477815d29a8e429d2f93a1ce000f5fa84a15cbcd"
+checksum = "f3edebf492c8125044983378ecb5766203ad3b4c2f7a922bd7dd207f6d443e95"
 dependencies = [
  "memchr",
 ]
@@ -6072,7 +6072,7 @@ dependencies = [
 
 [[package]]
 name = "witnet"
-version = "2.0.17"
+version = "2.1.0-rc.0"
 dependencies = [
  "ansi_term",
  "anyhow",
@@ -6135,7 +6135,7 @@ dependencies = [
 
 [[package]]
 name = "witnet-centralized-ethereum-bridge"
-version = "2.0.17"
+version = "2.1.0-rc.0"
 dependencies = [
  "actix",
  "async-jsonrpc-client",
@@ -6163,7 +6163,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_config"
-version = "2.0.17"
+version = "2.1.0-rc.0"
 dependencies = [
  "directories-next",
  "log 0.4.27",
@@ -6201,7 +6201,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_data_structures"
-version = "2.0.17"
+version = "2.1.0-rc.0"
 dependencies = [
  "anyhow",
  "bech32 0.11.0",
@@ -6269,7 +6269,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_node"
-version = "2.0.17"
+version = "2.1.0-rc.0"
 dependencies = [
  "actix",
  "ansi_term",
@@ -6386,7 +6386,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_toolkit"
-version = "2.0.17"
+version = "2.1.0-rc.0"
 dependencies = [
  "anyhow",
  "hex",
@@ -6434,7 +6434,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_wallet"
-version = "2.0.17"
+version = "2.1.0-rc.0"
 dependencies = [
  "actix",
  "anyhow",
