@@ -208,7 +208,7 @@ impl Handler<DrReporterMsg> for DrReporter {
                 .reports
                 .iter()
                 .map(|report| {
-                    let dr_hash = H256::from_slice(report.dr_tally_tx_hash.as_ref());
+                    let dr_hash = H256::from_slice(report.dr_tx_hash.as_ref());
                     // the trait `web3::contract::tokens::Tokenize` is not implemented for
                     // `(std::vec::Vec<(web3::types::U256, web3::types::U256, web3::types::H256, std::vec::Vec<u8>)>, bool)
                     // Need to manually convert to tuple
