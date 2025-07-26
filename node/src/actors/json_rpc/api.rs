@@ -3,6 +3,7 @@ use std::{
     convert::TryFrom,
     fmt::Debug,
     net::SocketAddr,
+    ops::Div,
     path::PathBuf,
     str::FromStr,
     sync::{
@@ -2675,7 +2676,8 @@ pub struct GetDataRequestFullOutput {
 pub struct GetDataRequestEtherealOutput {
     block_epoch: Option<u32>,
     block_hash: Option<Hash>,
-    confirmed: bool,
+    confirmations: Option<u32>,
+    hash: Hash,
     query: Option<DataRequestQueryParams>,
     result: Option<DataRequestQueryResult>,
     status: DataRequestStatus,
@@ -2684,11 +2686,11 @@ pub struct GetDataRequestEtherealOutput {
 /// Radon specs attached to every data request transaction.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct DataRequestQueryParams {
-    bytecode: String,
-    collateral: u64,
     dro_hash: Hash,
     rad_hash: Hash,
-    weight: u32,
+    rad_bytecode: String,
+    collateral_ratio: f32,
+    unitary_reward: u64,
     witnesses: u16,
 }
 
@@ -2696,7 +2698,7 @@ pub struct DataRequestQueryParams {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct DataRequestQueryResult {
     cbor_bytes: String,
-    confirmations: u32,
+    finalized: bool,
     timestamp: i64,
 }
 
@@ -2761,9 +2763,12 @@ pub async fn get_data_request(params: Result<GetDataRequestParams, Error>) -> Js
             None
         };
 
+        // Compute block confirmations since inclusion of the data request transaction
+        let confirmations = block_epoch
+            .map(|block_epoch| current_epoch.saturating_sub(block_epoch).saturating_sub(1));
+
         // Get data request tally transaction's block epoch:
-        let (tally_epoch, confirmed) = if let Some(block_hash_tally_tx) = report.block_hash_tally_tx
-        {
+        let (_, finalized) = if let Some(block_hash_tally_tx) = report.block_hash_tally_tx {
             match get_block_epoch(block_hash_tally_tx).await {
                 Ok((tally_epoch, confirmed)) => (Some(tally_epoch), confirmed),
                 Err(_) => (None, false),
@@ -2771,10 +2776,6 @@ pub async fn get_data_request(params: Result<GetDataRequestParams, Error>) -> Js
         } else {
             (None, false)
         };
-
-        // Compute confirmations of the data request tally transaction
-        let confirmations = tally_epoch
-            .map(|tally_epoch| current_epoch.saturating_sub(tally_epoch).saturating_sub(1));
 
         // The timestamp can be only derived from the block epoch once the epoch constants are
         // known (this is specially relevant after the V2_0+ fork)
@@ -2795,19 +2796,20 @@ pub async fn get_data_request(params: Result<GetDataRequestParams, Error>) -> Js
         };
 
         // Get data request transaction's query parameters
-        let query = get_dr_query_params(hash).await.ok();
+        let query = get_drt_query_params(hash).await.ok();
 
         // Get data request transaction's query result, if any
-        let result = confirmations.map(|confirmations| DataRequestQueryResult {
+        let result = confirmations.map(|_| DataRequestQueryResult {
             cbor_bytes: hex::encode(report.tally.unwrap_or_default().tally),
-            confirmations,
+            finalized,
             timestamp: timestamp.unwrap_or_default(),
         });
 
         GetDataRequestOutput::Ethereal(GetDataRequestEtherealOutput {
             block_epoch,
             block_hash,
-            confirmed,
+            hash,
+            confirmations,
             query,
             result,
             status,
@@ -2817,34 +2819,33 @@ pub async fn get_data_request(params: Result<GetDataRequestParams, Error>) -> Js
     serde_json::to_value(output).map_err(internal_error)
 }
 
-async fn get_dr_query_params(dr_tx_hash: Hash) -> Result<DataRequestQueryParams, Error> {
+async fn get_drt_query_params(dr_tx_hash: Hash) -> Result<DataRequestQueryParams, Error> {
     let inventory_manager = InventoryManager::from_registry();
     let res = inventory_manager
         .send(GetItemTransaction { hash: dr_tx_hash })
         .await;
     match res {
-        Ok(Ok((transaction, _, _))) => {
-            let weight = transaction.weight();
-            match transaction {
-                Transaction::DataRequest(dr_tx) => {
-                    let bytecode = dr_tx
-                        .body
-                        .dr_output
-                        .data_request
-                        .to_pb_bytes()
-                        .unwrap_or_default();
-                    Ok(DataRequestQueryParams {
-                        bytecode: hex::encode(&bytecode),
-                        dro_hash: dr_tx.body.dr_output.hash(),
-                        rad_hash: calculate_sha256(&bytecode).into(),
-                        collateral: dr_tx.body.dr_output.collateral,
-                        weight,
-                        witnesses: dr_tx.body.dr_output.witnesses,
-                    })
-                }
-                _ => Err(internal_error("Not a data request transaction")),
+        Ok(Ok((transaction, _, _))) => match transaction {
+            Transaction::DataRequest(dr_tx) => {
+                let bytecode = dr_tx
+                    .body
+                    .dr_output
+                    .data_request
+                    .to_pb_bytes()
+                    .unwrap_or_default();
+                Ok(DataRequestQueryParams {
+                    collateral_ratio: (dr_tx.body.dr_output.collateral as f64)
+                        .div(dr_tx.body.dr_output.witness_reward as f64)
+                        as f32,
+                    dro_hash: dr_tx.body.dr_output.hash(),
+                    rad_hash: calculate_sha256(&bytecode).into(),
+                    rad_bytecode: hex::encode(&bytecode),
+                    unitary_reward: dr_tx.body.dr_output.witness_reward,
+                    witnesses: dr_tx.body.dr_output.witnesses,
+                })
             }
-        }
+            _ => Err(internal_error("Not a data request transaction")),
+        },
         Ok(Err(InventoryManagerError::ItemNotFound)) => {
             let chain_manager = ChainManager::from_registry();
             let res = chain_manager
@@ -2852,28 +2853,27 @@ async fn get_dr_query_params(dr_tx_hash: Hash) -> Result<DataRequestQueryParams,
                 .await;
 
             match res {
-                Ok(Ok(transaction)) => {
-                    let weight = transaction.weight();
-                    match transaction {
-                        Transaction::DataRequest(dr_tx) => {
-                            let bytecode = dr_tx
-                                .body
-                                .dr_output
-                                .data_request
-                                .to_pb_bytes()
-                                .unwrap_or_default();
-                            Ok(DataRequestQueryParams {
-                                bytecode: hex::encode(&bytecode),
-                                dro_hash: dr_tx.body.dr_output.hash(),
-                                rad_hash: calculate_sha256(&bytecode).into(),
-                                collateral: dr_tx.body.dr_output.collateral,
-                                weight,
-                                witnesses: dr_tx.body.dr_output.witnesses,
-                            })
-                        }
-                        _ => Err(internal_error("Not a data request transaction")),
+                Ok(Ok(transaction)) => match transaction {
+                    Transaction::DataRequest(dr_tx) => {
+                        let bytecode = dr_tx
+                            .body
+                            .dr_output
+                            .data_request
+                            .to_pb_bytes()
+                            .unwrap_or_default();
+                        Ok(DataRequestQueryParams {
+                            collateral_ratio: (dr_tx.body.dr_output.collateral as f64)
+                                .div(dr_tx.body.dr_output.witness_reward as f64)
+                                as f32,
+                            dro_hash: dr_tx.body.dr_output.hash(),
+                            rad_hash: calculate_sha256(&bytecode).into(),
+                            rad_bytecode: hex::encode(&bytecode),
+                            unitary_reward: dr_tx.body.dr_output.witness_reward,
+                            witnesses: dr_tx.body.dr_output.witnesses,
+                        })
                     }
-                }
+                    _ => Err(internal_error("Not a data request transaction")),
+                },
                 Ok(Err(())) => {
                     let err = internal_error(InventoryManagerError::ItemNotFound);
                     Err(err)
