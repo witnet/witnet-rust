@@ -2764,8 +2764,8 @@ pub async fn get_data_request(params: Result<GetDataRequestParams, Error>) -> Js
         };
 
         // Compute block confirmations since inclusion of the data request transaction
-        let confirmations = block_epoch
-            .map(|block_epoch| current_epoch.saturating_sub(block_epoch).saturating_sub(1));
+        let confirmations =
+            block_epoch.map(|block_epoch| current_epoch.saturating_sub(block_epoch + 1));
 
         // Get data request tally transaction's block epoch:
         let (_, finalized) = if let Some(block_hash_tally_tx) = report.block_hash_tally_tx {
@@ -2833,6 +2833,7 @@ async fn get_drt_query_params(dr_tx_hash: Hash) -> Result<DataRequestQueryParams
                     .data_request
                     .to_pb_bytes()
                     .unwrap_or_default();
+
                 Ok(DataRequestQueryParams {
                     collateral_ratio: (dr_tx.body.dr_output.collateral as f64)
                         .div(dr_tx.body.dr_output.witness_reward as f64)
@@ -2861,6 +2862,7 @@ async fn get_drt_query_params(dr_tx_hash: Hash) -> Result<DataRequestQueryParams
                             .data_request
                             .to_pb_bytes()
                             .unwrap_or_default();
+
                         Ok(DataRequestQueryParams {
                             collateral_ratio: (dr_tx.body.dr_output.collateral as f64)
                                 .div(dr_tx.body.dr_output.witness_reward as f64)
