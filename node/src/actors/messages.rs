@@ -527,6 +527,8 @@ pub enum GetBalance2 {
     All(GetBalance2Limits),
     /// Get balance info for a specific address.
     Address(MagicEither<String, PublicKeyHash>),
+    /// Sum up balances of specified addresses.
+    Sum(Vec<MagicEither<String, PublicKeyHash>>),
 }
 
 /// Limits when querying balances for all holders

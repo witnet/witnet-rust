@@ -2352,7 +2352,7 @@ pub async fn query_powers(params: Result<QueryStakingPowers, Error>) -> JsonRpcR
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum GetBalance2Params {
-    /// get balances for specified address
+    /// sum up balances of all specified comma-separated addresses
     Pkh(String),
     /// get balances for all holders within specified limits
     All(GetBalance2Limits),
@@ -2365,7 +2365,19 @@ pub async fn get_balance_2(params: Result<Option<GetBalance2Params>, Error>) -> 
     // If a withdrawer address is not specified, default to local node address
     let msg: GetBalance2 = if let Some(params) = params {
         match params {
-            GetBalance2Params::Pkh(pkh) => GetBalance2::Address(MagicEither::Left(pkh)),
+            GetBalance2Params::Pkh(csv) => {
+                let pkhs: Vec<&str> = csv.split(';').collect();
+                let pkhs: Vec<String> = pkhs.iter().map(|&s| s.into()).collect();
+                if pkhs.len() > 1 {
+                    GetBalance2::Sum(
+                        pkhs.iter()
+                            .map(|pkh| MagicEither::Left(pkh.clone()))
+                            .collect(),
+                    )
+                } else {
+                    GetBalance2::Address(MagicEither::Left(csv))
+                }
+            }
             GetBalance2Params::All(limits) => GetBalance2::All(limits),
         }
     } else {
@@ -2830,7 +2842,12 @@ async fn get_dr_query_params(dr_tx_hash: Hash) -> Result<DataRequestQueryParams,
             let weight = transaction.weight();
             match transaction {
                 Transaction::DataRequest(dr_tx) => {
-                    let bytecode = dr_tx.body.dr_output.data_request.to_pb_bytes().unwrap_or_default();
+                    let bytecode = dr_tx
+                        .body
+                        .dr_output
+                        .data_request
+                        .to_pb_bytes()
+                        .unwrap_or_default();
                     Ok(DataRequestQueryParams {
                         bytecode: hex::encode(&bytecode),
                         dro_hash: dr_tx.body.dr_output.hash(),
@@ -2839,7 +2856,7 @@ async fn get_dr_query_params(dr_tx_hash: Hash) -> Result<DataRequestQueryParams,
                         weight,
                         witnesses: dr_tx.body.dr_output.witnesses,
                     })
-                },
+                }
                 _ => Err(internal_error("Not a data request transaction")),
             }
         }
@@ -2854,7 +2871,12 @@ async fn get_dr_query_params(dr_tx_hash: Hash) -> Result<DataRequestQueryParams,
                     let weight = transaction.weight();
                     match transaction {
                         Transaction::DataRequest(dr_tx) => {
-                            let bytecode = dr_tx.body.dr_output.data_request.to_pb_bytes().unwrap_or_default();
+                            let bytecode = dr_tx
+                                .body
+                                .dr_output
+                                .data_request
+                                .to_pb_bytes()
+                                .unwrap_or_default();
                             Ok(DataRequestQueryParams {
                                 bytecode: hex::encode(&bytecode),
                                 dro_hash: dr_tx.body.dr_output.hash(),
@@ -2863,7 +2885,7 @@ async fn get_dr_query_params(dr_tx_hash: Hash) -> Result<DataRequestQueryParams,
                                 weight,
                                 witnesses: dr_tx.body.dr_output.witnesses,
                             })
-                        },
+                        }
                         _ => Err(internal_error("Not a data request transaction")),
                     }
                 }
