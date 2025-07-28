@@ -9,7 +9,7 @@ description = "Witnet storage module that conveniently abstracts a key/value API
 [dependencies]
 anyhow = "1.0.98"
 thiserror = "2.0.12"
-rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb.git", rev = "55d68c30c8d5a1924b794678d9f468f3559c2685", optional = true }
+rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb.git", rev = "7e7a1d594dd3960ad03a7006388640f90d17dae1", optional = true }
 
 [features]
 rocksdb-backend = ["rocksdb"]
