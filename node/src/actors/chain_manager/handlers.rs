@@ -1849,25 +1849,25 @@ impl Handler<GetBalance2> for ChainManager {
                 balance
             }
             GetBalance2::Sum(pkhs) => {
-                let mut total_locked = 0u64;
-                let mut total_staked = 0u64;
-                let mut total_unlocked = 0u64;
-                pkhs.iter().try_for_each(|pkh| {
-                    match self.handle(GetBalance2::Address(pkh.clone()), _ctx) {
-                        Ok(NodeBalance2::One {
+                let (total_locked, total_staked, total_unlocked) = pkhs.iter().fold(
+                    Default::default(),
+                    |(total_locked, total_staked, total_unlocked), pkh| {
+                        if let Ok(NodeBalance2::One {
                             locked,
                             staked,
                             unlocked,
-                        }) => {
-                            total_locked += locked;
-                            total_staked += staked;
-                            total_unlocked += unlocked;
-                            Ok(())
+                        }) = self.handle(GetBalance2::Address(pkh.clone()), _ctx)
+                        {
+                            (
+                                total_locked + locked,
+                                total_staked + staked,
+                                total_unlocked + unlocked,
+                            )
+                        } else {
+                            (total_locked, total_staked, total_unlocked)
                         }
-                        Err(err) => return Err(err),
-                        _ => Ok(()),
-                    }
-                })?;
+                    },
+                );
 
                 NodeBalance2::One {
                     locked: total_locked,
