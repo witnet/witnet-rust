@@ -2336,29 +2336,30 @@ pub async fn query_powers(params: Result<QueryStakingPowers, Error>) -> JsonRpcR
 #[serde(rename_all = "lowercase")]
 pub enum GetBalance2Params {
     /// sum up balances of all specified comma-separated addresses
-    Pkh(String),
+    Addresses(String),
     /// get balances for all holders within specified limits
     All(GetBalance2Limits),
 }
 
 /// Query the amount of nanowits staked by an address.
+///
+/// When the `Addressess` parameter is specified, this can take as many addresses as needed in a
+/// single CSV-style string of colon-separated values, e.g.:
+/// `wit1ggyjwgx7rcec079ne5xvjm83keythmtncryrhj;wit1xvud2lcxzwjzrup07dq36w7xdj3graljtlpefg`
+///
+/// Alternatively, the `All` parameter returns all balances, with the ability to filter by minimum
+/// and maximum balances (see `GetBalance2Limits`).
 pub async fn get_balance_2(params: Result<Option<GetBalance2Params>, Error>) -> JsonRpcResult {
     // Short-circuit if parameters are wrong
     let params = params?;
-    // If a withdrawer address is not specified, default to local node address
     let msg: GetBalance2 = if let Some(params) = params {
         match params {
-            GetBalance2Params::Pkh(csv) => {
-                let pkhs: Vec<&str> = csv.split(';').collect();
-                let pkhs: Vec<String> = pkhs.iter().map(|&s| s.into()).collect();
-                if pkhs.len() > 1 {
-                    GetBalance2::Sum(
-                        pkhs.iter()
-                            .map(|pkh| MagicEither::Left(pkh.clone()))
-                            .collect(),
-                    )
+            GetBalance2Params::Addresses(string) => {
+                let addresses: Vec<String> = string.split(';').map(Into::into).collect();
+                if addresses.len() > 1 {
+                    GetBalance2::Sum(addresses.into_iter().map(MagicEither::Left).collect())
                 } else {
-                    GetBalance2::Address(MagicEither::Left(csv))
+                    GetBalance2::Address(MagicEither::Left(string))
                 }
             }
             GetBalance2Params::All(limits) => GetBalance2::All(limits),
