@@ -2788,7 +2788,7 @@ pub async fn get_data_request(params: Result<GetDataRequestParams, Error>) -> Js
         let timestamp = match block_epoch {
             Some(block_epoch) => epoch_constants
                 .epoch_timestamp(
-                    block_epoch.saturating_add(1u32 + report.current_commit_round as u32),
+                    block_epoch.saturating_add(1u32 + u32::from(report.current_commit_round)),
                 )
                 .ok()
                 .map(|(timestamp, _)| timestamp),
@@ -2819,6 +2819,7 @@ pub async fn get_data_request(params: Result<GetDataRequestParams, Error>) -> Js
     serde_json::to_value(output).map_err(internal_error)
 }
 
+#[allow(clippy::cast_possible_truncation)]
 async fn get_drt_query_params(dr_tx_hash: Hash) -> Result<DataRequestQueryParams, Error> {
     let inventory_manager = InventoryManager::from_registry();
     let res = inventory_manager
