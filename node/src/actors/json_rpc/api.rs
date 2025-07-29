@@ -3,7 +3,6 @@ use std::{
     convert::TryFrom,
     fmt::Debug,
     net::SocketAddr,
-    ops::Div,
     path::PathBuf,
     str::FromStr,
     sync::{
@@ -2836,7 +2835,12 @@ async fn get_drt_query_params(dr_tx_hash: Hash) -> Result<DataRequestQueryParams
                     .unwrap_or_default();
 
                 Ok(DataRequestQueryParams {
-                    collateral_ratio: dr_tx.body.dr_output.collateral.div_ceil(dr_tx.body.dr_output.witness_reward) as u16,
+                    collateral_ratio: dr_tx
+                        .body
+                        .dr_output
+                        .collateral
+                        .div_ceil(dr_tx.body.dr_output.witness_reward)
+                        as u16,
                     dro_hash: dr_tx.body.dr_output.hash(),
                     rad_hash: calculate_sha256(&bytecode).into(),
                     rad_bytecode: hex::encode(&bytecode),
@@ -2863,7 +2867,12 @@ async fn get_drt_query_params(dr_tx_hash: Hash) -> Result<DataRequestQueryParams
                             .unwrap_or_default();
 
                         Ok(DataRequestQueryParams {
-                            collateral_ratio: dr_tx.body.dr_output.collateral.div_ceil(dr_tx.body.dr_output.witness_reward) as u16,
+                            collateral_ratio: dr_tx
+                                .body
+                                .dr_output
+                                .collateral
+                                .div_ceil(dr_tx.body.dr_output.witness_reward)
+                                as u16,
                             dro_hash: dr_tx.body.dr_output.hash(),
                             rad_hash: calculate_sha256(&bytecode).into(),
                             rad_bytecode: hex::encode(&bytecode),
