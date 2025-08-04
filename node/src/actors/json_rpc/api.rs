@@ -2336,6 +2336,8 @@ pub async fn query_powers(params: Result<QueryStakingPowers, Error>) -> JsonRpcR
 #[serde(rename_all = "lowercase")]
 pub enum GetBalance2Params {
     /// sum up balances of all specified comma-separated addresses
+    #[serde(alias = "address")]
+    #[serde(alias = "pkh")]
     #[serde(alias = "pkhs")]
     Addresses(String),
     /// get balances for all holders within specified limits
