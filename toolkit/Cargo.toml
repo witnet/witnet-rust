@@ -1,6 +1,6 @@
 [package]
 name = "witnet_toolkit"
-version = "2.0.19"
+version = "2.0.20"
 authors = ["Adán SDPC <adan.sdpc@gmail.com>"]
 edition = "2024"
 
