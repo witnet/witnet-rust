@@ -574,7 +574,7 @@ impl Defaults for Testnet {
         [
             (ProtocolVersion::V1_7, (0, 45)),
             (ProtocolVersion::V1_8, (15, 45)),
-            (ProtocolVersion::V2_0, (45, 20)),
+            (ProtocolVersion::V2_0, (60, 20)),
         ]
         .into_iter()
         .collect()
