@@ -12,12 +12,12 @@ public_addr = "0.0.0.0:21337"
 # them for a list of all the addresses they know. From that moment on, the addresses listed here are not given any
 # preference over addresses that have been discovered in any way.
 known_peers = [
-    "18.188.231.190:31337",
-    "18.188.231.190:32337",
-    "18.188.231.190:33337",
-    "18.188.231.190:34337",
-    "18.188.231.190:35337",
-    "18.188.231.190:36337",
+    "3.128.196.85:31337",
+    "3.128.196.85:32337",
+    "3.128.196.85:33337",
+    "3.128.196.85:34337",
+    "3.128.196.85:35337",
+    "3.128.196.85:36337",
 ]
 
 # How many peer connections to stablish before considering that is safe to decide what the best chain tip is, based on
