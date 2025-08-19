@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     convert::TryFrom,
     fmt::Debug,
     net::SocketAddr,
@@ -56,6 +56,7 @@ use witnet_data_structures::{
         ProtobufConvert,
         versioning::{ProtocolVersion, VersionedHashable},
     },
+    serialization_helpers::number_from_string,
     staking::prelude::*,
     transaction::{Transaction, VTTransaction},
     vrf::VrfMessage,
@@ -1565,30 +1566,88 @@ pub async fn get_supply_info_2() -> JsonRpcResult {
         .await
 }
 
+/// Optional having-filter when getting utxo info for specified address
+#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetUtxoInfoHavingFilter {
+    /// Minimum value
+    #[serde(deserialize_with = "number_from_string")]
+    pub min_value: u64,
+
+    /// Signer's public key hash
+    pub from_signer: Option<PublicKeyHash>,
+}
+
 /// Get utxos
-pub async fn get_utxo_info(params: Result<(PublicKeyHash,), Error>) -> JsonRpcResult {
+pub async fn get_utxo_info(
+    params: Result<(PublicKeyHash, Option<GetUtxoInfoHavingFilter>), Error>,
+) -> JsonRpcResult {
     let chain_manager_addr = ChainManager::from_registry();
-    let pkh = match params {
-        Ok(x) => x.0,
+    let (pkh, filter) = match params {
+        Ok(x) => (x.0, x.1),
         Err(e) => return Err(e),
     };
 
-    chain_manager_addr
+    let mut utxos_info = chain_manager_addr
         .send(GetUtxoInfo { pkh })
-        .map(|res| {
-            res.map_err(internal_error)
-                .and_then(|dr_info| match dr_info {
-                    Ok(x) => match serde_json::to_value(x) {
-                        Ok(x) => Ok(x),
-                        Err(e) => {
-                            let err = internal_error_s(e);
-                            Err(err)
-                        }
-                    },
-                    Err(e) => Err(internal_error_s(e)),
-                })
-        })
         .await
+        .map_err(internal_error)?
+        .map_err(internal_error)?;
+
+    if let Some(GetUtxoInfoHavingFilter {
+        min_value,
+        from_signer: _,
+    }) = filter
+    {
+        utxos_info.utxos.retain(|utxo| utxo.value >= min_value);
+    }
+
+    if let Some(GetUtxoInfoHavingFilter {
+        min_value: _,
+        from_signer: Some(from_signer),
+    }) = filter
+    {
+        let inventory_manager = InventoryManager::from_registry();
+        let hashes: HashSet<Hash> = utxos_info.utxos.iter().map(|utxo| utxo.output_pointer.transaction_id).collect();
+        let futures: Vec<_> = hashes
+            .into_iter()
+            .map(|hash| inventory_manager.send(GetItemTransaction { hash }))
+            .collect();
+
+        let results = futures::future::join_all(futures).await;
+        let transactions = results
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(internal_error)?;
+
+        let hashes: HashSet<Hash> = transactions
+            .iter()
+            .filter_map(|res| {
+                if let Ok((Transaction::ValueTransfer(vtt), _, _)) = res {
+                    if vtt
+                        .signatures
+                        .iter()
+                        .any(|signature| signature.public_key.pkh().eq(&from_signer))
+                    {
+                        return Some(vtt.hash());
+                    }
+                }
+                None
+            })
+            .collect();
+        
+        utxos_info
+            .utxos
+            .retain(|utxo| hashes.contains(&utxo.output_pointer.transaction_id));
+    }
+
+    match serde_json::to_value(utxos_info) {
+        Ok(x) => Ok(x),
+        Err(e) => {
+            let err = internal_error_s(e);
+            Err(err)
+        }
+    }
 }
 
 /// Get Reputation of one pkh

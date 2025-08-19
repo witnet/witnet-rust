@@ -671,8 +671,9 @@ impl Message for GetSupplyInfo2 {
     type Result = Result<SupplyInfo2, anyhow::Error>;
 }
 
-/// Get Balance
+/// Get Utxo Info for specified address
 #[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
+
 pub struct GetUtxoInfo {
     /// Public key hash
     pub pkh: PublicKeyHash,
