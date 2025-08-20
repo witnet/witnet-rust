@@ -340,15 +340,15 @@ impl OwnUnspentOutputsPool {
         self.map.remove(k)
     }
 
-    pub fn drain(&mut self) -> std::collections::hash_map::Drain<OutputPointer, u64> {
+    pub fn drain(&mut self) -> std::collections::hash_map::Drain<'_, OutputPointer, u64> {
         self.map.drain()
     }
 
-    pub fn iter(&self) -> std::collections::hash_map::Iter<OutputPointer, u64> {
+    pub fn iter(&self) -> std::collections::hash_map::Iter<'_, OutputPointer, u64> {
         self.map.iter()
     }
 
-    pub fn keys(&self) -> std::collections::hash_map::Keys<OutputPointer, u64> {
+    pub fn keys(&self) -> std::collections::hash_map::Keys<'_, OutputPointer, u64> {
         self.map.keys()
     }
 
@@ -457,7 +457,7 @@ pub struct NodeUtxos<'a> {
 }
 
 impl NodeUtxos<'_> {
-    pub fn as_ref(&self) -> NodeUtxosRef {
+    pub fn as_ref(&self) -> NodeUtxosRef<'_> {
         NodeUtxosRef {
             all_utxos: self.all_utxos,
             own_utxos: self.own_utxos,

@@ -13,11 +13,11 @@ pub trait UtxoDb {
         &self,
         out_ptr: &OutputPointer,
     ) -> Result<Option<(ValueTransferOutput, u32)>, anyhow::Error>;
-    fn utxo_iterator(&self) -> Result<UtxoStorageIterator, anyhow::Error>;
+    fn utxo_iterator(&self) -> Result<UtxoStorageIterator<'_>, anyhow::Error>;
     fn utxo_iterator_by_pkh(
         &self,
         pkh: PublicKeyHash,
-    ) -> Result<UtxoStorageIterator, anyhow::Error>;
+    ) -> Result<UtxoStorageIterator<'_>, anyhow::Error>;
     fn write(&self, batch: UtxoWriteBatch) -> Result<(), anyhow::Error>;
 }
 
@@ -122,7 +122,7 @@ impl<S: Storage> UtxoDb for UtxoDbWrapStorage<S> {
         }))
     }
 
-    fn utxo_iterator(&self) -> Result<UtxoStorageIterator, Error> {
+    fn utxo_iterator(&self) -> Result<UtxoStorageIterator<'_>, Error> {
         let iter = self.0.prefix_iterator(b"UTXO-")?;
 
         Ok(Box::new(iter.map(|(k, v)| {
@@ -135,7 +135,7 @@ impl<S: Storage> UtxoDb for UtxoDbWrapStorage<S> {
         })))
     }
 
-    fn utxo_iterator_by_pkh(&self, pkh: PublicKeyHash) -> Result<UtxoStorageIterator, Error> {
+    fn utxo_iterator_by_pkh(&self, pkh: PublicKeyHash) -> Result<UtxoStorageIterator<'_>, Error> {
         let iter = self.utxo_iterator()?;
 
         Ok(Box::new(iter.filter_map(move |(k, v)| {
@@ -218,11 +218,11 @@ impl<S: UtxoDb> UtxoDb for CacheUtxosByPkh<S> {
         self.db.get_utxo(k)
     }
 
-    fn utxo_iterator(&self) -> Result<UtxoStorageIterator, Error> {
+    fn utxo_iterator(&self) -> Result<UtxoStorageIterator<'_>, Error> {
         self.db.utxo_iterator()
     }
 
-    fn utxo_iterator_by_pkh(&self, pkh: PublicKeyHash) -> Result<UtxoStorageIterator, Error> {
+    fn utxo_iterator_by_pkh(&self, pkh: PublicKeyHash) -> Result<UtxoStorageIterator<'_>, Error> {
         let cache = self.cache.read().unwrap();
         // We must clone the list of UTXOs to be able to return an iterator over it, because
         // otherwise the iterator would need to get ownership of the RwLockReadGuard somehow.

@@ -4665,23 +4665,22 @@ fn create_commits_reveals(
     }
 
     // Handle data requester committer case
-    if let Some(dr_mk) = dr_mk {
-        if commits_count > 0 {
-            let reveal_value = if dr_liar {
-                liars_count -= 1;
-                liar_value.next().unwrap()
-            } else {
-                reveal_value.next().unwrap()
-            };
+    if let Some(dr_mk) = dr_mk
+        && commits_count > 0
+    {
+        let reveal_value = if dr_liar {
+            liars_count -= 1;
+            liar_value.next().unwrap()
+        } else {
+            reveal_value.next().unwrap()
+        };
 
-            let (dr_public_key, commit, reveal) =
-                create_commit_reveal(dr_mk, dr_pointer, reveal_value);
-            commits_count -= 1;
-            commits.push(commit);
-            reveals.push(reveal);
-            if dr_liar {
-                liars.push(dr_public_key)
-            }
+        let (dr_public_key, commit, reveal) = create_commit_reveal(dr_mk, dr_pointer, reveal_value);
+        commits_count -= 1;
+        commits.push(commit);
+        reveals.push(reveal);
+        if dr_liar {
+            liars.push(dr_public_key)
         }
     }
 
@@ -12901,10 +12900,10 @@ fn validate_update_utxo_diff() {
     };
 
     // 1 input and 1 output with same PKH: keep block number
-    test_diff_block_numbers(&[vti0], &[vto4.clone()], &[0]);
+    test_diff_block_numbers(&[vti0], std::slice::from_ref(&vto4), &[0]);
 
     // 2 inputs and 1 output with same PKH: keep block number of max input
-    test_diff_block_numbers(&[vti0, vti1], &[vto4.clone()], &[999]);
+    test_diff_block_numbers(&[vti0, vti1], std::slice::from_ref(&vto4), &[999]);
 
     // 1 input and 2 outputs with same PKH: keep block number
     test_diff_block_numbers(&[vti0], &[vto4.clone(), vto5.clone()], &[0, 0]);
@@ -12913,16 +12912,16 @@ fn validate_update_utxo_diff() {
     test_diff_block_numbers(&[vti0, vti1], &[vto4.clone(), vto5], &[999, 999]);
 
     // No inputs: reset block number
-    test_diff_block_numbers(&[], &[vto4.clone()], &[1000]);
+    test_diff_block_numbers(&[], std::slice::from_ref(&vto4), &[1000]);
 
     // 1 input and 1 output with different PKH: reset block number
-    test_diff_block_numbers(&[vti0], &[vto6.clone()], &[1000]);
+    test_diff_block_numbers(&[vti0], std::slice::from_ref(&vto6), &[1000]);
 
     // 2 inputs with different PKH: reset block number for all outputs
-    test_diff_block_numbers(&[vti0, vti2], &[vto4.clone()], &[1000]);
+    test_diff_block_numbers(&[vti0, vti2], std::slice::from_ref(&vto4), &[1000]);
 
     // 2 inputs with different PKH: reset block number for all outputs
-    test_diff_block_numbers(&[vti0, vti2], &[vto6.clone()], &[1000]);
+    test_diff_block_numbers(&[vti0, vti2], std::slice::from_ref(&vto6), &[1000]);
 
     // 2 inputs with different PKH: reset block number for all outputs
     test_diff_block_numbers(&[vti0, vti2], &[vto4.clone(), vto6.clone()], &[1000, 1000]);

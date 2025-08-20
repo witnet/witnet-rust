@@ -3244,10 +3244,9 @@ fn update_pools(
             data_requests_with_too_many_witnesses.insert(ta_tx.dr_pointer);
 
             if let Some(dr_state) = data_request_pool.data_request_state_mutable(&ta_tx.dr_pointer)
+                && dr_state.stage != DataRequestStage::TALLY
             {
-                if dr_state.stage != DataRequestStage::TALLY {
-                    dr_state.update_stage(0, true);
-                }
+                dr_state.update_stage(0, true);
             }
         }
 
@@ -3349,24 +3348,24 @@ fn data_request_is_pre_wit2(
     // not need to be processed using the wit/2 business logic.
     match transaction {
         Transaction::Commit(co_tx) => {
-            if let Some(dr_state) = data_request_pool.data_request_state(&co_tx.body.dr_pointer) {
-                if get_protocol_version(Some(dr_state.epoch)) < ProtocolVersion::V2_0 {
-                    return true;
-                }
+            if let Some(dr_state) = data_request_pool.data_request_state(&co_tx.body.dr_pointer)
+                && get_protocol_version(Some(dr_state.epoch)) < ProtocolVersion::V2_0
+            {
+                return true;
             }
         }
         Transaction::Reveal(re_tx) => {
-            if let Some(dr_state) = data_request_pool.data_request_state(&re_tx.body.dr_pointer) {
-                if get_protocol_version(Some(dr_state.epoch)) < ProtocolVersion::V2_0 {
-                    return true;
-                }
+            if let Some(dr_state) = data_request_pool.data_request_state(&re_tx.body.dr_pointer)
+                && get_protocol_version(Some(dr_state.epoch)) < ProtocolVersion::V2_0
+            {
+                return true;
             }
         }
         Transaction::Tally(ta_tx) => {
-            if let Some(dr_state) = data_request_pool.data_request_state(&ta_tx.dr_pointer) {
-                if get_protocol_version(Some(dr_state.epoch)) < ProtocolVersion::V2_0 {
-                    return true;
-                }
+            if let Some(dr_state) = data_request_pool.data_request_state(&ta_tx.dr_pointer)
+                && get_protocol_version(Some(dr_state.epoch)) < ProtocolVersion::V2_0
+            {
+                return true;
             }
         }
         _ => (),

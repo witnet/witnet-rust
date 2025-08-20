@@ -262,15 +262,14 @@ impl StreamHandler<Result<BytesMut, Error>> for Session {
                                 for (i, item_response) in item_responses.into_iter().enumerate() {
                                     match item_response {
                                         Ok(item) => {
-                                            if let InventoryItem::Block(block) = &item {
-                                                if block.block_header.beacon.checkpoint
+                                            if let InventoryItem::Block(block) = &item
+                                                && block.block_header.beacon.checkpoint
                                                     == session
                                                         .last_beacon
                                                         .highest_block_checkpoint
                                                         .checkpoint
-                                                {
-                                                    send_superblock_votes = true;
-                                                }
+                                            {
+                                                send_superblock_votes = true;
                                             }
 
                                             send_inventory_item_msg(session, item)

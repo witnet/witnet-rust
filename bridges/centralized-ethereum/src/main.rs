@@ -29,10 +29,10 @@ struct App {
 fn init_logger() {
     // Debug log level by default
     let mut log_level = log::LevelFilter::Debug;
-    if let Ok(rust_log) = std::env::var("RUST_LOG") {
-        if rust_log.contains("witnet") {
-            log_level = env_logger::Logger::from_default_env().filter();
-        }
+    if let Ok(rust_log) = std::env::var("RUST_LOG")
+        && rust_log.contains("witnet")
+    {
+        log_level = env_logger::Logger::from_default_env().filter();
     }
 
     env_logger::Builder::from_env(env_logger::Env::default())

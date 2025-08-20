@@ -476,7 +476,7 @@ where
 {
     type Value = Stakes<UNIT, Address, Coins, Epoch, Nonce, Power>;
 
-    fn expecting(&self, formatter: &mut Formatter) -> std::fmt::Result {
+    fn expecting(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         formatter.write_str("Stakes<Address, Coins, Epoch, Power>")
     }
 

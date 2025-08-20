@@ -123,12 +123,12 @@ impl RadonTypes {
     /// If this RadonTypes is a RadonError<RadError::UnhandledIntercept>, remove the message field
     /// from the `UnhandledIntercept` error. Otherwise, do nothing.
     pub fn remove_message_from_error_unhandled_intercept(&mut self) {
-        if let RadonTypes::RadonError(radon_error) = self {
-            if let RadError::UnhandledIntercept { inner, message: _ } = radon_error.inner() {
-                let inner = inner.clone();
-                let new_radon_error = RadonError::new(RadError::UnhandledInterceptV2 { inner });
-                *radon_error = new_radon_error;
-            }
+        if let RadonTypes::RadonError(radon_error) = self
+            && let RadError::UnhandledIntercept { inner, message: _ } = radon_error.inner()
+        {
+            let inner = inner.clone();
+            let new_radon_error = RadonError::new(RadError::UnhandledInterceptV2 { inner });
+            *radon_error = new_radon_error;
         }
     }
 }
@@ -524,12 +524,11 @@ pub fn serial_iter_decode<T>(
         |(slice, inner)| match panic::catch_unwind(|| RadonTypes::try_from(slice)) {
             Ok(Ok(radon_types)) => {
                 // Handle future errors that should not appear yet
-                if let RadonTypes::RadonError(radon_error) = &radon_types {
-                    if let RadError::EncodeReveal = radon_error.inner() {
-                        if !active_wips.wip0026() {
-                            return err_action(RadError::EncodeReveal, slice, inner);
-                        }
-                    }
+                if let RadonTypes::RadonError(radon_error) = &radon_types
+                    && let RadError::EncodeReveal = radon_error.inner()
+                    && !active_wips.wip0026()
+                {
+                    return err_action(RadError::EncodeReveal, slice, inner);
                 }
 
                 Some(RadonReport::from_result(

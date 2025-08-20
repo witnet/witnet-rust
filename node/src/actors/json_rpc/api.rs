@@ -15,7 +15,6 @@ use actix::MailboxError;
 #[cfg(not(test))]
 use actix::SystemService;
 use futures::FutureExt;
-use futures_util::StreamExt;
 use itertools::Itertools;
 use jsonrpc_core::{BoxFuture, Error, Params, Value};
 use jsonrpc_pubsub::{Subscriber, SubscriptionId};
@@ -52,7 +51,7 @@ use witnet_data_structures::{
     chain::{
         Block, DataRequestInfo, DataRequestOutput, DataRequestStage, Epoch, EpochConstants, Hash,
         Hashable, KeyedSignature, PublicKeyHash, RADType, StakeOutput, StateMachine, SyncStatus,
-        ValueTransferOutput, tapi::ActiveWips,
+        tapi::ActiveWips,
     },
     get_environment, get_protocol_version,
     proto::{

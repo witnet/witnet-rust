@@ -801,7 +801,9 @@ where
                     &st.body.inputs,
                     &st.body.change.clone().into_iter().collect::<Vec<_>>(),
                 ),
-                Transaction::Unstake(ref unstake) => (&[], &[unstake.body.withdrawal.clone()]),
+                Transaction::Unstake(ref unstake) => {
+                    (&[], std::slice::from_ref(&unstake.body.withdrawal))
+                }
                 _ => continue,
             };
 
@@ -1685,12 +1687,10 @@ where
                         }
                     } else if let Some(address) =
                         state.transient_internal_addresses.get(&output.pkh)
+                        && address.keychain == constants::INTERNAL_KEYCHAIN
+                        && address.index >= state.next_internal_index
                     {
-                        if address.keychain == constants::INTERNAL_KEYCHAIN
-                            && address.index >= state.next_internal_index
-                        {
-                            acc.1 = address.index + 1;
-                        }
+                        acc.1 = address.index + 1;
                     }
 
                     acc

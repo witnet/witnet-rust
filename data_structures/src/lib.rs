@@ -7,8 +7,6 @@
 #![deny(unused_mut)]
 // FIXME: add the missing documentation and enable this lint
 //#![deny(missing_docs)]
-// FIXME: allow only for protobuf generated code
-#![allow(elided_lifetimes_in_paths)]
 
 #[macro_use]
 extern crate protobuf_convert;

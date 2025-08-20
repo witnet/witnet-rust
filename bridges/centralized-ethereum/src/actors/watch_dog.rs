@@ -136,11 +136,11 @@ impl WatchDog {
         if self.start_eth_balance.is_none() && eth_balance.is_some() {
             self.start_eth_balance = eth_balance;
         }
-        if let Some(wit_balance) = wit_balance {
-            if wit_balance > self.start_wit_balance.unwrap_or_default() {
-                self.start_wit_balance = Some(wit_balance);
-                log::warn!("Wit account refunded to {wit_balance} $WIT");
-            }
+        if let Some(wit_balance) = wit_balance
+            && wit_balance > self.start_wit_balance.unwrap_or_default()
+        {
+            self.start_wit_balance = Some(wit_balance);
+            log::warn!("Wit account refunded to {wit_balance} $WIT");
         }
         if self.drs_history.is_none() && drs_history.is_some() {
             self.drs_history = drs_history;
@@ -252,8 +252,7 @@ impl WatchDog {
             };
 
             metrics.push_str(&format!("\"evmAccount\": \"{eth_account}\", "));
-            if eth_balance.is_some() {
-                let eth_balance = eth_balance.unwrap();
+            if let Some(eth_balance) = eth_balance {
                 metrics.push_str(&format!("\"evmBalance\": {eth_balance:.5}, "));
                 metrics.push_str(&format!("\"evmContract\": \"{eth_contract_address}\", "));
                 if let Some(eth_contract_class) = eth_contract_class {
@@ -296,8 +295,7 @@ impl WatchDog {
                 if wit_account.is_some() {
                     metrics.push_str(&format!("\"witAccount\": {:?}, ", wit_account.unwrap()));
                 }
-                if wit_balance.is_some() {
-                    let wit_balance = wit_balance.unwrap();
+                if let Some(wit_balance) = wit_balance {
                     metrics.push_str(&format!("\"witBalance\": {wit_balance:.5}, "));
                     if let Some(start_wit_balance) = start_wit_balance {
                         let wit_hourly_expenditure = ((start_wit_balance - wit_balance)
@@ -490,10 +488,10 @@ async fn fetch_wit_info(
                     if let Some(utxos) = utxo_info["utxos"].as_array() {
                         let mut counter: u64 = u64::default();
                         for utxo in utxos {
-                            if let Some(value) = utxo["value"].as_u64() {
-                                if value >= wit_utxos_min_threshold {
-                                    counter += 1;
-                                }
+                            if let Some(value) = utxo["value"].as_u64()
+                                && value >= wit_utxos_min_threshold
+                            {
+                                counter += 1;
                             }
                         }
 

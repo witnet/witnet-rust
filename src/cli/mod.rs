@@ -39,11 +39,11 @@ pub fn exec(
     log_opts.timestamp = !no_timestamp;
     log_opts.module_path = !no_module_path;
 
-    if let Ok(rust_log) = env::var("RUST_LOG") {
-        if rust_log.contains("witnet") {
-            log_opts.level = env_logger::Logger::from_default_env().filter();
-            log_opts.source = LogOptionsSource::Env;
-        }
+    if let Ok(rust_log) = env::var("RUST_LOG")
+        && rust_log.contains("witnet")
+    {
+        log_opts.level = env_logger::Logger::from_default_env().filter();
+        log_opts.source = LogOptionsSource::Env;
     }
 
     if trace {

@@ -261,12 +261,11 @@ impl Handler<DrReporterMsg> for DrReporter {
                                 for log in receipt.logs {
                                     if let Some((dismissed_dr_id, reason)) =
                                         parse_batch_report_error_log(wrb_contract.abi(), log)
+                                        && dismissed_dr_reports.insert(dismissed_dr_id)
                                     {
-                                        if dismissed_dr_reports.insert(dismissed_dr_id) {
-                                            log::warn!(
-                                                "[{dismissed_dr_id}] >< dismissed due to \"{reason}\" ..."
-                                            );
-                                        }
+                                        log::warn!(
+                                            "[{dismissed_dr_id}] >< dismissed due to \"{reason}\" ..."
+                                        );
                                     }
                                 }
                                 let dr_database_addr = DrDatabase::from_registry();

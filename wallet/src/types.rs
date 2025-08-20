@@ -7,15 +7,12 @@ use std::{
 
 use serde::{Deserialize, Deserializer, Serialize};
 use thiserror::Error;
-use witnet_crypto::{
-    key::{ExtendedSK, SK},
-    mnemonic,
-};
+use witnet_crypto::{key::ExtendedSK, mnemonic};
 pub use witnet_data_structures::chain::Epoch;
 use witnet_data_structures::{
     chain::{
-        CheckpointBeacon, DataRequestOutput, Hash, Input, KeyedSignature, PublicKey, PublicKeyHash,
-        RADRequest, Signature, StateMachine, SuperBlock, ValueTransferOutput,
+        CheckpointBeacon, DataRequestOutput, Hash, Input, KeyedSignature, PublicKeyHash,
+        RADRequest, StateMachine, SuperBlock, ValueTransferOutput,
     },
     fee::Fee,
     serialization_helpers::number_from_string,
@@ -157,17 +154,6 @@ pub struct DataReqParams {
     pub preview: bool,
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct TransactionComponents {
-    pub value: u64,
-    pub change: u64,
-    pub balance: model::BalanceInfo,
-    pub inputs: Vec<Input>,
-    pub outputs: Vec<ValueTransferOutput>,
-    pub sign_keys: Vec<SK>,
-    pub used_utxos: Vec<model::OutPtr>,
-}
-
 /// Builds a `ValueTransferTransaction` from a list of `ValueTransferOutput`s
 #[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub struct BuildVtt {
@@ -189,13 +175,6 @@ pub struct GetBlockChainParams {
     /// If zero, unlimited.
     #[serde(default)] // default to 0
     pub limit: i64,
-}
-
-#[derive(Debug, Serialize)]
-pub struct ExtendedKeyedSignature {
-    pub chaincode: Protected,
-    pub public_key: PublicKey,
-    pub signature: Signature,
 }
 
 #[derive(Clone, Debug, Deserialize)]

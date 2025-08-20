@@ -150,30 +150,29 @@ impl TapiEngine {
             }
         }
         for n in 0..self.bit_tapi_counter.len() {
-            if let Some(bit_counter) = self.bit_tapi_counter.get_mut(n, &epoch_to_update) {
-                if !self.wip_activation.contains_key(&bit_counter.wip)
-                    && !avoid_wip_list.contains(&bit_counter.wip)
-                {
-                    if is_bit_n_activated(v, n) {
-                        bit_counter.votes += 1;
+            if let Some(bit_counter) = self.bit_tapi_counter.get_mut(n, &epoch_to_update)
+                && !self.wip_activation.contains_key(&bit_counter.wip)
+                && !avoid_wip_list.contains(&bit_counter.wip)
+            {
+                if is_bit_n_activated(v, n) {
+                    bit_counter.votes += 1;
+                }
+                log::debug!(
+                    "Counting signals for TAPI bit {}. Counted {}/{} signals ({}%)",
+                    n,
+                    bit_counter.votes,
+                    bit_counter.period,
+                    (bit_counter.votes * 100) / bit_counter.period
+                );
+                if (epoch_to_update - bit_counter.init) % bit_counter.period == 0 {
+                    if (bit_counter.votes * 100) / bit_counter.period >= 80 {
+                        // An offset of 21 is added to ensure that the activation of the WIP is
+                        // achieved with consolidated blocks
+                        let scheduled_epoch = block_epoch + 21;
+                        self.wip_activation
+                            .insert(bit_counter.wip.clone(), scheduled_epoch);
                     }
-                    log::debug!(
-                        "Counting signals for TAPI bit {}. Counted {}/{} signals ({}%)",
-                        n,
-                        bit_counter.votes,
-                        bit_counter.period,
-                        (bit_counter.votes * 100) / bit_counter.period
-                    );
-                    if (epoch_to_update - bit_counter.init) % bit_counter.period == 0 {
-                        if (bit_counter.votes * 100) / bit_counter.period >= 80 {
-                            // An offset of 21 is added to ensure that the activation of the WIP is
-                            // achieved with consolidated blocks
-                            let scheduled_epoch = block_epoch + 21;
-                            self.wip_activation
-                                .insert(bit_counter.wip.clone(), scheduled_epoch);
-                        }
-                        bit_counter.votes = 0;
-                    }
+                    bit_counter.votes = 0;
                 }
             }
         }
@@ -234,10 +233,10 @@ impl TapiEngine {
 
     pub fn in_voting_range(&self, epoch: Epoch, wip: &str) -> bool {
         for i in 0..self.bit_tapi_counter.len() {
-            if let Some(bit_info) = self.bit_tapi_counter.get(i, &epoch) {
-                if bit_info.wip == wip {
-                    return true;
-                }
+            if let Some(bit_info) = self.bit_tapi_counter.get(i, &epoch)
+                && bit_info.wip == wip
+            {
+                return true;
             }
         }
 

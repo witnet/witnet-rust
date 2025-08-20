@@ -201,10 +201,10 @@ pub trait OutputsCollection {
                 .checked_add(output.value)
                 .ok_or(TransactionError::OutputValueOverflow)?;
 
-            if let Some(usage_timeout) = self.get_usage_timeout(pointer) {
-                if usage_timeout > timestamp {
-                    continue;
-                }
+            if let Some(usage_timeout) = self.get_usage_timeout(pointer)
+                && usage_timeout > timestamp
+            {
+                continue;
             }
 
             if let Some(block_number_limit) = block_number_limit {
@@ -754,7 +754,7 @@ pub fn build_commit_collateral(
 /// it. If a Signature is invalid an error is returned too
 pub fn transaction_inputs_sum(
     inputs: &[Input],
-    utxo_diff: &UtxoDiff,
+    utxo_diff: &UtxoDiff<'_>,
     epoch: Epoch,
     epoch_constants: EpochConstants,
 ) -> Result<u64, anyhow::Error> {

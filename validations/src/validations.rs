@@ -212,12 +212,10 @@ pub fn validate_commit_collateral(
                 |(output_pointer, (vto, _))| {
                     if let Some(utxo_block_number) =
                         utxo_diff.included_in_block_number(output_pointer)
-                    {
-                        if utxo_block_number
+                        && utxo_block_number
                             < block_number.saturating_sub((2 * superblock_period).into())
-                        {
-                            balance += vto.value
-                        }
+                    {
+                        balance += vto.value
                     }
                 },
             );

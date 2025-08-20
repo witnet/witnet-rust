@@ -667,12 +667,11 @@ impl ChainManager {
                         .map(move |res|
                             res.map(move |result| match result {
                                     Ok(value) => {
-                                if let RadonTypes::RadonError(error) = &value.result {
-                                    if error.inner() == &RadError::InconsistentSource {
+                                if let RadonTypes::RadonError(error) = &value.result
+                                    && error.inner() == &RadError::InconsistentSource {
                                         log::warn!("Refraining not to commit to data request {dr_pointer} because the sources are apparently inconsistent");
                                         return Err(())
                                     }
-                                }
 
                                 Ok((vrf_proof, collateral, value))
                             },

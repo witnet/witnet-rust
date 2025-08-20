@@ -78,15 +78,16 @@ impl Handler<Create> for SessionsManager {
         // Refuse creating multiple inbound sessions for similar IP ranges
         // This is guarded once here and again when consolidating, just to mitigate a possible race
         // condition
-        if config.connections.reject_sybil_inbounds && msg.session_type == SessionType::Inbound {
-            if let Some(range) = self.sessions.is_similar_to_inbound_session(&remote_addr) {
-                log::trace!(
-                    "Refusing to accept {} as inbound peer because there is already an inbound session with another peer in IP range {}",
-                    remote_addr,
-                    ip_range_string(range, config.connections.reject_sybil_inbounds_range_limit)
-                );
-                return;
-            }
+        if config.connections.reject_sybil_inbounds
+            && msg.session_type == SessionType::Inbound
+            && let Some(range) = self.sessions.is_similar_to_inbound_session(&remote_addr)
+        {
+            log::trace!(
+                "Refusing to accept {} as inbound peer because there is already an inbound session with another peer in IP range {}",
+                remote_addr,
+                ip_range_string(range, config.connections.reject_sybil_inbounds_range_limit)
+            );
+            return;
         };
 
         // Clone the reference to config

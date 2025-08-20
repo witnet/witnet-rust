@@ -982,12 +982,11 @@ impl Worker {
                 log::trace!("getBlock request result: {json:?}");
                 // Set confirmed to true if the result contains {"confirmed": true}
                 let mut confirmed = false;
-                if let Some(obj) = json.as_object() {
-                    if let Some(c) = obj.get("confirmed") {
-                        if let Some(true) = c.as_bool() {
-                            confirmed = true;
-                        }
-                    }
+                if let Some(obj) = json.as_object()
+                    && let Some(c) = obj.get("confirmed")
+                    && let Some(true) = c.as_bool()
+                {
+                    confirmed = true;
                 }
                 serde_json::from_value::<Block>(json)
                     .map(|block| (block, confirmed))

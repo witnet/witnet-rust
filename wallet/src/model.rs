@@ -25,15 +25,6 @@ pub struct Wallet {
     pub name: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
-pub struct UnlockedWallet {
-    pub name: Option<String>,
-    pub description: Option<String>,
-    pub current_account: u32,
-    pub session_id: String,
-    pub available_accounts: Vec<u32>,
-}
-
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct Address {
     pub address: String,

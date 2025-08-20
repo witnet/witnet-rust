@@ -538,11 +538,11 @@ fn evaluate_paranoid_retrieval(
 
     // If the consensus of the data points is below the paranoid threshold of the node, we need
     // to resolve to the `InconsistentSource` error.
-    if let Stage::Tally(TallyMetaData { consensus, .. }) = context.stage {
-        if consensus < paranoid {
-            // Case 4
-            return Err(RadError::InconsistentSource);
-        }
+    if let Stage::Tally(TallyMetaData { consensus, .. }) = context.stage
+        && consensus < paranoid
+    {
+        // Case 4
+        return Err(RadError::InconsistentSource);
     }
 
     // If all the values pass the filters, return one of the reports, but swap the result for

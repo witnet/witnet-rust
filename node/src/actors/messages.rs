@@ -1224,11 +1224,11 @@ where
     M: Message<Result = Self>,
 {
     fn handle(self, _: &mut <RadManager as Actor>::Context, tx: Option<OneshotSender<M::Result>>) {
-        if let Some(tx) = tx {
-            if let Err(_self) = tx.send(self) {
-                // TODO: can this ever happen?
-                log::error!("Failed to send RadonReport through OneshotSender channel");
-            }
+        if let Some(tx) = tx
+            && let Err(_self) = tx.send(self)
+        {
+            // TODO: can this ever happen?
+            log::error!("Failed to send RadonReport through OneshotSender channel");
         }
     }
 }

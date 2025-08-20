@@ -303,7 +303,7 @@ struct UtxoSelectionStrategyVisitor;
 impl<'de> Visitor<'de> for UtxoSelectionStrategyVisitor {
     type Value = UtxoSelectionStrategy;
 
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(formatter, "a string or an object")
     }
 
@@ -486,7 +486,7 @@ struct RADRetrieveSerializationHelperVersionedVisitor;
 impl<'de> Visitor<'de> for RADRetrieveSerializationHelperVersionedVisitor {
     type Value = RADRetrieveSerializationHelperVersioned;
 
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(formatter, "struct RADRetrieveSerializationHelperVersioned")
     }
 

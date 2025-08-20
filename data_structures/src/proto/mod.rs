@@ -8,6 +8,9 @@ use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use protobuf::Message;
 use std::{convert::TryFrom, fmt::Debug};
 
+#[allow(elided_lifetimes_in_paths)]
+#[allow(mismatched_lifetime_syntaxes)]
+#[allow(renamed_and_removed_lints)]
 pub mod schema;
 pub mod versioning;
 

@@ -433,12 +433,11 @@ impl StreamHandler<Result<NotifySubscriptionId, Error>> for JsonRpcClient {
                 id: subscription_id,
                 value,
             }) => {
-                if let Ok(subscriptions) = (*self.active_subscriptions).lock() {
-                    if let Some(Subscribe(request, recipient)) = subscriptions.get(&subscription_id)
-                    {
-                        let topic = subscription_topic_from_request(request);
-                        recipient.do_send(NotifySubscriptionTopic { topic, value });
-                    }
+                if let Ok(subscriptions) = (*self.active_subscriptions).lock()
+                    && let Some(Subscribe(request, recipient)) = subscriptions.get(&subscription_id)
+                {
+                    let topic = subscription_topic_from_request(request);
+                    recipient.do_send(NotifySubscriptionTopic { topic, value });
                 }
             }
             Err(err) => {

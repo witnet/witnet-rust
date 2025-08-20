@@ -131,11 +131,11 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
             self.seen_candidates.clear();
         }
 
-        if let Some(last_checked_epoch) = last_checked_epoch {
-            if msg.checkpoint - last_checked_epoch != 1 {
-                log::warn!("Missed epoch notification {}.", last_checked_epoch + 1);
-                self.update_state_machine(StateMachine::WaitingConsensus, ctx);
-            }
+        if let Some(last_checked_epoch) = last_checked_epoch
+            && msg.checkpoint - last_checked_epoch != 1
+        {
+            log::warn!("Missed epoch notification {}.", last_checked_epoch + 1);
+            self.update_state_machine(StateMachine::WaitingConsensus, ctx);
         }
 
         self.peers_beacons_received = false;
