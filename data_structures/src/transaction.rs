@@ -214,6 +214,19 @@ impl Transaction {
             _ => 0,
         }
     }
+
+    /// Retrieves the signatures of the transaction
+    pub fn signatures(&self) -> Vec<KeyedSignature> {
+        match self {
+            Transaction::ValueTransfer(vt) => vt.signatures.clone(),
+            Transaction::DataRequest(dr) => dr.signatures.clone(),
+            Transaction::Commit(co) => co.signatures.clone(),
+            Transaction::Reveal(re) => re.signatures.clone(),
+            Transaction::Stake(st) => st.signatures.clone(),
+            Transaction::Unstake(un) => vec![un.signature.clone()],
+            _ => vec![],
+        }
+    }
 }
 
 pub fn mint(tx: &Transaction) -> Option<&MintTransaction> {

@@ -15,11 +15,14 @@ use actix::MailboxError;
 #[cfg(not(test))]
 use actix::SystemService;
 use futures::FutureExt;
+use futures_util::StreamExt;
 use itertools::Itertools;
 use jsonrpc_core::{BoxFuture, Error, Params, Value};
 use jsonrpc_pubsub::{Subscriber, SubscriptionId};
 use serde::{Deserialize, Serialize};
 
+#[cfg(test)]
+use self::mock_actix::SystemService;
 use crate::{
     actors::{
         chain_manager::{ChainManager, ChainManagerError, run_dr_locally},
@@ -49,7 +52,7 @@ use witnet_data_structures::{
     chain::{
         Block, DataRequestInfo, DataRequestOutput, DataRequestStage, Epoch, EpochConstants, Hash,
         Hashable, KeyedSignature, PublicKeyHash, RADType, StakeOutput, StateMachine, SyncStatus,
-        tapi::ActiveWips,
+        ValueTransferOutput, tapi::ActiveWips,
     },
     get_environment, get_protocol_version,
     proto::{
@@ -61,9 +64,6 @@ use witnet_data_structures::{
     transaction::{Transaction, VTTransaction},
     vrf::VrfMessage,
 };
-
-#[cfg(test)]
-use self::mock_actix::SystemService;
 
 type JsonRpcResult = jsonrpc_core::Result<jsonrpc_core::Value>;
 
@@ -1569,7 +1569,7 @@ pub async fn get_supply_info_2() -> JsonRpcResult {
 /// Optional having-filter when getting utxo info for specified address
 #[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GetUtxoInfoHavingFilter {
+pub struct UtxoFilter {
     /// Minimum value
     #[serde(deserialize_with = "number_from_string")]
     pub min_value: u64,
@@ -1580,13 +1580,10 @@ pub struct GetUtxoInfoHavingFilter {
 
 /// Get utxos
 pub async fn get_utxo_info(
-    params: Result<(PublicKeyHash, Option<GetUtxoInfoHavingFilter>), Error>,
+    params: Result<(PublicKeyHash, Option<UtxoFilter>), Error>,
 ) -> JsonRpcResult {
     let chain_manager_addr = ChainManager::from_registry();
-    let (pkh, filter) = match params {
-        Ok(x) => (x.0, x.1),
-        Err(e) => return Err(e),
-    };
+    let (pkh, filter) = params?;
 
     let mut utxos_info = chain_manager_addr
         .send(GetUtxoInfo { pkh })
@@ -1594,7 +1591,8 @@ pub async fn get_utxo_info(
         .map_err(internal_error)?
         .map_err(internal_error)?;
 
-    if let Some(GetUtxoInfoHavingFilter {
+    // If a value filter is applied, get rid of utxos smaller than the required value
+    if let Some(UtxoFilter {
         min_value,
         from_signer: _,
     }) = filter
@@ -1602,52 +1600,45 @@ pub async fn get_utxo_info(
         utxos_info.utxos.retain(|utxo| utxo.value >= min_value);
     }
 
-    if let Some(GetUtxoInfoHavingFilter {
+    // If a signer filter is applied, get rid of utxos not created by the specified signer address
+    if let Some(UtxoFilter {
         min_value: _,
         from_signer: Some(from_signer),
     }) = filter
     {
         let inventory_manager = InventoryManager::from_registry();
-        let hashes: HashSet<Hash> = utxos_info.utxos.iter().map(|utxo| utxo.output_pointer.transaction_id).collect();
-        let futures: Vec<_> = hashes
-            .into_iter()
-            .map(|hash| inventory_manager.send(GetItemTransaction { hash }))
-            .collect();
-
-        let results = futures::future::join_all(futures).await;
-        let transactions = results
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(internal_error)?;
-
-        let hashes: HashSet<Hash> = transactions
-            .iter()
-            .filter_map(|res| {
-                if let Ok((Transaction::ValueTransfer(vtt), _, _)) = res {
-                    if vtt
-                        .signatures
-                        .iter()
-                        .any(|signature| signature.public_key.pkh().eq(&from_signer))
-                    {
-                        return Some(vtt.hash());
-                    }
-                }
-                None
+        let futures = utxos_info.utxos.iter().map(|utxo| {
+            inventory_manager.send(GetItemTransaction {
+                hash: utxo.output_pointer.transaction_id,
             })
-            .collect();
-        
+        });
+        // The strategy here is to first create a set containing only the hashes of the transactions
+        // that were signed by the specified signer address
+        let filtered_hashes = futures::future::join_all(futures)
+            .await
+            .into_iter()
+            .flatten()
+            .flatten()
+            .filter_map(|(transaction, _, _)| {
+                if transaction
+                    .signatures()
+                    .iter()
+                    .any(|signature| signature.public_key.pkh().eq(&from_signer))
+                {
+                    Some(transaction.hash())
+                } else {
+                    None
+                }
+            })
+            .collect::<HashSet<Hash>>();
+
+        // And then we get rid of the utxos that don't point to any of those transactions
         utxos_info
             .utxos
-            .retain(|utxo| hashes.contains(&utxo.output_pointer.transaction_id));
+            .retain(|utxo| filtered_hashes.contains(&utxo.output_pointer.transaction_id));
     }
 
-    match serde_json::to_value(utxos_info) {
-        Ok(x) => Ok(x),
-        Err(e) => {
-            let err = internal_error_s(e);
-            Err(err)
-        }
-    }
+    serde_json::to_value(utxos_info).map_err(internal_error_s)
 }
 
 /// Get Reputation of one pkh
