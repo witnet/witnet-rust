@@ -1389,9 +1389,9 @@ checksum = "00b0228411908ca8685dba7fc2cdd70ec9990a6e753e89b6ac91a84c40fbaf4b"
 
 [[package]]
 name = "form_urlencoded"
-version = "1.2.1"
+version = "1.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e13624c2627564efccf4934284bdd98cbaa14e79b0b5a141218e507b3a823456"
+checksum = "cb4cb245038516f5f85277875cdaa4f7d2c9a0fa0468de06ed190163b1581fcf"
 dependencies = [
  "percent-encoding",
 ]
@@ -2092,9 +2092,9 @@ dependencies = [
 
 [[package]]
 name = "idna"
-version = "1.0.3"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "686f825264d630750a544639377bae737628043f20d38bbc029e8f29ea968a7e"
+checksum = "3b0875f23caa03898994f6ddc501886a45c7d3d62d04d2d90788d47be1b1e4de"
 dependencies = [
  "idna_adapter",
  "smallvec 1.15.1",
@@ -3432,9 +3432,9 @@ dependencies = [
 
 [[package]]
 name = "percent-encoding"
-version = "2.3.1"
+version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e3148f5046208a5d56bcfc03053e3ca6334e51da8dfb19b6cdc8b306fae3283e"
+checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 
 [[package]]
 name = "pin-project"
@@ -5693,12 +5693,12 @@ dependencies = [
 
 [[package]]
 name = "url"
-version = "2.5.4"
+version = "2.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32f8b686cadd1473f4bd0117a5d28d36b1ade384ea9b5069a1c40aefed7fda60"
+checksum = "ec961601b32b6f5d14ae8dabd35ff2ff2e2c6cb4c0e6641845ff105abe96d958"
 dependencies = [
  "form_urlencoded",
- "idna 1.0.3",
+ "idna 1.1.0",
  "percent-encoding",
  "serde",
 ]
@@ -6414,7 +6414,7 @@ dependencies = [
 
 [[package]]
 name = "witnet"
-version = "2.0.20"
+version = "2.0.21"
 dependencies = [
  "ansi_term",
  "anyhow",
@@ -6477,7 +6477,7 @@ dependencies = [
 
 [[package]]
 name = "witnet-centralized-ethereum-bridge"
-version = "2.0.20"
+version = "2.0.21"
 dependencies = [
  "actix",
  "async-jsonrpc-client",
@@ -6505,7 +6505,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_config"
-version = "2.0.20"
+version = "2.0.21"
 dependencies = [
  "directories-next",
  "log 0.4.27",
@@ -6543,7 +6543,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_data_structures"
-version = "2.0.20"
+version = "2.0.21"
 dependencies = [
  "anyhow",
  "bech32 0.11.0",
@@ -6611,7 +6611,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_node"
-version = "2.0.20"
+version = "2.0.21"
 dependencies = [
  "actix",
  "ansi_term",
@@ -6728,7 +6728,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_toolkit"
-version = "2.0.20"
+version = "2.0.21"
 dependencies = [
  "anyhow",
  "hex",
@@ -6776,7 +6776,7 @@ dependencies = [
 
 [[package]]
 name = "witnet_wallet"
-version = "2.0.20"
+version = "2.0.21"
 dependencies = [
  "actix",
  "anyhow",
