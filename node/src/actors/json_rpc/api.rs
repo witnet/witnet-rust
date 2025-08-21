@@ -1,24 +1,23 @@
+use actix::MailboxError;
+#[cfg(not(test))]
+use actix::SystemService;
+use futures::FutureExt;
+use itertools::Itertools;
+use jsonrpc_core::{BoxFuture, Error, Params, Value};
+use jsonrpc_pubsub::{Subscriber, SubscriptionId};
+use serde::{Deserialize, Serialize};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{hash_map::Entry, HashMap, HashSet},
     convert::TryFrom,
     fmt::Debug,
     net::SocketAddr,
     path::PathBuf,
     str::FromStr,
     sync::{
-        Arc,
         atomic::{AtomicUsize, Ordering},
+        Arc,
     },
 };
-
-#[cfg(not(test))]
-use actix::SystemService;
-use actix::MailboxError;
-use futures::FutureExt;
-use itertools::Itertools;
-use jsonrpc_core::{BoxFuture, Error, Params, Value};
-use jsonrpc_pubsub::{Subscriber, SubscriptionId};
-use serde::{Deserialize, Serialize};
 
 #[cfg(test)]
 use self::mock_actix::SystemService;
@@ -49,14 +48,14 @@ use crate::{
 use witnet_crypto::{hash::calculate_sha256, key::KeyPath};
 use witnet_data_structures::{
     chain::{
-        Block, DataRequestInfo, DataRequestOutput, DataRequestStage, Epoch, EpochConstants, Hash,
-        Hashable, KeyedSignature, PublicKeyHash, RADType, StakeOutput, StateMachine,
-        SyncStatus, ValueTransferOutput, tapi::ActiveWips,
+        tapi::ActiveWips, Block, DataRequestInfo, DataRequestOutput, DataRequestStage, Epoch, EpochConstants,
+        Hash, Hashable, KeyedSignature, PublicKeyHash, RADType, StakeOutput, StateMachine,
+        SyncStatus, ValueTransferOutput,
     },
     get_environment, get_protocol_version,
     proto::{
-        ProtobufConvert,
         versioning::{ProtocolVersion, VersionedHashable},
+        ProtobufConvert,
     },
     serialization_helpers::number_from_string,
     staking::prelude::*,
@@ -2648,30 +2647,40 @@ pub async fn get_value_transfer(params: Result<GetValueTransferParams, Error>) -
                 let mut input_value = 0u64;
                 let mut input_transactions: HashMap<Hash, Transaction> = HashMap::new();
                 // Fetch each different input transaction just once, even when referred multiples times
-                for input in vtt.body.inputs.clone() {
+                for input in &vtt.body.inputs {
                     let hash = input.output_pointer().transaction_id;
-                    if let std::collections::hash_map::Entry::Vacant(e) = input_transactions.entry(hash) {
-                        let transaction = get_transaction(Ok((hash,))).await?;
-                        let transaction =
-                            serde_json::from_value::<GetTransactionOutput>(transaction)
-                                .map_err(internal_error)?
-                                .transaction;
-                        e.insert(transaction.clone());
-                    }
+
+                    // Sum up the value of every single input
+                    input_value += match input_transactions.entry(hash) {
+                        Entry::Occupied(entry) => {
+                            let transaction = entry.get();
+
+                            get_transaction_output_value(
+                                transaction,
+                                input.output_pointer().output_index as usize,
+                            )
+                        }
+                        Entry::Vacant(entry) => {
+                            let transaction = get_transaction(Ok((hash,))).await?;
+                            let transaction =
+                                serde_json::from_value::<GetTransactionOutput>(transaction)
+                                    .map_err(internal_error)?
+                                    .transaction;
+                            let transaction_value = get_transaction_output_value(
+                                &transaction,
+                                input.output_pointer().output_index as usize,
+                            );
+
+                            entry.insert(transaction);
+
+                            transaction_value
+                        }
+                    };
                 }
-                // Sum up the value of every single input
-                for input in vtt.body.inputs.clone() {
-                    let hash = input.output_pointer().transaction_id;
-                    if let Some(transaction) = input_transactions.get(&hash) {
-                        input_value += get_transaction_output_value(
-                            transaction,
-                            input.output_pointer().output_index as usize,
-                        );
-                    }
-                }
+                let fee = input_value.saturating_sub(vtt.body.value());
 
                 GetValueTransfersOutput::Simple(GetValueTransferSimpleOutput {
-                    fee: input_value.saturating_sub(vtt.body.value()),
+                    fee,
                     metadata,
                     recipient,
                     sender,
