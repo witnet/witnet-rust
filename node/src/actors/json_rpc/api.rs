@@ -11,20 +11,20 @@ use std::{
     },
 };
 
-use actix::MailboxError;
 #[cfg(not(test))]
 use actix::SystemService;
+use actix::MailboxError;
 use futures::FutureExt;
 use itertools::Itertools;
 use jsonrpc_core::{BoxFuture, Error, Params, Value};
 use jsonrpc_pubsub::{Subscriber, SubscriptionId};
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 
 #[cfg(test)]
 use self::mock_actix::SystemService;
 use crate::{
     actors::{
-        chain_manager::{ChainManager, ChainManagerError, run_dr_locally},
+        chain_manager::{run_dr_locally, ChainManager, ChainManagerError},
         epoch_manager::{EpochManager, EpochManagerError},
         inventory_manager::{InventoryManager, InventoryManagerError},
         json_rpc::Subscriptions,
@@ -50,8 +50,8 @@ use witnet_crypto::{hash::calculate_sha256, key::KeyPath};
 use witnet_data_structures::{
     chain::{
         Block, DataRequestInfo, DataRequestOutput, DataRequestStage, Epoch, EpochConstants, Hash,
-        Hashable, KeyedSignature, PublicKeyHash, RADType, StakeOutput, StateMachine, SyncStatus,
-        tapi::ActiveWips,
+        Hashable, KeyedSignature, PublicKeyHash, RADType, StakeOutput, StateMachine,
+        SyncStatus, ValueTransferOutput, tapi::ActiveWips,
     },
     get_environment, get_protocol_version,
     proto::{
@@ -2520,6 +2520,7 @@ pub struct GetValueTransferFullOutput {
 /// This is used with the `simple` mode.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct GetValueTransferSimpleOutput {
+    fee: u64,
     metadata: Vec<String>,
     recipient: String,
     sender: String,
@@ -2643,7 +2644,34 @@ pub async fn get_value_transfer(params: Result<GetValueTransferParams, Error>) -
                     value,
                 })
             } else {
+                // Simple mode requires fetching input transactions as to compute the fee
+                let mut input_value = 0u64;
+                let mut input_transactions: HashMap<Hash, Transaction> = HashMap::new();
+                // Fetch each different input transaction just once, even when referred multiples times
+                for input in vtt.body.inputs.clone() {
+                    let hash = input.output_pointer().transaction_id;
+                    if let std::collections::hash_map::Entry::Vacant(e) = input_transactions.entry(hash) {
+                        let transaction = get_transaction(Ok((hash,))).await?;
+                        let transaction =
+                            serde_json::from_value::<GetTransactionOutput>(transaction)
+                                .map_err(internal_error)?
+                                .transaction;
+                        e.insert(transaction.clone());
+                    }
+                }
+                // Sum up the value of every single input
+                for input in vtt.body.inputs.clone() {
+                    let hash = input.output_pointer().transaction_id;
+                    if let Some(transaction) = input_transactions.get(&hash) {
+                        input_value += get_transaction_output_value(
+                            transaction,
+                            input.output_pointer().output_index as usize,
+                        );
+                    }
+                }
+
                 GetValueTransfersOutput::Simple(GetValueTransferSimpleOutput {
+                    fee: input_value.saturating_sub(vtt.body.value()),
                     metadata,
                     recipient,
                     sender,
@@ -2657,6 +2685,36 @@ pub async fn get_value_transfer(params: Result<GetValueTransferParams, Error>) -
         serde_json::to_value(output).map_err(internal_error)
     } else {
         Err(internal_error_s("wrong transaction type"))
+    }
+}
+
+fn get_transaction_output_value(transaction: &Transaction, output_index: usize) -> u64 {
+    match transaction {
+        // Value transfers, data requests, stake and unstake transactions provide their own methods
+        // for calculating their value
+        Transaction::ValueTransfer(vt) => vt
+            .body
+            .outputs
+            .get(output_index)
+            .map(ValueTransferOutput::value)
+            .unwrap_or_default(),
+        Transaction::DataRequest(dr) => dr
+            .body
+            .outputs
+            .get(output_index)
+            .map(ValueTransferOutput::value)
+            .unwrap_or_default(),
+        Transaction::Unstake(un) => un.body.value(),
+        Transaction::Stake(st) => {
+            if st.body.change.is_some() {
+                st.body.change.clone().unwrap().value
+            } else {
+                0u64
+            }
+        }
+
+        // Commits, reveals, tallies and mints don't have inputs nor outputs anymore
+        _ => 0u64,
     }
 }
 
