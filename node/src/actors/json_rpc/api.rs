@@ -7,15 +7,15 @@ use jsonrpc_core::{BoxFuture, Error, Params, Value};
 use jsonrpc_pubsub::{Subscriber, SubscriptionId};
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{hash_map::Entry, HashMap, HashSet},
+    collections::{HashMap, HashSet, hash_map::Entry},
     convert::TryFrom,
     fmt::Debug,
     net::SocketAddr,
     path::PathBuf,
     str::FromStr,
     sync::{
-        atomic::{AtomicUsize, Ordering},
         Arc,
+        atomic::{AtomicUsize, Ordering},
     },
 };
 
@@ -23,7 +23,7 @@ use std::{
 use self::mock_actix::SystemService;
 use crate::{
     actors::{
-        chain_manager::{run_dr_locally, ChainManager, ChainManagerError},
+        chain_manager::{ChainManager, ChainManagerError, run_dr_locally},
         epoch_manager::{EpochManager, EpochManagerError},
         inventory_manager::{InventoryManager, InventoryManagerError},
         json_rpc::Subscriptions,
@@ -48,14 +48,14 @@ use crate::{
 use witnet_crypto::{hash::calculate_sha256, key::KeyPath};
 use witnet_data_structures::{
     chain::{
-        tapi::ActiveWips, Block, DataRequestInfo, DataRequestOutput, DataRequestStage, Epoch, EpochConstants,
-        Hash, Hashable, KeyedSignature, PublicKeyHash, RADType, StakeOutput, StateMachine,
-        SyncStatus, ValueTransferOutput,
+        Block, DataRequestInfo, DataRequestOutput, DataRequestStage, Epoch, EpochConstants, Hash,
+        Hashable, KeyedSignature, PublicKeyHash, RADType, StakeOutput, StateMachine, SyncStatus,
+        ValueTransferOutput, tapi::ActiveWips,
     },
     get_environment, get_protocol_version,
     proto::{
-        versioning::{ProtocolVersion, VersionedHashable},
         ProtobufConvert,
+        versioning::{ProtocolVersion, VersionedHashable},
     },
     serialization_helpers::number_from_string,
     staking::prelude::*,
@@ -1579,18 +1579,15 @@ pub struct UtxoFilter {
 /// Get utxos
 pub async fn get_utxo_info(params: Result<Params, Error>) -> JsonRpcResult {
     if let Params::Array(values) = params? {
-        let mut values_iter = values.into_iter();
         // Try to read a first param that must be a String representing a bech32 address
-        let pkh = values_iter.next().ok_or(Error::invalid_params(
+        let pkh = values.first().ok_or(Error::invalid_params(
             "First argument must refer to a valid Bech32 address",
         ))?;
-        let pkh: PublicKeyHash = Deserialize::deserialize(pkh).map_err(internal_error)?;
-        let filter: Option<UtxoFilter> = if values_iter.len() > 0 {
-            let filter = values_iter.next().ok_or(Error::invalid_params(
-                "Cannot read the optional filter expected as second argument",
-            ))?;
+        let pkh = PublicKeyHash::deserialize(pkh).map_err(internal_error)?;
 
-            Deserialize::deserialize(filter).ok()
+        // Try to read a second param. If present, we try to deserialize it as a UtxoFilter
+        let filter = if let Some(value) = values.get(1) {
+            Some(UtxoFilter::deserialize(value).map_err(internal_error)?)
         } else {
             None
         };
