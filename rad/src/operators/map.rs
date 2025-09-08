@@ -1,4 +1,4 @@
-use std::convert::TryInto;
+use std::{collections::BTreeMap, convert::TryInto};
 
 use serde_cbor::value::{Value, from_value};
 use witnet_data_structures::radon_report::ReportContext;
@@ -145,6 +145,47 @@ pub fn keys(input: &RadonMap) -> RadonArray {
         .map(|key| RadonTypes::from(RadonString::from(key.to_string())))
         .collect();
     RadonArray::from(v)
+}
+
+pub fn pick(input: &RadonMap, args: &[Value]) -> Result<RadonMap, RadError> {
+    let not_found = |key_str: &str| RadError::MapKeyNotFound { 
+        key: String::from(key_str) 
+    };
+
+    let wrong_args = || RadError::WrongArguments {
+        input_type: RadonMap::radon_type_name(),
+        operator: "Pick".to_string(),
+        args: args.to_vec(),
+    };
+
+    let mut input_keys = vec![];
+    if args.len() > 1 {
+        return Err(wrong_args());
+    } else {
+        let first_arg = args.first().ok_or_else(wrong_args)?;
+        match first_arg {
+            Value::Array(keys) => {
+                for key in keys.iter() {
+                    let key_string = from_value::<String>(key.to_owned()).map_err(|_| wrong_args())?;
+                    input_keys.push(key_string);
+                }
+            }
+            Value::Text(key) => {
+                input_keys.push(key.clone());
+            }
+            _ => return Err(wrong_args())
+        };
+    }
+
+    let mut output_map = BTreeMap::<String, RadonTypes>::default();
+    for key in input_keys {
+        if let Some(value) = input.value().get(&key) {
+            output_map.insert(key, value.clone());
+        } else {
+            return Err(not_found(key.as_str()))
+        }
+    }
+    Ok(RadonMap::from(output_map))
 }
 
 pub fn values(input: &RadonMap) -> RadonArray {

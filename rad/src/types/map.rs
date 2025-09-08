@@ -163,6 +163,7 @@ impl Operable for RadonMap {
             (RadonOpCodes::MapKeys, None) => Ok(RadonTypes::from(map_operators::keys(self))),
             (RadonOpCodes::MapValues, None) => Ok(RadonTypes::from(map_operators::values(self))),
             (RadonOpCodes::MapAlter, Some(args)) => map_operators::alter(self, args, context).map(RadonTypes::from),
+            (RadonOpCodes::MapPick, Some(args)) => map_operators::pick(self, args).map(RadonTypes::from),
 
             (op_code, args) => Err(RadError::UnsupportedOperator {
                 input_type: RADON_MAP_TYPE_NAME.to_string(),
