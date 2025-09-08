@@ -121,8 +121,7 @@ impl Operable for RadonString {
                 string_operators::as_bool(self).map(RadonTypes::from)
             }
             (RadonOpCodes::StringAsBytes, args) => string_operators::as_bytes(self, args)
-                .map(RadonTypes::from)
-                .map_err(Into::into),
+                .map(RadonTypes::from),
             (RadonOpCodes::StringLength, None) => {
                 Ok(RadonTypes::from(string_operators::length(self)))
             }
@@ -140,19 +139,13 @@ impl Operable for RadonString {
             }
             (RadonOpCodes::StringReplace, Some(args)) => {
                 string_operators::string_replace(self, args.as_slice())
-                    .map(RadonTypes::from)
-                    .map_err(Into::into)
-            }
+                    .map(RadonTypes::from)}
             (RadonOpCodes::StringSlice, Some(args)) => {
                 string_operators::string_slice(self, args.as_slice())
-                    .map(RadonTypes::from)
-                    .map_err(Into::into)
-            }
+                    .map(RadonTypes::from)}
             (RadonOpCodes::StringSplit, Some(args)) => {
                 string_operators::string_split(self, args.as_slice())
-                    .map(RadonTypes::from)
-                    .map_err(Into::into)
-            }
+                    .map(RadonTypes::from)}
             (RadonOpCodes::StringToLowerCase, None) => {
                 Ok(RadonTypes::from(string_operators::to_lowercase(self)))
             }
