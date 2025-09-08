@@ -5,6 +5,7 @@ use std::{
 };
 
 use base64::Engine;
+use jsonpath::Selector;
 use regex::Regex;
 use serde_cbor::value::{Value, from_value};
 use serde_json::Value as JsonValue;
@@ -141,9 +142,38 @@ pub fn parse_json(input: &RadonString) -> Result<RadonTypes, RadError> {
     RadonTypes::try_from(json_value)
 }
 
-pub fn parse_json_map(input: &RadonString) -> Result<RadonMap, RadError> {
-    let item = parse_json(input)?;
-    item.try_into()
+pub fn parse_json_map(input: &RadonString, args: &Option<Vec<Value>>) -> Result<RadonMap, RadError> {
+    let not_found = |json_path: &str| RadError::JsonPathNotFound { 
+        path: String::from(json_path) 
+    };
+
+    let wrong_args = || RadError::WrongArguments { 
+        input_type: RadonString::radon_type_name(),
+        operator: "ParseJsonMap".to_string(),
+        args: args.to_owned().unwrap_or_default(),
+    };
+
+    let json_input: JsonValue = serde_json::from_str(&input.value())
+        .map_err(|err| RadError::JsonParse {
+                description: err.to_string(),
+    })?;
+
+    match args.to_owned().unwrap_or_default().first() {
+        Some(Value::Text(json_path)) => {
+            let selector = Selector::new(json_path.as_str())
+                .map_err(|err| RadError::JsonPathParse {
+                    description: err.to_string(),
+                })?;
+            let item = selector.find(&json_input)
+                .next()
+                .ok_or_else(|| not_found(json_path.as_str()))?;
+            RadonTypes::try_from(item.to_owned())?.try_into()
+        },
+        None => {
+            RadonTypes::try_from(json_input)?.try_into()
+        },
+        _ => Err(wrong_args())
+    }
 }
 
 pub fn parse_json_array(input: &RadonString) -> Result<RadonArray, RadError> {
@@ -475,7 +505,7 @@ mod tests {
     #[test]
     fn test_parse_json_map() {
         let json_map = RadonString::from(r#"{ "Hello": "world" }"#);
-        let output = parse_json_map(&json_map).unwrap();
+        let output = parse_json_map(&json_map, &None).unwrap();
 
         let key = "Hello";
         let value = RadonTypes::String(RadonString::from("world"));
@@ -635,7 +665,7 @@ mod tests {
     fn test_parse_json_map_with_null_entries() {
         // When parsing a JSON map, any keys with value `null` are ignored
         let json_map = RadonString::from(r#"{ "Hello": "world", "Bye": null }"#);
-        let output = parse_json_map(&json_map).unwrap();
+        let output = parse_json_map(&json_map, &None).unwrap();
 
         let key = "Hello";
         let value = RadonTypes::String(RadonString::from("world"));
@@ -649,7 +679,7 @@ mod tests {
     #[test]
     fn test_parse_json_map_fail() {
         let invalid_json = RadonString::from(r#"{ "Hello":  }"#);
-        let output = parse_json_map(&invalid_json).unwrap_err();
+        let output = parse_json_map(&invalid_json, &None).unwrap_err();
 
         let expected_err = RadError::JsonParse {
             description: "expected value at line 1 column 13".to_string(),
@@ -657,7 +687,7 @@ mod tests {
         assert_eq!(output, expected_err);
 
         let json_array = RadonString::from(r#"[1,2,3]"#);
-        let output = parse_json_map(&json_array).unwrap_err();
+        let output = parse_json_map(&json_array, &None).unwrap_err();
         let expected_err = RadError::Decode {
             from: "cbor::value::Value",
             to: RadonMap::radon_type_name(),
