@@ -128,8 +128,8 @@ impl Operable for RadonString {
             (RadonOpCodes::StringMatch, Some(args)) => {
                 string_operators::string_match(self, args.as_slice())
             }
-            (RadonOpCodes::StringParseJSONArray, None) => {
-                string_operators::parse_json_array(self).map(RadonTypes::from)
+            (RadonOpCodes::StringParseJSONArray, args) => {
+                string_operators::parse_json_array(self, args).map(RadonTypes::from)
             }
             (RadonOpCodes::StringParseJSONMap, args) => {
                 string_operators::parse_json_map(self, args).map(RadonTypes::from)
