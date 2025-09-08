@@ -15,6 +15,17 @@ use witnet_data_structures::{proto::versioning::ProtocolVersion::*, radon_report
 
 const RADON_BYTES_TYPE_NAME: &str = "RadonBytes";
 
+/// List of support string-encoding algorithms for buffers
+#[derive(Debug, Default, PartialEq, Eq, Serialize, TryFromPrimitive)]
+#[repr(u8)]
+pub enum RadonBytesEncoding {
+    #[default]
+    Hex = 0x00,
+    Base58 = 0x10,
+    Base64 = 0x11,
+    Utf8 = 0x80,
+}
+
 #[derive(Clone, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
 pub struct RadonBytes {
     value: Vec<u8>,

@@ -65,6 +65,14 @@ pub fn as_bytes(input: &RadonString, args: &Option<Vec<Value>>) -> Result<RadonB
                 to: "RadonBytes",
             })?,
         )),
+        RadonBytesEncoding::Base58 => Ok(RadonBytes::from(
+            bs58::decode(input.value())
+                .into_vec()
+                .map_err(|_err| RadError::Decode {
+                    from: "RadonString",
+                    to: "RadonBytes",
+                })?,
+        )),
         RadonBytesEncoding::Base64 => Ok(RadonBytes::from(
             base64::engine::general_purpose::STANDARD
                 .decode(input.value())

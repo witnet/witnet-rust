@@ -15,6 +15,7 @@ tokio = "1.44.1"
 [dependencies]
 anyhow = "1.0.98"
 base64 = "0.22.1"
+bs58 = "0.5.1"
 cbor-codec = { git = "https://github.com/witnet/cbor-codec.git", branch = "feat/ldexpf-shim" }
 futures = "0.3.31"
 hex = "0.4.1"
