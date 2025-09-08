@@ -142,6 +142,58 @@ pub fn parse_json(input: &RadonString) -> Result<RadonTypes, RadError> {
     RadonTypes::try_from(json_value)
 }
 
+pub fn parse_json_array(input: &RadonString, args: &Option<Vec<Value>>) -> Result<RadonArray, RadError> {
+    let wrong_args = || RadError::WrongArguments { 
+        input_type: RadonString::radon_type_name(),
+        operator: "ParseJsonArray".to_string(),
+        args: args.to_owned().unwrap_or_default(),
+    };
+
+    let json_input: JsonValue = serde_json::from_str(&input.value())
+        .map_err(|err| RadError::JsonParse {
+                description: err.to_string(),
+    })?;
+
+    match args.to_owned().unwrap_or_default().first() {
+        Some(Value::Array(values)) => {
+            let mut items: Vec<RadonTypes> = vec![];
+            for path in values {
+                if let Value::Text(json_path) = path {
+                    let selector = Selector::new(json_path.as_str())
+                        .map_err(|err| RadError::JsonPathParse { 
+                            description: err.to_string(),
+                        })?;
+                    let mut subitems: Vec<RadonTypes> = selector.find(&json_input)
+                        .map(into_radon_types)
+                        .collect();
+                    if subitems.len() > 1 {
+                        items.insert(items.len(), RadonArray::from(subitems).into());
+                    } else {
+                        items.append(subitems.as_mut());
+                    }
+                } else {
+                    return Err(wrong_args());
+                }
+            }
+            Ok(RadonArray::from(items))
+        }
+        Some(Value::Text(json_path)) => {
+            let selector = Selector::new(json_path.as_str())
+                .map_err(|err| RadError::JsonPathParse {
+                    description: err.to_string(),
+                })?;
+            let items: Vec<RadonTypes> = selector.find(&json_input)
+                .map(into_radon_types)
+                .collect();
+            Ok(RadonArray::from(items))
+        }
+        None => {
+            RadonTypes::try_from(json_input)?.try_into()
+        }
+        _ => Err(wrong_args())
+    }
+}
+
 pub fn parse_json_map(input: &RadonString, args: &Option<Vec<Value>>) -> Result<RadonMap, RadError> {
     let not_found = |json_path: &str| RadError::JsonPathNotFound { 
         path: String::from(json_path) 
@@ -174,11 +226,6 @@ pub fn parse_json_map(input: &RadonString, args: &Option<Vec<Value>>) -> Result<
         },
         _ => Err(wrong_args())
     }
-}
-
-pub fn parse_json_array(input: &RadonString) -> Result<RadonArray, RadError> {
-    let item = parse_json(input)?;
-    item.try_into()
 }
 
 fn add_children(
@@ -216,6 +263,35 @@ fn add_children(
                 map.insert(key, value);
             }
         }
+    }
+}
+
+fn into_radon_types(value: &serde_json::Value) -> RadonTypes {
+    match value {
+        serde_json::Value::Number(value) => {
+            if value.is_f64() {
+                RadonTypes::from(RadonFloat::from(value.as_f64().unwrap_or_default()))
+            } else {
+                RadonTypes::from(RadonInteger::from(value.as_i64().unwrap_or_default() as i128))
+            }
+        },
+        serde_json::Value::Bool(value) => RadonTypes::from(RadonBoolean::from(*value)),
+        serde_json::Value::String(value) => RadonTypes::from(RadonString::from(value.clone())),
+        serde_json::Value::Object(entries) => {
+            let mut object: BTreeMap<String, RadonTypes> = BTreeMap::new();
+            for (key, value) in entries {
+                object.insert(key.clone(), into_radon_types(value));
+            }
+            RadonTypes::from(RadonMap::from(object))
+        }
+        serde_json::Value::Array(values) => {
+            let items: Vec<RadonTypes> = values
+                .iter()
+                .map(into_radon_types)
+                .collect();
+            RadonTypes::from(RadonArray::from(items))
+        }
+        serde_json::Value::Null => RadonTypes::from(RadonString::default()),
     }
 }
 
@@ -698,7 +774,7 @@ mod tests {
     #[test]
     fn test_parse_json_array() {
         let json_array = RadonString::from(r#"[1,2,3]"#);
-        let output = parse_json_array(&json_array).unwrap();
+        let output = parse_json_array(&json_array, &None).unwrap();
 
         let expected_output = RadonArray::from(vec![
             RadonTypes::Integer(RadonInteger::from(1)),
@@ -713,7 +789,7 @@ mod tests {
     fn test_parse_json_array_with_null_entries() {
         // When parsing a JSON array, any elements with value `null` are ignored
         let json_array = RadonString::from(r#"[null, 1, null, null, 2, 3, null]"#);
-        let output = parse_json_array(&json_array).unwrap();
+        let output = parse_json_array(&json_array, &None).unwrap();
 
         let expected_output = RadonArray::from(vec![
             RadonTypes::Integer(RadonInteger::from(1)),
@@ -727,7 +803,7 @@ mod tests {
     #[test]
     fn test_parse_json_array_fail() {
         let invalid_json = RadonString::from(r#"{ "Hello":  }"#);
-        let output = parse_json_array(&invalid_json).unwrap_err();
+        let output = parse_json_array(&invalid_json, &None).unwrap_err();
 
         let expected_err = RadError::JsonParse {
             description: "expected value at line 1 column 13".to_string(),
@@ -735,7 +811,7 @@ mod tests {
         assert_eq!(output, expected_err);
 
         let json_map = RadonString::from(r#"{ "Hello": "world" }"#);
-        let output = parse_json_array(&json_map).unwrap_err();
+        let output = parse_json_array(&json_map, &None).unwrap_err();
         let expected_err = RadError::Decode {
             from: "cbor::value::Value",
             to: RadonArray::radon_type_name(),
@@ -1265,7 +1341,7 @@ mod tests {
         let result = string_match(&input_key, &args);
         assert_eq!(
             result.unwrap_err().to_string(),
-            "Wrong `RadonString::String match()` arguments: `[Map({Text(\"key1\"): Float(1.0), Text(\"key2\"): Float(2.0)})]`"
+            "Wrong `RadonString::StringMatch()` arguments: `[Map({Text(\"key1\"): Float(1.0), Text(\"key2\"): Float(2.0)})]`"
         );
     }
 
