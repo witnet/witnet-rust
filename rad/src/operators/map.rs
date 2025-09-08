@@ -152,6 +152,15 @@ pub fn values(input: &RadonMap) -> RadonArray {
     RadonArray::from(v)
 }
 
+pub fn to_string(input: &RadonMap) -> Result<RadonString, RadError> {
+    let json_string = serde_json::to_string(&input.value())
+        .map_err(|_| RadError::Decode { 
+            from: "RadonMap", 
+            to: "RadonString" 
+        })?;
+    Ok(RadonString::from(json_string))
+}
+
 /// This module was introduced for encapsulating the interim legacy logic before WIP-0024 is
 /// introduced, for the sake of maintainability.
 ///

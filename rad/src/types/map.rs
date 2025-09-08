@@ -132,6 +132,7 @@ impl Operable for RadonMap {
 
         match call {
             (RadonOpCodes::Identity, None) => identity(RadonTypes::from(self.clone())),
+            (RadonOpCodes::MapToString, None) => map_operators::to_string(self).map(RadonTypes::from),
             (RadonOpCodes::MapGetArray, Some(args)) => {
                 map_operators::get::<RadonArray, _>(self, args.as_slice()).map(RadonTypes::from)
             }
@@ -162,7 +163,7 @@ impl Operable for RadonMap {
             (RadonOpCodes::MapKeys, None) => Ok(RadonTypes::from(map_operators::keys(self))),
             (RadonOpCodes::MapValues, None) => Ok(RadonTypes::from(map_operators::values(self))),
             (RadonOpCodes::MapAlter, Some(args)) => map_operators::alter(self, args, context).map(RadonTypes::from),
-            
+
             (op_code, args) => Err(RadError::UnsupportedOperator {
                 input_type: RADON_MAP_TYPE_NAME.to_string(),
                 operator: op_code.to_string(),
