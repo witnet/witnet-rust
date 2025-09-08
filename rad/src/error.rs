@@ -35,6 +35,12 @@ pub enum RadError {
     /// Failed to parse an object from a JSON buffer
     #[error("Failed to parse an object from a JSON buffer: {description:?}")]
     JsonParse { description: String },
+    /// The given JSON path is not present in a JSON-stringified object
+    #[error("Failed to find JSON path `{path}` from RadonString")]
+    JsonPathNotFound { path: String },
+    /// Failed to parse a JSON path selector from a string value
+    #[error("Failed to parse a JSON path from a string value: {description:?}")]
+    JsonPathParse { description: String },
     /// Failed to parse an object from a XML buffer
     #[error("Failed to parse an object from a XML buffer: {description:?}")]
     XmlParse { description: String },
