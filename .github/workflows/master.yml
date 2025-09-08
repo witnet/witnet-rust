@@ -143,7 +143,6 @@ jobs:
           MACOSX_DEPLOYMENT_TARGET: "10.14"
           OPENSSL_STATIC: "1"
           OPENSSL_DIR: "/usr/local/openssl"
-          RUSTFLAGS: "-C target-cpu=native -C link-arg=-mmacosx-version-min=10.14"
         run: |
           cargo build --release -p witnet -p witnet_toolkit
 
