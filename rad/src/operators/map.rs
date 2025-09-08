@@ -1,12 +1,83 @@
 use std::convert::TryInto;
 
 use serde_cbor::value::{Value, from_value};
+use witnet_data_structures::radon_report::ReportContext;
 
 use crate::{
-    error::RadError,
-    operators::string,
-    types::{RadonType, RadonTypes, array::RadonArray, map::RadonMap, string::RadonString},
+    error::RadError, operators::string, script::{execute_radon_script, partial_results_extract, unpack_subscript, RadonScriptExecutionSettings}, types::{array::RadonArray, map::RadonMap, string::RadonString, RadonType, RadonTypes}
 };
+
+pub fn alter(
+    input: &RadonMap, 
+    args: &[Value],
+    context: &mut ReportContext<RadonTypes>
+) -> Result<RadonMap, RadError> {
+    let wrong_args = || RadError::WrongArguments {
+        input_type: RadonMap::radon_type_name(),
+        operator: "Alter".to_string(),
+        args: args.to_vec(),
+    };
+
+    let first_arg = args.first().ok_or_else(wrong_args)?;
+    let mut input_keys = vec![];
+    match first_arg {
+        Value::Array(keys) => {
+            for key in keys.iter() {
+                let key_string = from_value::<String>(key.to_owned()).map_err(|_| wrong_args())?;
+                input_keys.push(key_string);
+            }
+        }
+        Value::Text(key) => {
+            input_keys.push(key.clone());
+        }
+        _ => return Err(wrong_args())
+    };
+
+    let subscript = args.get(1).ok_or_else(wrong_args)?;
+    match subscript {
+        Value::Array(_arg) => {
+            let subscript_err = |e| RadError::Subscript {
+                input_type: "RadonMap".to_string(),
+                operator: "Alter".to_string(),
+                inner: Box::new(e),
+            };
+            let subscript = unpack_subscript(subscript).map_err(subscript_err)?;
+
+            let not_found = |key_str: &str| RadError::MapKeyNotFound { key: String::from(key_str) };
+
+            let input_map = input.value();
+            let mut output_map = input.value().clone();
+            let mut reports = vec![];
+
+            let settings = RadonScriptExecutionSettings::tailored_to_stage(&context.stage);
+            for key in input_keys {
+                let value = input_map
+                    .get(key.as_str())
+                    .ok_or_else(|| not_found(key.as_str()))?;
+                let report = execute_radon_script(
+                    value.clone(), 
+                    subscript.as_slice(), 
+                    context, 
+                    settings
+                )?;
+                // If there is an error while altering value, short-circuit and bubble up the error as it comes
+                // from the radon script execution
+                if let RadonTypes::RadonError(error) = &report.result {
+                    return Err(error.clone().into_inner());
+                } else {
+                    output_map.insert(key, report.result.clone());
+                }
+                reports.push(report);
+            }        
+
+            // Extract the partial results from the reports and put them in the execution context if needed
+            partial_results_extract(&subscript, &reports, context);
+
+            Ok(RadonMap::from(output_map))
+        }
+        _ => Err(wrong_args())
+    }
+}
 
 fn inner_get(input: &RadonMap, args: &[Value]) -> Result<RadonTypes, RadError> {
     let wrong_args = || RadError::WrongArguments {
