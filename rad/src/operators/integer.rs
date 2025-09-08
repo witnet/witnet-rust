@@ -24,8 +24,8 @@ pub fn to_bytes(input: RadonInteger) -> Result<RadonBytes, RadError> {
     let mut bytes_array = [0u8; 16];
     bytes_array.copy_from_slice(&input.value().to_be_bytes());
     let mut leading_zeros = 0;
-    for i in 0..bytes_array.len() {
-        if bytes_array[i] != 0u8 {
+    for charcode in bytes_array {
+        if charcode != 0u8 {
             break;
         } else {
             leading_zeros += 1;

@@ -124,8 +124,7 @@ impl Operable for RadonInteger {
                 integer_operators::power(self, args.as_slice()).map(Into::into)
             }
             (RadonOpCodes::IntegerToBytes, None) => integer_operators::to_bytes(self.clone())
-                .map(RadonTypes::from)
-                .map_err(Into::into),
+                .map(RadonTypes::from),
             (RadonOpCodes::IntegerToFloat, None) => {
                 integer_operators::to_float(self.clone()).map(RadonTypes::from)
             }
