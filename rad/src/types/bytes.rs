@@ -20,9 +20,10 @@ const RADON_BYTES_TYPE_NAME: &str = "RadonBytes";
 #[repr(u8)]
 pub enum RadonBytesEncoding {
     #[default]
-    Hex = 0,
-    Base64 = 1,
-    Utf8 = 2,
+    Hex = 0x00,
+    Base58 = 0x10,
+    Base64 = 0x11,
+    Utf8 = 0x80,
 }
 
 #[derive(Clone, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]

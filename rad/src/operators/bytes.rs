@@ -90,6 +90,7 @@ pub fn to_string(input: &RadonBytes, args: &Option<Vec<Value>>) -> Result<RadonS
     }
     match bytes_encoding {
         RadonBytesEncoding::Hex => RadonString::try_from(Value::Text(hex::encode(input.value()))),
+        RadonBytesEncoding::Base58 => RadonString::try_from(Value::Text(bs58::encode(input.value()).into_string())),
         RadonBytesEncoding::Base64 => RadonString::try_from(Value::Text(
             base64::engine::general_purpose::STANDARD.encode(input.value()),
         )),
