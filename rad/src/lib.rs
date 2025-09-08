@@ -290,6 +290,9 @@ async fn http_response(
     // Validate the retrieval's radon script before performing the http request
     let radon_script: RadonScript = unpack_radon_script(&retrieve.script)?;
 
+    // Start timer for measuring resolution time
+    let start_ts = std::time::SystemTime::now();
+
     // Use the provided HTTP client, or instantiate a new one if none
     let client = match client {
         Some(client) => client,
@@ -441,7 +444,21 @@ async fn http_response(
         }
     };
 
-    let result = run_retrieval_with_data_report(retrieve, &response, context, settings);
+    let result = run_retrieval_with_data_report(retrieve, &response, context, settings)
+        // override completion_time and running_time within the final report
+        .map(|report| {
+            let completion_ts = std::time::SystemTime::now();
+
+            RadonReport {
+                context: ReportContext {
+                    start_time: Some(start_ts),
+                    completion_time: Some(completion_ts),
+                    ..report.context
+                },
+                running_time: completion_ts.duration_since(start_ts).unwrap_or_default(),
+                ..report
+            }
+        });
 
     match &result {
         Ok(report) => {
