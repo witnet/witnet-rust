@@ -4673,6 +4673,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a2ae44ef20feb57a68b23d846850f861394c2e02dc425a50098ae8c90267589"
 
 [[package]]
+name = "slicestring"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "84214dff6bab2662cd094e247e6b73728ff0e23111d78124146801ca18dd47b4"
+
+[[package]]
 name = "smallvec"
 version = "0.6.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6694,10 +6700,12 @@ dependencies = [
  "num_enum",
  "ordered-float 3.9.2",
  "rand 0.7.3",
+ "regex",
  "reqwest 0.12.23",
  "serde",
  "serde_cbor",
  "serde_json",
+ "slicestring",
  "thiserror 2.0.16",
  "tokio 1.47.1",
  "url",

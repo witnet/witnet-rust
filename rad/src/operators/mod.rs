@@ -100,7 +100,7 @@ pub enum RadonOpCodes {
     ///////////////////////////////////////////////////////////////////////
     // String operator codes (start at 0x70)
     StringAsBoolean = 0x70,
-    //    StringAsBytes = 0x71,
+    StringAsBytes = 0x71,
     StringAsFloat = 0x72,
     StringAsInteger = 0x73,
     StringLength = 0x74,
@@ -110,6 +110,9 @@ pub enum RadonOpCodes {
     StringParseXMLMap = 0x78,
     StringToLowerCase = 0x79,
     StringToUpperCase = 0x7A,
+    StringReplace = 0x7B,
+    StringSlice = 0x7C,
+    StringSplit = 0x7D,
 }
 
 impl fmt::Display for RadonOpCodes {
