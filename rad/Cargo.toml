@@ -20,6 +20,7 @@ cbor-codec = { git = "https://github.com/witnet/cbor-codec.git", branch = "feat/
 futures = "0.3.31"
 hex = "0.4.1"
 if_rust_version = "1.0.0"
+jsonpath = "0.1.1"
 # the http crate is used to perform additional validations before passing arguments to the surf http client
 # the version of http must be kept in sync with the version used by surf
 http = "0.2.1"

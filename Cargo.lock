@@ -286,7 +286,7 @@ name = "async-jsonrpc-client"
 version = "0.1.0"
 source = "git+https://github.com/witnet/async-jsonrpc-client?branch=fix-tcp-leak#600a2d696af265511868f77c01e448c1d678650e"
 dependencies = [
- "error-chain",
+ "error-chain 0.12.4",
  "futures 0.1.31",
  "jsonrpc-core 10.1.0",
  "log 0.4.27",
@@ -1185,6 +1185,15 @@ checksum = "778e2ac28f6c47af28e4907f13ffd1e1ddbd400980a9abd7c8df189bf578a5ad"
 dependencies = [
  "libc",
  "windows-sys 0.60.2",
+]
+
+[[package]]
+name = "error-chain"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ff511d5dc435d703f4971bc399647c9bc38e20cb41452e3b9feb4765419ed3f3"
+dependencies = [
+ "backtrace",
 ]
 
 [[package]]
@@ -2383,6 +2392,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "jsonpath"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8061db09019f1879ba586685694fe18279f597b1b3a9dd308f35e596be6cdf7d"
+dependencies = [
+ "error-chain 0.11.0",
+ "pest",
+ "pest_derive",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "jsonrpc-core"
 version = "10.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3446,6 +3468,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 
 [[package]]
+name = "pest"
+version = "1.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0fce5d8b5cc33983fc74f78ad552b5522ab41442c4ca91606e4236eb4b5ceefc"
+
+[[package]]
+name = "pest_derive"
+version = "1.0.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ca3294f437119209b084c797604295f40227cffa35c57220b1e99a6ff3bf8ee4"
+dependencies = [
+ "pest",
+ "quote 0.3.15",
+ "syn 0.11.11",
+]
+
+[[package]]
 name = "pin-project"
 version = "1.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3714,6 +3753,12 @@ checksum = "d200a41a7797e6461bd04e4e95c3347053a731c32c87f066f2f0dda22dbdbba8"
 dependencies = [
  "memchr",
 ]
+
+[[package]]
+name = "quote"
+version = "0.3.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7a6e920b65c65f10b2ae65c831a81a073a89edd28c7cce89475bff467ab4167a"
 
 [[package]]
 name = "quote"
@@ -4838,6 +4883,17 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "syn"
+version = "0.11.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3b891b9015c88c576343b9b3e41c2c11a51c219ef067b264bd9c8aa9b441dad"
+dependencies = [
+ "quote 0.3.15",
+ "synom",
+ "unicode-xid 0.0.4",
+]
+
+[[package]]
+name = "syn"
 version = "0.15.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ca4b3b69a77cbe1ffc9e198781b7acb0c7365a883670e8f1c1bc66fba79a5c5"
@@ -4882,6 +4938,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0bf256ce5efdfa370213c1dabab5935a12e49f2c58d15e9eac2870d3b4f27263"
 dependencies = [
  "futures-core",
+]
+
+[[package]]
+name = "synom"
+version = "0.11.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a393066ed9010ebaed60b9eafa373d4b1baac186dd7e008555b0f702b51945b6"
+dependencies = [
+ "unicode-xid 0.0.4",
 ]
 
 [[package]]
@@ -5651,6 +5716,12 @@ name = "unicode-width"
 version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7dd6e30e90baa6f72411720665d41d89b9a3d039dc45b8faea1ddd07f617f6af"
+
+[[package]]
+name = "unicode-xid"
+version = "0.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8c1f860d7d29cf02cb2f3f359fd35991af3d30bac52c57d265a3c461074cb4dc"
 
 [[package]]
 name = "unicode-xid"
@@ -6705,6 +6776,7 @@ dependencies = [
  "hex",
  "http 0.2.12",
  "if_rust_version",
+ "jsonpath",
  "log 0.4.27",
  "minidom",
  "num_enum",
