@@ -61,16 +61,15 @@ pub enum RadonOpCodes {
     ///////////////////////////////////////////////////////////////////////
     // Integer operator codes (start at 0x40)
     IntegerAbsolute = 0x40,
-    IntegerAsFloat = 0x41,
-    IntegerAsString = 0x42,
     IntegerGreaterThan = 0x43,
     IntegerLessThan = 0x44,
-    //    IntegerMatch = 0x45,
     IntegerModulo = 0x46,
     IntegerMultiply = 0x47,
     IntegerNegate = 0x48,
     IntegerPower = 0x49,
-    //    IntegerReciprocal = 0x4A,
+    IntegerToBytes = 0x4A,
+    IntegerToFloat = 0x41,
+    IntegerToString = 0x42,
     //    IntegerSum = 0x4B,
     ///////////////////////////////////////////////////////////////////////
     // Float operator codes (start at 0x50)
