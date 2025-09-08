@@ -23,7 +23,7 @@ use crate::{
     conditions::{TallyPreconditionClauseResult, evaluate_tally_precondition_clause},
     error::RadError,
     script::{
-        RadonScriptExecutionSettings, create_radon_script_from_filters_and_reducer,
+        RadonScript, RadonScriptExecutionSettings, create_radon_script_from_filters_and_reducer,
         execute_radon_script, unpack_radon_script,
     },
     types::{RadonTypes, array::RadonArray, bytes::RadonBytes, map::RadonMap, string::RadonString},
@@ -87,7 +87,12 @@ pub fn try_data_request(
             .iter()
             .zip(inputs.iter())
             .map(|(retrieve, input)| {
-                run_retrieval_with_data_report(retrieve, input, &mut retrieval_context, settings)
+                run_retrieval_with_data_report(
+                    retrieve,
+                    &RadonTypes::from(RadonString::from(*input)),
+                    &mut retrieval_context,
+                    settings,
+                )
             })
             .collect()
     } else {
@@ -173,65 +178,70 @@ pub fn try_data_request(
 /// Handle HTTP-GET and HTTP-POST response with data, and return a `RadonReport`.
 fn string_response_with_data_report(
     retrieve: &RADRetrieve,
-    response: &str,
+    response: &RadonTypes,
     context: &mut ReportContext<RadonTypes>,
     settings: RadonScriptExecutionSettings,
 ) -> Result<RadonReport<RadonTypes>> {
-    let input = RadonTypes::from(RadonString::from(response));
     let radon_script = unpack_radon_script(&retrieve.script)?;
 
-    execute_radon_script(input, &radon_script, context, settings)
+    execute_radon_script(response.clone(), &radon_script, context, settings)
 }
 
 /// Handle HTTP-HEAD response with data, and return a `RadonReport`.
 fn headers_response_with_data_report(
     retrieve: &RADRetrieve,
-    response: &str,
+    response: &RadonTypes,
     context: &mut ReportContext<RadonTypes>,
     settings: RadonScriptExecutionSettings,
 ) -> Result<RadonReport<RadonTypes>> {
-    let headers: BTreeMap<String, RadonTypes> = response
-        .split("\r\n")
-        .map(|line| {
-            let parts: Vec<&str> = line.split(':').map(|part| part.trim()).collect();
-            // todo: check there are two parts, and two parts only
-            // todo: make sure that values from repeated keys get appended within a RadonArray
-            (
-                String::from(parts[0]),
-                RadonTypes::from(RadonString::from(parts[1])),
-            )
-        })
-        .collect();
-    let input = RadonTypes::from(RadonMap::from(headers));
-    let radon_script = unpack_radon_script(&retrieve.script)?;
+    if let RadonTypes::String(response) = response {
+        let response_string: String = response.to_string();
+        let headers: BTreeMap<String, RadonTypes> = response_string
+            .split("\r\n")
+            .filter_map(|line| {
+                let parts: Vec<&str> = line.split(':').map(|part| part.trim()).collect();
+                if parts.len() >= 2 {
+                    Some((
+                        String::from(parts[0]),
+                        RadonTypes::from(RadonString::from(parts[1])),
+                    ))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        // todo: turn multiple entries with same key into single entry with array of values
+        let input = RadonTypes::from(RadonMap::from(headers));
+        let radon_script = unpack_radon_script(&retrieve.script)?;
 
-    execute_radon_script(input, &radon_script, context, settings)
+        execute_radon_script(input, &radon_script, context, settings)
+    } else {
+        Err(RadError::HttpOther {
+            message: String::from("invalid response headers"),
+        })
+    }
 }
 
 /// Handle Rng response with data report
 fn rng_response_with_data_report(
-    response: &str,
+    response: &RadonTypes,
     context: &mut ReportContext<RadonTypes>,
 ) -> Result<RadonReport<RadonTypes>> {
-    let response_bytes = response.as_bytes();
-    let result = RadonTypes::from(RadonBytes::from(response_bytes.to_vec()));
-
-    Ok(RadonReport::from_result(Ok(result), context))
+    Ok(RadonReport::from_result(Ok(response.clone()), context))
 }
 
 /// Run retrieval without performing any external network requests, return `Result<RadonReport>`.
 pub fn run_retrieval_with_data_report(
     retrieve: &RADRetrieve,
-    response: &str,
+    response: &RadonTypes,
     context: &mut ReportContext<RadonTypes>,
     settings: RadonScriptExecutionSettings,
 ) -> Result<RadonReport<RadonTypes>> {
     match retrieve.kind {
-        RADType::HttpGet => string_response_with_data_report(retrieve, response, context, settings),
-        RADType::Rng => rng_response_with_data_report(response, context),
-        RADType::HttpPost => {
+        RADType::HttpGet | RADType::HttpPost => {
             string_response_with_data_report(retrieve, response, context, settings)
         }
+        RADType::Rng => rng_response_with_data_report(response, context),
         RADType::HttpHead => {
             headers_response_with_data_report(retrieve, response, context, settings)
         }
@@ -242,7 +252,7 @@ pub fn run_retrieval_with_data_report(
 /// Run retrieval without performing any external network requests, return `Result<RadonTypes>`.
 pub fn run_retrieval_with_data(
     retrieve: &RADRetrieve,
-    response: &str,
+    response: &RadonTypes,
     settings: RadonScriptExecutionSettings,
     active_wips: ActiveWips,
 ) -> Result<RadonTypes> {
@@ -266,6 +276,9 @@ async fn http_response(
             url: retrieve.url.clone(),
         })?
     };
+
+    // Validate the retrieval's radon script before performing the http request
+    let radon_script: RadonScript = unpack_radon_script(&retrieve.script)?;
 
     // Use the provided HTTP client, or instantiate a new one if none
     let client = match client {
@@ -367,13 +380,45 @@ async fn http_response(
         });
     }
 
-    // If at some point we want to support the retrieval of non-UTF8 data (e.g. raw bytes), this is
-    // where we need to decide how to read the response body
-    let response_string = response.text().await.map_err(|x| RadError::HttpOther {
-        message: x.to_string(),
-    })?;
+    let response = match retrieve.kind {
+        RADType::HttpHead => {
+            let response_string =
+                response
+                    .headers()
+                    .iter()
+                    .fold(String::default(), |str, header| {
+                        format!(
+                            "{str}{}: {}\r\n",
+                            header.0,
+                            header.1.to_str().unwrap_or_default()
+                        )
+                    });
+            RadonTypes::from(RadonString::from(response_string))
+        }
+        _ => {
+            if let Some((first_opcode, _)) = radon_script.first()
+                && (0x30..0x3f).contains(&(*first_opcode as u8))
+            {
+                RadonTypes::from(RadonBytes::from(
+                    response
+                        .bytes()
+                        .await
+                        .map_err(|x| RadError::HttpOther {
+                            message: x.to_string(),
+                        })?
+                        .to_vec(),
+                ))
+            } else {
+                RadonTypes::from(RadonString::from(response.text().await.map_err(|x| {
+                    RadError::HttpOther {
+                        message: x.to_string(),
+                    }
+                })?))
+            }
+        }
+    };
 
-    let result = run_retrieval_with_data_report(retrieve, &response_string, context, settings);
+    let result = run_retrieval_with_data_report(retrieve, &response, context, settings);
 
     match &result {
         Ok(report) => {
@@ -923,7 +968,7 @@ mod tests {
 
         let result = run_retrieval_with_data(
             &retrieve,
-            response,
+            &RadonTypes::from(RadonString::from(response)),
             RadonScriptExecutionSettings::disable_all(),
             current_active_wips(),
         )
@@ -993,7 +1038,7 @@ mod tests {
 
         let retrieved = run_retrieval_with_data(
             &retrieve,
-            response,
+            &RadonTypes::from(RadonString::from(response)),
             RadonScriptExecutionSettings::disable_all(),
             current_active_wips(),
         )
@@ -1030,7 +1075,7 @@ mod tests {
 
         let retrieved = run_retrieval_with_data(
             &retrieve,
-            response,
+            &RadonTypes::from(RadonString::from(response)),
             RadonScriptExecutionSettings::disable_all(),
             current_active_wips(),
         )
@@ -1083,7 +1128,7 @@ mod tests {
 
         let retrieved = run_retrieval_with_data(
             &retrieve,
-            response,
+            &RadonTypes::from(RadonString::from(response)),
             RadonScriptExecutionSettings::disable_all(),
             current_active_wips(),
         )
@@ -1127,7 +1172,7 @@ mod tests {
 
         let retrieved = run_retrieval_with_data(
             &retrieve,
-            response,
+            &RadonTypes::from(RadonString::from(response)),
             RadonScriptExecutionSettings::disable_all(),
             current_active_wips(),
         )
@@ -1171,7 +1216,7 @@ mod tests {
         let response = r#"{"event":{"homeTeam":{"name":"Ryazan-VDV","slug":"ryazan-vdv","gender":"F","national":false,"id":171120,"shortName":"Ryazan-VDV","subTeams":[]},"awayTeam":{"name":"Olympique Lyonnais","slug":"olympique-lyonnais","gender":"F","national":false,"id":26245,"shortName":"Lyon","subTeams":[]},"homeScore":{"current":0,"display":0,"period1":0,"normaltime":0},"awayScore":{"current":9,"display":9,"period1":5,"normaltime":9}}}"#;
         let retrieved = run_retrieval_with_data(
             &retrieve,
-            response,
+            &RadonTypes::from(RadonString::from(response)),
             RadonScriptExecutionSettings::disable_all(),
             current_active_wips(),
         )
