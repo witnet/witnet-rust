@@ -4,6 +4,8 @@ use crate::{
     script::RadonCall,
     types::{RadonType, RadonTypes},
 };
+use num_enum::TryFromPrimitive;
+use serde::Serialize;
 use serde_cbor::value::Value;
 use std::{
     convert::{TryFrom, TryInto},
@@ -12,6 +14,16 @@ use std::{
 use witnet_data_structures::radon_report::ReportContext;
 
 const RADON_BYTES_TYPE_NAME: &str = "RadonBytes";
+
+/// List of support string-encoding algorithms for buffers
+#[derive(Debug, Default, PartialEq, Eq, Serialize, TryFromPrimitive)]
+#[repr(u8)]
+pub enum RadonBytesEncoding {
+    #[default]
+    Hex = 0,
+    Base64 = 1,
+    Utf8 = 2,
+}
 
 #[derive(Clone, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
 pub struct RadonBytes {
@@ -84,12 +96,19 @@ impl Operable for RadonBytes {
         match call {
             // Identity
             (RadonOpCodes::Identity, None) => identity(RadonTypes::from(self.clone())),
-            (RadonOpCodes::BytesAsString, None) => {
-                bytes_operators::to_string(self).map(RadonTypes::from)
+            (RadonOpCodes::BytesAsInteger, None) => bytes_operators::as_integer(self)
+                .map(RadonTypes::from),
+            (RadonOpCodes::BytesLength, None) => {
+                Ok(RadonTypes::from(bytes_operators::length(self)))
             }
             (RadonOpCodes::BytesHash, Some(args)) => {
                 bytes_operators::hash(self, args.as_slice()).map(RadonTypes::from)
             }
+            (RadonOpCodes::BytesSlice, Some(args)) => bytes_operators::slice(self, args.as_slice())
+                .map(RadonTypes::from),
+            (RadonOpCodes::BytesToString, args) => bytes_operators::to_string(self, args)
+                .map(RadonTypes::from),
+
             // Unsupported / unimplemented
             (op_code, args) => Err(RadError::UnsupportedOperator {
                 input_type: RADON_BYTES_TYPE_NAME.to_string(),
