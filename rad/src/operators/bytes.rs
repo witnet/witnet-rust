@@ -111,6 +111,10 @@ pub fn to_integer(input: &RadonBytes, args: &Option<Vec<Value>>) -> Result<Radon
     }
 }
 
+pub fn to_string_legacy(input: &RadonBytes) -> Result<RadonString, RadError> {
+    RadonString::try_from(Value::Text(hex::encode(input.value())))
+}
+
 pub fn to_string(input: &RadonBytes, args: &Option<Vec<Value>>) -> Result<RadonString, RadError> {
     let bytes_encoding = decode_single_arg::<u8, RadonBytesEncoding, _>(args, "ToString")?;
 

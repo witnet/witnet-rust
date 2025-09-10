@@ -3,7 +3,7 @@ use std::time::{Duration, SystemTime};
 
 use serde::Serialize;
 
-use crate::{chain::tapi::ActiveWips, radon_error::ErrorLike};
+use crate::{chain::tapi::ActiveWips, proto::versioning::ProtocolVersion, radon_error::ErrorLike};
 
 /// A high level data structure aimed to be used as the return type of RAD executor methods:
 ///
@@ -133,6 +133,8 @@ where
     pub script_index: Option<usize>,
     /// Active WIPs
     pub active_wips: Option<ActiveWips>,
+    /// Protocol version
+    pub protocol_version: Option<ProtocolVersion>,
 }
 
 impl<RT> Default for ReportContext<RT>
@@ -150,6 +152,7 @@ where
             start_time: None,
             script_index: None,
             active_wips: None,
+            protocol_version: None,
         }
     }
 }

@@ -20,6 +20,7 @@ use crate::{
             LegacyBlock_LegacyBlockTransactions, LegacyMessage, LegacyMessage_LegacyCommand,
             LegacyMessage_LegacyCommand_oneof_kind, Message_Command, Message_Command_oneof_kind,
         },
+        versioning::ProtocolVersion::*,
     },
     types::Message,
 };
@@ -81,8 +82,8 @@ impl ProtocolInfo {
 #[test]
 fn test_activation_timestamp_derivation() {
     let mut protocols = ProtocolInfo::default();
-    protocols.register(100, ProtocolVersion::V1_8, 30);
-    protocols.register(200, ProtocolVersion::V2_0, 15);
+    protocols.register(100, V1_8, 30);
+    protocols.register(200, V2_0, 15);
 
     let consensus_constants = ConsensusConstants {
         checkpoint_zero_timestamp: 10_000,
@@ -91,24 +92,24 @@ fn test_activation_timestamp_derivation() {
     };
 
     assert_eq!(
-        protocols.derive_activation_timestamp(ProtocolVersion::V1_7, &consensus_constants),
+        protocols.derive_activation_timestamp(V1_7, &consensus_constants),
         Some(10_000)
     );
     assert_eq!(
-        protocols.derive_activation_timestamp(ProtocolVersion::V1_8, &consensus_constants),
+        protocols.derive_activation_timestamp(V1_8, &consensus_constants),
         Some(14_500)
     );
     assert_eq!(
-        protocols.derive_activation_timestamp(ProtocolVersion::V2_0, &consensus_constants),
+        protocols.derive_activation_timestamp(V2_0, &consensus_constants),
         Some(17_500)
     );
 
     // Try again but pretending that a certain protocol version still has an unknown activation date
     let mut protocols = ProtocolInfo::default();
-    protocols.register(100, ProtocolVersion::V1_8, 30);
+    protocols.register(100, V1_8, 30);
 
     assert_eq!(
-        protocols.derive_activation_timestamp(ProtocolVersion::V2_0, &consensus_constants),
+        protocols.derive_activation_timestamp(V2_0, &consensus_constants),
         None
     );
 }
@@ -182,18 +183,20 @@ impl IntoIterator for VersionsMap {
 )]
 pub enum ProtocolVersion {
     /// The original Witnet protocol.
-    // TODO: update this default once 2.0 is completely active
-    #[default]
     V1_7,
     /// The transitional protocol based on 1.x but with staking enabled.
     V1_8,
-    /// The final Witnet 2.0 protocol.
+    /// The Witnet 2.0 protocol.
+    // TODO: update this default once 2.1 is completely active
+    #[default]
     V2_0,
+    /// The Witnet 2.1 protocol, introducing stake delegation and more.
+    V2_1,
 }
 
 impl ProtocolVersion {
-    pub const MIN: Self = ProtocolVersion::V1_7;
-    pub const MAX: Self = ProtocolVersion::V2_0;
+    pub const MIN: Self = V1_7;
+    pub const MAX: Self = V2_1;
     pub fn guess() -> Self {
         Self::from_epoch_opt(None)
     }
@@ -210,15 +213,17 @@ impl ProtocolVersion {
 
     pub fn next(&self) -> Self {
         match self {
-            ProtocolVersion::V1_7 => ProtocolVersion::V1_8,
-            _ => ProtocolVersion::V2_0,
+            V1_7 => V1_8,
+            V1_8 => V2_0,
+            _ => V2_1,
         }
     }
 
     pub fn prev(&self) -> Self {
         match self {
-            ProtocolVersion::V2_0 => ProtocolVersion::V1_8,
-            _ => ProtocolVersion::V1_7,
+            V2_1 => V2_0,
+            V2_0 => V1_8,
+            _ => V1_7,
         }
     }
 }
@@ -235,11 +240,13 @@ impl PartialOrd for ProtocolVersion {
             (x, y) if x == y => Ordering::Equal,
             // V1_7 is the lowest version
             (V1_7, _) => Ordering::Less,
-            // V2_0 is the highest version
-            (V2_0, _) => Ordering::Greater,
+            (_, V1_7) => Ordering::Greater,
+            // V2_1 is the highest version
+            (V2_1, _) => Ordering::Greater,
+            (_, V2_1) => Ordering::Less,
             // Versions that are not the lowest or the highest need explicit comparisons
-            (V1_8, V1_7) => Ordering::Greater,
             (V1_8, V2_0) => Ordering::Less,
+            (V2_0, V1_8) => Ordering::Greater,
             // the compiler doesn't know, but this is actually unreachable if you think about it
             _ => {
                 unreachable!()
@@ -313,8 +320,6 @@ impl Versioned for crate::chain::BlockMerkleRoots {
         &self,
         version: ProtocolVersion,
     ) -> Result<Box<dyn protobuf::Message>, Error> {
-        use ProtocolVersion::*;
-
         let mut pb = self.to_pb();
 
         let versioned: Box<dyn protobuf::Message> = match version {
@@ -323,7 +328,7 @@ impl Versioned for crate::chain::BlockMerkleRoots {
             // Transition merkle roots need no transformation
             V1_8 => Box::new(pb),
             // Final merkle roots need to drop the mint hash
-            V2_0 => {
+            V2_0 | V2_1 => {
                 pb.set_mint_hash(Default::default());
 
                 Box::new(pb)
@@ -341,15 +346,13 @@ impl Versioned for crate::chain::BlockHeader {
         &self,
         version: ProtocolVersion,
     ) -> Result<Box<dyn protobuf::Message>, Error> {
-        use ProtocolVersion::*;
-
         let pb = self.to_pb();
 
         let versioned: Box<dyn protobuf::Message> = match version {
             // Legacy block headers need to be rearranged
             V1_7 => Box::new(Self::LegacyType::from(pb)),
             // All other block headers need no transformation
-            V1_8 | V2_0 => Box::new(pb),
+            V1_8 | V2_0 | V2_1 => Box::new(pb),
         };
 
         Ok(versioned)
@@ -381,13 +384,11 @@ impl Versioned for Message {
     where
         <Self as ProtobufConvert>::ProtoStruct: protobuf::Message,
     {
-        use ProtocolVersion::*;
-
         let pb = self.to_pb();
 
         let versioned: Box<dyn protobuf::Message> = match version {
             V1_7 => Box::new(Self::LegacyType::from(pb)),
-            V1_8 | V2_0 => Box::new(pb),
+            V1_8 | V2_0 | V2_1 => Box::new(pb),
         };
 
         Ok(versioned)
@@ -850,5 +851,26 @@ impl From<LegacyMessage> for Message {
         let pb = crate::proto::schema::witnet::Message::from(legacy);
 
         Message::from_pb(pb).unwrap()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    pub fn test_protocol_versions_comparison() {
+        assert!(V1_7 < V1_8);
+        assert!(V1_7 < V2_0);
+        assert!(V1_7 < V2_1);
+        assert!(V1_8 > V1_7);
+        assert!(V1_8 < V2_0);
+        assert!(V1_8 < V2_1);
+        assert!(V2_0 > V1_7);
+        assert!(V2_0 > V1_8);
+        assert!(V2_0 < V2_1);
+        assert!(V2_1 > V1_7);
+        assert!(V2_1 > V1_8);
+        assert!(V2_1 > V2_0);
     }
 }

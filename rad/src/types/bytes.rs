@@ -11,7 +11,7 @@ use std::{
     convert::{TryFrom, TryInto},
     fmt,
 };
-use witnet_data_structures::radon_report::ReportContext;
+use witnet_data_structures::{proto::versioning::ProtocolVersion::*, radon_report::ReportContext};
 
 const RADON_BYTES_TYPE_NAME: &str = "RadonBytes";
 
@@ -83,23 +83,37 @@ impl fmt::Display for RadonBytes {
 
 impl Operable for RadonBytes {
     fn operate(&self, call: &RadonCall) -> Result<RadonTypes, RadError> {
+        self.operate_in_context(call, &mut ReportContext::default())
+    }
+
+    fn operate_in_context(
+        &self,
+        call: &RadonCall,
+        context: &mut ReportContext<RadonTypes>,
+    ) -> Result<RadonTypes, RadError> {
+        let protocol_version = context.protocol_version.unwrap_or_default();
+
         match call {
             // Identity
             (RadonOpCodes::Identity, None) => identity(RadonTypes::from(self.clone())),
-            (RadonOpCodes::BytesToInteger, args) => {
+            (RadonOpCodes::BytesToInteger, args) if protocol_version >= V2_1 => {
                 bytes_operators::to_integer(self, args).map(RadonTypes::from)
             }
-            (RadonOpCodes::BytesLength, None) => {
+            (RadonOpCodes::BytesLength, None) if protocol_version >= V2_1 => {
                 Ok(RadonTypes::from(bytes_operators::length(self)))
             }
             (RadonOpCodes::BytesHash, Some(args)) => {
                 bytes_operators::hash(self, args.as_slice()).map(RadonTypes::from)
             }
-            (RadonOpCodes::BytesSlice, Some(args)) => {
+            (RadonOpCodes::BytesSlice, Some(args)) if protocol_version >= V2_1 => {
                 bytes_operators::slice(self, args.as_slice()).map(RadonTypes::from)
             }
             (RadonOpCodes::BytesToString, args) => {
-                bytes_operators::to_string(self, args).map(RadonTypes::from)
+                if protocol_version >= V2_1 {
+                    bytes_operators::to_string(self, args).map(RadonTypes::from)
+                } else {
+                    bytes_operators::to_string_legacy(self).map(RadonTypes::from)
+                }
             }
 
             // Unsupported / unimplemented
@@ -109,14 +123,6 @@ impl Operable for RadonBytes {
                 args: args.to_owned(),
             }),
         }
-    }
-
-    fn operate_in_context(
-        &self,
-        call: &RadonCall,
-        _context: &mut ReportContext<RadonTypes>,
-    ) -> Result<RadonTypes, RadError> {
-        self.operate(call)
     }
 }
 
@@ -162,6 +168,9 @@ mod tests {
         assert_eq!(RadonBytesEndianness::from(0), RadonBytesEndianness::Big);
         assert_eq!(RadonBytesEndianness::from(1), RadonBytesEndianness::Little);
         assert_eq!(RadonBytesEndianness::from(2), RadonBytesEndianness::Big);
-        assert_eq!(RadonBytesEndianness::from(u8::MAX), RadonBytesEndianness::Big);
+        assert_eq!(
+            RadonBytesEndianness::from(u8::MAX),
+            RadonBytesEndianness::Big
+        );
     }
 }
