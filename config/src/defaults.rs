@@ -54,9 +54,14 @@ pub trait Defaults {
         PathBuf::from(".witnet")
     }
 
-    /// Do not keep utxos in memory by default
+    /// Keep utxos in memory by default
     fn storage_utxos_in_memory(&self) -> bool {
         true
+    }
+
+    /// Do not index RAD hashes in memory by default
+    fn storage_rad_hashes_index(&self) -> bool {
+        false
     }
 
     /// Unlimited number of open files by default
