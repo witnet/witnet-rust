@@ -60,6 +60,8 @@ reject_sybil_inbounds = true
 [storage]
 # Path of the folder where RocksDB storage files will be written to.
 db_path = ".witnet/storage"
+# Enable in-memory index of data requests grouped by RAD hash
+rad_hashes_index = false
 
 [jsonrpc]
 # Enables or disables the JSON-RPC server altogether. This is needed for using the CLI methods of the node.
