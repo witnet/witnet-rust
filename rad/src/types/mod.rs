@@ -5,6 +5,7 @@ use std::{
 };
 
 use cbor::value::Value as CborValue;
+use num_enum::IntoPrimitive;
 use serde::{Serialize, Serializer};
 use serde_cbor::{Value, to_vec};
 use serde_json::Value as JsonValue;
@@ -31,6 +32,25 @@ pub mod float;
 pub mod integer;
 pub mod map;
 pub mod string;
+
+#[derive(Copy, Clone, Debug, Eq, IntoPrimitive, PartialEq, Serialize)]
+#[repr(u8)]
+pub enum RadonTypesDiscriminant {
+    Array = 0,
+    Boolean = 1,
+    Bytes = 2,
+    Error = 6,
+    Float = 3,
+    Integer = 4,
+    Map = 5,
+    String = 7,
+}
+
+impl From<RadonTypesDiscriminant> for usize {
+    fn from(discriminant: RadonTypesDiscriminant) -> Self {
+        usize::from(u8::from(discriminant))
+    }
+}
 
 pub trait RadonType<T>:
     fmt::Display + From<T> + PartialEq + TryFrom<Value> + TryInto<Value> + TryFrom<RadonTypes>
@@ -78,16 +98,16 @@ impl RadonTypes {
         }
     }
 
-    pub fn discriminant(&self) -> usize {
+    pub fn discriminant(&self) -> RadonTypesDiscriminant {
         match self {
-            RadonTypes::Array(_) => 0,
-            RadonTypes::Boolean(_) => 1,
-            RadonTypes::Bytes(_) => 2,
-            RadonTypes::Float(_) => 3,
-            RadonTypes::Integer(_) => 4,
-            RadonTypes::Map(_) => 5,
-            RadonTypes::RadonError(_) => 6,
-            RadonTypes::String(_) => 7,
+            RadonTypes::Array(_) => RadonTypesDiscriminant::Array,
+            RadonTypes::Boolean(_) => RadonTypesDiscriminant::Boolean,
+            RadonTypes::Bytes(_) => RadonTypesDiscriminant::Bytes,
+            RadonTypes::Float(_) => RadonTypesDiscriminant::Float,
+            RadonTypes::Integer(_) => RadonTypesDiscriminant::Integer,
+            RadonTypes::Map(_) => RadonTypesDiscriminant::Map,
+            RadonTypes::RadonError(_) => RadonTypesDiscriminant::Error,
+            RadonTypes::String(_) => RadonTypesDiscriminant::String,
         }
     }
 

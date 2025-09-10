@@ -12,7 +12,7 @@ use crate::{
     reducers::mode::mode,
     run_tally_report,
     script::RadonScriptExecutionSettings,
-    types::{RadonType, RadonTypes, array::RadonArray},
+    types::{RadonType, RadonTypes, RadonTypesDiscriminant, array::RadonArray},
 };
 
 /// An `Either`-like structure that covers the two possible return types of the
@@ -59,8 +59,7 @@ pub fn evaluate_tally_precondition_clause(
         return Err(RadError::NoReveals);
     }
 
-    let error_type_discriminant =
-        RadonTypes::RadonError(RadonError::try_from(RadError::default()).unwrap()).discriminant();
+    let error_type_discriminant = RadonTypesDiscriminant::Error;
 
     // Count how many times is each RADON type featured in `reveals`, but count `RadonError` items
     // separately as they need to be handled differently.
@@ -68,7 +67,7 @@ pub fn evaluate_tally_precondition_clause(
     let mut counter = Counter::new(RadonTypes::num_types());
     let mut errors = vec![];
     for reveal in &reveals {
-        counter.increment(reveal.result.discriminant());
+        counter.increment(usize::from(reveal.result.discriminant()));
         if reveal.result.discriminant() == error_type_discriminant {
             errors.push(true);
         } else {
@@ -103,7 +102,9 @@ pub fn evaluate_tally_precondition_clause(
                 max_count: u16::try_from(counter.max_val).unwrap(),
             }),
             // Majority of errors, return errors mode.
-            Some(most_frequent_type) if most_frequent_type == error_type_discriminant => {
+            Some(most_frequent_type)
+                if most_frequent_type == usize::from(error_type_discriminant) =>
+            {
                 let errors: Vec<RadonTypes> = reveals
                     .into_iter()
                     .filter_map(|reveal| match reveal.into_inner() {
@@ -168,7 +169,8 @@ pub fn evaluate_tally_precondition_clause(
                     .into_iter()
                     .filter_map(|reveal| {
                         let radon_types = reveal.into_inner();
-                        let condition = most_frequent_type == radon_types.discriminant();
+                        let condition =
+                            most_frequent_type == usize::from(radon_types.discriminant());
                         update_liars(&mut liars, radon_types, condition)
                     })
                     .collect();
@@ -197,9 +199,7 @@ pub fn evaluate_tally_postcondition_clause(
     commits_count: usize,
 ) -> RadonReport<RadonTypes> {
     if let Stage::Tally(metadata) = report.context.stage.clone() {
-        let error_type_discriminant =
-            RadonTypes::RadonError(RadonError::try_from(RadError::default()).unwrap())
-                .discriminant();
+        let error_type_discriminant = RadonTypesDiscriminant::Error;
         // If the result is already a RadonError, return that error.
         // The result can be a RadonError in these scenarios:
         // * There is insufficient consensus before running the tally script

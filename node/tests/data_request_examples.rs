@@ -59,9 +59,16 @@ fn run_dr_locally_with_data(
         &all_wips_active(),
     )?;
 
+    // Because the data from examples is constructed with strings, we need to decode them into
+    // actual RadonTypes because that is what the latest API of run_retrieval_with_data takes
+    let data = data
+        .iter()
+        .map(|string| RadonTypes::String(RadonString::from(*string)))
+        .collect::<Vec<_>>();
+
     let mut retrieval_results = vec![];
     assert_eq!(dr.data_request.retrieve.len(), data.len());
-    for (r, d) in dr.data_request.retrieve.iter().zip(data.iter()) {
+    for (r, d) in dr.data_request.retrieve.iter().zip(&data) {
         log::info!("Running retrieval for {}", r.url);
         retrieval_results.push(witnet_rad::run_retrieval_with_data(
             r,
@@ -184,7 +191,8 @@ fn existing_examples() -> HashMap<&'static str, (BuildDrt, &'static [&'static st
         (
             "random_bytes.json",
             examples::random_bytes(),
-            &["4"],
+            // This used to be "4" but it is now "34" which is hex for 4 in ASCII
+            &["34"],
             RadonTypes::Bytes(RadonBytes::from(vec![
                 37, 243, 87, 33, 196, 171, 163, 135, 8, 21, 38, 67, 130, 180, 217, 50, 108, 156,
                 143, 166, 82, 161, 221, 100, 98, 226, 10, 230, 226, 213, 143, 190,

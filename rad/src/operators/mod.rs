@@ -1,10 +1,13 @@
-use std::fmt;
-
 use num_enum::TryFromPrimitive;
 use serde::Serialize;
+use std::fmt;
 use witnet_data_structures::radon_report::ReportContext;
 
-use crate::{error::RadError, script::RadonCall, types::RadonTypes};
+use crate::{
+    error::RadError,
+    script::RadonCall,
+    types::{RadonTypes, RadonTypesDiscriminant},
+};
 
 pub mod array;
 pub mod boolean;
@@ -106,6 +109,34 @@ pub enum RadonOpCodes {
     StringParseXMLMap = 0x78,
     StringToLowerCase = 0x79,
     StringToUpperCase = 0x7A,
+}
+
+impl RadonOpCodes {
+    /// Tells whether a specific `RadonOpcode` can be applied on a certain case of `RadonTypes`.
+    pub fn operates_on(&self, radon_type: RadonTypesDiscriminant) -> bool {
+        let opcode = *self as u8;
+
+        // Opcodes 0x00..0x0F are universal, so we can return early
+        if opcode <= 0x0F {
+            return true;
+        }
+
+        // Otherwise we need to check if it falls in the opcode range assigned to the specified
+        // RadonType
+        // Special case for errors, which are not operable
+        let range = match radon_type {
+            RadonTypesDiscriminant::Array => 0x10..=0x1F,
+            RadonTypesDiscriminant::Boolean => 0x20..=0x2F,
+            RadonTypesDiscriminant::Bytes => 0x30..=0x3F,
+            RadonTypesDiscriminant::Error => return false,
+            RadonTypesDiscriminant::Float => 0x50..=0x5F,
+            RadonTypesDiscriminant::Integer => 0x40..=0x4F,
+            RadonTypesDiscriminant::Map => 0x60..=0x6F,
+            RadonTypesDiscriminant::String => 0x70..=0x7F,
+        };
+
+        range.contains(&opcode)
+    }
 }
 
 impl fmt::Display for RadonOpCodes {

@@ -26,7 +26,10 @@ use crate::{
         RadonScript, RadonScriptExecutionSettings, create_radon_script_from_filters_and_reducer,
         execute_radon_script, unpack_radon_script,
     },
-    types::{RadonTypes, array::RadonArray, bytes::RadonBytes, map::RadonMap, string::RadonString},
+    types::{
+        RadonTypes, RadonTypesDiscriminant, array::RadonArray, bytes::RadonBytes, map::RadonMap,
+        string::RadonString,
+    },
     user_agents::UserAgent,
 };
 use core::convert::From;
@@ -381,6 +384,8 @@ async fn http_response(
     }
 
     let response = match retrieve.kind {
+        // In HTTP HEAD requests, there is no response body so what we actually take as a response
+        // is the headers, parsed as a map
         RADType::HttpHead => {
             let response_string =
                 response
@@ -393,11 +398,20 @@ async fn http_response(
                             header.1.to_str().unwrap_or_default()
                         )
                     });
+
             RadonTypes::from(RadonString::from(response_string))
         }
         _ => {
+            // This block performs the magic of handling binary responses differently based on the
+            // first operator in the script (it hints the fact that this is a binary retrieval
+            // because the chain of Radon operators starts with a call that operates on RadonBytes)
+            //
+            // Note that string support for the first Radon call is also checked to rule out the
+            // possibility of falsely treating the retrieval as binary when the first operator is
+            // our NOOP (0x00 = identity) or any other future "universal" operator
             if let Some((first_opcode, _)) = radon_script.first()
-                && (0x30..0x3f).contains(&(*first_opcode as u8))
+                && first_opcode.operates_on(RadonTypesDiscriminant::Bytes)
+                && !first_opcode.operates_on(RadonTypesDiscriminant::String)
             {
                 RadonTypes::from(RadonBytes::from(
                     response
@@ -409,6 +423,8 @@ async fn http_response(
                         .to_vec(),
                 ))
             } else {
+                // This is the regular case for text-based response bodies, where the whole body is
+                // treated as a RadonString
                 RadonTypes::from(RadonString::from(response.text().await.map_err(|x| {
                     RadError::HttpOther {
                         message: x.to_string(),

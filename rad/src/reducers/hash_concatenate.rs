@@ -48,6 +48,28 @@ pub fn hash_concatenate(input: &RadonArray) -> Result<RadonTypes, RadError> {
 
             Ok(RadonTypes::from(radon_bytes))
         }
+        // This is not used in production, and is only here to avoid reworking our tests
+        Some(RadonTypes::String(_)) => {
+            let as_bytes = value
+                .iter()
+                .map(|value| match value {
+                    RadonTypes::String(string) => hex::decode(string.value())
+                        .map(RadonBytes::from)
+                        .map(RadonTypes::from)
+                        .map_err(|_| RadError::UnsupportedReducer {
+                            array: input.clone(),
+                            reducer: RadonReducers::HashConcatenate.to_string(),
+                        }),
+                    _ => Err(RadError::UnsupportedReducer {
+                        array: input.clone(),
+                        reducer: RadonReducers::HashConcatenate.to_string(),
+                    }),
+                })
+                .collect::<Result<Vec<_>, RadError>>()?;
+            let array = RadonArray::from(as_bytes);
+
+            hash_concatenate(&array)
+        }
         Some(_rad_types) => Err(RadError::UnsupportedReducer {
             array: input.clone(),
             reducer: RadonReducers::HashConcatenate.to_string(),
