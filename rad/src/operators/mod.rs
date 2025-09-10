@@ -54,7 +54,7 @@ pub enum RadonOpCodes {
     // Bytes operator codes (start at 0x30)
     BytesToString = 0x30,
     BytesHash = 0x31,
-    BytesAsInteger = 0x32,
+    BytesToInteger = 0x32,
     BytesLength = 0x34,
     BytesSlice = 0x3C,
 
