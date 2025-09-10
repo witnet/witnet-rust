@@ -494,8 +494,6 @@ pub struct SearchDataRequests {
     pub offset: Option<usize>,
     /// The RAD hash of the data request transactions being searched for:
     pub rad_hash: Hash,
-    /// Select those requested by the specified address
-    pub requester: Option<MagicEither<String, PublicKeyHash>>,
     /// List fresher data requests first
     pub reverse: Option<bool>,
     /// Select data requests that have been included on or after the specified
