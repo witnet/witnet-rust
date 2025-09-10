@@ -50,8 +50,8 @@ use crate::{
             GetReputation, GetReputationResult, GetSignalingInfo, GetState, GetSuperBlockVotes,
             GetSupplyInfo, GetSupplyInfo2, GetUtxoInfo, IsConfirmedBlock, PeersBeacons,
             QueryStakes, QueryStakesOrderByOptions, QueryStakingPowers, ReputationStats, Rewind,
-            SendLastBeacon, SessionUnitResult, SetLastBeacon, SetPeersLimits, SignalingInfo,
-            SnapshotExport, SnapshotImport, TryMineBlock, try_do_magic_into_pkh,
+            SearchDataRequests, SendLastBeacon, SessionUnitResult, SetLastBeacon, SetPeersLimits,
+            SignalingInfo, SnapshotExport, SnapshotImport, TryMineBlock, try_do_magic_into_pkh,
         },
         sessions_manager::SessionsManager,
     },
@@ -1524,6 +1524,48 @@ impl Handler<BuildUnstake> for ChainManager {
                     }
                 }
             }
+        }
+    }
+}
+
+impl Handler<SearchDataRequests> for ChainManager {
+    type Result = <SearchDataRequests as Message>::Result;
+
+    fn handle(&mut self, msg: SearchDataRequests, _ctx: &mut Self::Context) -> Self::Result {
+        let result = self.chain_state.rad_hashes_index.get(&msg.rad_hash);
+        if let Some(result) = result {
+            let limit = msg.limit.unwrap_or(u16::MAX) as usize;
+            let offset = msg.offset.unwrap_or_default();
+            let reverse = msg.reverse.unwrap_or_default();
+            let mut since_epoch: i64 = msg.since.unwrap_or_default();
+            if since_epoch < 0 {
+                since_epoch = i64::from(self.current_epoch.unwrap()).saturating_add(since_epoch);
+            }
+            let since_epoch: u32 = since_epoch.try_into().inspect_err(|&e| {
+                log::warn!("Invalid 'since' limit on SearchDataRequests: {e}");
+            })?;
+
+            Ok(result
+                .iter()
+                .filter_map(|tuple| {
+                    if tuple.0 >= since_epoch {
+                        Some(*tuple)
+                    } else {
+                        None
+                    }
+                })
+                .sorted_by(|(epoch_a, _), (epoch_b, _)| {
+                    if reverse {
+                        epoch_b.cmp(epoch_a)
+                    } else {
+                        epoch_a.cmp(epoch_b)
+                    }
+                })
+                .skip(offset)
+                .take(limit)
+                .collect())
+        } else {
+            Ok(vec![])
         }
     }
 }

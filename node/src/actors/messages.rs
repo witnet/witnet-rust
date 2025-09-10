@@ -484,6 +484,29 @@ where
     }
 }
 
+/// Message for querying data requests transactions by some specified RAD hash value
+#[derive(Clone, Debug, Eq, Hash, PartialEq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchDataRequests {
+    /// Limits max number of entries to return (default: 0 == u16::MAX)
+    pub limit: Option<u16>,
+    /// Skips first found entries (default: 0)
+    pub offset: Option<usize>,
+    /// The RAD hash of the data request transactions being searched for:
+    pub rad_hash: Hash,
+    /// Select those requested by the specified address
+    pub requester: Option<MagicEither<String, PublicKeyHash>>,
+    /// List fresher data requests first
+    pub reverse: Option<bool>,
+    /// Select data requests that have been included on or after the specified
+    /// absolute epoch, or relative epoch if negative (default: -30240, or one week ago)
+    pub since: Option<i64>,
+}
+
+impl Message for SearchDataRequests {
+    type Result = Result<Vec<(Epoch, Hash)>, anyhow::Error>;
+}
+
 /// Builds a `DataRequestTransaction` from a `DataRequestOutput`
 #[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub struct BuildDrt {
