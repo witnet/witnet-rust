@@ -202,6 +202,11 @@ where
             ..Default::default()
         }
     }
+
+    /// Include protocol version into ReportContext
+    pub fn set_protocol_version(&mut self, protocol_version: ProtocolVersion) {
+        self.protocol_version = Some(protocol_version);
+    }
 }
 
 /// Tell different stage-specific metadata structures from each other.

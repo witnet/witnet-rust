@@ -662,6 +662,7 @@ impl ChainManager {
                             rad_request,
                             timeout: data_request_timeout,
                             active_wips,
+                            protocol_version,
                             too_many_witnesses: false,
                         })
                         .map(move |res|

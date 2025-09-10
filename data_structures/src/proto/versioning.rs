@@ -183,12 +183,11 @@ impl IntoIterator for VersionsMap {
 )]
 pub enum ProtocolVersion {
     /// The original Witnet protocol.
+    #[default]
     V1_7,
     /// The transitional protocol based on 1.x but with staking enabled.
     V1_8,
     /// The Witnet 2.0 protocol.
-    // TODO: update this default once 2.1 is completely active
-    #[default]
     V2_0,
     /// The Witnet 2.1 protocol, introducing stake delegation and more.
     V2_1,

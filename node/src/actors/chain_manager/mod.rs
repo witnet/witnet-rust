@@ -3761,12 +3761,17 @@ pub fn run_dr_locally(dr: &DataRequestOutput) -> Result<RadonTypes, anyhow::Erro
     // This does not validate other data request parameters such as number of witnesses, weight, or
     // collateral, so it is still possible that this request is considered invalid by miners.
     let active_wips = current_active_wips();
+    let protocol_version = ProtocolVersion::guess();
     validate_rad_request(&dr.data_request, &active_wips)?;
 
     // TODO: remove blocking calls, this code is no longer part of the CLI
     // Block on data request retrieval because the CLI application blocks everywhere anyway
     let run_retrieval_blocking = |retrieve| {
-        futures::executor::block_on(witnet_rad::run_retrieval(retrieve, active_wips.clone()))
+        futures::executor::block_on(witnet_rad::run_retrieval(
+            retrieve,
+            active_wips.clone(),
+            protocol_version,
+        ))
     };
 
     let mut retrieval_results = vec![];

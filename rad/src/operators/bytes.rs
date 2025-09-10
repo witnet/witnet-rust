@@ -34,6 +34,7 @@ pub fn length(input: &RadonBytes) -> RadonInteger {
     RadonInteger::from(input.value().len() as i128)
 }
 
+#[allow(clippy::cast_sign_loss)]
 pub fn slice(input: &RadonBytes, args: &[Value]) -> Result<RadonBytes, RadError> {
     let wrong_args = || RadError::WrongArguments {
         input_type: RadonString::radon_type_name(),
@@ -41,7 +42,7 @@ pub fn slice(input: &RadonBytes, args: &[Value]) -> Result<RadonBytes, RadError>
         args: args.to_vec(),
     };
 
-    let input_length = input.value().len() as i32;
+    let input_length = i32::try_from(input.value().len()).map_err(|_| RadError::InputTooBig)?;
     let mut start = args
         .first()
         .ok_or_else(wrong_args)
@@ -312,22 +313,22 @@ mod tests {
         assert_eq!(output, expected);
 
         // Invalid argument semantics, fail
-        let args = Some(vec![Value::Integer(123456)]);
-        let output = to_integer(&input, &args);
+        let args = vec![Value::Integer(123456)];
+        let output = to_integer(&input, &Some(args.clone()));
         let expected = Err(WrongArguments {
             input_type: "RadonBytes",
             operator: "ToInteger".to_string(),
-            args: args.unwrap(),
+            args,
         });
         assert_eq!(output, expected);
 
         // Invalid argument type, fail
-        let args = Some(vec![Value::Text(String::from("whatever"))]);
-        let output = to_integer(&input, &args);
+        let args = vec![Value::Text(String::from("whatever"))];
+        let output = to_integer(&input, &Some(args.clone()));
         let expected = Err(WrongArguments {
             input_type: "RadonBytes",
             operator: "ToInteger".to_string(),
-            args: args.unwrap(),
+            args,
         });
         assert_eq!(output, expected);
     }
@@ -349,12 +350,12 @@ mod tests {
         assert_eq!(output, expected);
 
         // Wrong arguments, fail
-        let args = Some(vec![Value::Text(String::from("whatever"))]);
-        let output = to_string(&input, &args).unwrap_err();
+        let args = vec![Value::Text(String::from("whatever"))];
+        let output = to_string(&input, &Some(args.clone())).unwrap_err();
         let expected = WrongArguments {
             input_type: "RadonBytes",
             operator: "ToString".to_string(),
-            args: args.unwrap(),
+            args,
         };
         assert_eq!(output, expected);
 

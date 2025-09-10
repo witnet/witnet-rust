@@ -35,6 +35,7 @@ impl Handler<ResolveRA> for RadManager {
             let sources = msg.rad_request.retrieve;
             let aggregate = msg.rad_request.aggregate;
             let active_wips = msg.active_wips.clone();
+            let protocol_version = msg.protocol_version;
             // Add a timeout to each source retrieval
             // TODO: this timeout only works if there are no blocking operations.
             // Since currently the execution of RADON is blocking this thread, we can only
@@ -58,6 +59,7 @@ impl Handler<ResolveRA> for RadManager {
                         aggregate.clone(),
                         settings,
                         active_wips.clone(),
+                        protocol_version,
                         witnessing.clone(),
                     )
                 })
@@ -154,6 +156,7 @@ mod tests {
     use witnet_data_structures::chain::{
         RADAggregate, RADRequest, RADRetrieve, RADTally, RADType, tapi::all_wips_active,
     };
+    use witnet_data_structures::proto::versioning::ProtocolVersion;
     use witnet_rad::reducers::RadonReducers;
 
     use crate::utils::test_actix_system;
@@ -273,11 +276,13 @@ mod tests {
                 },
             };
             let active_wips = all_wips_active();
+            let protocol_version = ProtocolVersion::guess();
             let res = rad_manager
                 .send(ResolveRA {
                     rad_request,
                     timeout: None,
                     active_wips,
+                    protocol_version,
                     too_many_witnesses: false,
                 })
                 .await
@@ -313,11 +318,13 @@ mod tests {
                 },
             };
             let active_wips = all_wips_active();
+            let protocol_version = ProtocolVersion::guess();
             let res = rad_manager
                 .send(ResolveRA {
                     rad_request,
                     timeout: None,
                     active_wips,
+                    protocol_version,
                     too_many_witnesses: false,
                 })
                 .await

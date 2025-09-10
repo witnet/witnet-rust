@@ -34,6 +34,7 @@ use crate::{
 };
 use core::convert::From;
 use std::collections::BTreeMap;
+use witnet_data_structures::proto::versioning::ProtocolVersion;
 use witnet_net::client::http::WitnetHttpBody;
 
 pub mod conditions;
@@ -74,6 +75,9 @@ pub fn try_data_request(
     let active_wips = current_active_wips();
     #[cfg(test)]
     let active_wips = all_wips_active();
+    // We assume that the "current" protocol version will always work for retrievals because
+    // retrievals should not really be re-evaluated (e.g. during synchronization)
+    let protocol_version = ProtocolVersion::guess();
     let mut retrieval_context =
         ReportContext::from_stage(Stage::Retrieval(RetrievalMetadata::default()));
     let retrieve_responses = if let Some(inputs) = inputs_injection {
@@ -109,6 +113,7 @@ pub fn try_data_request(
                         request.aggregate.clone(),
                         settings,
                         active_wips.clone(),
+                        protocol_version,
                         witnessing.clone().unwrap_or_default(),
                     )
                 })
@@ -258,9 +263,11 @@ pub fn run_retrieval_with_data(
     response: &RadonTypes,
     settings: RadonScriptExecutionSettings,
     active_wips: ActiveWips,
+    protocol_version: ProtocolVersion,
 ) -> Result<RadonTypes> {
     let context = &mut ReportContext::from_stage(Stage::Retrieval(RetrievalMetadata::default()));
     context.set_active_wips(active_wips);
+    context.set_protocol_version(protocol_version);
     run_retrieval_with_data_report(retrieve, response, context, settings)
         .map(RadonReport::into_inner)
 }
@@ -476,10 +483,12 @@ pub async fn run_retrieval_report(
     retrieve: &RADRetrieve,
     settings: RadonScriptExecutionSettings,
     active_wips: ActiveWips,
+    protocol_version: ProtocolVersion,
     client: Option<WitnetHttpClient>,
 ) -> Result<RadonReport<RadonTypes>> {
     let context = &mut ReportContext::from_stage(Stage::Retrieval(RetrievalMetadata::default()));
     context.set_active_wips(active_wips);
+    context.set_protocol_version(protocol_version);
 
     match retrieve.kind {
         RADType::HttpGet => http_response(retrieve, context, settings, client).await,
@@ -491,12 +500,17 @@ pub async fn run_retrieval_report(
 }
 
 /// Run retrieval stage of a data request, return `Result<RadonTypes>`.
-pub async fn run_retrieval(retrieve: &RADRetrieve, active_wips: ActiveWips) -> Result<RadonTypes> {
+pub async fn run_retrieval(
+    retrieve: &RADRetrieve,
+    active_wips: ActiveWips,
+    protocol_version: ProtocolVersion,
+) -> Result<RadonTypes> {
     // Disable all execution tracing features, as this is the best-effort version of this method
     run_retrieval_report(
         retrieve,
         RadonScriptExecutionSettings::disable_all(),
         active_wips,
+        protocol_version,
         None,
     )
     .await
@@ -514,11 +528,12 @@ pub async fn run_paranoid_retrieval(
     aggregate: RADAggregate,
     settings: RadonScriptExecutionSettings,
     active_wips: ActiveWips,
+    protocol_version: ProtocolVersion,
     witnessing: WitnessingConfig<witnet_net::Uri>,
 ) -> Result<RadonReport<RadonTypes>> {
     // We can skip paranoid checks for retrieval types that don't use networking (e.g. RNG)
     if !retrieve.kind.is_http() {
-        return run_retrieval_report(retrieve, settings, active_wips, None).await;
+        return run_retrieval_report(retrieve, settings, active_wips, protocol_version, None).await;
     }
 
     let futures: Result<Vec<_>> = witnessing
@@ -535,7 +550,13 @@ pub async fn run_paranoid_retrieval(
                     message: err.to_string(),
                 })
                 .map(|client| {
-                    run_retrieval_report(retrieve, settings, active_wips.clone(), Some(client))
+                    run_retrieval_report(
+                        retrieve,
+                        settings,
+                        active_wips.clone(),
+                        protocol_version,
+                        Some(client),
+                    )
                 })
         })
         .collect();
@@ -987,6 +1008,7 @@ mod tests {
             &RadonTypes::from(RadonString::from(response)),
             RadonScriptExecutionSettings::disable_all(),
             current_active_wips(),
+            ProtocolVersion::guess(),
         )
         .unwrap();
 
@@ -1057,6 +1079,7 @@ mod tests {
             &RadonTypes::from(RadonString::from(response)),
             RadonScriptExecutionSettings::disable_all(),
             current_active_wips(),
+            ProtocolVersion::guess(),
         )
         .unwrap();
         let aggregated =
@@ -1094,6 +1117,7 @@ mod tests {
             &RadonTypes::from(RadonString::from(response)),
             RadonScriptExecutionSettings::disable_all(),
             current_active_wips(),
+            ProtocolVersion::guess(),
         )
         .unwrap();
         let aggregated =
@@ -1147,6 +1171,7 @@ mod tests {
             &RadonTypes::from(RadonString::from(response)),
             RadonScriptExecutionSettings::disable_all(),
             current_active_wips(),
+            ProtocolVersion::guess(),
         )
         .unwrap();
         let aggregated =
@@ -1191,6 +1216,7 @@ mod tests {
             &RadonTypes::from(RadonString::from(response)),
             RadonScriptExecutionSettings::disable_all(),
             current_active_wips(),
+            ProtocolVersion::guess(),
         )
         .unwrap();
         let aggregated =
@@ -1235,6 +1261,7 @@ mod tests {
             &RadonTypes::from(RadonString::from(response)),
             RadonScriptExecutionSettings::disable_all(),
             current_active_wips(),
+            ProtocolVersion::guess(),
         )
         .unwrap();
         let expected = RadonTypes::Integer(RadonInteger::from(9));
@@ -2032,6 +2059,7 @@ mod tests {
                                 &retrieve,
                                 RadonScriptExecutionSettings::disable_all(),
                                 current_active_wips(),
+                                ProtocolVersion::guess(),
                                 Some(client),
                             )
                             .await;

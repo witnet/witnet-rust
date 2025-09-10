@@ -222,9 +222,6 @@ mod tests {
 
     #[test]
     fn protocol_versions() {
-        // If this default changes before the transition to V2 is complete, almost everything will
-        // break because data structures change schema and, serialization changes and hash
-        // derivation breaks too
         let protocol_version = ProtocolVersion::guess();
         assert_eq!(protocol_version, ProtocolVersion::V1_7);
 
@@ -237,7 +234,6 @@ mod tests {
         let version = ProtocolVersion::from_epoch(0);
         assert_eq!(version, ProtocolVersion::V1_7);
 
-        // Right after the
         let version = ProtocolVersion::from_epoch(100);
         assert_eq!(version, ProtocolVersion::V1_7);
         let version = ProtocolVersion::from_epoch(200);

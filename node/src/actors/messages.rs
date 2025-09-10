@@ -27,7 +27,7 @@ use witnet_data_structures::{
     },
     fee::{Fee, deserialize_fee_backwards_compatible},
     get_environment,
-    proto::versioning::ProtocolInfo,
+    proto::versioning::{ProtocolInfo, ProtocolVersion},
     radon_report::RadonReport,
     staking::prelude::*,
     transaction::{
@@ -1189,6 +1189,8 @@ pub struct ResolveRA {
     /// Active Witnet protocol improvements as of the current epoch.
     /// Used to select the correct version of the validation logic.
     pub active_wips: ActiveWips,
+    /// Which protocol version to enact when resolving.
+    pub protocol_version: ProtocolVersion,
     /// Whether too many witnesses have been requested.
     pub too_many_witnesses: bool,
 }

@@ -295,6 +295,9 @@ pub enum RadError {
     /// Source looks inconsistent when queried through multiple transports at once.
     #[error("Source looks inconsistent when queried through multiple transports at once")]
     InconsistentSource,
+    /// The retrieved data is too big to operate on it.
+    #[error("The retrieved data is too big to operate on it")]
+    InputTooBig,
 }
 
 impl RadError {

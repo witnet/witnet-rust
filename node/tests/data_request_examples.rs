@@ -3,7 +3,10 @@ use std::{collections::HashMap, convert::TryFrom, fs};
 use serde::{Deserialize, Serialize};
 
 use witnet_config::defaults::PSEUDO_CONSENSUS_CONSTANTS_WIP0022_REWARD_COLLATERAL_RATIO;
-use witnet_data_structures::chain::{DataRequestOutput, tapi::all_wips_active};
+use witnet_data_structures::{
+    chain::{DataRequestOutput, tapi::all_wips_active},
+    proto::versioning::ProtocolVersion,
+};
 use witnet_node::actors::messages::BuildDrt;
 use witnet_rad::{
     script::RadonScriptExecutionSettings,
@@ -75,6 +78,7 @@ fn run_dr_locally_with_data(
             d,
             RadonScriptExecutionSettings::disable_all(),
             all_wips_active(),
+            ProtocolVersion::guess(),
         )?);
     }
 

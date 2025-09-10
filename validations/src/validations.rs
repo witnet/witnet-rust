@@ -328,7 +328,7 @@ pub fn validate_mint_transaction(
         .into());
     }
 
-    if ProtocolVersion::from_epoch(block_epoch) != ProtocolVersion::V2_0 {
+    if ProtocolVersion::from_epoch(block_epoch) < ProtocolVersion::V2_0 {
         let mint_value = transaction_outputs_sum(&mint_tx.outputs)?;
         let block_reward_value = block_reward(mint_tx.epoch, initial_block_reward, halving_period);
         // Mint value must be equal to block_reward + transaction fees
