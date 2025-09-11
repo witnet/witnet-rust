@@ -172,6 +172,9 @@ impl ChainManager {
                     log::debug!("Initial WIT supply: {}", act.initial_supply);
                 }
 
+                // Set whether an in-memory index of data request transactions is required
+                act.rad_hashes_index = config.storage.rad_hashes_index;
+
                 storage_mngr::get_chain_state(storage_keys::chain_state_key(magic))
                     .into_actor(act)
                     .then(|chain_state_from_storage, _, _| {

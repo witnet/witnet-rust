@@ -260,6 +260,8 @@ pub struct ChainManager {
     consensus_constants_wit2: ConsensusConstantsWit2,
     /// Initial WIT supply
     initial_supply: u64,
+    /// Populate RAD hashes index
+    rad_hashes_index: bool,
 }
 
 impl ChainManager {
@@ -938,7 +940,8 @@ impl ChainManager {
                 ..
             } => {
                 let block_epoch = block.block_header.beacon.checkpoint;
-                let block_hash = block.versioned_hash(get_protocol_version(Some(block_epoch)));
+                let protocol_version = get_protocol_version(Some(block_epoch));
+                let block_hash = block.versioned_hash(protocol_version);
                 let block_signals = block.block_header.signals;
                 let validator_count = stakes.validator_count();
 
@@ -990,7 +993,7 @@ impl ChainManager {
 
                 // Check total amount staked to make sure we can activate wit/2
                 let superblock_period = chain_info.consensus_constants.superblock_period;
-                if get_protocol_version(Some(block_epoch)) == ProtocolVersion::V1_8
+                if protocol_version == ProtocolVersion::V1_8
                     && get_protocol_version_activation_epoch(ProtocolVersion::V2_0) == Epoch::MAX
                     && block_epoch % u32::from(superblock_period) == 0
                 {
@@ -1110,6 +1113,22 @@ impl ChainManager {
                     block_epoch,
                     &HashSet::default(),
                 );
+
+                // Update chain state's RAD hash index, only if set up in config:
+                if self.rad_hashes_index {
+                    block.txns.data_request_txns
+                        .iter()
+                        .for_each(|dr_tx| {
+                            let dr_tx_hash = dr_tx.versioned_hash(protocol_version);
+                            let rad_hash = dr_tx.body.dr_output.data_request.versioned_hash(protocol_version);
+                            if let Some(vec) = self.chain_state.rad_hashes_index.get_mut(&rad_hash) {
+                                vec.push((block_epoch, dr_tx_hash));
+                            } else {
+                                self.chain_state.rad_hashes_index.insert(rad_hash, vec![(block_epoch, dr_tx_hash)]);
+                            }
+                            log::warn!("Indexing data request {dr_tx_hash:?} with rad_hash {rad_hash:?} on epoch {block_epoch}");
+                        });
+                }
 
                 match self.sm_state {
                     StateMachine::WaitingConsensus => {

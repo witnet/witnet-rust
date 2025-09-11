@@ -4042,6 +4042,9 @@ pub struct ChainState {
     /// Unspent Outputs Pool
     #[serde(skip)]
     pub unspent_outputs_pool: UnspentOutputsPool,
+    /// Arrays of (Epoch, DrTxHash) grouped by RadHash
+    #[serde(skip)]
+    pub rad_hashes_index: HashMap<Hash, Vec<(Epoch, Hash)>>,
 }
 
 impl ChainState {
@@ -4073,6 +4076,20 @@ impl ChainState {
             .expect("ChainInfo is None")
             .consensus_constants
             .clone()
+    }
+
+    pub fn get_data_requests_by_rad_hash(&self, rad_hash: &Hash) -> HashMap<Epoch, Vec<Hash>> {
+        let mut found: HashMap<Epoch, Vec<Hash>> = HashMap::new();
+        if let Some(entry) = self.rad_hashes_index.get(rad_hash) {
+            entry.iter().for_each(|(epoch, dr_tx_hash)| {
+                if let Some(vec) = found.get_mut(epoch) {
+                    vec.push(*dr_tx_hash)
+                } else {
+                    found.insert(*epoch, vec![*dr_tx_hash]);
+                }
+            });
+        }
+        found
     }
 }
 

@@ -318,6 +318,8 @@ pub struct Storage {
     pub master_key_import_path: Option<PathBuf>,
     /// Keep a map of "address" to "list of UTXOs" in memory, to speed up getBalance and getUtxoInfo methods
     pub utxos_in_memory: bool,
+    /// Index RAD hashes in memory
+    pub rad_hashes_index: bool,
     /// RocksDB option max_open_files. -1 means unlimited.
     pub max_open_files: i32,
 }
@@ -779,6 +781,10 @@ impl Storage {
                 .utxos_in_memory
                 .to_owned()
                 .unwrap_or_else(|| defaults.storage_utxos_in_memory()),
+            rad_hashes_index: config
+                .rad_hashes_index
+                .to_owned()
+                .unwrap_or_else(|| defaults.storage_rad_hashes_index()),
             max_open_files: config
                 .max_open_files
                 .unwrap_or_else(|| defaults.storage_max_open_files()),
@@ -791,6 +797,7 @@ impl Storage {
             db_path: Some(self.db_path.clone()),
             master_key_import_path: self.master_key_import_path.clone(),
             utxos_in_memory: Some(self.utxos_in_memory),
+            rad_hashes_index: Some(self.rad_hashes_index),
             max_open_files: Some(self.max_open_files),
         }
     }
@@ -1360,6 +1367,7 @@ mod tests {
             db_path: Some(PathBuf::from("other")),
             master_key_import_path: None,
             utxos_in_memory: None,
+            rad_hashes_index: None,
             max_open_files: None,
         };
         let config = Storage::from_partial(&partial_config, &Testnet);
