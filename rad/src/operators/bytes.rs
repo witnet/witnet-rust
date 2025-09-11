@@ -5,6 +5,7 @@ use std::convert::TryFrom;
 use crate::{
     error::RadError,
     hash_functions::{self, RadonHashFunctions},
+    operators,
     types::{
         RadonType,
         bytes::{RadonBytes, RadonBytesEncoding, RadonBytesEndianness},
@@ -85,7 +86,10 @@ pub fn slice(input: &RadonBytes, args: &[Value]) -> Result<RadonBytes, RadError>
 }
 
 pub fn to_integer(input: &RadonBytes, args: &Option<Vec<Value>>) -> Result<RadonInteger, RadError> {
-    let endianness = decode_single_arg::<u8, RadonBytesEndianness, _>(args, "ToInteger")?;
+    let endianness = operators::decode_single_arg::<RadonBytes, u8, RadonBytesEndianness, _, _>(
+        args,
+        "ToInteger",
+    )?;
 
     match input.value().len() {
         // There is nothing to decode if the input is empty
@@ -117,7 +121,8 @@ pub fn to_string_legacy(input: &RadonBytes) -> Result<RadonString, RadError> {
 }
 
 pub fn to_string(input: &RadonBytes, args: &Option<Vec<Value>>) -> Result<RadonString, RadError> {
-    let bytes_encoding = decode_single_arg::<u8, RadonBytesEncoding, _>(args, "ToString")?;
+    let bytes_encoding =
+        operators::decode_single_arg::<RadonBytes, u8, RadonBytesEncoding, _, _>(args, "ToString")?;
 
     match bytes_encoding {
         RadonBytesEncoding::Hex => RadonString::try_from(Value::Text(hex::encode(input.value()))),
@@ -127,29 +132,6 @@ pub fn to_string(input: &RadonBytes, args: &Option<Vec<Value>>) -> Result<RadonS
         RadonBytesEncoding::Utf8 => Ok(RadonString::from(
             String::from_utf8(input.value().to_vec()).unwrap_or_default(),
         )),
-    }
-}
-
-fn decode_single_arg<T1, T2, TS>(args: &Option<Vec<Value>>, operator: TS) -> Result<T2, RadError>
-where
-    T1: serde::de::DeserializeOwned,
-    T2: Default + TryFrom<T1>,
-    TS: ToString,
-{
-    let wrong_args = || RadError::WrongArguments {
-        input_type: RadonBytes::radon_type_name(),
-        operator: operator.to_string(),
-        args: args.to_owned().unwrap_or_default().to_vec(),
-    };
-
-    // Fail on wrong arguments but not on receiving no arguments or empty arguments, in which case
-    // we want to use the default value
-    if let Some(value) = args.to_owned().and_then(|args| args.first().cloned()) {
-        from_value::<T1>(value)
-            .map_err(|_| wrong_args())
-            .and_then(|t1| T2::try_from(t1).map_err(|_| wrong_args()))
-    } else {
-        Ok(T2::default())
     }
 }
 

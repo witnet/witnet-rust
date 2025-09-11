@@ -12,7 +12,7 @@ use crate::{
     script::RadonCall,
     types::{RadonType, RadonTypes, string::RadonString},
 };
-use witnet_data_structures::radon_report::ReportContext;
+use witnet_data_structures::{proto::versioning::ProtocolVersion::*, radon_report::ReportContext};
 
 const RADON_INTEGER_TYPE_NAME: &str = "RadonInteger";
 
@@ -99,6 +99,16 @@ impl TryFrom<&str> for RadonInteger {
 
 impl Operable for RadonInteger {
     fn operate(&self, call: &RadonCall) -> Result<RadonTypes, RadError> {
+        self.operate_in_context(call, &mut ReportContext::default())
+    }
+
+    fn operate_in_context(
+        &self,
+        call: &RadonCall,
+        context: &mut ReportContext<RadonTypes>,
+    ) -> Result<RadonTypes, RadError> {
+        let protocol_version = context.protocol_version.unwrap_or_default();
+
         match call {
             // Identity
             (RadonOpCodes::Identity, None) => identity(RadonTypes::from(self.clone())),
@@ -112,24 +122,25 @@ impl Operable for RadonInteger {
                 integer_operators::less_than(self, args).map(Into::into)
             }
             (RadonOpCodes::IntegerModulo, Some(args)) => {
-                integer_operators::modulo(self, args.as_slice()).map(Into::into)
+                integer_operators::modulo(self, args.as_slice()).map(RadonTypes::from)
             }
             (RadonOpCodes::IntegerMultiply, Some(args)) => {
-                integer_operators::multiply(self, args.as_slice()).map(Into::into)
+                integer_operators::multiply(self, args.as_slice()).map(RadonTypes::from)
             }
             (RadonOpCodes::IntegerNegate, None) => {
                 integer_operators::negate(self).map(RadonTypes::from)
             }
             (RadonOpCodes::IntegerPower, Some(args)) => {
-                integer_operators::power(self, args.as_slice()).map(Into::into)
+                integer_operators::power(self, args.as_slice()).map(RadonTypes::from)
             }
-            (RadonOpCodes::IntegerToBytes, None) => integer_operators::to_bytes(self.clone())
-                .map(RadonTypes::from),
+            (RadonOpCodes::IntegerToBytes, args) if protocol_version >= V2_1 => {
+                integer_operators::to_bytes(self, args).map(RadonTypes::from)
+            }
             (RadonOpCodes::IntegerToFloat, None) => {
-                integer_operators::to_float(self.clone()).map(RadonTypes::from)
+                integer_operators::to_float(self).map(RadonTypes::from)
             }
             (RadonOpCodes::IntegerToString, None) => {
-                integer_operators::to_string(self.clone()).map(RadonTypes::from)
+                integer_operators::to_string(self).map(RadonTypes::from)
             }
             // Unsupported / unimplemented
             (op_code, args) => Err(RadError::UnsupportedOperator {
@@ -138,14 +149,6 @@ impl Operable for RadonInteger {
                 args: args.to_owned(),
             }),
         }
-    }
-
-    fn operate_in_context(
-        &self,
-        call: &RadonCall,
-        _context: &mut ReportContext<RadonTypes>,
-    ) -> Result<RadonTypes, RadError> {
-        self.operate(call)
     }
 }
 

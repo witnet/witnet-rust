@@ -4,9 +4,14 @@ use serde_cbor::value::{Value, from_value};
 
 use crate::{
     error::RadError,
+    operators::decode_single_arg,
     types::{
-        RadonType, boolean::RadonBoolean, bytes::RadonBytes, float::RadonFloat,
-        integer::RadonInteger, string::RadonString,
+        RadonType,
+        boolean::RadonBoolean,
+        bytes::{RadonBytes, RadonBytesEndianness},
+        float::RadonFloat,
+        integer::RadonInteger,
+        string::RadonString,
     },
 };
 
@@ -20,25 +25,25 @@ pub fn absolute(input: &RadonInteger) -> Result<RadonInteger, RadError> {
     }
 }
 
-pub fn to_bytes(input: RadonInteger) -> Result<RadonBytes, RadError> {
-    let mut bytes_array = [0u8; 16];
-    bytes_array.copy_from_slice(&input.value().to_be_bytes());
-    let mut leading_zeros = 0;
-    for charcode in bytes_array {
-        if charcode != 0u8 {
-            break;
-        } else {
-            leading_zeros += 1;
-        }
-    }
-    Ok(RadonBytes::from(bytes_array[leading_zeros..].to_vec()))
+pub fn to_bytes(input: &RadonInteger, args: &Option<Vec<Value>>) -> Result<RadonBytes, RadError> {
+    let endianness =
+        decode_single_arg::<RadonInteger, u8, RadonBytesEndianness, _, _>(args, "ToBytes")?;
+    let encoder = if let RadonBytesEndianness::Big = endianness {
+        i128::to_be_bytes
+    } else {
+        i128::to_le_bytes
+    };
+
+    let bytes = encoder(input.value()).to_vec();
+
+    Ok(RadonBytes::from(bytes))
 }
 
-pub fn to_float(input: RadonInteger) -> Result<RadonFloat, RadError> {
+pub fn to_float(input: &RadonInteger) -> Result<RadonFloat, RadError> {
     RadonFloat::try_from(Value::Integer(input.value()))
 }
 
-pub fn to_string(input: RadonInteger) -> Result<RadonString, RadError> {
+pub fn to_string(input: &RadonInteger) -> Result<RadonString, RadError> {
     RadonString::try_from(Value::Text(input.value().to_string()))
 }
 
@@ -144,11 +149,73 @@ fn test_integer_absolute() {
 }
 
 #[test]
+fn test_integer_to_bytes() {
+    let input = RadonInteger::from(i128::MAX);
+    let expected_big = Ok(RadonBytes::from(vec![
+        0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFF,
+    ]));
+    let expected_little = Ok(RadonBytes::from(vec![
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0x7F,
+    ]));
+
+    // No arguments, default to big endian
+    let args = None;
+    let output = to_bytes(&input, &args);
+    assert_eq!(output, expected_big);
+
+    // Empty arguments, default to big endian
+    let args = Some(vec![]);
+    let output = to_bytes(&input, &args);
+    assert_eq!(output, expected_big);
+
+    // Big endian
+    let args = Some(vec![Value::Integer(i128::from(
+        RadonBytesEndianness::Big as u8,
+    ))]);
+    let output = to_bytes(&input, &args);
+    assert_eq!(output, expected_big);
+
+    // Little endian
+    let args = Some(vec![Value::Integer(i128::from(
+        RadonBytesEndianness::Little as u8,
+    ))]);
+    let output = to_bytes(&input, &args);
+    assert_eq!(output, expected_little);
+
+    // Any non-little is a big
+    let args = Some(vec![Value::Integer(123)]);
+    let output = to_bytes(&input, &args);
+    assert_eq!(output, expected_big);
+
+    // Invalid argument semantics, fail
+    let args = vec![Value::Integer(123456)];
+    let output = to_bytes(&input, &Some(args.clone()));
+    let expected = Err(RadError::WrongArguments {
+        input_type: "RadonInteger",
+        operator: "ToBytes".to_string(),
+        args,
+    });
+    assert_eq!(output, expected);
+
+    // Invalid argument type, fail
+    let args = vec![Value::Text(String::from("whatever"))];
+    let output = to_bytes(&input, &Some(args.clone()));
+    let expected = Err(RadError::WrongArguments {
+        input_type: "RadonInteger",
+        operator: "ToBytes".to_string(),
+        args,
+    });
+    assert_eq!(output, expected);
+}
+
+#[test]
 fn test_integer_to_float() {
     let rad_int = RadonInteger::from(10);
     let rad_float = RadonFloat::from(10.0);
 
-    assert_eq!(to_float(rad_int).unwrap(), rad_float);
+    assert_eq!(to_float(&rad_int).unwrap(), rad_float);
 }
 
 #[test]
@@ -156,7 +223,7 @@ fn test_integer_to_string() {
     let rad_int = RadonInteger::from(10);
     let rad_string: RadonString = RadonString::from("10");
 
-    assert_eq!(to_string(rad_int).unwrap(), rad_string);
+    assert_eq!(to_string(&rad_int).unwrap(), rad_string);
 }
 
 #[test]

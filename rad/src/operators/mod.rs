@@ -1,12 +1,13 @@
 use num_enum::TryFromPrimitive;
 use serde::Serialize;
+use serde_cbor::{Value, value::from_value};
 use std::fmt;
 use witnet_data_structures::radon_report::ReportContext;
 
 use crate::{
     error::RadError,
     script::RadonCall,
-    types::{RadonTypes, RadonTypesDiscriminant},
+    types::{RadonType, RadonTypes, RadonTypesDiscriminant},
 };
 
 pub mod array;
@@ -175,6 +176,34 @@ pub fn operate_in_context(
 
 pub fn identity(input: RadonTypes) -> Result<RadonTypes, RadError> {
     Ok(input)
+}
+
+fn decode_single_arg<RT, T1, T2, TS, RTI>(
+    args: &Option<Vec<Value>>,
+    operator: TS,
+) -> Result<T2, RadError>
+where
+    RT: RadonType<RTI>,
+    T1: serde::de::DeserializeOwned,
+    T2: Default + TryFrom<T1>,
+    TS: ToString,
+    RTI: fmt::Debug,
+{
+    let wrong_args = || RadError::WrongArguments {
+        input_type: RT::radon_type_name(),
+        operator: operator.to_string(),
+        args: args.to_owned().unwrap_or_default().to_vec(),
+    };
+
+    // Fail on wrong arguments but not on receiving no arguments or empty arguments, in which case
+    // we want to use the default value
+    if let Some(value) = args.to_owned().and_then(|args| args.first().cloned()) {
+        from_value::<T1>(value)
+            .map_err(|_| wrong_args())
+            .and_then(|t1| T2::try_from(t1).map_err(|_| wrong_args()))
+    } else {
+        Ok(T2::default())
+    }
 }
 
 /// This module contains tests to guarantee a smooth activation of WIP-0024.
