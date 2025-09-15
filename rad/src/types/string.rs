@@ -4,7 +4,9 @@ use std::{
 };
 
 use serde_cbor::value::{Value, from_value};
-use witnet_data_structures::{chain::tapi::ActiveWips, radon_report::ReportContext};
+use witnet_data_structures::{
+    chain::tapi::ActiveWips, proto::versioning::ProtocolVersion::*, radon_report::ReportContext,
+};
 
 use crate::{
     error::RadError,
@@ -103,6 +105,8 @@ impl Operable for RadonString {
             .map(ActiveWips::wip0024)
             .unwrap_or(true);
 
+        let protocol_version = context.protocol_version.unwrap_or_default();
+
         match call {
             (RadonOpCodes::Identity, None) => identity(RadonTypes::from(self.clone())),
             (RadonOpCodes::StringAsFloat, args) => if wip0024 {
@@ -120,8 +124,9 @@ impl Operable for RadonString {
             (RadonOpCodes::StringAsBoolean, None) => {
                 string_operators::as_bool(self).map(RadonTypes::from)
             }
-            (RadonOpCodes::StringAsBytes, args) => string_operators::as_bytes(self, args)
-                .map(RadonTypes::from),
+            (RadonOpCodes::StringAsBytes, args) => {
+                string_operators::as_bytes(self, args).map(RadonTypes::from)
+            }
             (RadonOpCodes::StringLength, None) => {
                 Ok(RadonTypes::from(string_operators::length(self)))
             }
@@ -137,15 +142,15 @@ impl Operable for RadonString {
             (RadonOpCodes::StringParseXMLMap, None) => {
                 string_operators::parse_xml_map(self).map(RadonTypes::from)
             }
-            (RadonOpCodes::StringReplace, Some(args)) => {
-                string_operators::string_replace(self, args.as_slice())
-                    .map(RadonTypes::from)}
-            (RadonOpCodes::StringSlice, Some(args)) => {
-                string_operators::string_slice(self, args.as_slice())
-                    .map(RadonTypes::from)}
-            (RadonOpCodes::StringSplit, Some(args)) => {
-                string_operators::string_split(self, args.as_slice())
-                    .map(RadonTypes::from)}
+            (RadonOpCodes::StringReplace, args) if protocol_version >= V2_1 => {
+                string_operators::string_replace(self, args).map(RadonTypes::from)
+            }
+            (RadonOpCodes::StringSlice, Some(args)) if protocol_version >= V2_1 => {
+                string_operators::string_slice(self, args.as_slice()).map(RadonTypes::from)
+            }
+            (RadonOpCodes::StringSplit, args) if protocol_version >= V2_1 => {
+                string_operators::string_split(self, args).map(RadonTypes::from)
+            }
             (RadonOpCodes::StringToLowerCase, None) => {
                 Ok(RadonTypes::from(string_operators::to_lowercase(self)))
             }

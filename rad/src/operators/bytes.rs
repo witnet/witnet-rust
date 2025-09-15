@@ -5,7 +5,7 @@ use std::convert::TryFrom;
 use crate::{
     error::RadError,
     hash_functions::{self, RadonHashFunctions},
-    operators,
+    operators::decode_single_arg,
     types::{
         RadonType,
         bytes::{RadonBytes, RadonBytesEncoding, RadonBytesEndianness},
@@ -86,10 +86,8 @@ pub fn slice(input: &RadonBytes, args: &[Value]) -> Result<RadonBytes, RadError>
 }
 
 pub fn to_integer(input: &RadonBytes, args: &Option<Vec<Value>>) -> Result<RadonInteger, RadError> {
-    let endianness = operators::decode_single_arg::<RadonBytes, u8, RadonBytesEndianness, _, _>(
-        args,
-        "ToInteger",
-    )?;
+    let endianness =
+        decode_single_arg::<RadonBytes, u8, RadonBytesEndianness, _, _>(args, 0, "ToInteger")?;
 
     match input.value().len() {
         // There is nothing to decode if the input is empty
@@ -122,11 +120,13 @@ pub fn to_string_legacy(input: &RadonBytes) -> Result<RadonString, RadError> {
 
 pub fn to_string(input: &RadonBytes, args: &Option<Vec<Value>>) -> Result<RadonString, RadError> {
     let bytes_encoding =
-        operators::decode_single_arg::<RadonBytes, u8, RadonBytesEncoding, _, _>(args, "ToString")?;
+        decode_single_arg::<RadonBytes, u8, RadonBytesEncoding, _, _>(args, 0, "ToString")?;
 
     match bytes_encoding {
         RadonBytesEncoding::Hex => RadonString::try_from(Value::Text(hex::encode(input.value()))),
-        RadonBytesEncoding::Base58 => RadonString::try_from(Value::Text(bs58::encode(input.value()).into_string())),
+        RadonBytesEncoding::Base58 => {
+            RadonString::try_from(Value::Text(bs58::encode(input.value()).into_string()))
+        }
         RadonBytesEncoding::Base64 => RadonString::try_from(Value::Text(
             base64::engine::general_purpose::STANDARD.encode(input.value()),
         )),

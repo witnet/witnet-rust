@@ -183,6 +183,7 @@ pub fn identity(input: RadonTypes) -> Result<RadonTypes, RadError> {
 
 fn decode_single_arg<RT, T1, T2, TS, RTI>(
     args: &Option<Vec<Value>>,
+    index: usize,
     operator: TS,
 ) -> Result<T2, RadError>
 where
@@ -200,7 +201,7 @@ where
 
     // Fail on wrong arguments but not on receiving no arguments or empty arguments, in which case
     // we want to use the default value
-    if let Some(value) = args.to_owned().and_then(|args| args.first().cloned()) {
+    if let Some(value) = args.to_owned().and_then(|args| args.get(index).cloned()) {
         from_value::<T1>(value)
             .map_err(|_| wrong_args())
             .and_then(|t1| T2::try_from(t1).map_err(|_| wrong_args()))

@@ -14,6 +14,7 @@ use slicestring::Slice;
 use crate::{
     error::RadError,
     hash_functions::{self, RadonHashFunctions},
+    operators::decode_single_arg,
     types::{
         RadonType, RadonTypes,
         array::RadonArray,
@@ -50,15 +51,17 @@ pub fn as_bytes(input: &RadonString, args: &Option<Vec<Value>>) -> Result<RadonB
     if input_string.len() % 2 != 0 {
         input_string.insert(0, '0');
     }
-    let mut bytes_encoding = RadonBytesEncoding::Hex;
-    if let Some(args) = args {
-        if !args.is_empty() {
-            let arg = args.first().ok_or_else(wrong_args)?.to_owned();
-            let bytes_encoding_u8 = from_value::<u8>(arg).map_err(|_| wrong_args())?;
-            bytes_encoding =
-                RadonBytesEncoding::try_from(bytes_encoding_u8).map_err(|_| wrong_args())?;
-        }
-    }
+    let bytes_encoding = if let Some(args) = args
+        && !args.is_empty()
+    {
+        let arg = args.first().ok_or_else(wrong_args)?.to_owned();
+        let bytes_encoding_u8 = from_value::<u8>(arg).map_err(|_| wrong_args())?;
+
+        RadonBytesEncoding::try_from(bytes_encoding_u8).map_err(|_| wrong_args())?
+    } else {
+        RadonBytesEncoding::Hex
+    };
+
     match bytes_encoding {
         RadonBytesEncoding::Hex => Ok(RadonBytes::from(
             hex::decode(input_string.as_str()).map_err(|_err| RadError::Decode {
@@ -142,30 +145,33 @@ pub fn parse_json(input: &RadonString) -> Result<RadonTypes, RadError> {
     RadonTypes::try_from(json_value)
 }
 
-pub fn parse_json_array(input: &RadonString, args: &Option<Vec<Value>>) -> Result<RadonArray, RadError> {
-    let wrong_args = || RadError::WrongArguments { 
+pub fn parse_json_array(
+    input: &RadonString,
+    args: &Option<Vec<Value>>,
+) -> Result<RadonArray, RadError> {
+    let wrong_args = || RadError::WrongArguments {
         input_type: RadonString::radon_type_name(),
         operator: "ParseJsonArray".to_string(),
         args: args.to_owned().unwrap_or_default(),
     };
 
-    let json_input: JsonValue = serde_json::from_str(&input.value())
-        .map_err(|err| RadError::JsonParse {
-                description: err.to_string(),
-    })?;
+    let json_input: JsonValue =
+        serde_json::from_str(&input.value()).map_err(|err| RadError::JsonParse {
+            description: err.to_string(),
+        })?;
 
     match args.to_owned().unwrap_or_default().first() {
         Some(Value::Array(values)) => {
             let mut items: Vec<RadonTypes> = vec![];
             for path in values {
                 if let Value::Text(json_path) = path {
-                    let selector = Selector::new(json_path.as_str())
-                        .map_err(|err| RadError::JsonPathParse { 
+                    let selector = Selector::new(json_path.as_str()).map_err(|err| {
+                        RadError::JsonPathParse {
                             description: err.to_string(),
-                        })?;
-                    let mut subitems: Vec<RadonTypes> = selector.find(&json_input)
-                        .map(into_radon_types)
-                        .collect();
+                        }
+                    })?;
+                    let mut subitems: Vec<RadonTypes> =
+                        selector.find(&json_input).map(into_radon_types).collect();
                     if subitems.len() > 1 {
                         items.insert(items.len(), RadonArray::from(subitems).into());
                     } else {
@@ -178,53 +184,51 @@ pub fn parse_json_array(input: &RadonString, args: &Option<Vec<Value>>) -> Resul
             Ok(RadonArray::from(items))
         }
         Some(Value::Text(json_path)) => {
-            let selector = Selector::new(json_path.as_str())
-                .map_err(|err| RadError::JsonPathParse {
+            let selector =
+                Selector::new(json_path.as_str()).map_err(|err| RadError::JsonPathParse {
                     description: err.to_string(),
                 })?;
-            let items: Vec<RadonTypes> = selector.find(&json_input)
-                .map(into_radon_types)
-                .collect();
+            let items: Vec<RadonTypes> = selector.find(&json_input).map(into_radon_types).collect();
             Ok(RadonArray::from(items))
         }
-        None => {
-            RadonTypes::try_from(json_input)?.try_into()
-        }
-        _ => Err(wrong_args())
+        None => RadonTypes::try_from(json_input)?.try_into(),
+        _ => Err(wrong_args()),
     }
 }
 
-pub fn parse_json_map(input: &RadonString, args: &Option<Vec<Value>>) -> Result<RadonMap, RadError> {
-    let not_found = |json_path: &str| RadError::JsonPathNotFound { 
-        path: String::from(json_path) 
+pub fn parse_json_map(
+    input: &RadonString,
+    args: &Option<Vec<Value>>,
+) -> Result<RadonMap, RadError> {
+    let not_found = |json_path: &str| RadError::JsonPathNotFound {
+        path: String::from(json_path),
     };
 
-    let wrong_args = || RadError::WrongArguments { 
+    let wrong_args = || RadError::WrongArguments {
         input_type: RadonString::radon_type_name(),
         operator: "ParseJsonMap".to_string(),
         args: args.to_owned().unwrap_or_default(),
     };
 
-    let json_input: JsonValue = serde_json::from_str(&input.value())
-        .map_err(|err| RadError::JsonParse {
-                description: err.to_string(),
-    })?;
+    let json_input: JsonValue =
+        serde_json::from_str(&input.value()).map_err(|err| RadError::JsonParse {
+            description: err.to_string(),
+        })?;
 
     match args.to_owned().unwrap_or_default().first() {
         Some(Value::Text(json_path)) => {
-            let selector = Selector::new(json_path.as_str())
-                .map_err(|err| RadError::JsonPathParse {
+            let selector =
+                Selector::new(json_path.as_str()).map_err(|err| RadError::JsonPathParse {
                     description: err.to_string(),
                 })?;
-            let item = selector.find(&json_input)
+            let item = selector
+                .find(&json_input)
                 .next()
                 .ok_or_else(|| not_found(json_path.as_str()))?;
             RadonTypes::try_from(item.to_owned())?.try_into()
-        },
-        None => {
-            RadonTypes::try_from(json_input)?.try_into()
-        },
-        _ => Err(wrong_args())
+        }
+        None => RadonTypes::try_from(json_input)?.try_into(),
+        _ => Err(wrong_args()),
     }
 }
 
@@ -270,11 +274,15 @@ fn into_radon_types(value: &serde_json::Value) -> RadonTypes {
     match value {
         serde_json::Value::Number(value) => {
             if value.is_f64() {
-                RadonTypes::from(RadonFloat::from(value.as_f64().unwrap_or_default()))
+                RadonTypes::from(RadonFloat::from(value.as_f64().expect(
+                    "after a Value::Number has been checked to be f64, it must be so",
+                )))
             } else {
-                RadonTypes::from(RadonInteger::from(value.as_i64().unwrap_or_default() as i128))
+                RadonTypes::from(RadonInteger::from(value.as_i128().expect(
+                    "after a Value::Number has been checked to be non-f64, it must be compatible with i128",
+                )))
             }
-        },
+        }
         serde_json::Value::Bool(value) => RadonTypes::from(RadonBoolean::from(*value)),
         serde_json::Value::String(value) => RadonTypes::from(RadonString::from(value.clone())),
         serde_json::Value::Object(entries) => {
@@ -285,10 +293,7 @@ fn into_radon_types(value: &serde_json::Value) -> RadonTypes {
             RadonTypes::from(RadonMap::from(object))
         }
         serde_json::Value::Array(values) => {
-            let items: Vec<RadonTypes> = values
-                .iter()
-                .map(into_radon_types)
-                .collect();
+            let items: Vec<RadonTypes> = values.iter().map(into_radon_types).collect();
             RadonTypes::from(RadonArray::from(items))
         }
         serde_json::Value::Null => RadonTypes::from(RadonString::default()),
@@ -428,63 +433,107 @@ pub fn string_match(input: &RadonString, args: &[Value]) -> Result<RadonTypes, R
         .unwrap_or(Ok(temp_def))
 }
 
-pub fn string_replace(input: &RadonString, args: &[Value]) -> Result<RadonString, RadError> {
+pub fn string_replace(
+    input: &RadonString,
+    args: &Option<Vec<Value>>,
+) -> Result<RadonString, RadError> {
     let wrong_args = || RadError::WrongArguments {
         input_type: RadonString::radon_type_name(),
-        operator: "StringReplace".to_string(),
-        args: args.to_vec(),
+        operator: "Replace".to_string(),
+        args: args.clone().unwrap_or_default(),
     };
-    let regex = RadonString::try_from(args.first().ok_or_else(wrong_args)?.to_owned())?;
-    let replacement = RadonString::try_from(args.get(1).ok_or_else(wrong_args)?.to_owned())?;
-    Ok(RadonString::from(input.value().as_str().replace(
-        regex.value().as_str(),
-        replacement.value().as_str(),
-    )))
+
+    // Just some quick guards here to control lack of arguments, which make no sense for this method
+    // (there are no pattern and replacement default values that any make sense)
+    if if let Some(args) = args {
+        args.len() < 2
+    } else {
+        true
+    } {
+        return Err(wrong_args());
+    }
+
+    let pattern = decode_single_arg::<RadonString, String, RadonString, _, _>(args, 0, "Replace")?;
+    let replacement =
+        decode_single_arg::<RadonString, String, RadonString, _, _>(args, 1, "Replace")?;
+
+    let replaced = Regex::new(pattern.value().as_str())
+        .map_err(|_| wrong_args())?
+        .replace_all(&input.value(), replacement.value())
+        .to_string();
+
+    Ok(RadonString::from(replaced))
 }
 
+#[allow(clippy::cast_sign_loss)]
 pub fn string_slice(input: &RadonString, args: &[Value]) -> Result<RadonString, RadError> {
     let wrong_args = || RadError::WrongArguments {
         input_type: RadonString::radon_type_name(),
-        operator: "StringSlice".to_string(),
+        operator: "Slice".to_string(),
         args: args.to_vec(),
     };
-    let mut end_index: usize = input.value().len();
-    match args.len() {
-        2 => {
-            let start_index = from_value::<i64>(args[0].clone())
-                .unwrap_or_default()
-                .rem_euclid(end_index as i64) as usize;
-            end_index = from_value::<i64>(args[1].clone())
-                .unwrap_or_default()
-                .rem_euclid(end_index as i64) as usize;
-            Ok(RadonString::from(
-                input.value().as_str().slice(start_index..end_index),
-            ))
-        }
-        1 => {
-            let start_index = from_value::<i64>(args[0].clone())
-                .unwrap_or_default()
-                .rem_euclid(end_index as i64) as usize;
-            Ok(RadonString::from(
-                input.value().as_str().slice(start_index..end_index),
-            ))
-        }
-        _ => Err(wrong_args()),
+
+    let input_length = i32::try_from(input.value().len()).map_err(|_| RadError::InputTooBig)?;
+    let mut start = args
+        .first()
+        .ok_or_else(wrong_args)
+        .cloned()
+        .and_then(|value| from_value::<i32>(value).map_err(|_| wrong_args()))?;
+    let mut end = args
+        .get(1)
+        .ok_or_else(wrong_args)
+        .cloned()
+        .and_then(|value| from_value::<i32>(value).map_err(|_| wrong_args()))
+        .unwrap_or(input_length);
+
+    // Allow negative indexes (e.g. -1 standing for the last byte in the buffer) and enforce range
+    // caps. As a side effect, this rules out any case of cast sign loss when going from i32 to
+    // usize, hence the clippy allow above this function's signature.
+    if start < 0 {
+        start += input_length;
     }
+    if end < 0 {
+        end += input_length;
+    }
+    start = start.max(0).min(input_length);
+    end = end.min(input_length).max(0);
+    let output_length = (end as usize).saturating_sub(start as usize);
+
+    // Only perform real slicing if the sliced range is not empty
+    let sliced_string = if output_length > 0 {
+        input
+            .value()
+            .split_at(start as usize)
+            .1
+            .split_at(output_length)
+            .0
+            .to_owned()
+    } else {
+        String::new()
+    };
+
+    Ok(RadonString::from(sliced_string))
 }
 
-pub fn string_split(input: &RadonString, args: &[Value]) -> Result<RadonArray, RadError> {
+pub fn string_split(
+    input: &RadonString,
+    args: &Option<Vec<Value>>,
+) -> Result<RadonArray, RadError> {
     let wrong_args = || RadError::WrongArguments {
         input_type: RadonString::radon_type_name(),
-        operator: "StringSplit".to_string(),
-        args: args.to_vec(),
+        operator: "Split".to_string(),
+        args: args.clone().unwrap_or_default(),
     };
-    let pattern = RadonString::try_from(args.first().ok_or_else(wrong_args)?.to_owned())?;
+
+    let pattern = decode_single_arg::<RadonString, String, RadonString, _, _>(args, 0, "Split")?;
+
     let parts: Vec<RadonTypes> = Regex::new(pattern.value().as_str())
-        .unwrap()
+        .map_err(|_| wrong_args())? // Fail if the argument is not a valid regex
         .split(input.value().as_str())
-        .map(|part| RadonTypes::from(RadonString::from(part)))
+        .map(RadonString::from)
+        .map(RadonTypes::from)
         .collect();
+
     Ok(RadonArray::from(parts))
 }
 
@@ -572,11 +621,12 @@ pub mod legacy {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
-
-    use crate::types::{array::RadonArray, bytes::RadonBytes};
-
     use super::*;
+    use crate::{
+        error::RadError::WrongArguments,
+        types::{array::RadonArray, bytes::RadonBytes},
+    };
+    use std::collections::BTreeMap;
 
     #[test]
     fn test_parse_json_map() {
@@ -1358,6 +1408,282 @@ mod tests {
             result.unwrap(),
             RadonTypes::from(RadonString::from("default".to_string()))
         );
+    }
+
+    #[test]
+    fn test_string_slice() {
+        let input = RadonString::from("Hello, world!");
+
+        // No arguments
+        let args = Vec::<Value>::new();
+        let output = string_slice(&input, &args);
+        let expected = Err(WrongArguments {
+            input_type: "RadonString",
+            operator: "Slice".to_string(),
+            args,
+        });
+        assert_eq!(output, expected);
+
+        // Only a positive in-range start index is specified
+        let args = vec![Value::Integer(5)];
+        let output = string_slice(&input, &args);
+        let expected = Ok(RadonString::from(", world!"));
+        assert_eq!(output, expected);
+
+        // Only a positive out-of-range start index is specified
+        let args = vec![Value::Integer(15)];
+        let output = string_slice(&input, &args);
+        let expected = Ok(RadonString::from(""));
+        assert_eq!(output, expected);
+
+        // Only a negative in-range start index is specified
+        let args = vec![Value::Integer(-2)];
+        let output = string_slice(&input, &args);
+        let expected = Ok(RadonString::from("d!"));
+        assert_eq!(output, expected);
+
+        // Only a negative out-of-range start index is specified
+        let args = vec![Value::Integer(-15)];
+        let output = string_slice(&input, &args);
+        let expected = Ok(input.clone());
+        assert_eq!(output, expected);
+
+        // A positive in-range start index and a positive in-range index are specified
+        let args = vec![Value::Integer(5), Value::Integer(7)];
+        let output = string_slice(&input, &args);
+        let expected = Ok(RadonString::from(", "));
+        assert_eq!(output, expected);
+
+        // A positive in-range start index and a negative in-range index are specified
+        let args = vec![Value::Integer(5), Value::Integer(-3)];
+        let output = string_slice(&input, &args);
+        let expected = Ok(RadonString::from(", wor"));
+        assert_eq!(output, expected);
+
+        // A negative in-range start index and a negative in-range index are specified
+        let args = vec![Value::Integer(-5), Value::Integer(-3)];
+        let output = string_slice(&input, &args);
+        let expected = Ok(RadonString::from("or"));
+        assert_eq!(output, expected);
+
+        // Everything is in range
+        let args = vec![Value::Integer(-15), Value::Integer(15)];
+        let output = string_slice(&input, &args);
+        let expected = Ok(input.clone());
+        assert_eq!(output, expected);
+
+        // Nothing is in range
+        let args = vec![Value::Integer(15), Value::Integer(-15)];
+        let output = string_slice(&input, &args);
+        let expected = Ok(RadonString::from(""));
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_string_split() {
+        let input = RadonString::from("Hello, world!");
+        let expected_exploded = Ok(RadonArray::from(
+            [
+                vec![String::from("")],
+                "Hello, world!"
+                    .chars()
+                    .map(|c| char::to_string(&c))
+                    .collect::<Vec<_>>(),
+                vec![String::from("")],
+            ]
+            .concat()
+            .into_iter()
+            .map(RadonString::from)
+            .map(RadonTypes::from)
+            .collect::<Vec<_>>(),
+        ));
+
+        // No arguments, split at every character
+        let args = None;
+        let output = string_split(&input, &args);
+        assert_eq!(output, expected_exploded);
+
+        // Empty arguments, split at every character
+        let args = Some(Vec::<Value>::new());
+        let output = string_split(&input, &args);
+        assert_eq!(output, expected_exploded);
+
+        // Empty regex, split at every character
+        let args = Some(vec![Value::Text(String::from(""))]);
+        let output = string_split(&input, &args);
+        assert_eq!(output, expected_exploded);
+
+        // Split at character
+        let args = Some(vec![Value::Text(String::from(","))]);
+        let output = string_split(&input, &args);
+        let expected = Ok(RadonArray::from(vec![
+            RadonString::from("Hello").into(),
+            RadonString::from(" world!").into(),
+        ]));
+        assert_eq!(output, expected);
+
+        // Split at sequence
+        let args = Some(vec![Value::Text(String::from(", "))]);
+        let output = string_split(&input, &args);
+        let expected = Ok(RadonArray::from(vec![
+            RadonString::from("Hello").into(),
+            RadonString::from("world!").into(),
+        ]));
+        assert_eq!(output, expected);
+
+        // Split at space
+        let args = Some(vec![Value::Text(String::from("\\s"))]);
+        let output = string_split(&input, &args);
+        let expected = Ok(RadonArray::from(vec![
+            RadonString::from("Hello,").into(),
+            RadonString::from("world!").into(),
+        ]));
+        assert_eq!(output, expected);
+
+        // Split at every alphanumeric character
+        let args = Some(vec![Value::Text(String::from("[a-zA-Z]"))]);
+        let output = string_split(&input, &args);
+        let expected = Ok(RadonArray::from(vec![
+            RadonString::from("").into(),
+            RadonString::from("").into(),
+            RadonString::from("").into(),
+            RadonString::from("").into(),
+            RadonString::from("").into(),
+            RadonString::from(", ").into(),
+            RadonString::from("").into(),
+            RadonString::from("").into(),
+            RadonString::from("").into(),
+            RadonString::from("").into(),
+            RadonString::from("!").into(),
+        ]));
+        assert_eq!(output, expected);
+
+        // Wrong argument semantics (not a regex)
+        let args = vec![Value::Text(String::from("["))];
+        let output = string_split(&input, &Some(args.clone()));
+        let expected = Err(WrongArguments {
+            input_type: "RadonString",
+            operator: "Split".to_string(),
+            args,
+        });
+        assert_eq!(output, expected);
+
+        // Split at unknown character
+        let args = Some(vec![Value::Text(String::from("x"))]);
+        let output = string_split(&input, &args);
+        let expected = Ok(RadonArray::from(vec![
+            RadonString::from("Hello, world!").into(),
+        ]));
+        assert_eq!(output, expected);
+
+        // Split at unknown sequence
+        let args = Some(vec![Value::Text(String::from("whatever"))]);
+        let output = string_split(&input, &args);
+        let expected = Ok(RadonArray::from(vec![
+            RadonString::from("Hello, world!").into(),
+        ]));
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn test_string_replace() {
+        let input = RadonString::from("Hello, world!");
+        let expected_wrong_args = |args: Option<Vec<Value>>| {
+            Err(WrongArguments {
+                input_type: "RadonString",
+                operator: "Replace".to_string(),
+                args: args.unwrap_or_default(),
+            })
+        };
+
+        // No arguments, fail
+        let args = None;
+        let output = string_replace(&input, &args);
+        assert_eq!(output, expected_wrong_args(args));
+
+        // Empty arguments, fail
+        let args = Some(Vec::<Value>::new());
+        let output = string_replace(&input, &args);
+        assert_eq!(output, expected_wrong_args(args));
+
+        // Single argument, fail
+        let args = Some(Vec::from([Value::Text(String::from("Hello"))]));
+        let output = string_replace(&input, &args);
+        assert_eq!(output, expected_wrong_args(args));
+
+        // Wrong argument types, fail
+        let args = Some(Vec::from([Value::Integer(123), Value::Integer(456)]));
+        let output = string_replace(&input, &args);
+        assert_eq!(output, expected_wrong_args(args));
+
+        // Simple character replacement
+        let args = Some(Vec::from([
+            Value::Text("o".into()),
+            Value::Text("a".into()),
+        ]));
+        let output = string_replace(&input, &args);
+        let expected = Ok(RadonString::from("Hella, warld!"));
+        assert_eq!(output, expected);
+
+        // Simple sequence replacement
+        let args = Some(Vec::from([
+            Value::Text("world".into()),
+            Value::Text("universe".into()),
+        ]));
+        let output = string_replace(&input, &args);
+        let expected = Ok(RadonString::from("Hello, universe!"));
+        assert_eq!(output, expected);
+
+        // Character regex replacement
+        let args = Some(Vec::from([
+            Value::Text("[a-zA-Z]".into()),
+            Value::Text("x".into()),
+        ]));
+        let output = string_replace(&input, &args);
+        let expected = Ok(RadonString::from("xxxxx, xxxxx!"));
+        assert_eq!(output, expected);
+
+        // Word regex replacement
+        let args = Some(Vec::from([
+            Value::Text("[a-zA-Z]+".into()),
+            Value::Text("potato".into()),
+        ]));
+        let output = string_replace(&input, &args);
+        let expected = Ok(RadonString::from("potato, potato!"));
+        assert_eq!(output, expected);
+
+        // Whitespace regex pattern with empty replacement
+        let args = Some(Vec::from([
+            Value::Text("\\s".into()),
+            Value::Text("".into()),
+        ]));
+        let output = string_replace(&input, &args);
+        let expected = Ok(RadonString::from("Hello,world!"));
+        assert_eq!(output, expected);
+
+        // First character regex replacement
+        let args = Some(Vec::from([
+            Value::Text("^[a-zA-Z]".into()),
+            Value::Text("M".into()),
+        ]));
+        let output = string_replace(&input, &args);
+        let expected = Ok(RadonString::from("Mello, world!"));
+        assert_eq!(output, expected);
+
+        // Empty pattern, match every character
+        let args = Some(Vec::from([Value::Text("".into()), Value::Text("X".into())]));
+        let output = string_replace(&input, &args);
+        let expected = Ok(RadonString::from("XHXeXlXlXoX,X XwXoXrXlXdX!X"));
+        assert_eq!(output, expected);
+
+        // No match, do nothing
+        let args = Some(Vec::from([
+            Value::Text("whatever".into()),
+            Value::Text("whatever".into()),
+        ]));
+        let output = string_replace(&input, &args);
+        let expected = Ok(RadonString::from("Hello, world!"));
+        assert_eq!(output, expected);
     }
 
     #[test]
