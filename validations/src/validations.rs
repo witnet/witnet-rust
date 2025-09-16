@@ -1520,7 +1520,9 @@ pub fn validate_unstake_transaction<'a>(
     // Introduced in V2_1:
     // Apply a protocol-level "rule of convenience", where an amount to unstake of u64::MAX actually
     // means "unstake all my stake".
-    if protocol_version >= ProtocolVersion::V2_1 && amount_to_unstake == u64::MAX {
+    // Please take note that this validation sctrictly needs to take place before checking whether
+    // the "remainder" amount meets the minimum stake. Otherwise, we would never reach this block.
+    if protocol_version >= ProtocolVersion::V2_1 && amount_to_unstake == 0 {
         amount_to_unstake = staked_amount;
     }
 
