@@ -1465,7 +1465,9 @@ pub fn validate_unstake_transaction<'a>(
     min_stake_nanowits: u64,
     unstake_delay: u64,
 ) -> Result<(u64, u32, Vec<&'a ValueTransferOutput>), anyhow::Error> {
-    if get_protocol_version(Some(epoch)) <= ProtocolVersion::V1_8 {
+    let protocol_version = get_protocol_version(Some(epoch));
+
+    if protocol_version <= ProtocolVersion::V1_8 {
         return Err(TransactionError::NoUnstakeTransactionsAllowed.into());
     }
 
@@ -1514,10 +1516,11 @@ pub fn validate_unstake_transaction<'a>(
             .into());
         }
     };
-    
+
+    // Introduced in V2_1:
     // Apply a protocol-level "rule of convenience", where an amount to unstake of u64::MAX actually
     // means "unstake all my stake".
-    if amount_to_unstake == u64::MAX {
+    if protocol_version >= ProtocolVersion::V2_1 && amount_to_unstake == u64::MAX {
         amount_to_unstake = staked_amount;
     }
 
