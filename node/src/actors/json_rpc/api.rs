@@ -36,8 +36,8 @@ use crate::{
             GetItemSuperblock, GetItemTransaction, GetKnownPeers, GetMemoryTransaction, GetMempool,
             GetNodeStats, GetProtocolInfo, GetReputation, GetSignalingInfo, GetState,
             GetSupplyInfo, GetSupplyInfo2, GetUtxoInfo, InitializePeers, IsConfirmedBlock,
-            MagicEither, QueryStakes, QueryStakingPowers, Rewind, SnapshotExport, SnapshotImport,
-            StakeAuthorization,
+            MagicEither, QueryStakes, QueryStakingPowers, Rewind, SearchDataRequests,
+            SnapshotExport, SnapshotImport, StakeAuthorization,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -166,6 +166,9 @@ pub fn attach_regular_methods<H>(
     });
     server.add_actix_method(system, "getUtxoInfo", move |params: Params| {
         Box::pin(get_utxo_info(params.parse()))
+    });
+    server.add_actix_method(system, "searchDataRequests", |params: Params| {
+        Box::pin(search_data_requests(params.parse()))
     });
 }
 
@@ -2338,6 +2341,30 @@ pub async fn query_stakes(params: Result<Option<QueryStakes>, Error>) -> JsonRpc
         .send(msg)
         .map(|res| match res {
             Ok(Ok(stakes)) => serde_json::to_value(stakes).map_err(internal_error),
+            Ok(Err(e)) => {
+                let err = internal_error_s(e);
+                Err(err)
+            }
+            Err(e) => {
+                let err = internal_error_s(e);
+                Err(err)
+            }
+        })
+        .await
+}
+
+/// Query data requests transaction hashes by providing a RAD hash value
+pub async fn search_data_requests(
+    params: Result<Option<SearchDataRequests>, Error>,
+) -> JsonRpcResult {
+    // short-circuit if parameters are wrong
+    let params = params?;
+    // parse params or defaults
+    let msg = params.ok_or(Error::invalid_params("A 'radHash' must be specified"))?;
+    ChainManager::from_registry()
+        .send(msg)
+        .map(|res| match res {
+            Ok(Ok(result)) => serde_json::to_value(result).map_err(internal_error),
             Ok(Err(e)) => {
                 let err = internal_error_s(e);
                 Err(err)
