@@ -18,6 +18,7 @@ use futures::future::{FutureExt, try_join_all};
 
 use witnet_data_structures::{
     DEFAULT_VALIDATOR_COUNT_FOR_TESTS,
+    capabilities::Capability,
     chain::{
         Block, BlockHeader, BlockMerkleRoots, BlockTransactions, Bn256PublicKey, CheckpointBeacon,
         CheckpointVRF, ConsensusConstantsWit2, DataRequestOutput, EpochConstants, Hash, Hashable,
@@ -27,7 +28,8 @@ use witnet_data_structures::{
     data_request::{
         DataRequestPool, calculate_witness_reward,
         calculate_witness_reward_before_second_hard_fork, create_tally,
-        data_request_has_too_many_witnesses,
+        data_request_has_too_many_witnesses, data_request_replace_api_keys,
+        data_request_requires_api_key,
     },
     error::TransactionError,
     get_environment, get_protocol_version,
@@ -292,7 +294,7 @@ impl ChainManager {
         &mut self,
         ctx: &mut Context<Self>,
     ) -> Result<(), ChainManagerError> {
-        if !self.mining_enabled {
+        if !self.witnessing_enabled {
             return Err(ChainManagerError::MiningIsDisabled);
         }
 
@@ -347,7 +349,7 @@ impl ChainManager {
         let current_retrieval_count = Arc::new(AtomicU16::new(0u16));
         let maximum_retrieval_count = self.data_request_max_retrievals_per_epoch;
 
-        for (dr_pointer, dr_state) in dr_pointers.into_iter().filter_map(|dr_pointer| {
+        for (dr_pointer, mut dr_state) in dr_pointers.into_iter().filter_map(|dr_pointer| {
             // Filter data requests that are not in data_request_pool
             self.chain_state
                 .data_request_pool
@@ -369,6 +371,53 @@ impl ChainManager {
             ) {
                 continue;
             }
+
+            // Replace the API key place holders in the URL's
+            // If we do not have the API key required, just continue to the next data request
+            let mut rad_request = dr_state.data_request.data_request.clone();
+            let used_api_key = if data_request_requires_api_key(&rad_request) {
+                if !self.witnessing_with_keys_enabled {
+                    continue;
+                }
+
+                match data_request_replace_api_keys(&mut rad_request, &self.api_keys) {
+                    // Check that the reward and rate needed to solve a data request with this API key
+                    // are adhered to.
+                    Ok(key) => {
+                        let (_, reward, rate, last_epoch) = self.api_keys[&key];
+                        if dr_state.data_request.witness_reward < reward {
+                            log::info!(
+                                "Reward for the data request requiring key {} was too low: {} < {}",
+                                key,
+                                dr_state.data_request.witness_reward,
+                                reward,
+                            );
+                            continue;
+                        }
+                        if last_epoch != 0 && current_epoch < last_epoch + rate {
+                            log::info!(
+                                "Resolved a data request requiring key {} too recently: {} < {} + {}",
+                                key,
+                                current_epoch,
+                                last_epoch,
+                                rate,
+                            );
+                            continue;
+                        }
+
+                        Some(key)
+                    }
+                    // API key not found, we cannot solve this data request
+                    // No need to even start eligibility calculations etc
+                    Err(e) => {
+                        log::warn!("{e}");
+                        continue;
+                    }
+                }
+            } else {
+                None
+            };
+            dr_state.data_request.data_request = rad_request;
 
             let (checkpoint_period, max_rounds) = match &self.chain_state.chain_info {
                 Some(x) => (
@@ -401,6 +450,11 @@ impl ChainManager {
                 .consensus_constants_wit2
                 .get_collateral_age(&active_wips);
             let (target_hash, probability) = if protocol_version >= V2_0 {
+                let capability =
+                    match data_request_requires_api_key(&dr_state.data_request.data_request) {
+                        true => Capability::WitnessingWithKey,
+                        false => Capability::Witnessing,
+                    };
                 let (eligibility, target_hash, probability) = self
                     .chain_state
                     .stakes
@@ -410,6 +464,7 @@ impl ChainManager {
                         num_witnesses,
                         round,
                         max_rounds,
+                        capability,
                     )
                     .map_err(ChainManagerError::Staking)?;
 
@@ -433,6 +488,12 @@ impl ChainManager {
                     &active_wips,
                 )
             };
+
+            // We are eligible to resolve a data request with an API key, update the last epoch
+            match used_api_key {
+                Some(key) => self.api_keys.get_mut(&key).unwrap().3 = current_epoch,
+                None => (),
+            }
 
             // Grab a reference to `current_retrieval_count`
             let cloned_retrieval_count = Arc::clone(&current_retrieval_count);

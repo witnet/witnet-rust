@@ -2,6 +2,8 @@
 //!
 //! This module contains per-environment default values for the Witnet
 //! protocol params.
+use crate::config::ApiKey;
+
 use std::{
     collections::{HashMap, HashSet},
     net::{IpAddr, Ipv4Addr, SocketAddr},
@@ -143,6 +145,23 @@ pub trait Defaults {
     /// Addresses to be used as proxies when performing data retrieval. No proxies are used by
     /// default.
     fn witnessing_proxies(&self) -> Vec<String> {
+        vec![]
+    }
+
+    /// Node should have witnessing enabled by default
+    fn witnessing_enabled(&self) -> bool {
+        true
+    }
+
+    /// Witnessing using API keys is disabled by default since it requires setting up (paid) API
+    /// keys by the operator.
+    fn witnessing_with_keys_enabled(&self) -> bool {
+        false
+    }
+
+    /// Adds a collation of API keys to resolve data requests which contain an API key placeholder
+    /// in the URL or headers
+    fn api_keys(&self) -> Vec<ApiKey> {
         vec![]
     }
 

@@ -268,6 +268,15 @@ pub struct Connections {
     pub requested_blocks_batch_limit: u32,
 }
 
+/// Struct to store all values of an API key
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, PartialStruct, Serialize)]
+pub struct ApiKey {
+    pub id: String,
+    pub key: String,
+    pub reward: Option<u64>,
+    pub rate: Option<u32>,
+}
+
 /// Witnessing-specific configuration.
 #[derive(Clone, Debug, Eq, PartialEq, PartialStruct)]
 #[partial_struct(derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize))]
@@ -289,6 +298,19 @@ pub struct Witnessing {
     /// and we are taking as small of a risk as possible when committing to specially crafted data
     /// requests that may be potentially ill-intended.
     pub proxies: Vec<String>,
+
+    /// Binary flag telling whether to enable default data request witnessing
+    #[partial_struct(serde(default))]
+    pub enabled: bool,
+
+    /// Binary flag telling whether to enable data request witnessing using API keys
+    #[partial_struct(serde(default))]
+    pub enabled_with_keys: bool,
+
+    /// Collection of the API keys defined in the config file
+    /// The
+    #[partial_struct(serde(default))]
+    pub api_keys: Vec<ApiKey>,
 }
 
 /// Available storage backends
@@ -346,7 +368,7 @@ pub struct JsonRPC {
 #[derive(PartialStruct, Debug, Clone, PartialEq, Eq)]
 #[partial_struct(derive(Deserialize, Serialize, Default, Debug, Clone, PartialEq, Eq))]
 pub struct Mining {
-    /// Binary flag telling whether to enable the MiningManager or not
+    /// Binary flag telling whether to enable the mining of blocks or not
     pub enabled: bool,
     /// Limits the number of retrievals to perform during a single epoch.
     /// This tries to prevent nodes from forking out or being left in a
@@ -1147,6 +1169,18 @@ impl Witnessing {
                 .proxies
                 .clone()
                 .unwrap_or_else(|| defaults.witnessing_proxies()),
+            enabled: config
+                .enabled
+                .to_owned()
+                .unwrap_or_else(|| defaults.witnessing_enabled()),
+            enabled_with_keys: config
+                .enabled_with_keys
+                .to_owned()
+                .unwrap_or_else(|| defaults.witnessing_with_keys_enabled()),
+            api_keys: config
+                .api_keys
+                .to_owned()
+                .unwrap_or_else(|| defaults.api_keys()),
         }
     }
 
@@ -1155,6 +1189,9 @@ impl Witnessing {
             allow_unproxied: Some(self.allow_unproxied),
             paranoid_percentage: Some(self.paranoid_percentage),
             proxies: Some(self.proxies.clone()),
+            enabled: Some(self.enabled),
+            enabled_with_keys: Some(self.enabled_with_keys),
+            api_keys: Some(self.api_keys.clone()),
         }
     }
 

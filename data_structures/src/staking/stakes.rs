@@ -1038,7 +1038,8 @@ mod tests {
                 100,
                 CapabilityMap {
                     mining: 100,
-                    witnessing: 100
+                    witnessing: 100,
+                    witnessing_with_key: 100
                 },
                 100,
             )
@@ -1062,7 +1063,8 @@ mod tests {
                 150,
                 CapabilityMap {
                     mining: 166,
-                    witnessing: 166
+                    witnessing: 166,
+                    witnessing_with_key: 166
                 },
                 300,
             )
@@ -1093,7 +1095,8 @@ mod tests {
                 500,
                 CapabilityMap {
                     mining: 1_000,
-                    witnessing: 1_000
+                    witnessing: 1_000,
+                    witnessing_with_key: 1_000
                 },
                 1_000,
             )
@@ -1377,7 +1380,8 @@ mod tests {
                     20,
                     CapabilityMap {
                         mining: 30,
-                        witnessing: 30
+                        witnessing: 30,
+                        witnessing_with_key: 30
                     },
                     30,
                 )
@@ -1393,7 +1397,8 @@ mod tests {
                     20,
                     CapabilityMap {
                         mining: 30,
-                        witnessing: 30
+                        witnessing: 30,
+                        witnessing_with_key: 30
                     },
                     30,
                 )
@@ -1417,7 +1422,8 @@ mod tests {
                     20,
                     CapabilityMap {
                         mining: 30,
-                        witnessing: 30
+                        witnessing: 30,
+                        witnessing_with_key: 30
                     },
                     30,
                 )

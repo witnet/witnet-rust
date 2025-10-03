@@ -14,6 +14,7 @@ use witnet_crypto::{
     signature::{PublicKey, Signature, verify},
 };
 use witnet_data_structures::{
+    capabilities::Capability,
     chain::{
         Block, BlockMerkleRoots, CheckpointBeacon, CheckpointVRF, ConsensusConstants,
         ConsensusConstantsWit2, DataRequestOutput, DataRequestStage, DataRequestState, Epoch,
@@ -377,7 +378,12 @@ pub fn validate_rad_request(
     }
 
     for path in retrieval_paths {
-        if active_wips.wip0020() {
+        if (path.kind == RADType::HttpGetKey || path.kind == RADType::HttpPostKey)
+            && !path.api_key_in_url()
+            && !path.api_key_in_headers()
+        {
+            return Err(DataRequestError::RequestWithoutApiKey.into());
+        } else if active_wips.wip0020() {
             path.check_fields()?;
             unpack_radon_script(path.script.as_slice())?;
 
@@ -703,6 +709,7 @@ pub fn validate_commit_transaction(
             dr_state.data_request.witnesses,
             dr_state.info.current_commit_round,
             max_rounds,
+            Capability::Witnessing,
         ) {
             Ok((eligibility, target_hash, _)) => {
                 if matches!(eligibility, Eligible::No(_)) {

@@ -180,6 +180,8 @@ message DataRequestOutput {
             Rng = 2;
             HttpPost = 3;
             HttpHead = 4;
+            HttpGetKey = 5;
+            HttpPostKey = 6;
         }
         message RADFilter {
             uint32 op = 1;

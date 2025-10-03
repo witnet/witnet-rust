@@ -260,6 +260,13 @@ pub struct ChainManager {
     consensus_constants_wit2: ConsensusConstantsWit2,
     /// Initial WIT supply
     initial_supply: u64,
+    /// Witnessing of default data requests is enabled
+    witnessing_enabled: bool,
+    /// Witnessing of data requests requiring an API key is enabled
+    witnessing_with_keys_enabled: bool,
+    /// A collection of API keys indexed by the name and containing a key value, a minimum reward
+    /// and a block rate
+    api_keys: HashMap<String, (String, u64, u32, u32)>,
 }
 
 impl ChainManager {

@@ -56,6 +56,10 @@ impl ProtobufConvert for chain::RADType {
             chain::RADType::Rng => witnet::DataRequestOutput_RADRequest_RADType::Rng,
             chain::RADType::HttpPost => witnet::DataRequestOutput_RADRequest_RADType::HttpPost,
             chain::RADType::HttpHead => witnet::DataRequestOutput_RADRequest_RADType::HttpHead,
+            chain::RADType::HttpGetKey => witnet::DataRequestOutput_RADRequest_RADType::HttpGetKey,
+            chain::RADType::HttpPostKey => {
+                witnet::DataRequestOutput_RADRequest_RADType::HttpPostKey
+            }
         }
     }
 
@@ -66,6 +70,10 @@ impl ProtobufConvert for chain::RADType {
             witnet::DataRequestOutput_RADRequest_RADType::Rng => chain::RADType::Rng,
             witnet::DataRequestOutput_RADRequest_RADType::HttpPost => chain::RADType::HttpPost,
             witnet::DataRequestOutput_RADRequest_RADType::HttpHead => chain::RADType::HttpHead,
+            witnet::DataRequestOutput_RADRequest_RADType::HttpGetKey => chain::RADType::HttpGetKey,
+            witnet::DataRequestOutput_RADRequest_RADType::HttpPostKey => {
+                chain::RADType::HttpPostKey
+            }
         })
     }
 }
