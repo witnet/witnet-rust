@@ -42,16 +42,17 @@ use crate::{
     actors::{
         chain_manager::{BlockCandidate, handlers::BlockBatches::*},
         messages::{
-            AddBlocks, AddCandidates, AddCommitReveal, AddSuperBlock, AddSuperBlockVote,
-            AddTransaction, Broadcast, BuildDrt, BuildStake, BuildUnstake, BuildVtt,
-            EpochNotification, EstimatePriority, GetBalance, GetBalance2, GetBalanceTarget,
-            GetBlocksEpochRange, GetDataRequestInfo, GetHighestCheckpointBeacon,
+            AddApiKey, AddBlocks, AddCandidates, AddCommitReveal, AddSuperBlock, AddSuperBlockVote,
+            AddTransaction, ApiKeyData, Broadcast, BuildDrt, BuildStake, BuildUnstake, BuildVtt,
+            EpochNotification, EstimatePriority, GetApiKeys, GetBalance, GetBalance2,
+            GetBalanceTarget, GetBlocksEpochRange, GetDataRequestInfo, GetHighestCheckpointBeacon,
             GetMemoryTransaction, GetMempool, GetMempoolResult, GetNodeStats, GetProtocolInfo,
             GetReputation, GetReputationResult, GetSignalingInfo, GetState, GetSuperBlockVotes,
             GetSupplyInfo, GetSupplyInfo2, GetUtxoInfo, IsConfirmedBlock, PeersBeacons,
-            QueryStakes, QueryStakesOrderByOptions, QueryStakingPowers, ReputationStats, Rewind,
-            SendLastBeacon, SessionUnitResult, SetLastBeacon, SetPeersLimits, SignalingInfo,
-            SnapshotExport, SnapshotImport, TryMineBlock, try_do_magic_into_pkh,
+            QueryStakes, QueryStakesOrderByOptions, QueryStakingPowers, RemoveApiKey,
+            ReputationStats, Rewind, SendLastBeacon, SessionUnitResult, SetLastBeacon,
+            SetPeersLimits, SignalingInfo, SnapshotExport, SnapshotImport, TryMineBlock,
+            try_do_magic_into_pkh,
         },
         sessions_manager::SessionsManager,
     },
@@ -2468,6 +2469,92 @@ impl Handler<SnapshotImport> for ChainManager {
         let fut = self.snapshot_import();
 
         Box::pin(fut)
+    }
+}
+
+impl Handler<GetApiKeys> for ChainManager {
+    type Result = <GetApiKeys as Message>::Result;
+
+    fn handle(&mut self, _msg: GetApiKeys, _ctx: &mut Self::Context) -> Self::Result {
+        let api_keys = self
+            .api_keys
+            .iter()
+            .map(|(id, (key, reward, rate, last_epoch))| ApiKeyData {
+                id: id.to_string(),
+                key: key.to_string(),
+                reward: *reward,
+                rate: *rate,
+                last_epoch: *last_epoch,
+            })
+            .collect();
+
+        Ok(api_keys)
+    }
+}
+
+impl Handler<AddApiKey> for ChainManager {
+    type Result = <AddApiKey as Message>::Result;
+
+    fn handle(&mut self, msg: AddApiKey, _ctx: &mut Self::Context) -> Self::Result {
+        // Prepend and append the placeholder delimiter symbols if necessary
+        let id = if msg.id.chars().nth(0).unwrap() == '<' {
+            if msg.id.chars().nth(msg.id.len() - 1).unwrap() == '>' {
+                msg.id
+            } else {
+                msg.id + ">"
+            }
+        } else {
+            "<".to_owned() + &msg.id + ">"
+        };
+
+        let success = if self.api_keys.contains_key(&id) {
+            if msg.replace {
+                self.api_keys.insert(
+                    id,
+                    (msg.key, msg.reward.unwrap_or(0), msg.rate.unwrap_or(0), 0),
+                );
+
+                true
+            } else {
+                false
+            }
+        } else {
+            self.api_keys.insert(
+                id,
+                (msg.key, msg.reward.unwrap_or(0), msg.rate.unwrap_or(0), 0),
+            );
+
+            true
+        };
+
+        Ok(success)
+    }
+}
+
+impl Handler<RemoveApiKey> for ChainManager {
+    type Result = <RemoveApiKey as Message>::Result;
+
+    fn handle(&mut self, msg: RemoveApiKey, _ctx: &mut Self::Context) -> Self::Result {
+        // Prepend and append the placeholder delimiter symbols if necessary
+        let id = if msg.id.chars().nth(0).unwrap() == '<' {
+            if msg.id.chars().nth(msg.id.len() - 1).unwrap() == '>' {
+                msg.id
+            } else {
+                msg.id + ">"
+            }
+        } else {
+            "<".to_owned() + &msg.id + ">"
+        };
+
+        let success = if self.api_keys.contains_key(&id) {
+            self.api_keys.remove(&id);
+
+            true
+        } else {
+            false
+        };
+
+        Ok(success)
     }
 }
 

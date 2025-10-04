@@ -315,6 +315,25 @@ pub fn exec_cmd(
             fee,
             dry_run,
         ),
+        Command::GetApiKeys { node } => rpc::get_api_keys(node.unwrap_or(default_jsonrpc)),
+        Command::AddApiKey {
+            node,
+            id,
+            key,
+            reward,
+            rate,
+            replace,
+        } => rpc::add_api_key(
+            node.unwrap_or(default_jsonrpc),
+            id,
+            key,
+            reward,
+            rate,
+            replace,
+        ),
+        Command::RemoveApiKey { node, id } => {
+            rpc::remove_api_key(node.unwrap_or(default_jsonrpc), id)
+        }
     }
 }
 
@@ -868,6 +887,48 @@ pub enum Command {
         /// Print the request that would be sent to the node and exit without doing anything
         #[structopt(long = "dry-run")]
         dry_run: bool,
+    },
+    #[structopt(name = "getApiKeys", about = "Get the registered API keys")]
+    GetApiKeys {
+        /// Socket address of the Witnet node to query
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
+    },
+    #[structopt(
+        name = "addApiKey",
+        about = "Add a new API key while the node is running"
+    )]
+    AddApiKey {
+        /// Socket address of the Witnet node to query
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
+        /// The id of the key used as a placeholder in a data request
+        #[structopt(long = "id")]
+        id: String,
+        /// The actual API key
+        #[structopt(long = "key")]
+        key: String,
+        /// The minimum reward expected by this node to solve a data request with this API key
+        #[structopt(long = "reward")]
+        reward: Option<u64>,
+        /// The minimum number of blocks between two subsequent data requests
+        #[structopt(long = "rate")]
+        rate: Option<u32>,
+        /// Whether to replace an already existing key with this one
+        #[structopt(long = "replace")]
+        replace: bool,
+    },
+    #[structopt(
+        name = "removeApiKey",
+        about = "Remove an API key while the node is running"
+    )]
+    RemoveApiKey {
+        /// Socket address of the Witnet node to query
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
+        /// The id of the key used as a placeholder in a data request
+        #[structopt(long = "id")]
+        id: String,
     },
 }
 

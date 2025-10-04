@@ -835,6 +835,59 @@ impl Message for SetEpochConstants {
     type Result = ();
 }
 
+/// Get all registered API keys
+#[derive(Clone, Debug)]
+pub struct GetApiKeys;
+
+/// Return value for an API key
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ApiKeyData {
+    /// The API key id
+    pub id: String,
+    /// The API key value
+    pub key: String,
+    /// Reward: the minimum reward required before a data request requiring this API key will be solved
+    pub reward: u64,
+    /// Rate: blocks between solving two consecutive data requests requiring the same API key
+    pub rate: u32,
+    /// Last epoch: the last epoch when this API key was used to attempt to solve a data request
+    pub last_epoch: u32,
+}
+
+impl Message for GetApiKeys {
+    type Result = Result<Vec<ApiKeyData>, anyhow::Error>;
+}
+
+/// Add a new API key
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct AddApiKey {
+    /// The API key id
+    pub id: String,
+    /// The API key value
+    pub key: String,
+    /// Reward: the minimum reward required before a data request requiring this API key will be solved
+    pub reward: Option<u64>,
+    /// Rate: blocks between solving two consecutive data requests requiring the same API key
+    pub rate: Option<u32>,
+    /// Replace the API key if it already exists
+    pub replace: bool,
+}
+
+impl Message for AddApiKey {
+    type Result = Result<bool, anyhow::Error>;
+}
+
+/// Add an API key
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct RemoveApiKey {
+    /// The API key id
+    pub id: String,
+}
+
+impl Message for RemoveApiKey {
+    type Result = Result<bool, anyhow::Error>;
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////
 // MESSAGES FROM CONNECTIONS MANAGER
 ////////////////////////////////////////////////////////////////////////////////////////
