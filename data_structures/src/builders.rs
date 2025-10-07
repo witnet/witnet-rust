@@ -13,7 +13,7 @@ use crate::{
     transaction::Transaction,
     types::{
         Address, Command, GetPeers, InventoryAnnouncement, InventoryRequest, IpAddress, LastBeacon,
-        Message, Peers, Verack, Version,
+        Message, Peers, RegisteredApiKeys, SignedRegisteredApiKeys, Verack, Version,
     },
 };
 
@@ -148,6 +148,18 @@ impl Message {
     /// Function to build SuperBlockVote messages
     pub fn build_superblock_vote(magic: u16, superblock_vote: SuperBlockVote) -> Message {
         Message::build_message(magic, Command::SuperBlockVote(superblock_vote))
+    }
+
+    /// Function to build SignedRegisteredApiKeys messages
+    pub fn build_api_keys_message(
+        magic: u16,
+        keys: RegisteredApiKeys,
+        signature: KeyedSignature,
+    ) -> Message {
+        Message::build_message(
+            magic,
+            Command::SignedRegisteredApiKeys(SignedRegisteredApiKeys { keys, signature }),
+        )
     }
 
     /// Function to build a message from a command

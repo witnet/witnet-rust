@@ -16,6 +16,7 @@ message LegacyMessage {
             Transaction Transaction = 9;
             SuperBlockVote SuperBlockVote = 10;
             SuperBlock SuperBlock = 11;
+            SignedRegisteredApiKeys SignedRegisteredApiKeys = 12;
         }
     }
 
@@ -38,6 +39,7 @@ message Message {
             Transaction Transaction = 9;
             SuperBlockVote SuperBlockVote = 10;
             SuperBlock SuperBlock = 11;
+            SignedRegisteredApiKeys SignedRegisteredApiKeys = 12;
         }
     }
 
@@ -455,4 +457,16 @@ message SuperBlockVote {
     KeyedSignature secp256k1_signature = 2;
     Hash superblock_hash = 3;
     fixed32 superblock_index = 4;
+}
+
+message RegisteredApiKeys {
+    repeated string ids = 1;
+    repeated uint64 rewards = 2;
+    repeated uint32 rates = 3;
+    uint32 epoch = 4;
+}
+
+message SignedRegisteredApiKeys {
+    RegisteredApiKeys keys = 1;
+    KeyedSignature signature = 2;
 }

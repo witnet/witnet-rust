@@ -35,7 +35,7 @@ use witnet_data_structures::{
         UnstakeTransaction, VTTransaction,
     },
     transaction_factory::{NodeBalance, NodeBalance2},
-    types::LastBeacon,
+    types::{LastBeacon, RegisteredApiKeys},
     utxo_pool::{UtxoInfo, UtxoSelectionStrategy},
     wit::{WIT_DECIMAL_PLACES, Wit},
 };
@@ -1389,6 +1389,37 @@ impl fmt::Display for SendSuperBlockVote {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "SendSuperBlockVote")
     }
+}
+
+/// Messages to send and receive registered API keys through the network
+#[derive(Clone, Debug)]
+pub struct SendRegisteredApiKeys {
+    /// The API key data
+    pub keys: RegisteredApiKeys,
+    /// The signature associated with this message
+    pub signature: KeyedSignature,
+}
+
+impl Message for SendRegisteredApiKeys {
+    type Result = ();
+}
+
+impl fmt::Display for SendRegisteredApiKeys {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "SendRegisteredApiKeys")
+    }
+}
+
+/// Add a superblock vote
+pub struct AddReceivedApiKeys {
+    /// The API key data
+    pub keys: RegisteredApiKeys,
+    /// The signature associated with this message
+    pub signature: KeyedSignature,
+}
+
+impl Message for AddReceivedApiKeys {
+    type Result = Result<(), anyhow::Error>;
 }
 
 /// Message to close an open session

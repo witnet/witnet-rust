@@ -761,6 +761,9 @@ impl From<Message_Command_oneof_kind> for LegacyMessage_LegacyCommand_oneof_kind
             Message_Command_oneof_kind::SuperBlock(x) => {
                 LegacyMessage_LegacyCommand_oneof_kind::SuperBlock(x)
             }
+            Message_Command_oneof_kind::SignedRegisteredApiKeys(x) => {
+                LegacyMessage_LegacyCommand_oneof_kind::SignedRegisteredApiKeys(x)
+            }
         }
     }
 }
@@ -800,6 +803,9 @@ impl From<LegacyMessage_LegacyCommand_oneof_kind> for Message_Command_oneof_kind
             }
             LegacyMessage_LegacyCommand_oneof_kind::SuperBlock(x) => {
                 Message_Command_oneof_kind::SuperBlock(x)
+            }
+            LegacyMessage_LegacyCommand_oneof_kind::SignedRegisteredApiKeys(x) => {
+                Message_Command_oneof_kind::SignedRegisteredApiKeys(x)
             }
         }
     }

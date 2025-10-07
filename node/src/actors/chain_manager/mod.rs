@@ -267,6 +267,8 @@ pub struct ChainManager {
     /// A collection of API keys indexed by the name and containing a key value, a minimum reward
     /// and a block rate
     api_keys: HashMap<String, (String, u64, u32, u32)>,
+    /// Track the received API key messages
+    received_api_keys: HashMap<PublicKeyHash, (Epoch, Vec<(String, u64, u32)>)>,
 }
 
 impl ChainManager {

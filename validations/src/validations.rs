@@ -2972,6 +2972,11 @@ pub fn verify_signatures(
                         .unwrap(),
                 )?;
             }
+            SignaturesToVerify::SignedRegisteredApiKeys { keys, signature } => verify(
+                &signature.public_key.try_into().unwrap(),
+                &keys.hash().data(),
+                &signature.signature.try_into().unwrap(),
+            )?,
         }
     }
 

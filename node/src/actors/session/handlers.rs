@@ -5,38 +5,42 @@ use actix::{
     StreamHandler, SystemService, WrapFuture, io::WriteHandler,
 };
 use bytes::BytesMut;
-use futures::future::Either;
+use futures::future::{Either, FutureExt};
 use thiserror::Error;
 
 use witnet_data_structures::{
     builders::from_address,
     chain::{
-        Block, CheckpointBeacon, Epoch, InventoryEntry, InventoryItem, SuperBlock, SuperBlockVote,
+        Block, CheckpointBeacon, Epoch, InventoryEntry, InventoryItem, KeyedSignature,
+        SignaturesToVerify, SuperBlock, SuperBlockVote,
     },
     get_protocol_version,
     proto::versioning::{Versioned, VersionedHashable},
     transaction::Transaction,
     types::{
         Address, Command, InventoryAnnouncement, InventoryRequest, LastBeacon,
-        Message as WitnetMessage, Peers, Version,
+        Message as WitnetMessage, Peers, RegisteredApiKeys, SignedRegisteredApiKeys, Version,
     },
 };
 use witnet_p2p::sessions::{SessionStatus, SessionType};
 use witnet_util::timestamp::get_timestamp;
 
-use crate::actors::{
-    chain_manager::ChainManager,
-    inventory_manager::InventoryManager,
-    messages::{
-        AddBlocks, AddCandidates, AddConsolidatedPeer, AddPeers, AddSuperBlock, AddSuperBlockVote,
-        AddTransaction, CloseSession, Consolidate, EpochNotification, GetBlocksEpochRange,
-        GetHighestCheckpointBeacon, GetItem, GetSuperBlockVotes, PeerBeacon,
-        RemoveAddressesFromTried, RequestPeers, SendGetPeers, SendInventoryAnnouncement,
-        SendInventoryItem, SendInventoryRequest, SendLastBeacon, SendSuperBlockVote,
-        SessionUnitResult,
+use crate::{
+    actors::{
+        chain_manager::ChainManager,
+        inventory_manager::InventoryManager,
+        messages::{
+            AddBlocks, AddCandidates, AddConsolidatedPeer, AddPeers, AddReceivedApiKeys,
+            AddSuperBlock, AddSuperBlockVote, AddTransaction, CloseSession, Consolidate,
+            EpochNotification, GetBlocksEpochRange, GetHighestCheckpointBeacon, GetItem,
+            GetSuperBlockVotes, PeerBeacon, RemoveAddressesFromTried, RequestPeers, SendGetPeers,
+            SendInventoryAnnouncement, SendInventoryItem, SendInventoryRequest, SendLastBeacon,
+            SendRegisteredApiKeys, SendSuperBlockVote, SessionUnitResult,
+        },
+        peers_manager::PeersManager,
+        sessions_manager::SessionsManager,
     },
-    peers_manager::PeersManager,
-    sessions_manager::SessionsManager,
+    signature_mngr,
 };
 
 use super::Session;
@@ -390,6 +394,16 @@ impl StreamHandler<Result<BytesMut, Error>> for Session {
                         process_superblock_vote(self, sbv)
                     }
 
+                    /////////////////////////////////
+                    // REGISTERED API KEYS MESSAGE //
+                    /////////////////////////////////
+                    (_, SessionStatus::Consolidated, Command::SignedRegisteredApiKeys(rap)) => {
+                        match validate_api_key_message(self, ctx, rap.clone()) {
+                            Ok(_) => process_registered_api_keys(self, rap),
+                            Err(_) => (),
+                        };
+                    }
+
                     /////////////////////
                     // NOT SUPPORTED   //
                     /////////////////////
@@ -491,6 +505,22 @@ impl Handler<SendSuperBlockVote> for Session {
     ) {
         log::trace!("Sending SuperBlockVote to peer at {:?}", self.remote_addr);
         send_superblock_vote(self, superblock_vote);
+    }
+}
+
+impl Handler<SendRegisteredApiKeys> for Session {
+    type Result = SessionUnitResult;
+
+    fn handle(
+        &mut self,
+        SendRegisteredApiKeys { keys, signature }: SendRegisteredApiKeys,
+        _ctx: &mut Context<Self>,
+    ) {
+        log::trace!(
+            "Sending SignedRegisteredApiKeys to peer at {:?}",
+            self.remote_addr
+        );
+        send_registered_api_keys(self, keys, signature);
     }
 }
 
@@ -1126,6 +1156,57 @@ fn process_superblock_vote(_session: &mut Session, superblock_vote: SuperBlockVo
 
     // Send a message to the ChainManager to try to validate this superblock vote
     chain_manager_addr.do_send(AddSuperBlockVote { superblock_vote });
+}
+
+/// Function called when the `Session` actor recieves a `SendRegisteredApiKeys` message
+/// Send a `SignedRegisteredApiKeys` message to this peer
+fn send_registered_api_keys(
+    session: &mut Session,
+    keys: RegisteredApiKeys,
+    signature: KeyedSignature,
+) {
+    let registered_api_keys_msg =
+        WitnetMessage::build_api_keys_message(session.magic_number, keys, signature);
+    // Send SignedRegisteredApiKeys msg
+    session.send_message(registered_api_keys_msg);
+}
+
+fn validate_api_key_message(
+    session: &mut Session,
+    ctx: &mut Context<Session>,
+    signed_keys: SignedRegisteredApiKeys,
+) -> Result<(), anyhow::Error> {
+    signature_mngr::verify_signatures(vec![SignaturesToVerify::SignedRegisteredApiKeys {
+        keys: signed_keys.keys,
+        signature: signed_keys.signature.clone(),
+    }])
+    .map(move |res| {
+        res.map_err(|e| {
+            let sender = signed_keys.signature.public_key.pkh();
+            log::error!(
+                "Verification of API key message failed for {}: {}",
+                sender,
+                e
+            );
+        })
+    })
+    .into_actor(session)
+    .map(|_res: Result<(), ()>, _act, _ctx| ())
+    .wait(ctx);
+
+    Ok(())
+}
+
+/// Function called when SignedRegisteredApiKeys message is received from another peer
+fn process_registered_api_keys(
+    _session: &mut Session,
+    SignedRegisteredApiKeys { keys, signature }: SignedRegisteredApiKeys,
+) {
+    // Get ChainManager address
+    let chain_manager_addr = ChainManager::from_registry();
+
+    // Send a message to the ChainManager to try to validate this superblock vote
+    chain_manager_addr.do_send(AddReceivedApiKeys { keys, signature });
 }
 
 #[cfg(test)]

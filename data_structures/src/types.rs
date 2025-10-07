@@ -4,8 +4,13 @@ use std::fmt;
 pub use num_traits::ops::wrapping::WrappingAdd;
 use serde::{Deserialize, Serialize};
 
+use witnet_crypto::hash::calculate_sha256;
+
 use crate::{
-    chain::{Block, CheckpointBeacon, Hashable, InventoryEntry, SuperBlock, SuperBlockVote},
+    chain::{
+        Block, CheckpointBeacon, Epoch, Hash, Hashable, InventoryEntry, KeyedSignature, SuperBlock,
+        SuperBlockVote,
+    },
     proto::{ProtobufConvert, schema::witnet},
     transaction::Transaction,
 };
@@ -42,6 +47,9 @@ pub enum Command {
 
     // Superblock
     SuperBlockVote(SuperBlockVote),
+
+    // API keys
+    SignedRegisteredApiKeys(SignedRegisteredApiKeys),
 }
 
 impl fmt::Display for Command {
@@ -88,6 +96,12 @@ impl fmt::Display for Command {
                 sbv.superblock_hash
             ),
             Command::SuperBlock(sb) => write!(f, "SUPERBLOCK #{}: {}", sb.index, sb.hash()),
+            Command::SignedRegisteredApiKeys(srak) => write!(
+                f,
+                "API keys at {} for {}",
+                srak.keys.epoch,
+                srak.signature.public_key.pkh(),
+            ),
         }
     }
 }
@@ -145,6 +159,32 @@ pub struct InventoryRequest {
 pub struct LastBeacon {
     pub highest_block_checkpoint: CheckpointBeacon,
     pub highest_superblock_checkpoint: CheckpointBeacon,
+}
+
+///////////////////////////////////////////////////////////
+// API KEY MESSAGE
+///////////////////////////////////////////////////////////
+
+#[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert)]
+#[protobuf_convert(source = "witnet::RegisteredApiKeys")]
+pub struct RegisteredApiKeys {
+    pub ids: Vec<String>,
+    pub rewards: Vec<u64>,
+    pub rates: Vec<u32>,
+    pub epoch: Epoch,
+}
+
+impl Hashable for RegisteredApiKeys {
+    fn hash(&self) -> Hash {
+        calculate_sha256(&self.to_pb_bytes().unwrap()).into()
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Clone, ProtobufConvert)]
+#[protobuf_convert(source = "witnet::SignedRegisteredApiKeys")]
+pub struct SignedRegisteredApiKeys {
+    pub keys: RegisteredApiKeys,
+    pub signature: KeyedSignature,
 }
 
 ///////////////////////////////////////////////////////////

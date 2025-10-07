@@ -55,6 +55,7 @@ use crate::{
         RevealTransaction, StakeTransaction, TallyTransaction, Transaction, TxInclusionProof,
         UnstakeTransaction, VTTransaction,
     },
+    types::RegisteredApiKeys,
     utxo_pool::{OldUnspentOutputsPool, OwnUnspentOutputsPool, UnspentOutputsPool},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim},
     wit::{WIT_DECIMAL_PLACES, Wit},
@@ -4913,6 +4914,10 @@ pub enum SignaturesToVerify {
     },
     SuperBlockVote {
         superblock_vote: SuperBlockVote,
+    },
+    SignedRegisteredApiKeys {
+        keys: RegisteredApiKeys,
+        signature: KeyedSignature,
     },
 }
 
