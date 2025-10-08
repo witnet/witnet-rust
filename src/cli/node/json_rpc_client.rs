@@ -55,9 +55,9 @@ use witnet_node::actors::{
     },
     messages::{
         AddApiKey, ApiKeyData, AuthorizeStake, BuildDrt, BuildStakeParams, BuildStakeResponse,
-        BuildUnstakeParams, BuildVtt, GetBalanceTarget, GetReputationResult, MagicEither,
-        QueryStakes, QueryStakesFilter, QueryStakingPowers, RemoveApiKey, SignalingInfo,
-        StakeAuthorization,
+        BuildUnstakeParams, BuildVtt, GetApiKeys, GetBalanceTarget, GetReputationResult,
+        MagicEither, QueryStakes, QueryStakesFilter, QueryStakingPowers, RemoveApiKey,
+        SignalingInfo, StakeAuthorization,
     },
 };
 use witnet_rad::types::RadonTypes;
@@ -2036,25 +2036,56 @@ pub fn query_powers(
     Ok(())
 }
 
-pub fn get_api_keys(addr: SocketAddr) -> Result<(), anyhow::Error> {
+pub fn get_api_keys(addr: SocketAddr, all: bool) -> Result<(), anyhow::Error> {
+    let params = GetApiKeys { all };
     let mut stream = start_client(addr)?;
-    let request = r#"{"jsonrpc": "2.0","method": "getApiKeys", "id": "1"}"#;
-    let response = send_request(&mut stream, request)?;
+    let request = format!(
+        r#"{{"jsonrpc": "2.0","method": "getApiKeys", "params": {}, "id": "1"}}"#,
+        serde_json::to_string(&params).unwrap()
+    );
+    let response = send_request(&mut stream, &request)?;
     let api_keys: Vec<ApiKeyData> = parse_response(&response)?;
 
-    for api_key in api_keys.iter() {
-        println!("");
-        println!("[{}]", api_key.id[1..api_key.id.len() - 1].to_string());
-        println!("key: {}", api_key.key);
-        println!(
-            "reward: {} WIT",
-            Wit::from_nanowits(api_key.reward).to_string()
-        );
-        println!("rate: 1 per {} blocks", api_key.rate);
-        println!(
-            "API key was used last in data request at epoch {}\n",
-            api_key.last_epoch
-        );
+    if all {
+        let mut last_address = "";
+        for api_key in api_keys.iter() {
+            if last_address != api_key.address {
+                println!("");
+                println!(
+                    "API keys for {} since epoch {}:",
+                    api_key.address, api_key.last_epoch
+                );
+                println!(
+                    "\tID: {}, reward: {}, rate: {}",
+                    api_key.id,
+                    Wit::from_nanowits(api_key.reward).to_string(),
+                    api_key.rate
+                );
+                last_address = &api_key.address;
+            } else {
+                println!(
+                    "\tID: {}, reward: {}, rate: {}",
+                    api_key.id,
+                    Wit::from_nanowits(api_key.reward).to_string(),
+                    api_key.rate
+                );
+            }
+        }
+    } else {
+        for api_key in api_keys.iter() {
+            println!("");
+            println!("[{}]", api_key.id[1..api_key.id.len() - 1].to_string());
+            println!("key: {}", api_key.key);
+            println!(
+                "reward: {} WIT",
+                Wit::from_nanowits(api_key.reward).to_string()
+            );
+            println!("rate: 1 per {} blocks", api_key.rate);
+            println!(
+                "API key was used last in data request at epoch {}\n",
+                api_key.last_epoch
+            );
+        }
     }
 
     Ok(())

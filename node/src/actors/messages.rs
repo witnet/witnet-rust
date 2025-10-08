@@ -836,12 +836,17 @@ impl Message for SetEpochConstants {
 }
 
 /// Get all registered API keys
-#[derive(Clone, Debug)]
-pub struct GetApiKeys;
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct GetApiKeys {
+    /// If enabled, return the available API key data of all validators
+    pub all: bool,
+}
 
 /// Return value for an API key
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ApiKeyData {
+    /// The address owning this API key
+    pub address: String,
     /// The API key id
     pub id: String,
     /// The API key value

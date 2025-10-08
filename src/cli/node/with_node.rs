@@ -315,7 +315,9 @@ pub fn exec_cmd(
             fee,
             dry_run,
         ),
-        Command::GetApiKeys { node } => rpc::get_api_keys(node.unwrap_or(default_jsonrpc)),
+        Command::GetApiKeys { node, all } => {
+            rpc::get_api_keys(node.unwrap_or(default_jsonrpc), all)
+        }
         Command::AddApiKey {
             node,
             id,
@@ -893,6 +895,9 @@ pub enum Command {
         /// Socket address of the Witnet node to query
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
+        /// Whether to get a list of the keys from all validators in the network
+        #[structopt(long = "all")]
+        all: bool,
     },
     #[structopt(
         name = "addApiKey",

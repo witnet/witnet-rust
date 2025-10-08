@@ -2563,18 +2563,38 @@ impl Handler<SnapshotImport> for ChainManager {
 impl Handler<GetApiKeys> for ChainManager {
     type Result = <GetApiKeys as Message>::Result;
 
-    fn handle(&mut self, _msg: GetApiKeys, _ctx: &mut Self::Context) -> Self::Result {
-        let api_keys = self
-            .api_keys
-            .iter()
-            .map(|(id, (key, reward, rate, last_epoch))| ApiKeyData {
-                id: id.to_string(),
-                key: key.to_string(),
-                reward: *reward,
-                rate: *rate,
-                last_epoch: *last_epoch,
-            })
-            .collect();
+    fn handle(&mut self, msg: GetApiKeys, _ctx: &mut Self::Context) -> Self::Result {
+        let all = msg.all;
+
+        let api_keys = if all {
+            let mut api_key_data = vec![];
+            for (address, (epoch, api_keys)) in self.received_api_keys.iter() {
+                for (id, reward, rate) in api_keys.iter() {
+                    api_key_data.push(ApiKeyData {
+                        address: address.to_string(),
+                        id: id.to_string(),
+                        key: "".to_string(),
+                        reward: *reward,
+                        rate: *rate,
+                        last_epoch: *epoch,
+                    })
+                }
+            }
+
+            api_key_data
+        } else {
+            self.api_keys
+                .iter()
+                .map(|(id, (key, reward, rate, last_epoch))| ApiKeyData {
+                    address: self.own_pkh.unwrap().to_string(),
+                    id: id.to_string(),
+                    key: key.to_string(),
+                    reward: *reward,
+                    rate: *rate,
+                    last_epoch: *last_epoch,
+                })
+                .collect()
+        };
 
         Ok(api_keys)
     }

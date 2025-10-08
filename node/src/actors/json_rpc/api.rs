@@ -321,7 +321,7 @@ pub fn attach_sensitive_methods<H>(
             enable_sensitive_methods,
             "getApiKeys",
             params,
-            |_params| get_api_keys(),
+            |params| get_api_keys(params.parse()),
         ))
     });
 
@@ -3106,11 +3106,14 @@ async fn get_block_epoch(block_hash: Hash) -> Result<(u32, bool), Error> {
 }
 
 /// Get all registered API keys
-pub async fn get_api_keys() -> JsonRpcResult {
+pub async fn get_api_keys(params: Result<GetApiKeys, Error>) -> JsonRpcResult {
+    // Short-circuit if parameters are wrong
+    let msg = params?;
+
     let chain_manager_addr = ChainManager::from_registry();
 
     chain_manager_addr
-        .send(GetApiKeys {})
+        .send(msg)
         .map(|res| {
             res.map_err(internal_error)
                 .and_then(|api_keys| match api_keys {
