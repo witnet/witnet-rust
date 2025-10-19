@@ -63,6 +63,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.65.0
+          components: rustfmt
 
       - name: Show Rust toolchain
         run: rustup show
