@@ -62,7 +62,7 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.80.0
+          toolchain: 1.85.0
           components: rustfmt
 
       - name: Show Rust toolchain
