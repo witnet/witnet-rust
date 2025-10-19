@@ -63,7 +63,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.85.0
-          components: rustfmt
+          components: rustfmt,clippy
 
       - name: Show Rust toolchain
         run: rustup show
