@@ -86,7 +86,7 @@ ws_address = "127.0.0.1:21340"
 update_period_seconds = 1024
 
 [mining]
-# Enable or disable mining and participation in resolving data requests.
+# Enable or disable mining of blocks.
 enabled = true
 # Limit the number of retrievals that the node will perform during a single epoch. Due to the locking, highly
 # side-effected nature of performing HTTP GET requests, a limit needs to be enforced on the number of retrievals that
@@ -123,6 +123,30 @@ paranoid_percentage = 51
 # The currently supported proxy protocols are HTTP, HTTPS, SOCKS4 (with and without authentication) and SOCKS5 (with and
 # without authentication)
 proxies = []
+# Enable witnessing of data requests by default.
+enabled = true
+# Disable witnessing of data requests which requires an API key by default. Note that uncommenting below section to
+# add API keys will not enable this boolean, it needs to be turned on separately. This option serves to disable
+# witnessing of data requests using an API key without having to clear below section.
+enabled_with_keys = false
+
+# Define API keys by uncommenting below section and fields
+# [[witnessing.api_keys]]
+# This is the name of the API key as it is used as a wildcard in the URL or headers of a data request.
+# id = "MY_API_KEY_1"
+# The value of the API key your node should subsitute in the wildcard.
+# key = "A_real_API_key_1"
+# The minimum reward in nanowit you want as a node operator to solve a data request with the specified API key.
+# reward = 1_000_000_000
+# The number of blocks which have to elapse between the resolving of two subsequent data requests with this key.
+# This can serve as a rate limiter to prevent your API key being blacklisted or your credits running out.
+# rate = 10
+#
+# [[witnessing.api_keys]]
+# id = "MY_API_KEY_2"
+# key = "A_real_API_key_2"
+# reward = 1_000_000_000
+# rate = 10
 
 [log]
 # Logging level, i.e. from more verbose to quieter: "trace" > "debug" > "info" > "warn" > "error" > "none"

@@ -493,12 +493,16 @@ pub enum DataRequestError {
         tx_hash: Hash,
         dr_pointer: Hash,
     },
+    #[error("API key {api_key} required to solve this data request was not found")]
+    NoApiKeyFound { api_key: String },
     #[error("Received a commitment and Data Request is not in Commit stage")]
     NotCommitStage,
     #[error("Received a reveal and Data Request is not in Reveal stage")]
     NotRevealStage,
     #[error("Received a tally and Data Request is not in Tally stage")]
     NotTallyStage,
+    #[error("No API key found in the URL or headers")]
+    RequestWithoutApiKey,
     #[error("Cannot persist unfinished data request (with no Tally)")]
     UnfinishedDataRequest,
     #[error("The data request is not valid since it has no retrieval sources")]

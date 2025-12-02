@@ -77,6 +77,7 @@ where
         witnesses: u16,
         round: u16,
         max_rounds: u16,
+        capability: Capability,
     ) -> StakesResult<(Eligible, Hash, f64), Address, Coins, Epoch>
     where
         ISK: Into<Address>;
@@ -90,11 +91,14 @@ where
         witnesses: u16,
         round: u16,
         max_rounds: u16,
+        capability: Capability,
     ) -> bool
     where
         ISK: Into<Address>,
     {
-        match self.witnessing_eligibility(validator, epoch, witnesses, round, max_rounds) {
+        match self
+            .witnessing_eligibility(validator, epoch, witnesses, round, max_rounds, capability)
+        {
             Ok((eligible, _, _)) => matches!(eligible, Eligible::Yes),
             Err(_) => false,
         }
@@ -199,11 +203,12 @@ where
         witnesses: u16,
         round: u16,
         max_rounds: u16,
+        capability: Capability,
     ) -> StakesResult<(Eligible, Hash, f64), Address, Coins, Epoch>
     where
         ISK: Into<Address>,
     {
-        let power = match self.query_power(key, Capability::Witnessing, epoch) {
+        let power = match self.query_power(key, capability, epoch) {
             Ok(p) => p,
             Err(e) => {
                 // Early exit if the stake key does not exist
@@ -225,7 +230,7 @@ where
             ));
         }
 
-        let mut rank = self.by_rank(Capability::Witnessing, epoch);
+        let mut rank = self.by_rank(capability, epoch);
         let (_, max_power) = rank.next().unwrap_or_default();
 
         // Requirement no. 2 from the WIP:
@@ -324,14 +329,14 @@ mod tests {
         let stakes = StakesTester::default();
         let isk = "validator";
 
-        let eligibility = stakes.witnessing_eligibility(isk, 0, 10, 0, 4);
+        let eligibility = stakes.witnessing_eligibility(isk, 0, 10, 0, 4, Capability::Witnessing);
         assert!(matches!(
             eligibility,
             Ok((Eligible::No(IneligibilityReason::NotStaking), _, _))
         ));
         assert!(!stakes.witnessing_eligibility_bool(isk, 0, 10, 0, 4));
 
-        let eligibility = stakes.witnessing_eligibility(isk, 100, 10, 0, 4);
+        let eligibility = stakes.witnessing_eligibility(isk, 100, 10, 0, 4, Capability::Witnessing);
         assert!(matches!(
             eligibility,
             Ok((Eligible::No(IneligibilityReason::NotStaking), _, _))
@@ -348,14 +353,14 @@ mod tests {
             .add_stake(isk, 10_000_000_000, 0, true, MIN_STAKE_NANOWITS)
             .unwrap();
 
-        let eligibility = stakes.witnessing_eligibility(isk, 0, 10, 0, 4);
+        let eligibility = stakes.witnessing_eligibility(isk, 0, 10, 0, 4, Capability::Witnessing);
         assert!(matches!(
             eligibility,
             Ok((Eligible::No(IneligibilityReason::InsufficientPower), _, _))
         ));
         assert!(!stakes.witnessing_eligibility_bool(isk, 0, 10, 0, 4));
 
-        let eligibility = stakes.witnessing_eligibility(isk, 100, 10, 0, 4);
+        let eligibility = stakes.witnessing_eligibility(isk, 100, 10, 0, 4, Capability::Witnessing);
         assert!(matches!(eligibility, Ok((Eligible::Yes, _, _))));
         assert!(stakes.witnessing_eligibility_bool(isk, 100, 10, 0, 4));
     }
@@ -381,7 +386,7 @@ mod tests {
             .add_stake(isk_4, 40_000_000_000, 0, true, MIN_STAKE_NANOWITS)
             .unwrap();
 
-        let eligibility = stakes.witnessing_eligibility(isk_1, 0, 2, 0, 4);
+        let eligibility = stakes.witnessing_eligibility(isk_1, 0, 2, 0, 4, Capability::Witnessing);
         // TODO: verify target hash
         assert!(matches!(
             eligibility,
@@ -389,7 +394,8 @@ mod tests {
         ));
         assert!(!stakes.witnessing_eligibility_bool(isk_1, 0, 10, 0, 4));
 
-        let eligibility = stakes.witnessing_eligibility(isk_1, 100, 2, 0, 4);
+        let eligibility =
+            stakes.witnessing_eligibility(isk_1, 100, 2, 0, 4, Capability::Witnessing);
         // TODO: verify target hash
         assert!(matches!(
             eligibility,

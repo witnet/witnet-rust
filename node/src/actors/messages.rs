@@ -35,7 +35,7 @@ use witnet_data_structures::{
         UnstakeTransaction, VTTransaction,
     },
     transaction_factory::{NodeBalance, NodeBalance2},
-    types::LastBeacon,
+    types::{LastBeacon, RegisteredApiKeys},
     utxo_pool::{UtxoInfo, UtxoSelectionStrategy},
     wit::{WIT_DECIMAL_PLACES, Wit},
 };
@@ -835,6 +835,64 @@ impl Message for SetEpochConstants {
     type Result = ();
 }
 
+/// Get all registered API keys
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct GetApiKeys {
+    /// If enabled, return the available API key data of all validators
+    pub all: bool,
+}
+
+/// Return value for an API key
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ApiKeyData {
+    /// The address owning this API key
+    pub address: String,
+    /// The API key id
+    pub id: String,
+    /// The API key value
+    pub key: String,
+    /// Reward: the minimum reward required before a data request requiring this API key will be solved
+    pub reward: u64,
+    /// Rate: blocks between solving two consecutive data requests requiring the same API key
+    pub rate: u32,
+    /// Last epoch: the last epoch when this API key was used to attempt to solve a data request
+    pub last_epoch: u32,
+}
+
+impl Message for GetApiKeys {
+    type Result = Result<Vec<ApiKeyData>, anyhow::Error>;
+}
+
+/// Add a new API key
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct AddApiKey {
+    /// The API key id
+    pub id: String,
+    /// The API key value
+    pub key: String,
+    /// Reward: the minimum reward required before a data request requiring this API key will be solved
+    pub reward: Option<u64>,
+    /// Rate: blocks between solving two consecutive data requests requiring the same API key
+    pub rate: Option<u32>,
+    /// Replace the API key if it already exists
+    pub replace: bool,
+}
+
+impl Message for AddApiKey {
+    type Result = Result<bool, anyhow::Error>;
+}
+
+/// Add an API key
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub struct RemoveApiKey {
+    /// The API key id
+    pub id: String,
+}
+
+impl Message for RemoveApiKey {
+    type Result = Result<bool, anyhow::Error>;
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////
 // MESSAGES FROM CONNECTIONS MANAGER
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -1336,6 +1394,37 @@ impl fmt::Display for SendSuperBlockVote {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "SendSuperBlockVote")
     }
+}
+
+/// Messages to send and receive registered API keys through the network
+#[derive(Clone, Debug)]
+pub struct SendRegisteredApiKeys {
+    /// The API key data
+    pub keys: RegisteredApiKeys,
+    /// The signature associated with this message
+    pub signature: KeyedSignature,
+}
+
+impl Message for SendRegisteredApiKeys {
+    type Result = ();
+}
+
+impl fmt::Display for SendRegisteredApiKeys {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "SendRegisteredApiKeys")
+    }
+}
+
+/// Add a superblock vote
+pub struct AddReceivedApiKeys {
+    /// The API key data
+    pub keys: RegisteredApiKeys,
+    /// The signature associated with this message
+    pub signature: KeyedSignature,
+}
+
+impl Message for AddReceivedApiKeys {
+    type Result = Result<(), anyhow::Error>;
 }
 
 /// Message to close an open session

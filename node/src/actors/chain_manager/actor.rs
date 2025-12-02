@@ -1,4 +1,4 @@
-use std::{path::PathBuf, pin::Pin, str::FromStr, time::Duration};
+use std::{collections::HashMap, path::PathBuf, pin::Pin, str::FromStr, time::Duration};
 
 use actix::prelude::*;
 use actix::{ActorTryFutureExt, ContextFutureSpawner, WrapFuture};
@@ -170,6 +170,24 @@ impl ChainManager {
                 if let Some(genesis_block) = genesis_block {
                     act.initial_supply = genesis_block.alloc.iter().fold(0u64, |acc, item| acc + item.iter().fold(0, |acc: u64, utxo| acc.saturating_add(utxo.value)));
                     log::debug!("Initial WIT supply: {}", act.initial_supply);
+                }
+
+                // Enable witnessing
+                act.witnessing_enabled = config.witnessing.enabled;
+
+                // Enable witnessing with API keys
+                act.witnessing_with_keys_enabled = config.witnessing.enabled_with_keys;
+
+                // Store the API keys defined in the configuration
+                if !act.witnessing_with_keys_enabled {
+                    log::info!("Using following API keys with the node: {:?}", config.witnessing.api_keys);
+                }
+                act.api_keys = HashMap::new();
+                for key_data in config.witnessing.api_keys.iter() {
+                    act.api_keys.insert(
+                        "<".to_owned() + &key_data.id + ">",
+                        (key_data.key.clone(), key_data.reward.unwrap_or(0), key_data.rate.unwrap_or(0), 0)
+                    );
                 }
 
                 storage_mngr::get_chain_state(storage_keys::chain_state_key(magic))

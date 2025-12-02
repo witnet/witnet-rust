@@ -4,6 +4,7 @@ use ethereum_types::U256;
 use futures::future::BoxFuture;
 use ordered_float::OrderedFloat;
 use partial_struct::PartialStruct;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::{
     cell::{Cell, RefCell},
@@ -54,6 +55,7 @@ use crate::{
         RevealTransaction, StakeTransaction, TallyTransaction, Transaction, TxInclusionProof,
         UnstakeTransaction, VTTransaction,
     },
+    types::RegisteredApiKeys,
     utxo_pool::{OldUnspentOutputsPool, OwnUnspentOutputsPool, UnspentOutputsPool},
     vrf::{BlockEligibilityClaim, DataRequestEligibilityClaim},
     wit::{WIT_DECIMAL_PLACES, Wit},
@@ -2077,6 +2079,12 @@ pub enum RADType {
     /// HTTP HEAD request
     #[serde(rename = "HTTP-HEAD")]
     HttpHead,
+    /// HTTP GET request requiring an API key
+    #[serde(rename = "HTTP-GET-KEY")]
+    HttpGetKey,
+    /// HTTP POST request requiring an API key
+    #[serde(rename = "HTTP-POST-KEY")]
+    HttpPostKey,
 }
 
 impl RADType {
@@ -2085,6 +2093,10 @@ impl RADType {
             self,
             RADType::HttpGet | RADType::HttpPost | RADType::HttpHead
         )
+    }
+
+    pub fn is_http_key(&self) -> bool {
+        matches!(self, RADType::HttpGetKey | RADType::HttpPostKey)
     }
 }
 
@@ -2233,9 +2245,11 @@ impl RADRetrieve {
                 // Anything is fine
                 Ok(())
             }
-            RADType::HttpGet => check(&[Field::Kind, Field::Url, Field::Script], &[Field::Headers]),
+            RADType::HttpGet | RADType::HttpGetKey => {
+                check(&[Field::Kind, Field::Url, Field::Script], &[Field::Headers])
+            }
             RADType::Rng => check(&[Field::Kind, Field::Script], &[]),
-            RADType::HttpPost => {
+            RADType::HttpPost | RADType::HttpPostKey => {
                 // In HttpPost the body is optional because empty body should also be allowed
                 check(
                     &[Field::Kind, Field::Url, Field::Script],
@@ -2296,6 +2310,66 @@ impl RADRetrieve {
             .saturating_add(kind_weight)
             .saturating_add(body_weight)
             .saturating_add(headers_weight)
+    }
+
+    /// Function to check if an URL contains an API key placeholder
+    pub fn api_key_in_url(&self) -> bool {
+        if self.kind != RADType::HttpGetKey && self.kind != RADType::HttpPostKey {
+            return false;
+        }
+
+        let rex = Regex::new(r".+<[a-zA-Z0-9_-]+_API_KEY>.*").unwrap();
+
+        rex.is_match(&self.url)
+    }
+
+    /// Function to get the placeholder of API key
+    pub fn url_extract_api_key(&self) -> Option<&str> {
+        if self.kind != RADType::HttpGetKey && self.kind != RADType::HttpPostKey {
+            return None;
+        }
+
+        let rex = Regex::new(r".+(<[a-zA-Z0-9_-]+_API_KEY>).*").unwrap();
+
+        match rex.captures(&self.url) {
+            Some(captures) => Some(captures.get(1).unwrap().as_str()),
+            None => None,
+        }
+    }
+
+    /// Function to check if the value of a header is an API key placeholder
+    pub fn api_key_in_headers(&self) -> bool {
+        if self.kind != RADType::HttpGetKey && self.kind != RADType::HttpPostKey {
+            return false;
+        }
+
+        let rex = Regex::new(r".*<[a-zA-Z0-9_-]+_API_KEY>.*").unwrap();
+
+        self.headers.iter().any(|(_, value)| rex.is_match(&value))
+    }
+
+    /// Function to get the placeholder of API key
+    pub fn headers_extract_api_key(&self) -> Option<(usize, &str)> {
+        if self.kind != RADType::HttpGetKey && self.kind != RADType::HttpPostKey {
+            return None;
+        }
+
+        let rex = Regex::new(r".*(<[a-zA-Z0-9_-]+_API_KEY>).*").unwrap();
+
+        for (idx, (_, header_value)) in self.headers.iter().enumerate() {
+            if rex.is_match(&header_value) {
+                return Some((
+                    idx,
+                    rex.captures(&header_value)
+                        .unwrap()
+                        .get(1)
+                        .unwrap()
+                        .as_str(),
+                ));
+            }
+        }
+
+        None
     }
 }
 
@@ -4840,6 +4914,10 @@ pub enum SignaturesToVerify {
     },
     SuperBlockVote {
         superblock_vote: SuperBlockVote,
+    },
+    SignedRegisteredApiKeys {
+        keys: RegisteredApiKeys,
+        signature: KeyedSignature,
     },
 }
 

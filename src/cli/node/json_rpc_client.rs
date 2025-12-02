@@ -54,9 +54,10 @@ use witnet_node::actors::{
         AddrType, GetBlockChainParams, GetTransactionOutput, PeersResult, QueryStakingPowersRecord,
     },
     messages::{
-        AuthorizeStake, BuildDrt, BuildStakeParams, BuildStakeResponse, BuildUnstakeParams,
-        BuildVtt, GetBalanceTarget, GetReputationResult, MagicEither, QueryStakes,
-        QueryStakesFilter, QueryStakingPowers, SignalingInfo, StakeAuthorization,
+        AddApiKey, ApiKeyData, AuthorizeStake, BuildDrt, BuildStakeParams, BuildStakeResponse,
+        BuildUnstakeParams, BuildVtt, GetApiKeys, GetBalanceTarget, GetReputationResult,
+        MagicEither, QueryStakes, QueryStakesFilter, QueryStakingPowers, RemoveApiKey,
+        SignalingInfo, StakeAuthorization,
     },
 };
 use witnet_rad::types::RadonTypes;
@@ -2031,6 +2032,114 @@ pub fn query_powers(
 
     powers_table.printstd();
     println!();
+
+    Ok(())
+}
+
+pub fn get_api_keys(addr: SocketAddr, all: bool) -> Result<(), anyhow::Error> {
+    let params = GetApiKeys { all };
+    let mut stream = start_client(addr)?;
+    let request = format!(
+        r#"{{"jsonrpc": "2.0","method": "getApiKeys", "params": {}, "id": "1"}}"#,
+        serde_json::to_string(&params).unwrap()
+    );
+    let response = send_request(&mut stream, &request)?;
+    let api_keys: Vec<ApiKeyData> = parse_response(&response)?;
+
+    if all {
+        let mut last_address = "";
+        for api_key in api_keys.iter() {
+            if last_address != api_key.address {
+                println!("");
+                println!(
+                    "API keys for {} since epoch {}:",
+                    api_key.address, api_key.last_epoch
+                );
+                println!(
+                    "\tID: {}, reward: {}, rate: {}",
+                    api_key.id,
+                    Wit::from_nanowits(api_key.reward).to_string(),
+                    api_key.rate
+                );
+                last_address = &api_key.address;
+            } else {
+                println!(
+                    "\tID: {}, reward: {}, rate: {}",
+                    api_key.id,
+                    Wit::from_nanowits(api_key.reward).to_string(),
+                    api_key.rate
+                );
+            }
+        }
+    } else {
+        for api_key in api_keys.iter() {
+            println!("");
+            println!("[{}]", api_key.id[1..api_key.id.len() - 1].to_string());
+            println!("key: {}", api_key.key);
+            println!(
+                "reward: {} WIT",
+                Wit::from_nanowits(api_key.reward).to_string()
+            );
+            println!("rate: 1 per {} blocks", api_key.rate);
+            println!(
+                "API key was used last in data request at epoch {}\n",
+                api_key.last_epoch
+            );
+        }
+    }
+
+    Ok(())
+}
+
+pub fn add_api_key(
+    addr: SocketAddr,
+    id: String,
+    key: String,
+    reward: Option<u64>,
+    rate: Option<u32>,
+    replace: bool,
+) -> Result<(), anyhow::Error> {
+    let mut stream = start_client(addr)?;
+
+    let params = AddApiKey {
+        id,
+        key,
+        reward,
+        rate,
+        replace,
+    };
+
+    let request = format!(
+        r#"{{"jsonrpc": "2.0","method": "addApiKey", "params": {}, "id": "1"}}"#,
+        serde_json::to_string(&params).unwrap()
+    );
+    let response = send_request(&mut stream, &request)?;
+    let response: bool = parse_response(&response)?;
+    if response {
+        println!("Successfully added API key");
+    } else {
+        bail!("Failed to add API key");
+    }
+
+    Ok(())
+}
+
+pub fn remove_api_key(addr: SocketAddr, id: String) -> Result<(), anyhow::Error> {
+    let mut stream = start_client(addr)?;
+
+    let params = RemoveApiKey { id };
+
+    let request = format!(
+        r#"{{"jsonrpc": "2.0","method": "removeApiKey", "params": {}, "id": "1"}}"#,
+        serde_json::to_string(&params).unwrap()
+    );
+    let response = send_request(&mut stream, &request)?;
+    let response: bool = parse_response(&response)?;
+    if response {
+        println!("Successfully removed API key");
+    } else {
+        bail!("Failed to removed API key");
+    }
 
     Ok(())
 }

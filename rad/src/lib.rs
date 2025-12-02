@@ -246,7 +246,7 @@ pub fn run_retrieval_with_data_report(
     settings: RadonScriptExecutionSettings,
 ) -> Result<RadonReport<RadonTypes>> {
     match retrieve.kind {
-        RADType::HttpGet | RADType::HttpPost => {
+        RADType::HttpGet | RADType::HttpPost | RADType::HttpGetKey | RADType::HttpPostKey => {
             string_response_with_data_report(retrieve, response, context, settings)
         }
         RADType::Rng => rng_response_with_data_report(response, context),
@@ -311,22 +311,26 @@ async fn http_response(
 
     // Populate the builder and generate the body for different types of retrievals
     let mut request_builder = match retrieve.kind {
-        RADType::HttpGet => client
-            .clone()
-            .get(
-                witnet_net::Uri::parse(&retrieve.url).map_err(|e| RadError::UrlParseError {
-                    url: retrieve.url.clone(),
-                    inner: e,
-                })?,
-            ),
-        RADType::HttpPost => client
-            .clone()
-            .post(
-                witnet_net::Uri::parse(&retrieve.url).map_err(|e| RadError::UrlParseError {
-                    url: retrieve.url.clone(),
-                    inner: e,
-                })?,
-            ),
+        RADType::HttpGet | RADType::HttpGetKey => {
+            client
+                .clone()
+                .get(witnet_net::Uri::parse(&retrieve.url).map_err(|e| {
+                    RadError::UrlParseError {
+                        url: retrieve.url.clone(),
+                        inner: e,
+                    }
+                })?)
+        }
+        RADType::HttpPost | RADType::HttpPostKey => {
+            client
+                .clone()
+                .post(witnet_net::Uri::parse(&retrieve.url).map_err(|e| {
+                    RadError::UrlParseError {
+                        url: retrieve.url.clone(),
+                        inner: e,
+                    }
+                })?)
+        }
         RADType::HttpHead => client
             .clone()
             .head(
@@ -343,7 +347,9 @@ async fn http_response(
 
     // Using `Vec<u8>` as the body sets the content type header to `application/octet-stream` {
     request_builder = match retrieve.kind {
-        RADType::HttpPost => request_builder.body(WitnetHttpBody::from(retrieve.body.clone())),
+        RADType::HttpPost | RADType::HttpPostKey => {
+            request_builder.body(WitnetHttpBody::from(retrieve.body.clone()))
+        }
         _ => request_builder,
     };
 
@@ -508,10 +514,12 @@ pub async fn run_retrieval_report(
     context.set_protocol_version(protocol_version);
 
     match retrieve.kind {
-        RADType::HttpGet => http_response(retrieve, context, settings, client).await,
+        RADType::HttpGet
+        | RADType::HttpPost
+        | RADType::HttpHead
+        | RADType::HttpGetKey
+        | RADType::HttpPostKey => http_response(retrieve, context, settings, client).await,
         RADType::Rng => rng_response(context, settings).await,
-        RADType::HttpPost => http_response(retrieve, context, settings, client).await,
-        RADType::HttpHead => http_response(retrieve, context, settings, client).await,
         _ => Err(RadError::UnknownRetrieval),
     }
 }
@@ -549,7 +557,7 @@ pub async fn run_paranoid_retrieval(
     witnessing: WitnessingConfig<witnet_net::Uri>,
 ) -> Result<RadonReport<RadonTypes>> {
     // We can skip paranoid checks for retrieval types that don't use networking (e.g. RNG)
-    if !retrieve.kind.is_http() {
+    if !retrieve.kind.is_http() && !retrieve.kind.is_http_key() {
         return run_retrieval_report(retrieve, settings, active_wips, protocol_version, None).await;
     }
 

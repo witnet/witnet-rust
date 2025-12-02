@@ -7,9 +7,10 @@ use std::{
 };
 
 use actix::{ActorFutureExt, WrapFuture, prelude::*};
-use futures::future::Either;
-
+use futures::future::{Either, FutureExt};
 use itertools::Itertools;
+use rand::Rng;
+
 use witnet_data_structures::{
     chain::{
         Block, ChainState, CheckpointBeacon, ConsensusConstantsWit2, DataRequestInfo, Epoch, Hash,
@@ -28,7 +29,7 @@ use witnet_data_structures::{
         DRTransaction, StakeTransaction, Transaction, UnstakeTransaction, VTTransaction,
     },
     transaction_factory::{self, NodeBalance, NodeBalance2},
-    types::LastBeacon,
+    types::{LastBeacon, RegisteredApiKeys},
     utxo_pool::{UtxoDiff, UtxoInfo, get_utxo_info},
     wit::Wit,
 };
@@ -42,15 +43,16 @@ use crate::{
     actors::{
         chain_manager::{BlockCandidate, handlers::BlockBatches::*},
         messages::{
-            AddBlocks, AddCandidates, AddCommitReveal, AddSuperBlock, AddSuperBlockVote,
-            AddTransaction, Broadcast, BuildDrt, BuildStake, BuildUnstake, BuildVtt,
-            EpochNotification, EstimatePriority, GetBalance, GetBalance2, GetBalanceTarget,
-            GetBlocksEpochRange, GetDataRequestInfo, GetHighestCheckpointBeacon,
-            GetMemoryTransaction, GetMempool, GetMempoolResult, GetNodeStats, GetProtocolInfo,
-            GetReputation, GetReputationResult, GetSignalingInfo, GetState, GetSuperBlockVotes,
-            GetSupplyInfo, GetSupplyInfo2, GetUtxoInfo, IsConfirmedBlock, PeersBeacons,
-            QueryStakes, QueryStakesOrderByOptions, QueryStakingPowers, ReputationStats, Rewind,
-            SendLastBeacon, SessionUnitResult, SetLastBeacon, SetPeersLimits, SignalingInfo,
+            AddApiKey, AddBlocks, AddCandidates, AddCommitReveal, AddReceivedApiKeys,
+            AddSuperBlock, AddSuperBlockVote, AddTransaction, ApiKeyData, Broadcast, BuildDrt,
+            BuildStake, BuildUnstake, BuildVtt, EpochNotification, EstimatePriority, GetApiKeys,
+            GetBalance, GetBalance2, GetBalanceTarget, GetBlocksEpochRange, GetDataRequestInfo,
+            GetHighestCheckpointBeacon, GetMemoryTransaction, GetMempool, GetMempoolResult,
+            GetNodeStats, GetProtocolInfo, GetReputation, GetReputationResult, GetSignalingInfo,
+            GetState, GetSuperBlockVotes, GetSupplyInfo, GetSupplyInfo2, GetUtxoInfo,
+            IsConfirmedBlock, PeersBeacons, QueryStakes, QueryStakesOrderByOptions,
+            QueryStakingPowers, RemoveApiKey, ReputationStats, Rewind, SendLastBeacon,
+            SendRegisteredApiKeys, SessionUnitResult, SetLastBeacon, SetPeersLimits, SignalingInfo,
             SnapshotExport, SnapshotImport, TryMineBlock, try_do_magic_into_pkh,
         },
         sessions_manager::SessionsManager,
@@ -147,6 +149,42 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
         let current_protocol_version = get_protocol_version(None);
         if expected_protocol_version != current_protocol_version {
             refresh_protocol_version(current_epoch);
+        }
+
+        // Periodically, but randomly send an API keys message
+        let mut rng = rand::thread_rng();
+        if rng.gen_range(0, 10) <= 1 {
+            let (mut ids, mut rewards, mut rates) =
+                (Vec::<String>::new(), Vec::<u64>::new(), Vec::<u32>::new());
+            for (id, (_, reward, rate, _)) in self.api_keys.iter() {
+                ids.push(id.to_string());
+                rewards.push(*reward);
+                rates.push(*rate);
+            }
+
+            let keys = RegisteredApiKeys {
+                ids,
+                rewards,
+                rates,
+                epoch: msg.checkpoint,
+            };
+
+            // Create a hash of the api_keys struct and sign it
+            signature_mngr::sign_data(keys.hash().data())
+                .map(move |res| {
+                    res.map_err(|e| log::error!("Failed to sign API keys message: {e}"))
+                        .map(|signature| {
+                            log::debug!("Broadcasting API keys message at epoch {}", keys.epoch);
+
+                            SessionsManager::from_registry().do_send(Broadcast {
+                                command: SendRegisteredApiKeys { keys, signature },
+                                only_inbound: false,
+                            });
+                        })
+                })
+                .into_actor(self)
+                .map(|_res: Result<(), ()>, _act, _ctx| ())
+                .wait(ctx);
         }
 
         match self.sm_state {
@@ -793,6 +831,57 @@ impl Handler<AddTransaction> for ChainManager {
     fn handle(&mut self, msg: AddTransaction, _ctx: &mut Context<Self>) -> Self::Result {
         let timestamp_now = get_timestamp();
         self.add_transaction(msg, timestamp_now)
+    }
+}
+
+/// Handler for AddReceivedApiKeys message
+impl Handler<AddReceivedApiKeys> for ChainManager {
+    type Result = Result<(), anyhow::Error>;
+
+    fn handle(
+        &mut self,
+        AddReceivedApiKeys { keys, signature }: AddReceivedApiKeys,
+        _ctx: &mut Context<Self>,
+    ) -> Self::Result {
+        let sender = signature.public_key.pkh();
+        // Already have a set of API keys from this node
+        if self.received_api_keys.contains_key(&sender) {
+            // Based on the epoch, received an updated set of keys, track and forward them
+            if self.received_api_keys.get(&sender).unwrap().0 != keys.epoch {
+                let key_data = keys
+                    .ids
+                    .iter()
+                    .zip(keys.rewards.iter())
+                    .zip(keys.rates.iter())
+                    .map(|((id, reward), rate)| (id.to_string(), *reward, *rate))
+                    .collect();
+                self.received_api_keys
+                    .insert(sender, (keys.epoch, key_data));
+
+                SessionsManager::from_registry().do_send(Broadcast {
+                    command: SendRegisteredApiKeys { keys, signature },
+                    only_inbound: false,
+                });
+            }
+        } else {
+            // Never received keys from this node, track and forward them
+            let key_data = keys
+                .ids
+                .iter()
+                .zip(keys.rewards.iter())
+                .zip(keys.rates.iter())
+                .map(|((id, reward), rate)| (id.to_string(), *reward, *rate))
+                .collect();
+            self.received_api_keys
+                .insert(sender, (keys.epoch, key_data));
+
+            SessionsManager::from_registry().do_send(Broadcast {
+                command: SendRegisteredApiKeys { keys, signature },
+                only_inbound: false,
+            });
+        }
+
+        Ok(())
     }
 }
 
@@ -2468,6 +2557,112 @@ impl Handler<SnapshotImport> for ChainManager {
         let fut = self.snapshot_import();
 
         Box::pin(fut)
+    }
+}
+
+impl Handler<GetApiKeys> for ChainManager {
+    type Result = <GetApiKeys as Message>::Result;
+
+    fn handle(&mut self, msg: GetApiKeys, _ctx: &mut Self::Context) -> Self::Result {
+        let all = msg.all;
+
+        let api_keys = if all {
+            let mut api_key_data = vec![];
+            for (address, (epoch, api_keys)) in self.received_api_keys.iter() {
+                for (id, reward, rate) in api_keys.iter() {
+                    api_key_data.push(ApiKeyData {
+                        address: address.to_string(),
+                        id: id.to_string(),
+                        key: "".to_string(),
+                        reward: *reward,
+                        rate: *rate,
+                        last_epoch: *epoch,
+                    })
+                }
+            }
+
+            api_key_data
+        } else {
+            self.api_keys
+                .iter()
+                .map(|(id, (key, reward, rate, last_epoch))| ApiKeyData {
+                    address: self.own_pkh.unwrap().to_string(),
+                    id: id.to_string(),
+                    key: key.to_string(),
+                    reward: *reward,
+                    rate: *rate,
+                    last_epoch: *last_epoch,
+                })
+                .collect()
+        };
+
+        Ok(api_keys)
+    }
+}
+
+impl Handler<AddApiKey> for ChainManager {
+    type Result = <AddApiKey as Message>::Result;
+
+    fn handle(&mut self, msg: AddApiKey, _ctx: &mut Self::Context) -> Self::Result {
+        // Prepend and append the placeholder delimiter symbols if necessary
+        let id = if msg.id.chars().nth(0).unwrap() == '<' {
+            if msg.id.chars().nth(msg.id.len() - 1).unwrap() == '>' {
+                msg.id
+            } else {
+                msg.id + ">"
+            }
+        } else {
+            "<".to_owned() + &msg.id + ">"
+        };
+
+        let success = if self.api_keys.contains_key(&id) {
+            if msg.replace {
+                self.api_keys.insert(
+                    id,
+                    (msg.key, msg.reward.unwrap_or(0), msg.rate.unwrap_or(0), 0),
+                );
+
+                true
+            } else {
+                false
+            }
+        } else {
+            self.api_keys.insert(
+                id,
+                (msg.key, msg.reward.unwrap_or(0), msg.rate.unwrap_or(0), 0),
+            );
+
+            true
+        };
+
+        Ok(success)
+    }
+}
+
+impl Handler<RemoveApiKey> for ChainManager {
+    type Result = <RemoveApiKey as Message>::Result;
+
+    fn handle(&mut self, msg: RemoveApiKey, _ctx: &mut Self::Context) -> Self::Result {
+        // Prepend and append the placeholder delimiter symbols if necessary
+        let id = if msg.id.chars().nth(0).unwrap() == '<' {
+            if msg.id.chars().nth(msg.id.len() - 1).unwrap() == '>' {
+                msg.id
+            } else {
+                msg.id + ">"
+            }
+        } else {
+            "<".to_owned() + &msg.id + ">"
+        };
+
+        let success = if self.api_keys.contains_key(&id) {
+            self.api_keys.remove(&id);
+
+            true
+        } else {
+            false
+        };
+
+        Ok(success)
     }
 }
 

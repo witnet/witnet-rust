@@ -176,6 +176,9 @@ pub enum RadError {
     /// Error while parsing retrieval URL
     #[error("URL parse error: {inner}: url={url:?}")]
     UrlParseError { inner: url::ParseError, url: String },
+    /// Error while parsing retrieval URL
+    #[error("No API key found in url {url:?}")]
+    UrlApiKeyError { url: String },
     /// Timeout during retrieval phase
     #[error("Timeout during retrieval phase")]
     RetrieveTimeout,

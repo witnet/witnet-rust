@@ -24,9 +24,15 @@ pub enum Capability {
     Mining = 0,
     /// The universal HTTP GET / HTTP POST / WIP-0019 RNG capability
     Witnessing = 1,
+    /// The HTTP GET / HTTP POST capability which requires API keys
+    WitnessingWithKey = 2,
 }
 
-pub const ALL_CAPABILITIES: [Capability; 2] = [Capability::Mining, Capability::Witnessing];
+pub const ALL_CAPABILITIES: [Capability; 3] = [
+    Capability::Mining,
+    Capability::Witnessing,
+    Capability::WitnessingWithKey,
+];
 
 #[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct CapabilityMap<T>
@@ -35,6 +41,7 @@ where
 {
     pub mining: T,
     pub witnessing: T,
+    pub witnessing_with_key: T,
 }
 
 impl<T> CapabilityMap<T>
@@ -46,6 +53,7 @@ where
         match capability {
             Capability::Mining => self.mining,
             Capability::Witnessing => self.witnessing,
+            Capability::WitnessingWithKey => self.witnessing_with_key,
         }
     }
 
@@ -54,6 +62,7 @@ where
         match capability {
             Capability::Mining => self.mining = value,
             Capability::Witnessing => self.witnessing = value,
+            Capability::WitnessingWithKey => self.witnessing_with_key = value,
         }
     }
 
@@ -61,5 +70,6 @@ where
     pub fn update_all(&mut self, value: T) {
         self.mining = value;
         self.witnessing = value;
+        self.witnessing_with_key = value;
     }
 }

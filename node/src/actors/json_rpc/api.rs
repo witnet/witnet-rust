@@ -28,16 +28,16 @@ use crate::{
         inventory_manager::{InventoryManager, InventoryManagerError},
         json_rpc::Subscriptions,
         messages::{
-            AddCandidates, AddPeers, AddTransaction, AuthorizeStake, BuildDrt, BuildStake,
-            BuildStakeParams, BuildStakeResponse, BuildUnstake, BuildUnstakeParams, BuildVtt,
-            ClearPeers, DropAllPeers, EstimatePriority, GetBalance, GetBalance2, GetBalance2Limits,
-            GetBalanceTarget, GetBlocksEpochRange, GetConsolidatedPeers, GetDataRequestInfo,
-            GetEpoch, GetEpochConstants, GetHighestCheckpointBeacon, GetItemBlock,
-            GetItemSuperblock, GetItemTransaction, GetKnownPeers, GetMemoryTransaction, GetMempool,
-            GetNodeStats, GetProtocolInfo, GetReputation, GetSignalingInfo, GetState,
-            GetSupplyInfo, GetSupplyInfo2, GetUtxoInfo, InitializePeers, IsConfirmedBlock,
-            MagicEither, QueryStakes, QueryStakingPowers, Rewind, SnapshotExport, SnapshotImport,
-            StakeAuthorization,
+            AddApiKey, AddCandidates, AddPeers, AddTransaction, AuthorizeStake, BuildDrt,
+            BuildStake, BuildStakeParams, BuildStakeResponse, BuildUnstake, BuildUnstakeParams,
+            BuildVtt, ClearPeers, DropAllPeers, EstimatePriority, GetApiKeys, GetBalance,
+            GetBalance2, GetBalance2Limits, GetBalanceTarget, GetBlocksEpochRange,
+            GetConsolidatedPeers, GetDataRequestInfo, GetEpoch, GetEpochConstants,
+            GetHighestCheckpointBeacon, GetItemBlock, GetItemSuperblock, GetItemTransaction,
+            GetKnownPeers, GetMemoryTransaction, GetMempool, GetNodeStats, GetProtocolInfo,
+            GetReputation, GetSignalingInfo, GetState, GetSupplyInfo, GetSupplyInfo2, GetUtxoInfo,
+            InitializePeers, IsConfirmedBlock, MagicEither, QueryStakes, QueryStakingPowers,
+            RemoveApiKey, Rewind, SnapshotExport, SnapshotImport, StakeAuthorization,
         },
         peers_manager::PeersManager,
         sessions_manager::SessionsManager,
@@ -313,6 +313,33 @@ pub fn attach_sensitive_methods<H>(
             "unstake",
             params,
             |params| unstake(params.parse()),
+        ))
+    });
+
+    server.add_actix_method(system, "getApiKeys", move |params| {
+        Box::pin(if_authorized(
+            enable_sensitive_methods,
+            "getApiKeys",
+            params,
+            |params| get_api_keys(params.parse()),
+        ))
+    });
+
+    server.add_actix_method(system, "addApiKey", move |params| {
+        Box::pin(if_authorized(
+            enable_sensitive_methods,
+            "addApiKey",
+            params,
+            |params| add_api_key(params.parse()),
+        ))
+    });
+
+    server.add_actix_method(system, "removeApiKey", move |params| {
+        Box::pin(if_authorized(
+            enable_sensitive_methods,
+            "removeApiKey",
+            params,
+            |params| remove_api_key(params.parse()),
         ))
     });
 }
@@ -3076,6 +3103,81 @@ async fn get_block_epoch(block_hash: Hash) -> Result<(u32, bool), Error> {
             Err(err)
         }
     }
+}
+
+/// Get all registered API keys
+pub async fn get_api_keys(params: Result<GetApiKeys, Error>) -> JsonRpcResult {
+    // Short-circuit if parameters are wrong
+    let msg = params?;
+
+    let chain_manager_addr = ChainManager::from_registry();
+
+    chain_manager_addr
+        .send(msg)
+        .map(|res| {
+            res.map_err(internal_error)
+                .and_then(|api_keys| match api_keys {
+                    Ok(x) => match serde_json::to_value(x) {
+                        Ok(x) => Ok(x),
+                        Err(e) => {
+                            let err = internal_error_s(e);
+                            Err(err)
+                        }
+                    },
+                    Err(e) => Err(internal_error_s(e)),
+                })
+        })
+        .await
+}
+
+/// Add a (new) API keys
+pub async fn add_api_key(params: Result<AddApiKey, Error>) -> JsonRpcResult {
+    // Short-circuit if parameters are wrong
+    let msg = params?;
+
+    let chain_manager_addr = ChainManager::from_registry();
+
+    chain_manager_addr
+        .send(msg)
+        .map(|res| {
+            res.map_err(internal_error)
+                .and_then(|success| match success {
+                    Ok(x) => match serde_json::to_value(x) {
+                        Ok(x) => Ok(x),
+                        Err(e) => {
+                            let err = internal_error_s(e);
+                            Err(err)
+                        }
+                    },
+                    Err(e) => Err(internal_error_s(e)),
+                })
+        })
+        .await
+}
+
+/// Remove an API keys
+pub async fn remove_api_key(params: Result<RemoveApiKey, Error>) -> JsonRpcResult {
+    // Short-circuit if parameters are wrong
+    let msg = params?;
+
+    let chain_manager_addr = ChainManager::from_registry();
+
+    chain_manager_addr
+        .send(msg)
+        .map(|res| {
+            res.map_err(internal_error)
+                .and_then(|success| match success {
+                    Ok(x) => match serde_json::to_value(x) {
+                        Ok(x) => Ok(x),
+                        Err(e) => {
+                            let err = internal_error_s(e);
+                            Err(err)
+                        }
+                    },
+                    Err(e) => Err(internal_error_s(e)),
+                })
+        })
+        .await
 }
 
 #[cfg(test)]

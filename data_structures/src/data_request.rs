@@ -11,7 +11,7 @@ use witnet_crypto::hash::calculate_sha256;
 use crate::{
     chain::{
         DataRequestInfo, DataRequestOutput, DataRequestStage, DataRequestState, Environment, Epoch,
-        Hash, Hashable, PublicKeyHash, ValueTransferOutput, tapi::ActiveWips,
+        Hash, Hashable, PublicKeyHash, RADRequest, RADType, ValueTransferOutput, tapi::ActiveWips,
     },
     error::{DataRequestError, TransactionError},
     get_environment, get_protocol_version_activation_epoch,
@@ -586,6 +586,72 @@ pub fn data_request_has_too_many_witnesses(
 
         usize::from(dr_output.witnesses) > validator_count / divider
     }
+}
+
+/// Function to check if any of the URL's in a data request requires an API key
+pub fn data_request_requires_api_key(request: &RADRequest) -> bool {
+    request.retrieve.iter().any(|retrieval| {
+        if retrieval.kind == RADType::HttpGetKey || retrieval.kind == RADType::HttpPostKey {
+            let url_with_api_key = retrieval.api_key_in_url();
+            let headers_with_api_key = retrieval.api_key_in_headers();
+
+            url_with_api_key || headers_with_api_key
+        } else {
+            false
+        }
+    })
+}
+
+/// Function to replace API key placeholders with the actual API key (assuming it is found)
+pub fn data_request_replace_api_keys(
+    rad_request: &mut RADRequest,
+    api_keys: &HashMap<String, (String, u64, u32, u32)>,
+) -> Result<String, anyhow::Error> {
+    let mut key = "";
+
+    for retrieval in rad_request.retrieve.iter_mut() {
+        // Replace API keys inside an URL
+        match retrieval.url_extract_api_key() {
+            Some(api_key) => {
+                match api_keys.get_key_value(api_key) {
+                    Some((k, v)) => {
+                        retrieval.url = retrieval.url.replace(api_key, &v.0);
+                        key = k;
+                    }
+                    // API key not found, we cannot solve this data request
+                    None => {
+                        return Err(DataRequestError::NoApiKeyFound {
+                            api_key: api_key.to_string(),
+                        }
+                        .into());
+                    }
+                }
+            }
+            None => (),
+        };
+
+        // Replace API keys in a header
+        match retrieval.headers_extract_api_key() {
+            Some((idx, api_key)) => {
+                match api_keys.get_key_value(api_key) {
+                    Some((k, v)) => {
+                        retrieval.headers[idx].1 = retrieval.headers[idx].1.replace(api_key, &v.0);
+                        key = k;
+                    }
+                    // API key not found, we cannot solve this data request
+                    None => {
+                        return Err(DataRequestError::NoApiKeyFound {
+                            api_key: retrieval.headers[idx].1.to_string(),
+                        }
+                        .into());
+                    }
+                }
+            }
+            None => (),
+        };
+    }
+
+    Ok(key.to_string())
 }
 
 /// Saturating version of `u64::div_ceil`.
@@ -1516,6 +1582,209 @@ mod tests {
         assert_eq!(
             p.data_request_pool[&dr_pointer].stage,
             DataRequestStage::REVEAL
+        );
+    }
+
+    #[test]
+    fn test_api_key_required() {
+        let rad_retrieve_1 = RADRetrieve {
+            url: "https://api.coingecko.com/api/v3/ping".to_string(),
+            kind: RADType::HttpGet,
+            ..RADRetrieve::default()
+        };
+        let rad_retrieve_2 = RADRetrieve {
+            url: "https://api.coingecko.com/api/v3/ping?x_cg_demo_api_key=<COINGECKO_API_KEY>"
+                .to_string(),
+            kind: RADType::HttpGetKey,
+            ..RADRetrieve::default()
+        };
+        let rad_retrieve_3 = RADRetrieve {
+            url: "https://api.coingecko.com/api/v3/ping?x_cg_demo_api_key=<COINGECKO_API_KEY"
+                .to_string(),
+            kind: RADType::HttpGetKey,
+            ..RADRetrieve::default()
+        };
+        let rad_retrieve_4 = RADRetrieve {
+            url: "https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest".to_string(),
+            kind: RADType::HttpPostKey,
+            headers: vec![(
+                "X-CMC_PRO_API_KEY".to_string(),
+                "<COINMARKETCAP_API_KEY>".to_string(),
+            )],
+            ..RADRetrieve::default()
+        };
+        let rad_retrieve_5 = RADRetrieve {
+            url: "https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest".to_string(),
+            kind: RADType::HttpPostKey,
+            headers: vec![(
+                "X-CMC_PRO_API_KEY".to_string(),
+                "This is my API key: <COINMARKETCAP_API_KEY>".to_string(),
+            )],
+            ..RADRetrieve::default()
+        };
+
+        let rad_request_1 = RADRequest {
+            retrieve: vec![rad_retrieve_1.clone()],
+            ..RADRequest::default()
+        };
+        assert!(data_request_requires_api_key(&rad_request_1) == false);
+
+        let rad_request_2 = RADRequest {
+            retrieve: vec![rad_retrieve_2.clone()],
+            ..RADRequest::default()
+        };
+        assert!(data_request_requires_api_key(&rad_request_2));
+
+        let rad_request_3 = RADRequest {
+            retrieve: vec![rad_retrieve_3.clone()],
+            ..RADRequest::default()
+        };
+        assert!(data_request_requires_api_key(&rad_request_3) == false);
+
+        let rad_request_4 = RADRequest {
+            retrieve: vec![rad_retrieve_1, rad_retrieve_2],
+            ..RADRequest::default()
+        };
+        assert!(data_request_requires_api_key(&rad_request_4));
+
+        let rad_request_5 = RADRequest {
+            retrieve: vec![rad_retrieve_4],
+            ..RADRequest::default()
+        };
+        assert!(data_request_requires_api_key(&rad_request_5));
+
+        let rad_request_6 = RADRequest {
+            retrieve: vec![rad_retrieve_5],
+            ..RADRequest::default()
+        };
+        assert!(data_request_requires_api_key(&rad_request_6));
+    }
+
+    #[test]
+    fn test_api_key_replacement() {
+        let api_keys = HashMap::from([
+            (
+                "<COINGECKO_API_KEY>".to_string(),
+                ("I_promise_this_is_a_real_api_key".to_string(), 0, 0, 0),
+            ),
+            (
+                "<COINMARKETCAP_API_KEY>".to_string(),
+                ("it_is_definitely_real".to_string(), 0, 0, 0),
+            ),
+        ]);
+
+        let rad_retrieve_1 = RADRetrieve {
+            url: "https://api.coingecko.com/api/v3/ping".to_string(),
+            kind: RADType::HttpGet,
+            ..RADRetrieve::default()
+        };
+        let rad_retrieve_2 = RADRetrieve {
+            url: "https://api.coingecko.com/api/v3/ping?x_cg_demo_api_key=<COINGECKO_API_KEY>"
+                .to_string(),
+            kind: RADType::HttpGetKey,
+            ..RADRetrieve::default()
+        };
+        let rad_retrieve_3 = RADRetrieve {
+            url: "https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest".to_string(),
+            kind: RADType::HttpPostKey,
+            headers: vec![(
+                "X-CMC_PRO_API_KEY".to_string(),
+                "<COINMARKETCAP_API_KEY>".to_string(),
+            )],
+            ..RADRetrieve::default()
+        };
+        let rad_retrieve_4 = RADRetrieve {
+            url: "https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest".to_string(),
+            kind: RADType::HttpPostKey,
+            headers: vec![(
+                "X-CMC_PRO_API_KEY".to_string(),
+                "This is my API key: <COINMARKETCAP_API_KEY>".to_string(),
+            )],
+            ..RADRetrieve::default()
+        };
+
+        // No API key to replace
+        let mut rad_request_1 = RADRequest {
+            retrieve: vec![rad_retrieve_1.clone()],
+            ..RADRequest::default()
+        };
+        data_request_replace_api_keys(&mut rad_request_1, &api_keys).unwrap();
+        assert_eq!(
+            rad_request_1.retrieve[0].url,
+            "https://api.coingecko.com/api/v3/ping".to_string()
+        );
+
+        // Replace an API key in an url
+        let mut rad_request_2 = RADRequest {
+            retrieve: vec![rad_retrieve_2.clone()],
+            ..RADRequest::default()
+        };
+        data_request_replace_api_keys(&mut rad_request_2, &api_keys).unwrap();
+        assert_eq!(rad_request_2.retrieve[0].url, "https://api.coingecko.com/api/v3/ping?x_cg_demo_api_key=I_promise_this_is_a_real_api_key".to_string());
+
+        // Replace an API key in a header
+        let mut rad_request_3 = RADRequest {
+            retrieve: vec![rad_retrieve_3.clone()],
+            ..RADRequest::default()
+        };
+        data_request_replace_api_keys(&mut rad_request_3, &api_keys).unwrap();
+        assert_eq!(
+            rad_request_3.retrieve[0].url,
+            "https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest".to_string()
+        );
+        assert_eq!(
+            rad_request_3.retrieve[0].headers,
+            vec![(
+                "X-CMC_PRO_API_KEY".to_string(),
+                "it_is_definitely_real".to_string()
+            )]
+        );
+
+        let mut rad_request_4 = RADRequest {
+            retrieve: vec![rad_retrieve_4.clone()],
+            ..RADRequest::default()
+        };
+        data_request_replace_api_keys(&mut rad_request_4, &api_keys).unwrap();
+        assert_eq!(
+            rad_request_4.retrieve[0].url,
+            "https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest".to_string()
+        );
+        assert_eq!(
+            rad_request_4.retrieve[0].headers,
+            vec![(
+                "X-CMC_PRO_API_KEY".to_string(),
+                "This is my API key: it_is_definitely_real".to_string()
+            )]
+        );
+
+        // API key in URL not found
+        let mut rad_request_5 = RADRequest {
+            retrieve: vec![rad_retrieve_2.clone()],
+            ..RADRequest::default()
+        };
+        assert_eq!(
+            data_request_replace_api_keys(&mut rad_request_5, &HashMap::new())
+                .unwrap_err()
+                .downcast::<DataRequestError>()
+                .unwrap(),
+            DataRequestError::NoApiKeyFound {
+                api_key: "<COINGECKO_API_KEY>".to_string()
+            }
+        );
+
+        // API key in header not found
+        let mut rad_request_6 = RADRequest {
+            retrieve: vec![rad_retrieve_3.clone()],
+            ..RADRequest::default()
+        };
+        assert_eq!(
+            data_request_replace_api_keys(&mut rad_request_6, &HashMap::new())
+                .unwrap_err()
+                .downcast::<DataRequestError>()
+                .unwrap(),
+            DataRequestError::NoApiKeyFound {
+                api_key: "<COINMARKETCAP_API_KEY>".to_string()
+            }
         );
     }
 }
