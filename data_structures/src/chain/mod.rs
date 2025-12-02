@@ -4078,18 +4078,17 @@ impl ChainState {
             .clone()
     }
 
+    /// Obtain an epoch-indexed collection of data request transaction hashes that match a certain
+    /// RAD hash.
     pub fn get_data_requests_by_rad_hash(&self, rad_hash: &Hash) -> HashMap<Epoch, Vec<Hash>> {
-        let mut found: HashMap<Epoch, Vec<Hash>> = HashMap::new();
+        let mut by_epoch: HashMap<Epoch, Vec<Hash>> = HashMap::new();
         if let Some(entry) = self.rad_hashes_index.get(rad_hash) {
             entry.iter().for_each(|(epoch, dr_tx_hash)| {
-                if let Some(vec) = found.get_mut(epoch) {
-                    vec.push(*dr_tx_hash)
-                } else {
-                    found.insert(*epoch, vec![*dr_tx_hash]);
-                }
+                by_epoch.entry(*epoch).or_default().push(*dr_tx_hash);
             });
         }
-        found
+
+        by_epoch
     }
 }
 

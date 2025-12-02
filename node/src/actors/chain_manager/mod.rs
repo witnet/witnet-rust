@@ -1121,12 +1121,8 @@ impl ChainManager {
                         .for_each(|dr_tx| {
                             let dr_tx_hash = dr_tx.versioned_hash(protocol_version);
                             let rad_hash = dr_tx.body.dr_output.data_request.versioned_hash(protocol_version);
-                            if let Some(vec) = self.chain_state.rad_hashes_index.get_mut(&rad_hash) {
-                                vec.push((block_epoch, dr_tx_hash));
-                            } else {
-                                self.chain_state.rad_hashes_index.insert(rad_hash, vec![(block_epoch, dr_tx_hash)]);
-                            }
-                            log::warn!("Indexing data request {dr_tx_hash:?} with rad_hash {rad_hash:?} on epoch {block_epoch}");
+                            self.chain_state.rad_hashes_index.entry(rad_hash).or_default().push((block_epoch, dr_tx_hash));
+                            log::info!("Indexing data request {dr_tx_hash:?} with rad_hash {rad_hash:?} on epoch {block_epoch}");
                         });
                 }
 
