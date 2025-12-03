@@ -1537,11 +1537,11 @@ impl Handler<SearchDataRequests> for ChainManager {
             let limit = msg.limit.unwrap_or(u16::MAX) as usize;
             let offset = msg.offset.unwrap_or_default();
             let reverse = msg.reverse.unwrap_or_default();
-            let mut since_epoch: i64 = msg.since.unwrap_or(-4320i64);
+            let mut since_epoch = msg.since.unwrap_or(-4_320);
             if let Some(current) = self.current_epoch {
                 since_epoch = i64::from(current).saturating_add(since_epoch);
             }
-            let since_epoch: u32 = since_epoch.try_into().inspect_err(|&e| {
+            let since_epoch = u32::try_from(since_epoch).inspect_err(|&e| {
                 log::warn!("Invalid 'since' limit on SearchDataRequests: {e}");
             })?;
 
