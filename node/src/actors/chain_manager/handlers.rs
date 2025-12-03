@@ -1547,13 +1547,7 @@ impl Handler<SearchDataRequests> for ChainManager {
 
             Ok(result
                 .iter()
-                .filter_map(|tuple| {
-                    if tuple.0 >= since_epoch {
-                        Some(*tuple)
-                    } else {
-                        None
-                    }
-                })
+                .filter(|(epoch, _)| epoch >= &since_epoch)
                 .sorted_by(|(epoch_a, _), (epoch_b, _)| {
                     if reverse {
                         epoch_b.cmp(epoch_a)
@@ -1563,6 +1557,7 @@ impl Handler<SearchDataRequests> for ChainManager {
                 })
                 .skip(offset)
                 .take(limit)
+                .cloned()
                 .collect())
         } else {
             Ok(vec![])
