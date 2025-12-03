@@ -497,7 +497,7 @@ pub struct SearchDataRequests {
     /// List fresher data requests first
     pub reverse: Option<bool>,
     /// Select data requests that have been included on or after the specified
-    /// absolute epoch, or relative epoch if negative (default: -30240, or one week ago)
+    /// absolute epoch, or relative epoch if negative (default: -4320, or 24 hours ago)
     pub since: Option<i64>,
 }
 
