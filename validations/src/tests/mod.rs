@@ -9814,7 +9814,7 @@ fn setup_stakes_tracker(
     let stake_tx = StakeTransaction::new(stake_tx_body, vec![]);
 
     let mut stakes = StakesTracker::default();
-    let _ = process_stake_transactions(&mut stakes, vec![stake_tx].iter(), 0, 10_000_000_000);
+    let _ = process_stake_transactions(&mut stakes, [stake_tx].iter(), 0, 10_000_000_000);
 
     (validator_pkh, withdrawer_pkh, stakes)
 }

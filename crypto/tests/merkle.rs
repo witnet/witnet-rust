@@ -120,7 +120,7 @@ fn full_merkle_tree() {
     let hash_e = Sha256([0x44; 32]);
     let hash_f = Sha256([0x55; 32]);
     let hadh_g = Sha256([0x66; 32]);
-    let hashes = vec![hash_a, hash_b, hash_c, hash_d, hash_e, hash_f, hadh_g];
+    let hashes = [hash_a, hash_b, hash_c, hash_d, hash_e, hash_f, hadh_g];
 
     // Empty merkle tree: empty hash
     assert_eq!(merkle_tree_root(&[]), FullMerkleTree::sha256(vec![]).root());

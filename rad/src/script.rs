@@ -351,7 +351,7 @@ mod tests {
                     (
                         String::from("coord"),
                         RadonTypes::from(RadonMap::from(
-                            vec![
+                            [
                                 (
                                     String::from("lon"),
                                     RadonTypes::from(RadonFloat::from(13.41)),
@@ -377,7 +377,7 @@ mod tests {
                     (
                         String::from("main"),
                         RadonTypes::from(RadonMap::from(
-                            vec![
+                            [
                                 (
                                     String::from("temp"),
                                     RadonTypes::from(RadonInteger::from(-4)),
@@ -411,7 +411,7 @@ mod tests {
                     (
                         String::from("sys"),
                         RadonTypes::from(RadonMap::from(
-                            vec![
+                            [
                                 (
                                     String::from("type"),
                                     RadonTypes::from(RadonInteger::from(1)),
@@ -449,7 +449,7 @@ mod tests {
                     (
                         String::from("weather"),
                         RadonTypes::from(RadonArray::from(vec![RadonTypes::from(RadonMap::from(
-                            vec![
+                            [
                                 (
                                     String::from("id"),
                                     RadonTypes::from(RadonInteger::from(600)),
@@ -475,7 +475,7 @@ mod tests {
                     (
                         String::from("wind"),
                         RadonTypes::from(RadonMap::from(
-                            vec![
+                            [
                                 (
                                     String::from("speed"),
                                     RadonTypes::from(RadonFloat::from(2.6)),
@@ -496,7 +496,7 @@ mod tests {
                 .collect::<BTreeMap<String, RadonTypes>>(),
             )),
             RadonTypes::from(RadonMap::from(
-                vec![
+                [
                     (
                         String::from("temp"),
                         RadonTypes::from(RadonInteger::from(-4)),

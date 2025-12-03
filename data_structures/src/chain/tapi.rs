@@ -164,7 +164,7 @@ impl TapiEngine {
                     bit_counter.period,
                     (bit_counter.votes * 100) / bit_counter.period
                 );
-                if (epoch_to_update - bit_counter.init) % bit_counter.period == 0 {
+                if (epoch_to_update - bit_counter.init).is_multiple_of(bit_counter.period) {
                     if (bit_counter.votes * 100) / bit_counter.period >= 80 {
                         // An offset of 21 is added to ensure that the activation of the WIP is
                         // achieved with consolidated blocks

@@ -349,7 +349,7 @@ fn wrap_storage_as_nodestorage<S: Storage + Send + Sync + 'static>(
     // know the total number of UTXOs so it is not possible to display a percentage.
     let mut total_utxos = 0;
     let log_progress_cache_utxos_by_pkh = |i: usize| {
-        if i > 0 && i % 100_000 == 0 {
+        if i > 0 && i.is_multiple_of(100_000) {
             log::debug!("Initializing UTXO cache: {i} UTXOs processed");
         }
 

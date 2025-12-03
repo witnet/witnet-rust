@@ -11,6 +11,7 @@ use std::{convert::TryFrom, fmt::Debug};
 #[allow(elided_lifetimes_in_paths)]
 #[allow(mismatched_lifetime_syntaxes)]
 #[allow(renamed_and_removed_lints)]
+#[allow(unused_parens)]
 pub mod schema;
 pub mod versioning;
 

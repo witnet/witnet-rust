@@ -4622,7 +4622,7 @@ where
             n -= 1;
             remaining_rep -= u64::from(top_rep);
         } else {
-            let factor = if (total_rep % remaining_rep) > 0 {
+            let factor = if !total_rep.is_multiple_of(remaining_rep) {
                 (total_rep * n / remaining_rep) + 1
             } else {
                 total_rep * n / remaining_rep

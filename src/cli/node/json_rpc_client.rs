@@ -2118,15 +2118,6 @@ struct JsonRpcError {
     error: ServerError,
 }
 
-/// Id. Can be null, a number, or a string
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
-enum Id {
-    Null,
-    Number(),
-    String(),
-}
-
 /// A failed request returns an error with code and message
 #[allow(dead_code)]
 #[derive(Debug, Deserialize, Error)]

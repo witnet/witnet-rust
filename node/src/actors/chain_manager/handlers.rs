@@ -239,7 +239,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
 
                         // Periodically revalidate pending stake transactions since they can become invalid
                         if get_protocol_version(Some(current_epoch)) >= ProtocolVersion::V1_8
-                            && current_epoch % 10 == 0
+                            && current_epoch.is_multiple_of(10)
                         {
                             let utxo_diff = UtxoDiff::new(
                                 &self.chain_state.unspent_outputs_pool,
@@ -280,7 +280,7 @@ impl Handler<EpochNotification<EveryEpochPayload>> for ChainManager {
 
                         // Periodically revalidate pending unstake transactions since they can become invalid
                         if get_protocol_version(Some(current_epoch)) >= ProtocolVersion::V2_0
-                            && current_epoch % 10 == 0
+                            && current_epoch.is_multiple_of(10)
                         {
                             let min_stake = self
                                 .consensus_constants_wit2
@@ -1310,7 +1310,7 @@ impl Handler<PeersBeacons> for ChainManager {
             let superblock_period = u32::from(self.consensus_constants().superblock_period);
             let current_epoch = self.current_epoch.unwrap();
             // During epoch 0 there is no need to create the superblock 0
-            if current_epoch != 0 && current_epoch % superblock_period == 0 {
+            if current_epoch != 0 && current_epoch.is_multiple_of(superblock_period) {
                 self.create_and_broadcast_superblock(ctx, current_epoch);
             }
         }
@@ -2570,7 +2570,7 @@ where
         return Ok(TargetNotReached(blocks));
     }
 
-    if (current_superblock_index - sync_target.superblock.checkpoint) % 2 == 0 {
+    if (current_superblock_index - sync_target.superblock.checkpoint).is_multiple_of(2) {
         let consolidated_blocks_target = sync_target.superblock.checkpoint * superblock_period;
         let mut consolidated_blocks = blocks;
         let mut remaining_blocks = vec![];

@@ -374,12 +374,10 @@ fn futurize_batch_read(
     batch_path: PathBuf,
 ) -> Pin<
     Box<
-        (
-            dyn futures_util::Future<
-                    Output = Result<Vec<witnet_data_structures::chain::Block>, ImportError>,
-                > + std::marker::Send
-                + 'static
-        ),
+        dyn futures_util::Future<
+                Output = Result<Vec<witnet_data_structures::chain::Block>, ImportError>,
+            > + std::marker::Send
+            + 'static,
     >,
 > {
     Box::pin(async move {
@@ -573,7 +571,7 @@ impl ChainManager {
                             .expect("resync from storage fail");
                         // We need to persist the chain state periodically, otherwise the entire
                         // UTXO set will be in memory, consuming a huge amount of memory.
-                        if block_list.len() % 1000 == 0 {
+                        if block_list.len().is_multiple_of(1_000) {
                             act.persist_chain_state(None)
                                 .map(|_res: Result<(), ()>, _act, _ctx| ())
                                 .wait(ctx);
@@ -995,7 +993,7 @@ impl ChainManager {
                 let superblock_period = chain_info.consensus_constants.superblock_period;
                 if protocol_version == ProtocolVersion::V1_8
                     && get_protocol_version_activation_epoch(ProtocolVersion::V2_0) == Epoch::MAX
-                    && block_epoch % u32::from(superblock_period) == 0
+                    && block_epoch.is_multiple_of(u32::from(superblock_period))
                 {
                     let min_total_stake = self
                         .consensus_constants_wit2
@@ -1837,7 +1835,7 @@ impl ChainManager {
                                     superblock_index
                         );
 
-                        if (superblock_index - voted_superblock_beacon.checkpoint) % 2 == 0 {
+                        if (superblock_index - voted_superblock_beacon.checkpoint).is_multiple_of(2) {
                             // Desync bug: if the last valid superblock is even, all the future
                             // voted superblocks must be odd.
                             //
@@ -5145,7 +5143,7 @@ mod tests {
         // Create stakes tracker
         let mut stakes = StakesTracker::default();
 
-        let stake_txns_1 = vec![
+        let stake_txns_1 = [
             StakeTransaction::new(
                 StakeTransactionBody::new(
                     vec![vti_1],
@@ -5222,7 +5220,7 @@ mod tests {
         block_epoch += 1;
 
         // Create new stake transaction for the same validator 2 and process it
-        let stake_txns_2 = vec![StakeTransaction::new(
+        let stake_txns_2 = [StakeTransaction::new(
             StakeTransactionBody::new(
                 vec![vti_1],
                 StakeOutput {

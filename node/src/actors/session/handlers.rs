@@ -199,7 +199,7 @@ impl StreamHandler<Result<BytesMut, Error>> for Session {
                                     // During superblock updates, there will be nodes that are perfectly synced
                                     // yet they are in the process of updating their superblock field for handshaking,
                                     // so mistakenly icing them would be wrong.
-                                    if self.current_epoch % 10 != 0 {
+                                    if !self.current_epoch.is_multiple_of(10) {
                                         // Remove this address from tried bucket and ice it
                                         self.remove_and_ice_peer();
                                     }

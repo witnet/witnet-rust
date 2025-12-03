@@ -154,15 +154,6 @@ pub struct DataReqParams {
     pub preview: bool,
 }
 
-/// Builds a `ValueTransferTransaction` from a list of `ValueTransferOutput`s
-#[derive(Clone, Debug, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
-pub struct BuildVtt {
-    /// List of `ValueTransferOutput`s
-    pub vto: Vec<ValueTransferOutput>,
-    /// Fee
-    pub fee: u64,
-}
-
 /// Params of getBlockChain method
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct GetBlockChainParams {
