@@ -2103,8 +2103,8 @@ impl Handler<GetSupplyInfo2> for ChainManager {
             }
         }
 
-        let (mut blocks_minted, mut blocks_minted_reward) = (0, 0);
-        for epoch in 1..current_epoch {
+        let (mut blocks_minted, mut blocks_minted_reward) = (self.last_blocks_minted, self.last_blocks_minted_reward);
+        for epoch in self.last_supply_info_epoch..current_epoch {
             // If the blockchain contains an epoch, a block was minted in that epoch, add the reward to blocks_minted_reward
             if self.chain_state.block_chain.contains_key(&epoch) {
                 blocks_minted += 1;
@@ -2115,6 +2115,9 @@ impl Handler<GetSupplyInfo2> for ChainManager {
                 }
             }
         }
+        self.last_supply_info_epoch = current_epoch;
+        self.last_blocks_minted = blocks_minted;
+        self.last_blocks_minted_reward = blocks_minted_reward;
 
         let burnt_supply = self
             .initial_supply

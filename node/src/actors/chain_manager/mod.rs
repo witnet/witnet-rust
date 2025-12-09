@@ -262,6 +262,12 @@ pub struct ChainManager {
     initial_supply: u64,
     /// Populate RAD hashes index
     rad_hashes_index: bool,
+    /// Epoch when getSupplyInfo2 was last resolved.
+    last_supply_info_epoch: u32,
+    /// Count of minted blocks the last time getSupplyInfo2 was resolved.
+    last_blocks_minted: u32,
+    /// Counf of minted rewards the last time getSupplyInfo2 was resolved.
+    last_blocks_minted_reward: u64,
 }
 
 impl ChainManager {
