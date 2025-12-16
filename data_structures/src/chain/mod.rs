@@ -1742,20 +1742,10 @@ pub struct SupplyInfo {
     pub blocks_minted: u32,
     /// WIT minted through block creation
     pub blocks_minted_reward: u64,
-    /// Number of blocks missing
-    pub blocks_missing: u32,
-    /// WIT missing because a block was not created
-    pub blocks_missing_reward: u64,
-    /// Amount of in-flight data requests
-    pub in_flight_requests: u32,
-    /// Supply currently locked in data requests
-    pub locked_wits_by_requests: u64,
-    /// Current unlocked supply
-    pub current_unlocked_supply: u64,
-    /// Current locked supply
-    pub current_locked_supply: u64,
-    /// Maximum supply: the number of nanowits that will ever exist
-    pub maximum_supply: u64,
+    /// Current staked supply
+    pub current_staked_supply: u64,
+    /// Genesis supply
+    pub genesis_supply: u64,
 }
 
 /// Information about the total supply after V1_8 activation
