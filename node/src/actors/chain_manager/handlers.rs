@@ -1996,69 +1996,39 @@ impl Handler<GetSupplyInfo> for ChainManager {
         }
 
         let chain_info = self.chain_state.chain_info.as_ref().unwrap();
-        let halving_period = chain_info.consensus_constants.halving_period;
-        let initial_block_reward = chain_info.consensus_constants.initial_block_reward;
-        let collateral_minimum = chain_info.consensus_constants.collateral_minimum;
-
         let current_epoch = self.current_epoch.unwrap();
         let current_time = u64::try_from(get_timestamp()).unwrap();
+        let current_staked_supply = self.chain_state.stakes.total_staked().nanowits();
 
-        let mut current_unlocked_supply = 0;
-        let mut current_locked_supply = 0;
-        for (_output_pointer, value_transfer_output) in self.chain_state.unspent_outputs_pool.iter()
-        {
-            if value_transfer_output.0.time_lock <= current_time {
-                current_unlocked_supply += value_transfer_output.0.value;
-            } else {
-                current_locked_supply += value_transfer_output.0.value;
-            }
-        }
+        let wit1_block_reward = chain_info.consensus_constants.initial_block_reward;
+        let wit2_activated = get_protocol_version(None) == ProtocolVersion::V2_0;
+        let wit2_activation_epoch = get_protocol_version_activation_epoch(ProtocolVersion::V2_0);
+        let wit2_block_reward =
+            ConsensusConstantsWit2::default().get_validator_block_reward(current_epoch);            
 
-        let in_flight_requests = self
-            .chain_state
-            .data_request_pool
-            .data_request_pool
-            .len()
-            .try_into()
-            .unwrap();
-        let locked_wits_by_requests = self
-            .chain_state
-            .data_request_pool
-            .locked_wits_by_requests(collateral_minimum);
-
-        let (mut blocks_minted, mut blocks_minted_reward) = (0, 0);
-        let (mut blocks_missing, mut blocks_missing_reward) = (0, 0);
-        for epoch in 1..current_epoch {
-            let block_reward = block_reward(epoch, initial_block_reward, halving_period);
+        let (mut blocks_minted, mut blocks_minted_reward) = (self.last_blocks_minted, self.last_blocks_minted_reward);
+        for epoch in self.last_supply_info_epoch..current_epoch {
             // If the blockchain contains an epoch, a block was minted in that epoch, add the reward to blocks_minted_reward
             if self.chain_state.block_chain.contains_key(&epoch) {
                 blocks_minted += 1;
-                blocks_minted_reward += block_reward;
-                // Otherwise, a block was rolled back or no block was proposed, add the reward to blocks_missing_reward
-            } else {
-                blocks_missing += 1;
-                blocks_missing_reward += block_reward;
+                blocks_minted_reward += if wit2_activated && epoch >= wit2_activation_epoch {
+                    wit2_block_reward
+                } else {
+                    wit1_block_reward
+                }
             }
         }
-
-        let genesis_amount =
-            current_locked_supply + current_unlocked_supply + locked_wits_by_requests
-                - blocks_minted_reward;
-        let maximum_block_reward = total_block_reward(initial_block_reward, halving_period);
-        let maximum_supply = genesis_amount + maximum_block_reward;
+        self.last_supply_info_epoch = current_epoch;
+        self.last_blocks_minted = blocks_minted;
+        self.last_blocks_minted_reward = blocks_minted_reward;
 
         Ok(SupplyInfo {
             epoch: current_epoch,
             current_time,
             blocks_minted,
             blocks_minted_reward,
-            blocks_missing,
-            blocks_missing_reward,
-            in_flight_requests,
-            locked_wits_by_requests,
-            current_unlocked_supply,
-            current_locked_supply,
-            maximum_supply,
+            current_staked_supply,
+            genesis_supply: self.initial_supply,
         })
     }
 }
