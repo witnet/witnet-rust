@@ -34,7 +34,7 @@ use witnet_data_structures::{
 };
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{
-    block_reward, total_block_reward, validate_rad_request, validate_stake_transaction,
+    validate_rad_request, validate_stake_transaction,
     validate_unstake_transaction,
 };
 
@@ -2004,9 +2004,10 @@ impl Handler<GetSupplyInfo> for ChainManager {
         let wit2_activated = get_protocol_version(None) == ProtocolVersion::V2_0;
         let wit2_activation_epoch = get_protocol_version_activation_epoch(ProtocolVersion::V2_0);
         let wit2_block_reward =
-            ConsensusConstantsWit2::default().get_validator_block_reward(current_epoch);            
+            ConsensusConstantsWit2::default().get_validator_block_reward(current_epoch);
 
-        let (mut blocks_minted, mut blocks_minted_reward) = (self.last_blocks_minted, self.last_blocks_minted_reward);
+        let (mut blocks_minted, mut blocks_minted_reward) =
+            (self.last_blocks_minted, self.last_blocks_minted_reward);
         for epoch in self.last_supply_info_epoch..current_epoch {
             // If the blockchain contains an epoch, a block was minted in that epoch, add the reward to blocks_minted_reward
             if self.chain_state.block_chain.contains_key(&epoch) {
@@ -2073,7 +2074,8 @@ impl Handler<GetSupplyInfo2> for ChainManager {
             }
         }
 
-        let (mut blocks_minted, mut blocks_minted_reward) = (self.last_blocks_minted, self.last_blocks_minted_reward);
+        let (mut blocks_minted, mut blocks_minted_reward) =
+            (self.last_blocks_minted, self.last_blocks_minted_reward);
         for epoch in self.last_supply_info_epoch..current_epoch {
             // If the blockchain contains an epoch, a block was minted in that epoch, add the reward to blocks_minted_reward
             if self.chain_state.block_chain.contains_key(&epoch) {
