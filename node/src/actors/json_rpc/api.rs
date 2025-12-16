@@ -132,9 +132,6 @@ pub fn attach_regular_methods<H>(
     server.add_actix_method(system, "getSupplyInfo", |_params: Params| {
         Box::pin(get_supply_info())
     });
-    server.add_actix_method(system, "getSupplyInfo2", |_params: Params| {
-        Box::pin(get_supply_info_2())
-    });
     server.add_actix_method(system, "peers", |_params: Params| Box::pin(peers()));
     server.add_actix_method(system, "knownPeers", |_params: Params| {
         Box::pin(known_peers())
@@ -300,7 +297,6 @@ pub fn attach_sensitive_methods<H>(
             |params| stake(params.parse()),
         ))
     });
-
     server.add_actix_method(system, "authorizeStake", move |params: Params| {
         Box::pin(if_authorized(
             enable_sensitive_methods,
@@ -309,7 +305,6 @@ pub fn attach_sensitive_methods<H>(
             |params| authorize_stake(params.parse()),
         ))
     });
-
     server.add_actix_method(system, "unstake", move |params| {
         Box::pin(if_authorized(
             enable_sensitive_methods,
@@ -318,6 +313,15 @@ pub fn attach_sensitive_methods<H>(
             |params| unstake(params.parse()),
         ))
     });
+    server.add_actix_method(system, "getSupplyInfo2", move |params| {
+        Box::pin(if_authorized(
+            enable_sensitive_methods,
+            "getSupplyInfo2",
+            params,
+            |_params| get_supply_info_2(),
+        ))
+    });
+
 }
 
 fn extract_topic_and_params(params: Params) -> Result<(String, Value), Error> {
