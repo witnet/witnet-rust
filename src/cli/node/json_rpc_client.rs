@@ -29,7 +29,7 @@ use witnet_data_structures::{
     chain::{
         Block, ConsensusConstants, DataRequestInfo, DataRequestOutput, Environment, Epoch,
         Hashable, KeyedSignature, NodeStats, OutputPointer, PublicKey, PublicKeyHash, StateMachine,
-        SupplyInfo, SyncStatus, ValueTransferOutput,
+        SupplyInfo2, SyncStatus, ValueTransferOutput,
         priority::{PrioritiesEstimate, Priority, PriorityEstimate, TimeToBlock},
         tapi::{ActiveWips, current_active_wips},
     },
@@ -117,9 +117,9 @@ fn whole_wits(nanowits: u64) -> u64 {
 pub fn get_supply_info(addr: SocketAddr) -> Result<(), anyhow::Error> {
     let mut stream = start_client(addr)?;
 
-    let request = r#"{"jsonrpc": "2.0","method": "getSupplyInfo", "id": "1"}"#;
+    let request = r#"{"jsonrpc": "2.0","method": "getSupplyInfo2", "id": "1"}"#;
     let response = send_request(&mut stream, request)?;
-    let supply_info = parse_response::<SupplyInfo>(&response)?;
+    let supply_info = parse_response::<SupplyInfo2>(&response)?;
 
     log::info!("{supply_info:?}");
 
@@ -130,40 +130,34 @@ pub fn get_supply_info(addr: SocketAddr) -> Result<(), anyhow::Error> {
     );
 
     let block_rewards_wit = whole_wits(supply_info.blocks_minted_reward);
-    let block_rewards_missing_wit = whole_wits(supply_info.blocks_missing_reward);
-    let collateralized_data_requests_total_wit = whole_wits(supply_info.locked_wits_by_requests);
-    let current_supply =
-        whole_wits(supply_info.current_unlocked_supply + supply_info.locked_wits_by_requests);
     let locked_supply = whole_wits(supply_info.current_locked_supply);
-    let total_supply = whole_wits(supply_info.maximum_supply - supply_info.blocks_missing_reward);
-    let expected_total_supply = whole_wits(supply_info.maximum_supply);
+    let staked_supply = whole_wits(supply_info.current_staked_supply);
+    let unlocked_supply =whole_wits(supply_info.current_unlocked_supply);
+    let burnt_supply = whole_wits(supply_info.burnt_supply);
+    let initial_supply = whole_wits(supply_info.initial_supply);
 
     let mut supply_table = Table::new();
     supply_table.set_format(*prettytable::format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
     supply_table.set_titles(row!["Supply type", r->"Total WITs"]);
+    // supply_table.add_row(row![
+    //     "Temporarily locked in data requests".to_string(),
+    //     r->collateralized_data_requests_total_wit.to_formatted_string(&Locale::en)
+    // ]);
     supply_table.add_row(row![
-        "Temporarily locked in data requests".to_string(),
-        r->collateralized_data_requests_total_wit.to_formatted_string(&Locale::en)
+        "Burnt supply".to_string(),
+        r->burnt_supply.to_formatted_string(&Locale::en)
     ]);
     supply_table.add_row(row![
-        "Unlocked supply".to_string(),
-        r->current_supply.to_formatted_string(&Locale::en)
-    ]);
-    supply_table.add_row(row![
-        "Locked supply".to_string(),
-        r->locked_supply.to_formatted_string(&Locale::en)
+        "Staked supply".to_string(),
+        r->staked_supply.to_formatted_string(&Locale::en)
     ]);
     supply_table.add_row(row![
         "Circulating supply".to_string(),
-        r->(current_supply + locked_supply).to_formatted_string(&Locale::en)
+        r->(unlocked_supply + locked_supply).to_formatted_string(&Locale::en)
     ]);
     supply_table.add_row(row![
-        "Actual maximum supply".to_string(),
-        r->total_supply.to_formatted_string(&Locale::en)
-    ]);
-    supply_table.add_row(row![
-        "Expected maximum supply".to_string(),
-        r->expected_total_supply.to_formatted_string(&Locale::en)
+        "Initial supply".to_string(),
+        r->initial_supply.to_formatted_string(&Locale::en)
     ]);
     supply_table.printstd();
     println!();
@@ -176,32 +170,22 @@ pub fn get_supply_info(addr: SocketAddr) -> Result<(), anyhow::Error> {
         r->supply_info.blocks_minted.to_formatted_string(&Locale::en),
         r->block_rewards_wit.to_formatted_string(&Locale::en)
     ]);
-    blocks_table.add_row(row![
-        "Reverted".to_string(),
-        r->supply_info.blocks_missing.to_formatted_string(&Locale::en),
-        r->block_rewards_missing_wit.to_formatted_string(&Locale::en)
-    ]);
-    blocks_table.add_row(row![
-        "Expected".to_string(),
-        r->(supply_info.blocks_minted + supply_info.blocks_missing).to_formatted_string(&Locale::en),
-        r->(block_rewards_wit + block_rewards_missing_wit).to_formatted_string(&Locale::en)
-    ]);
     blocks_table.printstd();
 
     println!();
     println!(
         "{}% of circulating supply is locked.",
-        ((locked_supply as f64 / (current_supply + locked_supply) as f64) * 100.0).round() as u8
+        ((locked_supply as f64 / (unlocked_supply + locked_supply) as f64) * 100.0).round() as u8
     );
     println!(
         "{}% of all blocks so far have been reverted.",
-        ((block_rewards_missing_wit as f64
-            / (block_rewards_wit + block_rewards_missing_wit) as f64)
+        ((supply_info.epoch - supply_info.blocks_minted) as f64
+            / (supply_info.epoch) as f64
             * 100.0)
             .round() as u8
     );
     println!(
-        "For more information about block rewards and halvings, see:\nhttps://github.com/witnet/WIPs/blob/master/wip-0003.md"
+        "For more information about block rewards and staking, see:\nhttps://github.com/witnet/WIPs/blob/master/wip-0028.md"
     );
 
     Ok(())
