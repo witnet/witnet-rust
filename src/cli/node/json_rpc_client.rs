@@ -132,7 +132,7 @@ pub fn get_supply_info(addr: SocketAddr) -> Result<(), anyhow::Error> {
     let block_rewards_wit = whole_wits(supply_info.blocks_minted_reward);
     let locked_supply = whole_wits(supply_info.current_locked_supply);
     let staked_supply = whole_wits(supply_info.current_staked_supply);
-    let unlocked_supply =whole_wits(supply_info.current_unlocked_supply);
+    let unlocked_supply = whole_wits(supply_info.current_unlocked_supply);
     let burnt_supply = whole_wits(supply_info.burnt_supply);
     let initial_supply = whole_wits(supply_info.initial_supply);
 
@@ -179,8 +179,7 @@ pub fn get_supply_info(addr: SocketAddr) -> Result<(), anyhow::Error> {
     );
     println!(
         "{}% of all blocks so far have been reverted.",
-        ((supply_info.epoch - supply_info.blocks_minted) as f64
-            / (supply_info.epoch) as f64
+        (f64::from(supply_info.epoch - supply_info.blocks_minted) / f64::from(supply_info.epoch)
             * 100.0)
             .round() as u8
     );

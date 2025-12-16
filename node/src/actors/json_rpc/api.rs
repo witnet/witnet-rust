@@ -321,7 +321,6 @@ pub fn attach_sensitive_methods<H>(
             |_params| get_supply_info_2(),
         ))
     });
-
 }
 
 fn extract_topic_and_params(params: Params) -> Result<(String, Value), Error> {
