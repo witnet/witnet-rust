@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use reqwest;
 use thiserror::Error;
 
@@ -15,8 +17,9 @@ impl WitnetHttpClient {
     pub async fn send(
         &self,
         request: reqwest::RequestBuilder,
+        timeout: Option<Duration>,
     ) -> Result<WitnetHttpResponse, WitnetHttpError> {
-        let req = match request.build() {
+        let req = match request.timeout(timeout.unwrap_or(Duration::new(10, 0))).build() {
             Ok(req) => req,
             Err(e) => return Err(WitnetHttpError::HttpRequestError { msg: e.to_string() }),
         };

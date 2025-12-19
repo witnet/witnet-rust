@@ -61,6 +61,7 @@ impl Handler<ResolveRA> for RadManager {
                         active_wips.clone(),
                         protocol_version,
                         witnessing.clone(),
+                        None,
                     )
                 })
                 .map(|fut| {

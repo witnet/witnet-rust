@@ -33,7 +33,7 @@ use crate::{
     user_agents::UserAgent,
 };
 use core::convert::From;
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, time::Duration};
 use witnet_data_structures::proto::versioning::ProtocolVersion;
 use witnet_net::client::http::WitnetHttpBody;
 
@@ -70,6 +70,7 @@ pub fn try_data_request(
     inputs_injection: Option<&[&str]>,
     witnessing: Option<WitnessingConfig<witnet_net::Uri>>,
     too_many_witnesses: bool,
+    timeout: Option<Duration>,
 ) -> RADRequestExecutionReport {
     #[cfg(not(test))]
     let active_wips = current_active_wips();
@@ -115,6 +116,7 @@ pub fn try_data_request(
                         active_wips.clone(),
                         protocol_version,
                         witnessing.clone().unwrap_or_default(),
+                        timeout,
                     )
                 })
                 .collect::<Vec<_>>(),
@@ -278,6 +280,7 @@ async fn http_response(
     context: &mut ReportContext<RadonTypes>,
     settings: RadonScriptExecutionSettings,
     client: Option<WitnetHttpClient>,
+    timeout: Option<Duration>,
 ) -> Result<RadonReport<RadonTypes>> {
     // Validate URL to make sure that we handle malformed URLs nicely before they hit any library
     if let Err(err) = url::Url::parse(&retrieve.url) {
@@ -380,7 +383,7 @@ async fn http_response(
     request_builder = request_builder.headers(headers);
 
     let response = client
-        .send(request_builder)
+        .send(request_builder, timeout)
         .await
         .map_err(|x| RadError::HttpOther {
             message: x.to_string(),
@@ -502,16 +505,17 @@ pub async fn run_retrieval_report(
     active_wips: ActiveWips,
     protocol_version: ProtocolVersion,
     client: Option<WitnetHttpClient>,
+    timeout: Option<Duration>,
 ) -> Result<RadonReport<RadonTypes>> {
     let context = &mut ReportContext::from_stage(Stage::Retrieval(RetrievalMetadata::default()));
     context.set_active_wips(active_wips);
     context.set_protocol_version(protocol_version);
 
     match retrieve.kind {
-        RADType::HttpGet => http_response(retrieve, context, settings, client).await,
+        RADType::HttpGet => http_response(retrieve, context, settings, client, timeout).await,
         RADType::Rng => rng_response(context, settings).await,
-        RADType::HttpPost => http_response(retrieve, context, settings, client).await,
-        RADType::HttpHead => http_response(retrieve, context, settings, client).await,
+        RADType::HttpPost => http_response(retrieve, context, settings, client, timeout).await,
+        RADType::HttpHead => http_response(retrieve, context, settings, client, timeout).await,
         _ => Err(RadError::UnknownRetrieval),
     }
 }
@@ -521,6 +525,7 @@ pub async fn run_retrieval(
     retrieve: &RADRetrieve,
     active_wips: ActiveWips,
     protocol_version: ProtocolVersion,
+    timeout: Option<Duration>,
 ) -> Result<RadonTypes> {
     // Disable all execution tracing features, as this is the best-effort version of this method
     run_retrieval_report(
@@ -529,6 +534,7 @@ pub async fn run_retrieval(
         active_wips,
         protocol_version,
         None,
+        timeout,
     )
     .await
     .map(RadonReport::into_inner)
@@ -547,10 +553,11 @@ pub async fn run_paranoid_retrieval(
     active_wips: ActiveWips,
     protocol_version: ProtocolVersion,
     witnessing: WitnessingConfig<witnet_net::Uri>,
+    timeout: Option<Duration>,
 ) -> Result<RadonReport<RadonTypes>> {
     // We can skip paranoid checks for retrieval types that don't use networking (e.g. RNG)
     if !retrieve.kind.is_http() {
-        return run_retrieval_report(retrieve, settings, active_wips, protocol_version, None).await;
+        return run_retrieval_report(retrieve, settings, active_wips, protocol_version, None, timeout).await;
     }
 
     let futures: Result<Vec<_>> = witnessing
@@ -573,6 +580,7 @@ pub async fn run_paranoid_retrieval(
                         active_wips.clone(),
                         protocol_version,
                         Some(client),
+                        timeout,
                     )
                 })
         })
@@ -1690,6 +1698,7 @@ mod tests {
             None,
             None,
             false,
+            None,
         );
         let tally_result = report.tally.into_inner();
 
@@ -1734,6 +1743,7 @@ mod tests {
             None,
             None,
             false,
+            None,
         );
         let tally_result = report.tally.into_inner();
 
@@ -1787,6 +1797,7 @@ mod tests {
             None,
             None,
             false,
+            None,
         );
         let tally_result = report.tally.into_inner();
 
@@ -1840,6 +1851,7 @@ mod tests {
             None,
             None,
             false,
+            None,
         );
         let tally_result = report.tally.into_inner();
 
@@ -1893,6 +1905,7 @@ mod tests {
             None,
             None,
             false,
+            None,
         );
         let tally_result = report.tally.into_inner();
 
@@ -1959,6 +1972,7 @@ mod tests {
             Some(&["1", "1", "error"]),
             None,
             false,
+            None,
         );
         let tally_result = report.tally.into_inner();
 
@@ -2078,6 +2092,7 @@ mod tests {
                                 current_active_wips(),
                                 ProtocolVersion::guess(),
                                 Some(client),
+                                None,
                             )
                             .await;
 
