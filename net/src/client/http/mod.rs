@@ -14,12 +14,15 @@ pub struct WitnetHttpClient {
 
 impl WitnetHttpClient {
     /// Simple wrapper around `isahc::HttpClient::send_async`.
+    ///
+    /// Opinionated in only one thing: if a timeout is not specified, it uses a 10 seconds timeout.
     pub async fn send(
         &self,
         request: reqwest::RequestBuilder,
         timeout: Option<Duration>,
     ) -> Result<WitnetHttpResponse, WitnetHttpError> {
-        let req = match request.timeout(timeout.unwrap_or(Duration::new(10, 0))).build() {
+        let timeout = timeout.unwrap_or(Duration::from_secs(10));
+        let req = match request.timeout(timeout).build() {
             Ok(req) => req,
             Err(e) => return Err(WitnetHttpError::HttpRequestError { msg: e.to_string() }),
         };

@@ -3784,6 +3784,8 @@ pub fn run_dr_locally(dr: &DataRequestOutput) -> Result<RadonTypes, anyhow::Erro
             retrieve,
             active_wips.clone(),
             protocol_version,
+            // TODO: decide whether to enable custom timeouts for this type of local execution
+            None,
         ))
     };
 

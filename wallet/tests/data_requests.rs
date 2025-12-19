@@ -110,6 +110,7 @@ fn test_data_request_report_json_serialization() {
         Some(&inputs),
         None,
         false,
+        None,
     );
 
     // Number of retrieval reports should match number of sources

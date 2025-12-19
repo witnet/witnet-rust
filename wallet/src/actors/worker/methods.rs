@@ -58,6 +58,8 @@ impl Worker {
             None,
             Some(self.params.witnessing.clone()),
             false,
+            // TODO: decide whether to enable custom timeouts for this type of execution
+            None,
         )
     }
 
