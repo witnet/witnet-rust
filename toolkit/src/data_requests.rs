@@ -1,4 +1,6 @@
 //! Functions providing convenient utilities for working with Witnet data requests.
+use std::time::Duration;
+
 use witnet_data_structures::{
     chain::{DataRequestOutput, RADRequest},
     proto::ProtobufConvert,
@@ -46,13 +48,14 @@ pub fn decode_rad_from_pb_bytes(pb_bytes: &[u8]) -> Result<DataRequestOutput, Er
 pub fn try_data_request(
     request: &RADRequest,
     full_trace: bool,
+    timeout: Option<Duration>,
 ) -> Result<RADRequestExecutionReport, Error> {
     let settings = if full_trace {
         RadonScriptExecutionSettings::enable_all()
     } else {
         RadonScriptExecutionSettings::disable_all()
     };
-    let report = witnet_rad::try_data_request(request, settings, None, None, false);
+    let report = witnet_rad::try_data_request(request, settings, None, None, false, timeout);
 
     Ok(report)
 }

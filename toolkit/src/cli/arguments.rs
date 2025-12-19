@@ -29,6 +29,11 @@ pub(crate) struct TryDataRequest {
         help = "Whether to return the full execution trace, including partial results after each operator."
     )]
     pub full_trace: Option<bool>,
+    #[structopt(
+        long, 
+        help = "Maximum amount of seconds to wait for a data source to respond."
+    )]
+    pub timeout: Option<u64>,
 }
 
 /// Easy derivation of `DecodeDataRequest` from `TryDataRequest`

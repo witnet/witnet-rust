@@ -1,6 +1,6 @@
 //! Implementations of CLI methods related to Witnet data requests.
 
-use std::{fs::File, io::Read, path::Path};
+use std::{fs::File, io::Read, path::Path, time::Duration};
 
 use regex::Regex;
 
@@ -43,9 +43,13 @@ pub(crate) fn try_from_args(
     args: arguments::TryDataRequest,
 ) -> Result<RADRequestExecutionReport, Error> {
     let full_trace = args.full_trace.unwrap_or(true);
+    let timeout: Option<Duration> = if let Some(timeout) = args.timeout {
+        Some(Duration::from_secs(timeout))
+    } else {
+        None
+    };
     let request = decode_from_args(args.into())?.data_request;
-
-    witnet_toolkit::data_requests::try_data_request(&request, full_trace)
+    witnet_toolkit::data_requests::try_data_request(&request, full_trace, timeout)
 }
 
 /// Extract the Protocol Buffers representation of a data request from a Solidity smart contract
