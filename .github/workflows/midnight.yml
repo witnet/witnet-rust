@@ -42,5 +42,8 @@ jobs:
           curl -L https://github.com/witnet/witnet-rust/releases/download/0.5.0-rc1/witnet-rust-testnet-5-tests-storage.tar.gz --output ./storage.tar.gz
           tar -zxf ./storage.tar.gz
 
+      - name: Set up Docker Compose
+        uses: docker/setup-compose-action@v1
+
       - name: Run debug E2E test
         run: just e2e-debug
