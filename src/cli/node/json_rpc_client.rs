@@ -182,6 +182,14 @@ pub fn get_supply_info(addr: SocketAddr) -> Result<(), anyhow::Error> {
 
     Ok(())
 }
+
+#[allow(
+    clippy::cast_possible_wrap,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_truncation
+)]
+pub fn get_supply_info_2(addr: SocketAddr) -> Result<(), anyhow::Error> {
     let mut stream = start_client(addr)?;
 
     let request = r#"{"jsonrpc": "2.0","method": "getSupplyInfo2", "id": "1"}"#;
