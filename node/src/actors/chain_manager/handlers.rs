@@ -34,8 +34,7 @@ use witnet_data_structures::{
 };
 use witnet_util::timestamp::get_timestamp;
 use witnet_validations::validations::{
-    validate_rad_request, validate_stake_transaction,
-    validate_unstake_transaction,
+    validate_rad_request, validate_stake_transaction, validate_unstake_transaction,
 };
 
 use crate::{

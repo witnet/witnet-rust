@@ -68,6 +68,7 @@ pub fn exec_cmd(
             rpc::get_balance(node.unwrap_or(default_jsonrpc), target, simple)
         }
         Command::GetSupplyInfo { node } => rpc::get_supply_info(node.unwrap_or(default_jsonrpc)),
+        Command::GetSupplyInfo2 { node } => rpc::get_supply_info_2(node.unwrap_or(default_jsonrpc)),
         Command::GetAddress { node } => rpc::get_pkh(node.unwrap_or(default_jsonrpc)),
         Command::GetUtxoInfo { node, long, pkh } => {
             let pkh = pkh.map(|x| x.parse()).transpose()?;
@@ -454,6 +455,17 @@ pub enum Command {
         about = "Get the total supply of witnet tokens"
     )]
     GetSupplyInfo {
+        /// Socket address of the Witnet node to query
+        #[structopt(short = "n", long = "node")]
+        node: Option<SocketAddr>,
+    },
+    #[structopt(
+        name = "supply2",
+        alias = "getSupply2",
+        alias = "getSupplyInfo2",
+        about = "Get detailed supply information of witnet tokens (requires sensitive methods on)"
+    )]
+    GetSupplyInfo2 {
         /// Socket address of the Witnet node to query
         #[structopt(short = "n", long = "node")]
         node: Option<SocketAddr>,
