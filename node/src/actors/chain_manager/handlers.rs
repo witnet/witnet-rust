@@ -2000,24 +2000,38 @@ impl Handler<GetSupplyInfo> for ChainManager {
         let current_staked_supply = self.chain_state.stakes.total_staked().nanowits();
 
         let wit1_block_reward = chain_info.consensus_constants.initial_block_reward;
-        let wit2_activated = get_protocol_version(None) == ProtocolVersion::V2_0;
         let wit2_activation_epoch = get_protocol_version_activation_epoch(ProtocolVersion::V2_0);
         let wit2_block_reward =
             ConsensusConstantsWit2::default().get_validator_block_reward(current_epoch);
 
         let (mut blocks_minted, mut blocks_minted_reward) =
             (self.last_blocks_minted, self.last_blocks_minted_reward);
-        for epoch in self.last_supply_info_epoch..current_epoch {
-            // If the blockchain contains an epoch, a block was minted in that epoch, add the reward to blocks_minted_reward
-            if self.chain_state.block_chain.contains_key(&epoch) {
-                blocks_minted += 1;
-                blocks_minted_reward += if wit2_activated && epoch >= wit2_activation_epoch {
-                    wit2_block_reward
-                } else {
-                    wit1_block_reward
+
+        if self.last_supply_info_epoch < wit2_activation_epoch {
+            for epoch in self.last_supply_info_epoch..wit2_activation_epoch {
+                // If the blockchain contains an epoch, a block was minted in that epoch, add the reward to blocks_minted_reward
+                if self.chain_state.block_chain.contains_key(&epoch) {
+                    blocks_minted += 1;
+                    blocks_minted_reward += wit1_block_reward;
+                }
+            }
+            for epoch in wit2_activation_epoch..current_epoch {
+                // If the blockchain contains an epoch, a block was minted in that epoch, add the reward to blocks_minted_reward
+                if self.chain_state.block_chain.contains_key(&epoch) {
+                    blocks_minted += 1;
+                    blocks_minted_reward += wit2_block_reward;
+                }
+            }
+        } else {
+            for epoch in self.last_supply_info_epoch..current_epoch {
+                // If the blockchain contains an epoch, a block was minted in that epoch, add the reward to blocks_minted_reward
+                if self.chain_state.block_chain.contains_key(&epoch) {
+                    blocks_minted += 1;
+                    blocks_minted_reward += wit2_block_reward;
                 }
             }
         }
+
         self.last_supply_info_epoch = current_epoch;
         self.last_blocks_minted = blocks_minted;
         self.last_blocks_minted_reward = blocks_minted_reward;
@@ -2050,7 +2064,6 @@ impl Handler<GetSupplyInfo2> for ChainManager {
         let current_staked_supply = self.chain_state.stakes.total_staked().nanowits();
 
         let wit1_block_reward = chain_info.consensus_constants.initial_block_reward;
-        let wit2_activated = get_protocol_version(None) == ProtocolVersion::V2_0;
         let wit2_activation_epoch = get_protocol_version_activation_epoch(ProtocolVersion::V2_0);
         let wit2_block_reward =
             ConsensusConstantsWit2::default().get_validator_block_reward(current_epoch);
@@ -2075,17 +2088,32 @@ impl Handler<GetSupplyInfo2> for ChainManager {
 
         let (mut blocks_minted, mut blocks_minted_reward) =
             (self.last_blocks_minted, self.last_blocks_minted_reward);
-        for epoch in self.last_supply_info_epoch..current_epoch {
-            // If the blockchain contains an epoch, a block was minted in that epoch, add the reward to blocks_minted_reward
-            if self.chain_state.block_chain.contains_key(&epoch) {
-                blocks_minted += 1;
-                blocks_minted_reward += if wit2_activated && epoch >= wit2_activation_epoch {
-                    wit2_block_reward
-                } else {
-                    wit1_block_reward
+
+        if self.last_supply_info_epoch < wit2_activation_epoch {
+            for epoch in self.last_supply_info_epoch..wit2_activation_epoch {
+                // If the blockchain contains an epoch, a block was minted in that epoch, add the reward to blocks_minted_reward
+                if self.chain_state.block_chain.contains_key(&epoch) {
+                    blocks_minted += 1;
+                    blocks_minted_reward += wit1_block_reward;
+                }
+            }
+            for epoch in wit2_activation_epoch..current_epoch {
+                // If the blockchain contains an epoch, a block was minted in that epoch, add the reward to blocks_minted_reward
+                if self.chain_state.block_chain.contains_key(&epoch) {
+                    blocks_minted += 1;
+                    blocks_minted_reward += wit2_block_reward;
+                }
+            }
+        } else {
+            for epoch in self.last_supply_info_epoch..current_epoch {
+                // If the blockchain contains an epoch, a block was minted in that epoch, add the reward to blocks_minted_reward
+                if self.chain_state.block_chain.contains_key(&epoch) {
+                    blocks_minted += 1;
+                    blocks_minted_reward += wit2_block_reward;
                 }
             }
         }
+
         self.last_supply_info_epoch = current_epoch;
         self.last_blocks_minted = blocks_minted;
         self.last_blocks_minted_reward = blocks_minted_reward;
