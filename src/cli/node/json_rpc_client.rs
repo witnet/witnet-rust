@@ -29,7 +29,7 @@ use witnet_data_structures::{
     chain::{
         Block, ConsensusConstants, DataRequestInfo, DataRequestOutput, Environment, Epoch,
         Hashable, KeyedSignature, NodeStats, OutputPointer, PublicKey, PublicKeyHash, StateMachine,
-        SupplyInfo2, SyncStatus, ValueTransferOutput,
+        SupplyInfo, SupplyInfo2, SyncStatus, ValueTransferOutput,
         priority::{PrioritiesEstimate, Priority, PriorityEstimate, TimeToBlock},
         tapi::{ActiveWips, current_active_wips},
     },
@@ -115,6 +115,73 @@ fn whole_wits(nanowits: u64) -> u64 {
     clippy::cast_possible_truncation
 )]
 pub fn get_supply_info(addr: SocketAddr) -> Result<(), anyhow::Error> {
+    let mut stream = start_client(addr)?;
+
+    let request = r#"{"jsonrpc": "2.0","method": "getSupplyInfo", "id": "1"}"#;
+    let response = send_request(&mut stream, request)?;
+    let supply_info = parse_response::<SupplyInfo>(&response)?;
+
+    log::info!("{supply_info:?}");
+
+    println!(
+        "\nSupply info at {} (epoch {}):\n",
+        pretty_print(supply_info.current_time as i64, 0),
+        supply_info.epoch
+    );
+
+    let block_rewards_wit = whole_wits(supply_info.blocks_minted_reward);
+    let staked_supply = whole_wits(supply_info.current_staked_supply);
+    let initial_supply = whole_wits(supply_info.genesis_supply);
+
+    let mut supply_table = Table::new();
+    supply_table.set_format(*prettytable::format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
+    supply_table.set_titles(row!["Supply type", r->"Total WITs"]);
+    // supply_table.add_row(row![
+    //     "Temporarily locked in data requests".to_string(),
+    //     r->collateralized_data_requests_total_wit.to_formatted_string(&Locale::en)
+    // ]);
+    supply_table.add_row(row![
+        "Block rewards".to_string(),
+        r->block_rewards_wit.to_formatted_string(&Locale::en)
+    ]);
+    supply_table.add_row(row![
+        "Staked supply".to_string(),
+        r->staked_supply.to_formatted_string(&Locale::en)
+    ]);
+    supply_table.add_row(row![
+        "Total supply".to_string(),
+        r->(block_rewards_wit + initial_supply).to_formatted_string(&Locale::en)
+    ]);
+    supply_table.add_row(row![
+        "Initial supply".to_string(),
+        r->initial_supply.to_formatted_string(&Locale::en)
+    ]);
+    supply_table.printstd();
+    println!();
+
+    let mut blocks_table = Table::new();
+    blocks_table.set_format(*prettytable::format::consts::FORMAT_NO_BORDER_LINE_SEPARATOR);
+    blocks_table.set_titles(row!["Blocks", r->"Amount", r->"Total WITs"]);
+    blocks_table.add_row(row![
+        "Minted".to_string(),
+        r->supply_info.blocks_minted.to_formatted_string(&Locale::en),
+        r->block_rewards_wit.to_formatted_string(&Locale::en)
+    ]);
+    blocks_table.printstd();
+
+    println!();
+    println!(
+        "{}% of all blocks so far have been reverted.",
+        (f64::from(supply_info.epoch - supply_info.blocks_minted) / f64::from(supply_info.epoch)
+            * 100.0)
+            .round() as u8
+    );
+    println!(
+        "For more information about block rewards and staking, see:\nhttps://github.com/witnet/WIPs/blob/master/wip-0028.md"
+    );
+
+    Ok(())
+}
     let mut stream = start_client(addr)?;
 
     let request = r#"{"jsonrpc": "2.0","method": "getSupplyInfo2", "id": "1"}"#;
