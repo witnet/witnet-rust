@@ -2236,7 +2236,6 @@ pub async fn stake(params: Result<BuildStakeParams, Error>) -> JsonRpcResult {
                     let staker = transaction
                         .signatures
                         .iter()
-                        .cloned()
                         .map(|signature| signature.public_key.pkh())
                         .collect();
 

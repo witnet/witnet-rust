@@ -292,8 +292,8 @@ impl WatchDog {
                         }
                     };
 
-                if wit_account.is_some() {
-                    metrics.push_str(&format!("\"witAccount\": {:?}, ", wit_account.unwrap()));
+                if let Some(wit_account) = wit_account {
+                    metrics.push_str(&format!("\"witAccount\": {:?}, ", wit_account));
                 }
                 if let Some(wit_balance) = wit_balance {
                     metrics.push_str(&format!("\"witBalance\": {wit_balance:.5}, "));
