@@ -124,7 +124,7 @@ pub fn get_supply_info(addr: SocketAddr) -> Result<(), anyhow::Error> {
     log::info!("{supply_info:?}");
 
     println!(
-        "\nSupply info at {} (epoch {}):\n",
+        "\nSupply info as of {} (epoch {}):\n",
         pretty_print(supply_info.current_time as i64, 0),
         supply_info.epoch
     );
@@ -171,13 +171,13 @@ pub fn get_supply_info(addr: SocketAddr) -> Result<(), anyhow::Error> {
 
     println!();
     println!(
-        "{}% of all blocks so far have been reverted.",
+        "{}% of epochs so far have received no block candidates, or the winning block was reverted.",
         (f64::from(supply_info.epoch - supply_info.blocks_minted) / f64::from(supply_info.epoch)
             * 100.0)
             .round() as u8
     );
     println!(
-        "For more information about block rewards and staking, see:\nhttps://github.com/witnet/WIPs/blob/master/wip-0028.md"
+        "For more information on block rewards and staking, please read:\nhttps://github.com/witnet/WIPs/blob/master/wip-0028.md"
     );
 
     Ok(())
@@ -199,7 +199,7 @@ pub fn get_supply_info_2(addr: SocketAddr) -> Result<(), anyhow::Error> {
     log::info!("{supply_info:?}");
 
     println!(
-        "\nSupply info at {} (epoch {}):\n",
+        "\nSupply info as of {} (epoch {}):\n",
         pretty_print(supply_info.current_time as i64, 0),
         supply_info.epoch
     );
@@ -249,17 +249,17 @@ pub fn get_supply_info_2(addr: SocketAddr) -> Result<(), anyhow::Error> {
 
     println!();
     println!(
-        "{}% of circulating supply is locked.",
+        "{}% of circulating supply is time locked.",
         ((locked_supply as f64 / (unlocked_supply + locked_supply) as f64) * 100.0).round() as u8
     );
     println!(
-        "{}% of all blocks so far have been reverted.",
+        "{}% of epochs so far have received no block candidates, or the winning block was reverted.",
         (f64::from(supply_info.epoch - supply_info.blocks_minted) / f64::from(supply_info.epoch)
             * 100.0)
             .round() as u8
     );
     println!(
-        "For more information about block rewards and staking, see:\nhttps://github.com/witnet/WIPs/blob/master/wip-0028.md"
+        "For more information on block rewards and staking, please read:\nhttps://github.com/witnet/WIPs/blob/master/wip-0028.md"
     );
 
     Ok(())
