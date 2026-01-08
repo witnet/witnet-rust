@@ -2,7 +2,7 @@
 
 extern crate witnet_data_structures;
 
-use futures::{executor::block_on, future::join_all};
+use futures::{FutureExt, executor::block_on, future::join_all};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue, USER_AGENT};
 use serde::Serialize;
 pub use serde_cbor::{Value as CborValue, to_vec as cbor_to_vec};
@@ -49,6 +49,9 @@ pub mod user_agents;
 
 pub type Result<T> = std::result::Result<T, RadError>;
 
+/// Maximum http response timeout
+pub const MAX_RETRIEVAL_TIMEOUT: Duration = Duration::from_millis(10000);
+
 /// The return type of any method executing the entire life cycle of a data request.
 #[derive(Debug, Serialize)]
 pub struct RADRequestExecutionReport {
@@ -76,12 +79,17 @@ pub fn try_data_request(
     let active_wips = current_active_wips();
     #[cfg(test)]
     let active_wips = all_wips_active();
+    // If no timeout is specified, use the default one. If specified, cap it to the maximum allowed.
+    let timeout = match timeout {
+        None => MAX_RETRIEVAL_TIMEOUT,
+        Some(timeout) => std::cmp::min(timeout, MAX_RETRIEVAL_TIMEOUT),
+    };
     // We assume that the "current" protocol version will always work for retrievals because
     // retrievals should not really be re-evaluated (e.g. during synchronization)
     let protocol_version = ProtocolVersion::guess();
     let mut retrieval_context =
         ReportContext::from_stage(Stage::Retrieval(RetrievalMetadata::default()));
-    let retrieve_responses = if let Some(inputs) = inputs_injection {
+    let retrieval_reports: Vec<RadonReport<RadonTypes>> = if let Some(inputs) = inputs_injection {
         assert_eq!(
             inputs.len(),
             request.retrieve.len(),
@@ -101,35 +109,57 @@ pub fn try_data_request(
                     &mut retrieval_context,
                     settings,
                 )
+                .unwrap_or_else(|error| RadonReport::from_result(Err(error), &retrieval_context))
             })
             .collect()
     } else {
-        block_on(join_all(
-            request
-                .retrieve
+        let fut = async move {
+            #[cfg(not(test))]
+            let active_wips = current_active_wips();
+            #[cfg(test)]
+            let active_wips = all_wips_active();
+
+            let sources = request.retrieve.clone();
+            let aggregate = request.aggregate.clone();
+
+            let witnessing = witnessing.clone();
+            // Adding a timeout to each source retrieval.
+            // Since currently the execution of RADON is blocking this thread, we can only
+            // handle HTTP timeouts.
+            let retrieve_response_fut = sources
                 .iter()
                 .map(|retrieve| {
                     run_paranoid_retrieval(
                         retrieve,
-                        request.aggregate.clone(),
+                        aggregate.clone(),
                         settings,
                         active_wips.clone(),
                         protocol_version,
                         witnessing.clone().unwrap_or_default(),
-                        timeout,
+                        Some(timeout),
                     )
                 })
-                .collect::<Vec<_>>(),
-        ))
-    };
+                .map(|fut| {
+                    tokio::time::timeout(timeout, fut)
+                        .map(|response| response.unwrap_or(Err(RadError::RetrieveTimeout)))
+                });
 
-    let retrieval_reports: Vec<RadonReport<RadonTypes>> = retrieve_responses
-        .into_iter()
-        .map(|retrieve| {
-            retrieve
-                .unwrap_or_else(|error| RadonReport::from_result(Err(error), &retrieval_context))
-        })
-        .collect();
+            // Perform retrievals in parallel for the sake of synchronization between sources
+            //  (increasing the likeliness of multiple sources returning results that are closer to each
+            //  other).
+            futures::future::join_all(retrieve_response_fut)
+                .await
+                .into_iter()
+                .map(|retrieve| {
+                    retrieve.unwrap_or_else(|error| {
+                        RadonReport::from_result(Err(error), &retrieval_context)
+                    })
+                })
+                .collect()
+        };
+
+        block_on(fut)
+    };
 
     // Evaluate aggregation pre-condition by using the same logic than for tally pre-condition,
     // to ensure that at least 20% of the data sources are not errors.

@@ -31,7 +31,7 @@ pub(crate) struct TryDataRequest {
     pub full_trace: Option<bool>,
     #[structopt(
         long,
-        help = "Maximum amount of seconds to wait for a data source to respond."
+        help = "Maximum time in milliseconds to wait for a data source to respond."
     )]
     pub timeout: Option<u64>,
 }

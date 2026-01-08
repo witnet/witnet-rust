@@ -43,7 +43,7 @@ pub(crate) fn try_from_args(
     args: arguments::TryDataRequest,
 ) -> Result<RADRequestExecutionReport, Error> {
     let full_trace = args.full_trace.unwrap_or(true);
-    let timeout = args.timeout.map(Duration::from_secs);
+    let timeout = args.timeout.map(Duration::from_millis);
     let request = decode_from_args(args.into())?.data_request;
     witnet_toolkit::data_requests::try_data_request(&request, full_trace, timeout)
 }

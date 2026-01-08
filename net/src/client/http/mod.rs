@@ -6,6 +6,9 @@ use thiserror::Error;
 /// Maximum number of HTTP redirects to follow
 const MAX_REDIRECTS: usize = 4;
 
+/// Maximum http response timeout
+pub const DEFAULT_TIMEOUT: Duration = Duration::from_millis(10000);
+
 /// A surf-alike HTTP client that additionally supports proxies (HTTP(S), SOCKS4 and SOCKS5)
 #[derive(Clone, Debug)]
 pub struct WitnetHttpClient {
@@ -15,14 +18,13 @@ pub struct WitnetHttpClient {
 impl WitnetHttpClient {
     /// Simple wrapper around `isahc::HttpClient::send_async`.
     ///
-    /// Opinionated in only one thing: if a timeout is not specified, it uses a 10 seconds timeout.
+    /// If a timeout is not specified, it uses a 10 seconds timeout.
     pub async fn send(
         &self,
         request: reqwest::RequestBuilder,
         timeout: Option<Duration>,
     ) -> Result<WitnetHttpResponse, WitnetHttpError> {
-        let timeout = timeout.unwrap_or(Duration::from_secs(10));
-        let req = match request.timeout(timeout).build() {
+        let req = match request.timeout(timeout.unwrap_or(DEFAULT_TIMEOUT)).build() {
             Ok(req) => req,
             Err(e) => return Err(WitnetHttpError::HttpRequestError { msg: e.to_string() }),
         };
