@@ -89,7 +89,7 @@ impl DrSender {
 
             if witnet_node_pkh.is_none() {
                 // get witnet node's pkh if not yet known
-                let req = jsonrpc::Request::method("getPkh").timeout(Duration::from_millis(5000));
+                let req = jsonrpc::Request::method("getPkh").timeout(Duration::from_millis(5_000));
                 let res = witnet_client.send(req).await;
                 witnet_node_pkh = match res {
                     Ok(Ok(res)) => match serde_json::from_value::<String>(res) {

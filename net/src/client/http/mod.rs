@@ -7,7 +7,7 @@ use thiserror::Error;
 const MAX_REDIRECTS: usize = 4;
 
 /// Maximum http response timeout
-pub const DEFAULT_TIMEOUT: Duration = Duration::from_millis(10000);
+pub const DEFAULT_TIMEOUT: Duration = Duration::from_millis(10_000);
 
 /// A surf-alike HTTP client that additionally supports proxies (HTTP(S), SOCKS4 and SOCKS5)
 #[derive(Clone, Debug)]

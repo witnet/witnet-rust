@@ -50,7 +50,7 @@ pub mod user_agents;
 pub type Result<T> = std::result::Result<T, RadError>;
 
 /// Maximum http response timeout
-pub const MAX_RETRIEVAL_TIMEOUT: Duration = Duration::from_millis(10000);
+pub const MAX_RETRIEVAL_TIMEOUT: Duration = Duration::from_millis(10_000);
 
 /// The return type of any method executing the entire life cycle of a data request.
 #[derive(Debug, Serialize)]

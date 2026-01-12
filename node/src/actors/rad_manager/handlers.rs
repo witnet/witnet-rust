@@ -19,7 +19,7 @@ use super::RadManager;
 
 // This constant is used to ensure that a RetrievalTimeoutError is committed after 10 seconds
 // This value must be lower than half an epoch, and having enough time to broadcasting the commit.
-const MAX_RETRIEVAL_TIMEOUT: Duration = Duration::from_millis(10000);
+const MAX_RETRIEVAL_TIMEOUT: Duration = Duration::from_millis(10_000);
 
 impl Handler<ResolveRA> for RadManager {
     // This must be ResponseFuture, otherwise the actor dies on panic
