@@ -1038,7 +1038,7 @@ pub fn send_st(
             Please verify that you are using the same withdrawer address that was used \
             to generate the authorization string.",
             validator_address,
-            dry.validator.to_string(),
+            dry.validator,
         );
     }
 
