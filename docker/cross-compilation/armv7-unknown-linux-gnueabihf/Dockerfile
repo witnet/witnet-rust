@@ -1,4 +1,4 @@
-FROM ubuntu:focal
+FROM ubuntu:noble
 
 # Install basic environment dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
