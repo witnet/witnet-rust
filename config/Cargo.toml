@@ -3,7 +3,7 @@ authors = ["Witnet Foundation <info@witnet.foundation>"]
 description = "config component"
 edition = "2024"
 name = "witnet_config"
-version = "2.0.25"
+version = "2.0.26"
 workspace = ".."
 
 [features]

@@ -1,6 +1,6 @@
 [package]
 name = "witnet"
-version = "2.0.25"
+version = "2.0.26"
 authors = ["Witnet Foundation <info@witnet.foundation>"]
 publish = false
 repository = "witnet/witnet-rust"
