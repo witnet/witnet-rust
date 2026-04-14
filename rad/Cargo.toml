@@ -10,7 +10,7 @@ description = "RAD component"
 rocksdb-backend = ["witnet_data_structures/rocksdb-backend"]
 
 [dev-dependencies]
-tokio = "1.44.1"
+tokio = { version = "1.44.1", features = ["macros"]}
 
 [dependencies]
 anyhow = "1.0.98"

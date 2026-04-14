@@ -1710,8 +1710,8 @@ mod tests {
     }
 
     /// Test try_data_request with a RNG source
-    #[test]
-    fn test_try_data_request_rng() {
+    #[tokio::test]
+    async fn test_try_data_request_rng() {
         let request = RADRequest {
             time_lock: 0,
             retrieve: vec![RADRetrieve {
@@ -1747,8 +1747,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_try_data_request_http_post_non_ascii_header_key() {
+    #[tokio::test]
+    async fn test_try_data_request_http_post_non_ascii_header_key() {
         let script_r = Value::Array(vec![]);
         let packed_script_r = serde_cbor::to_vec(&script_r).unwrap();
         let body = Vec::from(String::from(""));
@@ -1801,8 +1801,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_try_data_request_http_post_non_ascii_header_value() {
+    #[tokio::test]
+    async fn test_try_data_request_http_post_non_ascii_header_value() {
         let script_r = Value::Array(vec![]);
         let packed_script_r = serde_cbor::to_vec(&script_r).unwrap();
         let body = Vec::from(String::from(""));
@@ -1855,8 +1855,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_try_data_request_http_post_header_colon() {
+    #[tokio::test]
+    async fn test_try_data_request_http_post_header_colon() {
         let script_r = Value::Array(vec![]);
         let packed_script_r = serde_cbor::to_vec(&script_r).unwrap();
         let body = Vec::from(String::from(""));
@@ -1909,8 +1909,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_try_data_request_http_post_header_value_newline() {
+    #[tokio::test]
+    async fn test_try_data_request_http_post_header_value_newline() {
         let script_r = Value::Array(vec![]);
         let packed_script_r = serde_cbor::to_vec(&script_r).unwrap();
         let body = Vec::from(String::from(""));
@@ -1964,8 +1964,8 @@ mod tests {
     }
 
     /// Ensure that `try_data_request` filters errors before calling `run_aggregation`.
-    #[test]
-    fn test_try_data_request_filters_aggregation_errors() {
+    #[tokio::test]
+    async fn test_try_data_request_filters_aggregation_errors() {
         let script = cbor_to_vec(&Value::Array(vec![Value::Integer(
             RadonOpCodes::StringAsInteger as i128,
         )]))
