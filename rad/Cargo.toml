@@ -1,10 +1,12 @@
 [package]
 name = "witnet_rad"
 version = "0.3.2"
-authors = ["Witnet Foundation <info@witnet.foundation>"]
-edition = "2024"
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+license-file.workspace = true
 workspace = ".."
-description = "RAD component"
+description = "RAD engine: HTTP retrievals, Radon script execution, and tally evaluation for data requests"
 
 [features]
 rocksdb-backend = ["witnet_data_structures/rocksdb-backend"]

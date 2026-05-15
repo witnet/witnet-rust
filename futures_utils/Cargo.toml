@@ -1,9 +1,12 @@
 [package]
-authors = ["Witnet Foundation <info@witnet.foundation>"]
-edition = "2024"
 name = "witnet_futures_utils"
 version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+license-file.workspace = true
 workspace = ".."
+description = "Future extension traits for flattening nested Result types in async Witnet code"
 
 [dependencies]
 futures = "0.3.8"

@@ -1,9 +1,12 @@
 [package]
 name = "witnet_net"
 version = "0.1.0"
-authors = ["Witnet Foundation <info@witnet.foundation>"]
-edition = "2024"
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+license-file.workspace = true
 workspace = ".."
+description = "HTTP, WebSocket, and TCP JSON-RPC clients and servers for Witnet services"
 
 [dependencies]
 actix = { version = "0.13.0", default-features = false }

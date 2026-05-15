@@ -1,10 +1,12 @@
 [package]
 name = "witnet_p2p"
 version = "0.3.2"
-authors = ["Witnet Foundation <info@witnet.foundation>"]
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+license-file.workspace = true
 workspace = ".."
-description = "p2p component"
-edition = "2024"
+description = "Peer discovery, sessions, and P2P networking types for Witnet nodes"
 
 [dependencies]
 anyhow = "1.0.98"

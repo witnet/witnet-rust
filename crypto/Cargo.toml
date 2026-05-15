@@ -1,10 +1,12 @@
 [package]
 name = "witnet_crypto"
 version = "0.3.2"
-authors = ["Witnet Foundation <info@witnet.foundation>"]
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+license-file.workspace = true
 workspace = ".."
-description = "crypto component"
-edition = "2024"
+description = "Cryptographic primitives for Witnet: hashing, keys, signatures, mnemonics, and Merkle trees"
 
 [features]
 default = []

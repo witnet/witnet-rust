@@ -1,10 +1,12 @@
 [package]
-authors = ["Witnet Foundation <info@witnet.foundation>"]
-description = "Macro that will generate from a struct another one with only Option<T> fields"
-edition = "2024"
 name = "partial_struct"
 version = "0.3.2"
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+license-file.workspace = true
 workspace = ".."
+description = "Proc-macro that derives a partial struct with all fields wrapped in Option<T>"
 
 [dependencies]
 quote = "0.6.11"

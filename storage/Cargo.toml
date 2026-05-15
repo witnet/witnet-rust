@@ -1,10 +1,12 @@
 [package]
 name = "witnet_storage"
 version = "0.3.2"
-authors = ["Witnet Foundation <info@witnet.foundation>"]
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+license-file.workspace = true
 workspace = ".."
-edition = "2024"
-description = "Witnet storage module that conveniently abstracts a key/value API away from specific storage backends"
+description = "Key-value storage abstraction with an optional RocksDB backend for Witnet node state"
 
 [dependencies]
 anyhow = "1.0.98"

@@ -1,9 +1,12 @@
 [package]
-authors = ["Witnet Foundation <info@witnet.foundation>"]
-edition = "2024"
 name = "witnet_wallet"
-version = "2.0.26"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+license-file.workspace = true
 workspace = ".."
+description = "Wallet with JSON-RPC and WebSocket APIs for accounts, UTXOs, and data requests"
 
 [dependencies]
 anyhow = "1.0.98"

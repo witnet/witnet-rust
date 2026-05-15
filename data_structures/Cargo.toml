@@ -1,10 +1,12 @@
 [package]
-authors = ["Witnet Foundation <info@witnet.foundation>"]
-description = "data structures component"
-edition = "2024"
 name = "witnet_data_structures"
-version = "2.0.26"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+license-file.workspace = true
 workspace = ".."
+description = "Protocol messages, chain types, RAD/RADON types, and protobuf conversions for Witnet"
 
 [features]
 rocksdb-backend = ["witnet_storage/rocksdb-backend"]

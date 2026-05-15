@@ -1,17 +1,24 @@
 [package]
 name = "witnet"
-version = "2.0.26"
-authors = ["Witnet Foundation <info@witnet.foundation>"]
+version.workspace = true
+authors.workspace = true
 publish = false
-repository = "witnet/witnet-rust"
+repository.workspace = true
 readme = "README.md"
-license-file = "LICENSE"
+license-file.workspace = true
 keywords = ["witnet", "blockchain", "smart-contracts", "DON", "cryptocurrency", "crypto", "oracles", "protocol", "p2p", "rust"]
 description = "An in-progress open source implementation of the Witnet protocol written in Rust."
-edition = "2024"
+edition.workspace = true
 
 [workspace]
 members = ["config", "node", "crypto", "data_structures", "p2p", "storage", "wallet", "validations", "protected", "reputation", "net", "toolkit", "bridges/centralized-ethereum", "futures_utils"]
+
+[workspace.package]
+version = "2.0.26"
+edition = "2024"
+authors = ["Witnet Foundation <info@witnet.foundation>"]
+repository = "witnet/witnet-rust"
+license-file = "LICENSE"
 
 [features]
 default = ["wallet", "node", "telemetry"]

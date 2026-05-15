@@ -1,10 +1,12 @@
 [package]
-authors = ["Witnet Foundation <info@witnet.foundation>"]
-description = "validations component"
-edition = "2024"
 name = "witnet_validations"
 version = "0.3.2"
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+license-file.workspace = true
 workspace = ".."
+description = "Block, transaction, witnessing, and eligibility validation rules for the Witnet chain"
 
 [dependencies]
 anyhow = "1.0.98"

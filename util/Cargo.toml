@@ -1,9 +1,12 @@
 [package]
 name = "witnet_util"
 version = "0.3.2"
-authors = ["Witnet Foundation <info@witnet.foundation>"]
-edition = "2024"
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+license-file.workspace = true
 workspace = ".."
+description = "Shared utilities for timestamps, NTP sync, and secure file storage across Witnet crates"
 
 [dependencies]
 chrono = "0.4.10"

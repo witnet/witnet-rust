@@ -1,10 +1,12 @@
 [package]
 name = "witnet_protected"
 version = "0.3.2"
-authors = ["Witnet Foundation <info@witnet.foundation>"]
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+license-file.workspace = true
 workspace = ".."
-description = "Protected bytes struct that will be zeroed when dropped"
-edition = "2024"
+description = "Sensitive byte buffers that are zeroed automatically when dropped"
 
 [features]
 with-serde = ["serde"]

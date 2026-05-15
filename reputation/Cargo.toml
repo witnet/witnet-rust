@@ -1,10 +1,12 @@
 [package]
-authors = ["Witnet Foundation <info@witnet.foundation>"]
-description = "Reputation engine"
-edition = "2024"
 name = "witnet_reputation"
 version = "0.3.2"
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+license-file.workspace = true
 workspace = ".."
+description = "Active and total reputation sets for Witnet witnessing eligibility (ARS and TRS)"
 
 [dependencies]
 anyhow = "1.0.98"

@@ -1,8 +1,12 @@
 [package]
 name = "witnet-centralized-ethereum-bridge"
-version = "2.0.26"
-authors = ["Witnet Foundation <info@witnet.foundation>"]
-edition = "2024"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+license-file.workspace = true
+workspace = "../.."
+description = "Bridge service connecting Witnet data requests to Ethereum Witnet Request Board contracts"
 
 [dependencies]
 actix = { version = "0.13.0", default-features = false }

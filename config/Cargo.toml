@@ -1,10 +1,12 @@
 [package]
-authors = ["Witnet Foundation <info@witnet.foundation>"]
-description = "config component"
-edition = "2024"
 name = "witnet_config"
-version = "2.0.26"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+license-file.workspace = true
 workspace = ".."
+description = "Load and validate Witnet node configuration from TOML and other external sources"
 
 [features]
 with-rocksdb = ["rocksdb"]
