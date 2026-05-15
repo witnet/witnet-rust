@@ -14,7 +14,7 @@ edition.workspace = true
 members = ["config", "node", "crypto", "data_structures", "p2p", "storage", "wallet", "validations", "protected", "reputation", "net", "toolkit", "bridges/centralized-ethereum", "futures_utils"]
 
 [workspace.package]
-version = "2.0.26"
+version = "2.0.27"
 edition = "2024"
 authors = ["Witnet Foundation <info@witnet.foundation>"]
 repository = "witnet/witnet-rust"
