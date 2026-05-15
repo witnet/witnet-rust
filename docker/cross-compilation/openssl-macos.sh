@@ -3,7 +3,7 @@
 set -ex
 
 main() {
-    local version=1.0.2p
+    local version=1.1.1w
     local install_dir="/usr/local/openssl"
 
     # Install dependencies using brew
@@ -22,8 +22,9 @@ main() {
     # Configure OpenSSL for arm64, disabling assembly
     ./Configure \
         --prefix="$install_dir" \
+        --openssldir="$install_dir" \
         darwin64-x86_64-cc \
-        no-dso \
+        no-shared \
         no-asm \
         -fPIC \
         ${@:1}

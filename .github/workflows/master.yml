@@ -135,7 +135,7 @@ jobs:
       - name: Install Protobuf
         run: brew install protobuf
 
-      - name: Compile openssl 1.0.2p from source
+      - name: Compile openssl 1.1.1w from source
         run: sh ./docker/cross-compilation/openssl-macos.sh
 
       - name: Build Macos Binary

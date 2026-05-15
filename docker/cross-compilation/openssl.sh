@@ -17,7 +17,7 @@
 set -ex
 
 main() {
-    local version=1.0.2p
+    local version=1.1.1w
     local os=$1 \
           triple=$2
 
@@ -47,7 +47,8 @@ main() {
     tar --strip-components=1 -xzvf openssl-$version.tar.gz
     AR=${triple}ar CC=${triple}gcc ./Configure \
       --prefix=/openssl \
-      no-dso \
+      --openssldir=/openssl \
+      no-shared \
       $os \
       -fPIC \
       ${@:3}
