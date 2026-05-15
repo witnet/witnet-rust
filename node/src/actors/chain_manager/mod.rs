@@ -3517,33 +3517,36 @@ fn update_reputation(
     log::log!(log_level, "= {:9} reputation bounty", reputation_bounty.0);
 
     // Gain reputation
-    if num_honest > 0 {
-        let rep_reward = reputation_bounty.0 / num_honest;
-        // Expiration starts counting from new_alpha.
-        // All the reputation earned in this block will expire at the same time.
-        let expire_alpha = Alpha(new_alpha.0 + consensus_constants.reputation_expire_alpha_diff);
-        let honest_gain = honests.into_iter().map(|pkh| {
-            if own_pkh == pkh {
-                log::info!("Your reputation score has increased by {rep_reward} points");
-            }
-            (pkh, Reputation(rep_reward))
-        });
-        rep_eng.trs_mut().gain(expire_alpha, honest_gain).unwrap();
+    match reputation_bounty.0.checked_div(num_honest) {
+        Some(rep_reward) => {
+            // Expiration starts counting from new_alpha.
+            // All the reputation earned in this block will expire at the same time.
+            let expire_alpha =
+                Alpha(new_alpha.0 + consensus_constants.reputation_expire_alpha_diff);
+            let honest_gain = honests.into_iter().map(|pkh| {
+                if own_pkh == pkh {
+                    log::info!("Your reputation score has increased by {rep_reward} points");
+                }
+                (pkh, Reputation(rep_reward))
+            });
+            rep_eng.trs_mut().gain(expire_alpha, honest_gain).unwrap();
 
-        let gained_rep = Reputation(rep_reward * num_honest);
-        reputation_bounty -= gained_rep;
+            let gained_rep = Reputation(rep_reward * num_honest);
+            reputation_bounty -= gained_rep;
 
-        log::log!(
-            log_level,
-            "({} rep x {} revealers = {})",
-            rep_reward,
-            num_honest,
-            gained_rep.0
-        );
-        log::log!(log_level, "- {:9} gained rep", gained_rep.0);
-    } else {
-        log::log!(log_level, "(no revealers for this epoch)");
-        log::log!(log_level, "- {:9} gained rep", 0);
+            log::log!(
+                log_level,
+                "({} rep x {} revealers = {})",
+                rep_reward,
+                num_honest,
+                gained_rep.0
+            );
+            log::log!(log_level, "- {:9} gained rep", gained_rep.0);
+        }
+        None => {
+            log::log!(log_level, "(no revealers for this epoch)");
+            log::log!(log_level, "- {:9} gained rep", 0);
+        }
     }
 
     let extra_reputation = reputation_bounty;

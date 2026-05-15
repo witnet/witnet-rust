@@ -531,20 +531,20 @@ pub fn calculate_witness_reward(
 
     if commits_count == 0 {
         (0, 0)
-    } else if honests_count == 0 {
-        (collateral, 0)
     } else {
         let liars_count = liars_count as u64;
-        let slashed_collateral_reward = collateral * liars_count / honests_count;
-        let slashed_collateral_remainder = (collateral * liars_count) % honests_count;
+        let slashed_total = collateral * liars_count;
 
-        if wip0023_active {
-            (reward + collateral, 0)
-        } else {
-            (
-                reward + collateral + slashed_collateral_reward,
-                slashed_collateral_remainder,
-            )
+        match slashed_total.checked_div(honests_count) {
+            None => (collateral, 0),
+            Some(_) if wip0023_active => (reward + collateral, 0),
+            Some(slashed_collateral_reward) => {
+                let slashed_collateral_remainder = slashed_total % honests_count;
+                (
+                    reward + collateral + slashed_collateral_reward,
+                    slashed_collateral_remainder,
+                )
+            }
         }
     }
 }

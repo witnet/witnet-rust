@@ -2756,13 +2756,7 @@ fn get_transaction_output_value(transaction: &Transaction, output_index: usize) 
             .map(ValueTransferOutput::value)
             .unwrap_or_default(),
         Transaction::Unstake(un) => un.body.value(),
-        Transaction::Stake(st) => {
-            if st.body.change.is_some() {
-                st.body.change.clone().unwrap().value
-            } else {
-                0u64
-            }
-        }
+        Transaction::Stake(st) if st.body.change.is_some() => st.body.change.clone().unwrap().value,
 
         // Commits, reveals, tallies and mints don't have inputs nor outputs anymore
         _ => 0u64,

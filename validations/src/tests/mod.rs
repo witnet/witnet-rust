@@ -11757,12 +11757,11 @@ fn test_blocks_with_limits(
     let secret_key = SecretKey {
         bytes: Protected::from(PRIV_KEY_1.to_vec()),
     };
-    let mut current_epoch = 1000;
     let mut last_block_hash = LAST_BLOCK_HASH.parse().unwrap();
     let last_vrf_input = LAST_VRF_INPUT.parse().unwrap();
     let my_pkh = PublicKeyHash::default();
 
-    for (mut txns, fees) in txns {
+    for (current_epoch, (mut txns, fees)) in (1000..).zip(txns) {
         // Rebuild mint
         txns.mint = MintTransaction::new(
             current_epoch,
@@ -11837,7 +11836,6 @@ fn test_blocks_with_limits(
         // FIXME(#685): add sequence validations
         //update_pools(&b)?;
 
-        current_epoch += 1;
         last_block_hash = b.hash();
     }
 

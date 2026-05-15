@@ -632,8 +632,7 @@ impl ChainManager {
                         log::info!(
                             "Starting to fetch blocks batch #{i} ({from} to {to} out of {total_blocks})"
                         );
-                        let batch =
-                            InventoryManager::get_multiple_blocks(hashes.into_iter()).await?;
+                        let batch = InventoryManager::get_multiple_blocks(hashes).await?;
                         log::info!(
                             "Successfully fetched blocks batch #{i} ({from} to {to} out of {total_blocks})"
                         );

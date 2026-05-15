@@ -28,7 +28,7 @@ where
 
     let mut bpv: Vec<_> = bp.into_iter().collect();
     // Sort (beacon, peers) by number of peers
-    bpv.sort_unstable_by(|a, b| b.1.cmp(&a.1));
+    bpv.sort_unstable_by_key(|b| std::cmp::Reverse(b.1));
 
     if bpv.len() >= 2 && (bpv[0].1 * 100) / len_pb < threshold {
         // In case of tie, no consensus

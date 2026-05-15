@@ -620,7 +620,7 @@ where
             // Append local pending balance movements (not yet included in blocks)
             let mut local_movements: Vec<model::BalanceMovement> =
                 state.local_movements.values().cloned().collect();
-            local_movements.sort_by(|a, b| a.db_key.cmp(&b.db_key));
+            local_movements.sort_by_key(|a| a.db_key);
             transactions.extend_from_slice(local_movements.drain(range_local).as_slice());
         }
 
@@ -632,7 +632,7 @@ where
                 .values()
                 .map(|state| state.beacon.clone())
                 .collect();
-            beacon_list.sort_by(|a, b| a.epoch.cmp(&b.epoch));
+            beacon_list.sort_by_key(|a| a.epoch);
 
             // Get all pending movements in a vec
             let mut all_pending_movements: Vec<model::BalanceMovement> = vec![];
