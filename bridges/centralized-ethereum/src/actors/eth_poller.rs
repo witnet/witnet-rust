@@ -1,7 +1,7 @@
 use crate::{
     actors::dr_database::{
-        DrDatabase, DrInfoBridge, DrState, GetLastDrId, SetDrInfoBridge, SetDrState,
-        WitnetQueryStatus,
+        DrDatabase, DrInfoBridge, DrState, GetLastDrId, PersistDrDatabase, SetDrInfoBridge,
+        SetDrState, WitnetQueryStatus,
     },
     config::Config,
 };
@@ -186,6 +186,7 @@ impl EthPoller {
                                 );
                             }
                         }
+                        dr_database_addr.do_send(PersistDrDatabase);
                     } else {
                         log::error!(
                             "Fail to get status of queries #{} to #{}: {}",

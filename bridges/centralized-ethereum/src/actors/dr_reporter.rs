@@ -1,5 +1,5 @@
 use crate::{
-    actors::dr_database::{DrDatabase, DrId, DrState, SetDrState},
+    actors::dr_database::{DrDatabase, DrId, DrState, PersistDrDatabase, SetDrState},
     config::Config,
     handle_receipt,
 };
@@ -295,6 +295,7 @@ impl Handler<DrReporterMsg> for DrReporter {
                                             .ok();
                                     }
                                 }
+                                dr_database_addr.do_send(PersistDrDatabase);
                             }
                             Err(()) => {
                                 log::error!(

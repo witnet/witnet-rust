@@ -1,6 +1,8 @@
 use crate::{
     actors::{
-        dr_database::{DrDatabase, DrInfoBridge, DrState, GetAllNewDrs, SetDrInfoBridge},
+        dr_database::{
+            DrDatabase, DrInfoBridge, DrState, GetAllNewDrs, PersistDrDatabase, SetDrInfoBridge,
+        },
         dr_reporter::{DrReporter, DrReporterMsg, Report},
     },
     config::Config,
@@ -173,6 +175,7 @@ impl DrSender {
                                 log::error!("[{dr_id}] >< cannot broadcast dr_tx: {e}");
                                 // In this case, refrain from trying to send remaining data requests,
                                 // and let the dr_sender actor try again on next poll.
+                                dr_database_addr.do_send(PersistDrDatabase);
                                 return witnet_node_pkh;
                             }
                         }
@@ -199,6 +202,8 @@ impl DrSender {
                     }
                 }
             }
+
+            dr_database_addr.do_send(PersistDrDatabase);
 
             dr_reporter_addr
                 .send(DrReporterMsg {

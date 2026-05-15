@@ -1,6 +1,6 @@
 use actix::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::{cmp, collections::HashMap, collections::hash_map::Entry, fmt, future::Future};
+use std::{cmp, collections::HashMap, collections::hash_map::Entry, fmt};
 use web3::{ethabi::Bytes, types::U256};
 use witnet_data_structures::chain::Hash;
 use witnet_node::{storage_mngr, utils::stop_system_if_panicking};
@@ -13,26 +13,15 @@ const BRIDGE_DB_KEY: &[u8] = b"bridge_db_key";
 pub struct DrDatabase {
     dr: HashMap<DrId, DrInfoBridge>,
     max_dr_id: DrId,
+    /// In-memory only: set by writes, cleared after a successful persist.
+    #[serde(skip)]
+    dirty: bool,
 }
 
 impl Drop for DrDatabase {
     fn drop(&mut self) {
         log::trace!("Dropping DrDatabase");
         stop_system_if_panicking("DrDatabase");
-    }
-}
-
-impl DrDatabase {
-    // Persist Data Request Database
-    fn persist(&mut self) -> impl Future<Output = ()> + use<> {
-        let f = storage_mngr::put(&BRIDGE_DB_KEY, self);
-
-        async move {
-            match f.await {
-                Ok(_) => log::debug!("Bridge database successfully persisted"),
-                Err(e) => log::error!("Bridge database error during persistence: {e}"),
-            }
-        }
     }
 }
 
@@ -186,19 +175,24 @@ impl Message for CountDrsPerState {
     type Result = Result<(u32, u32, u32, u32), ()>;
 }
 
+/// Persist the data request database to storage
+pub struct PersistDrDatabase;
+
+impl Message for PersistDrDatabase {
+    type Result = ();
+}
+
 impl Handler<SetDrInfoBridge> for DrDatabase {
     type Result = ();
 
-    fn handle(&mut self, msg: SetDrInfoBridge, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: SetDrInfoBridge, _ctx: &mut Self::Context) -> Self::Result {
         let SetDrInfoBridge(dr_id, dr_info) = msg;
         let dr_state = dr_info.dr_state;
         self.dr.insert(dr_id, dr_info);
 
         self.max_dr_id = cmp::max(self.max_dr_id, dr_id);
+        self.dirty = true;
         log::debug!("Data request #{dr_id} inserted with state {dr_state}");
-
-        // Persist Data Request Database
-        ctx.spawn(self.persist().into_actor(self));
     }
 }
 
@@ -254,7 +248,7 @@ impl Handler<GetLastDrId> for DrDatabase {
 impl Handler<SetDrState> for DrDatabase {
     type Result = Result<(), ()>;
 
-    fn handle(&mut self, msg: SetDrState, ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: SetDrState, _ctx: &mut Self::Context) -> Self::Result {
         let SetDrState { dr_id, dr_state } = msg;
         match self.dr.entry(dr_id) {
             Entry::Occupied(entry) => {
@@ -273,11 +267,41 @@ impl Handler<SetDrState> for DrDatabase {
         }
 
         self.max_dr_id = cmp::max(self.max_dr_id, dr_id);
-
-        // Persist Data Request Database
-        ctx.spawn(self.persist().into_actor(self));
+        self.dirty = true;
 
         Ok(())
+    }
+}
+
+impl Handler<PersistDrDatabase> for DrDatabase {
+    type Result = ();
+
+    fn handle(&mut self, _msg: PersistDrDatabase, ctx: &mut Self::Context) -> Self::Result {
+        if !self.dirty {
+            return;
+        }
+
+        let snapshot = self.clone();
+        ctx.spawn(
+            async move {
+                match storage_mngr::put(&BRIDGE_DB_KEY, &snapshot).await {
+                    Ok(_) => {
+                        log::debug!("Bridge database successfully persisted");
+                        Ok(())
+                    }
+                    Err(e) => {
+                        log::error!("Bridge database error during persistence: {e}");
+                        Err(())
+                    }
+                }
+            }
+            .into_actor(self)
+            .map(|result, act, _| {
+                if result.is_ok() {
+                    act.dirty = false;
+                }
+            }),
+        );
     }
 }
 

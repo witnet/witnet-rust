@@ -13,7 +13,9 @@ use witnet_util::timestamp::get_timestamp;
 
 use crate::{
     actors::{
-        dr_database::{DrDatabase, DrInfoBridge, DrState, GetAllPendingDrs, SetDrInfoBridge},
+        dr_database::{
+            DrDatabase, DrInfoBridge, DrState, GetAllPendingDrs, PersistDrDatabase, SetDrInfoBridge,
+        },
         dr_reporter::{DrReporter, DrReporterMsg, Report},
     },
     config::Config,
@@ -189,6 +191,7 @@ impl WitPoller {
                             .unwrap();
                     }
                 }
+                dr_database_addr.do_send(PersistDrDatabase);
             }
 
             dr_reporter_addr
