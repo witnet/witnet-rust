@@ -1,4 +1,8 @@
-use std::convert::TryFrom;
+use std::{
+    clone::Clone,
+    convert::TryFrom,
+    iter,
+};
 
 use serde_cbor::{
     self as cbor,
@@ -278,6 +282,27 @@ pub fn create_radon_script_from_filters_and_reducer(
     radoncall_vec.push((RadonOpCodes::ArrayReduce, args));
 
     Ok(radoncall_vec)
+}
+
+pub fn partial_results_extract(
+    subscript: &[RadonCall],
+    reports: &[RadonReport<RadonTypes>],
+    context: &mut ReportContext<RadonTypes>,
+) {
+    if let Stage::Retrieval(metadata) = &mut context.stage {
+        metadata.subscript_partial_results.push(subscript.iter().chain(iter::once(&(RadonOpCodes::Fail, None))).enumerate().map(|(index, _)|
+            reports
+                .iter()
+                .map(|report|
+                report.partial_results
+                    .as_ref()
+                    .expect("Execution reports from applying subscripts are expected to contain partial results")
+                    .get(index)
+                    .expect("Execution reports from applying same subscript on multiple values should contain the same number of partial results")
+                    .clone()
+            ).collect::<Vec<RadonTypes>>()
+        ).collect::<Vec<Vec<RadonTypes>>>());
+    }
 }
 
 #[cfg(test)]
