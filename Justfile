@@ -115,7 +115,7 @@ cross-compile target profile="release":
 # run the latest stable release in the latest testnet
 e2e-stable test_name="example" +flags="":
     TEST_NAME={{test_name}} \
-    docker-compose \
+    docker compose \
     -f docker/compose/e2e-stable/docker-compose.yaml \
     up \
     --scale=node=1 \
@@ -127,7 +127,7 @@ e2e-stable test_name="example" +flags="":
 e2e-debug test_name="example" +flags="":
     cargo build
     TEST_NAME={{test_name}} \
-    docker-compose \
+    docker compose \
     -f docker/compose/e2e-debug/docker-compose.yaml \
     up \
     --abort-on-container-exit \
